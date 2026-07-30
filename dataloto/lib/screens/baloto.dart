@@ -857,12 +857,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
-                                  if (_jugadasListKey.currentContext != null) {
-                                    Scrollable.ensureVisible(
-                                      _jugadasListKey.currentContext!,
-                                      duration: const Duration(milliseconds: 500),
-                                    );
-                                  }
+                                  Navigator.pushNamed(context, '/estadisticas_bloto');
                                 },
                                 style: ElevatedButton.styleFrom(
                                   minimumSize: const Size(double.infinity, 40),
@@ -1044,7 +1039,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                           },
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            padding: const EdgeInsets.symmetric(vertical: 0.1),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -1085,7 +1080,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
                   AppContainer3(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1100,12 +1095,12 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                           },
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            padding: const EdgeInsets.symmetric(vertical: 0.1),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  "Últimos 5 resultados Baloto Revancha",
+                                  "Últimos 5 resultados Revancha",
                                   style: AppTextStyles.h2,
                                 ),
                                 Icon(
