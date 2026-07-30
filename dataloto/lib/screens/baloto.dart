@@ -34,6 +34,8 @@ class _BalotoScreenState extends State<BalotoScreen>
   List<int> listaProbables = [];
   List<int> listaBalotaRoja = [];
   List<Map<String, dynamic>> ultimosResultados = [];
+  List<Map<String, dynamic>> ultimosResultadosBaloto = [];
+  List<Map<String, dynamic>> ultimosResultadosRevancha = [];
   List<Map<String, dynamic>> _jugadasList = [];
   bool cargando = false;
   static const String backendUrl = "https://pry-dataloto.onrender.com/bloto";
@@ -50,6 +52,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   final _storage = const FlutterSecureStorage();
   List<Map<String, dynamic>> anuncios = [];
   bool mostrarResultados = false;
+  bool mostrarResultadosRevancha = false;
 
   @override
   void initState() {
@@ -166,15 +169,30 @@ class _BalotoScreenState extends State<BalotoScreen>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data["resultados"] != null && mounted) {
+          final list = List<Map<String, dynamic>>.from(data["resultados"]);
+
+          final balotoList = list.where((r) {
+            final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+            return s == "baloto" || s.isEmpty;
+          }).take(5).toList();
+
+          final revanchaList = list.where((r) {
+            final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+            return s == "revancha";
+          }).take(5).toList();
+
           setState(() {
-            ultimosResultados = List<Map<String, dynamic>>.from(
-              data["resultados"],
-            );
+            ultimosResultados = list;
+            ultimosResultadosBaloto =
+                balotoList.isNotEmpty ? balotoList : list.take(5).toList();
+            ultimosResultadosRevancha = revanchaList;
           });
         } else {
           if (mounted) {
             setState(() {
               ultimosResultados = [];
+              ultimosResultadosBaloto = [];
+              ultimosResultadosRevancha = [];
             });
           }
           debugPrint("Respuesta sin resultados válidos: $data");
@@ -183,6 +201,8 @@ class _BalotoScreenState extends State<BalotoScreen>
         if (mounted) {
           setState(() {
             ultimosResultados = [];
+            ultimosResultadosBaloto = [];
+            ultimosResultadosRevancha = [];
           });
         }
         debugPrint("Error HTTP: ${response.statusCode}");
@@ -191,6 +211,8 @@ class _BalotoScreenState extends State<BalotoScreen>
       if (mounted) {
         setState(() {
           ultimosResultados = [];
+          ultimosResultadosBaloto = [];
+          ultimosResultadosRevancha = [];
         });
       }
       debugPrint("Excepción al consultar últimos resultados: $e");
@@ -1017,7 +1039,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                           onTap: () {
                             setState(() {
                               mostrarResultados =
-                                  !mostrarResultados; // Asegúrate de tener esta variable en el estado
+                                  !mostrarResultados;
                             });
                           },
                           borderRadius: BorderRadius.circular(8),
@@ -1035,7 +1057,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                                       ? Icons.expand_less
                                       : Icons.expand_more,
                                   color:
-                                      AppColors.yellow, // o el color que uses
+                                      AppColors.yellow,
                                   size: 26,
                                 ),
                               ],
@@ -1045,9 +1067,68 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
 
                         // Contenido colapsable: subtítulo + resultados
                         AnimatedCrossFade(
-                          firstChild: _buildResultadosContent(loteria),
+                          firstChild: _buildResultadosContent(
+                            "Baloto",
+                            listaResultados: ultimosResultadosBaloto.isNotEmpty
+                                ? ultimosResultadosBaloto
+                                : ultimosResultados,
+                          ),
                           secondChild: const SizedBox.shrink(),
                           crossFadeState: mostrarResultados
+                              ? CrossFadeState.showFirst
+                              : CrossFadeState.showSecond,
+                          duration: const Duration(milliseconds: 500),
+                          alignment: Alignment.topCenter,
+                          firstCurve: Curves.easeOut,
+                          secondCurve: Curves.easeIn,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  AppContainer3(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Encabezado clicable (siempre visible)
+                        InkWell(
+                          onTap: () {
+                            setState(() {
+                              mostrarResultadosRevancha =
+                                  !mostrarResultadosRevancha;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8.0),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Últimos 5 resultados Baloto Revancha",
+                                  style: AppTextStyles.h2,
+                                ),
+                                Icon(
+                                  mostrarResultadosRevancha
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                  color:
+                                      AppColors.yellow,
+                                  size: 26,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Contenido colapsable: subtítulo + resultados
+                        AnimatedCrossFade(
+                          firstChild: _buildResultadosContent(
+                            "Baloto Revancha",
+                            listaResultados: ultimosResultadosRevancha,
+                          ),
+                          secondChild: const SizedBox.shrink(),
+                          crossFadeState: mostrarResultadosRevancha
                               ? CrossFadeState.showFirst
                               : CrossFadeState.showSecond,
                           duration: const Duration(milliseconds: 500),
@@ -1200,7 +1281,8 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
     );
   }
 
-  Widget _buildResultadosContent(String loteria) {
+  Widget _buildResultadosContent(String loteria, {List<Map<String, dynamic>>? listaResultados}) {
+    final resultadosUsar = listaResultados ?? ultimosResultados;
     return Column(
       children: [
         const SizedBox(height: 8),
@@ -1210,7 +1292,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
         ),
         const SizedBox(height: 20),
 
-        if (ultimosResultados.isEmpty)
+        if (resultadosUsar.isEmpty)
           const Center(child: CircularProgressIndicator(color: AppColors.amber))
         else
           Column(
@@ -1237,7 +1319,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                 ],
               ),
               const SizedBox(height: 8),
-              ...ultimosResultados.map((resultado) {
+              ...resultadosUsar.map((resultado) {
                 final fecha =
                     resultado["fecha"]?.toString() ?? "Fecha desconocida";
                 final numeros = List<int>.from(resultado["numeros"] ?? []);
