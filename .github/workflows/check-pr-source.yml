@@ -1,0 +1,16 @@
+name: Check PR Source Branch
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure PR is coming from dev
+        if: github.head_ref != 'dev'
+        run: |
+          echo "ERROR: Solo se permiten Pull Requests hacia 'main' si provienen de la rama 'dev'."
+          exit 1
