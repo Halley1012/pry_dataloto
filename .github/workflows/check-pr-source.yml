@@ -4,13 +4,16 @@ on:
   pull_request:
     branches:
       - main
+      - dev
 
 jobs:
   validate-branch:
     runs-on: ubuntu-latest
     steps:
-      - name: Ensure PR is coming from dev
-        if: github.head_ref != 'dev'
+      - name: Ensure correct source branch based on destination
         run: |
-          echo "ERROR: Solo se permiten Pull Requests hacia 'main' si provienen de la rama 'dev'."
-          exit 1
+          # Si el destino es main, la rama de origen debe ser dev
+          if [ "${{ github.base_ref }}" = "main" ] && [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "ERROR: Solo se permiten Pull Requests hacia 'main' si provienen de la rama 'dev'."
+            exit 1
+          fi
