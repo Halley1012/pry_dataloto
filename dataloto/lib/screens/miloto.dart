@@ -712,7 +712,7 @@ class _MilotoScreenState extends State<MilotoScreen>
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: () {
-                                  // Estadísticas
+                                  Navigator.pushNamed(context, '/estadisticas_mloto');
                                 },
                                 style: ElevatedButton.styleFrom(
                                   minimumSize: const Size(double.infinity, 40),
@@ -892,9 +892,7 @@ class _MilotoScreenState extends State<MilotoScreen>
                               },
                               borderRadius: BorderRadius.circular(8),
                               child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 8.0,
-                                ),
+                                padding: const EdgeInsets.symmetric(vertical: 0.1,),
                                 child: Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceBetween,

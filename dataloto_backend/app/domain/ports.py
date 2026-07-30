@@ -67,6 +67,14 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+        pass
+
+    @abstractmethod
+    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int]]]:
+        pass
+
+    @abstractmethod
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         pass
 

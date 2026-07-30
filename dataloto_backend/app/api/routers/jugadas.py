@@ -20,6 +20,13 @@ def get_mloto_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_juga
         return res
     return res
 
+@router.get("/mloto/historico_completo")
+def get_mloto_historico_completo(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    res = use_cases.obtener_historico_completo_mloto()
+    if "error" in res:
+        return res
+    return res
+
 @router.get("/mloto/historico")
 def get_mloto_historico(limit: int = 10, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     return use_cases.obtener_historico("mloto", limit)
@@ -51,6 +58,13 @@ def get_bloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_ju
 @router.get("/bloto/ultimos5")
 def get_bloto_ultimos5(sorteo: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     res = use_cases.obtener_ultimos5_bloto(sorteo=sorteo)
+    if "error" in res:
+        return res
+    return res
+
+@router.get("/bloto/historico_completo")
+def get_bloto_historico_completo(sorteo: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    res = use_cases.obtener_historico_completo_bloto(sorteo=sorteo)
     if "error" in res:
         return res
     return res
