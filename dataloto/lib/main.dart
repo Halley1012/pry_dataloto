@@ -12,6 +12,9 @@ import 'screens/splash_screen.dart';
 import 'styles/colores.dart';
 import 'styles/app_text_styles.dart';
 
+import 'screens/estadisticas_bloto.dart';
+import 'screens/estadisticas_mloto.dart';
+
 // 🔑 Navigator key global
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -74,6 +77,8 @@ class DataLotoApp extends StatelessWidget {
         '/baloto': (context) => const BalotoScreen(),
         '/miloto': (context) => const MilotoScreen(),
         '/color_loto': (context) => ColorLotoScreen(),
+        '/estadisticas_bloto': (context) => const EstadisticasBlotoScreen(),
+        '/estadisticas_mloto': (context) => const EstadisticasMlotoScreen(),
         '/home': (context) => HomeScreen(),
         '/registro': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;

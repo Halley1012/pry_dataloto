@@ -109,6 +109,37 @@ class JugadaUseCases:
             })
         return {"resultados": resultados}
 
+    def obtener_historico_completo_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_historico_completo_bloto(sorteo=sorteo)
+        if not rows:
+            return {"error": "No hay resultados registrados"}
+        resultados = []
+        for row in rows:
+            fecha = row[0]
+            numeros = _normalize_numeros(row[1])
+            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+            sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
+            resultados.append({
+                "fecha": _format_fecha(fecha),
+                "numeros": numeros + balotaroja,
+                "sorteo": sorteo_nombre
+            })
+        return {"resultados": resultados}
+
+    def obtener_historico_completo_mloto(self) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_historico_completo_mloto()
+        if not rows:
+            return {"error": "No hay resultados registrados"}
+        resultados = []
+        for row in rows:
+            fecha = row[0]
+            numeros = _normalize_numeros(row[1])
+            resultados.append({
+                "fecha": _format_fecha(fecha),
+                "numeros": numeros
+            })
+        return {"resultados": resultados}
+
     def obtener_historico(self, tipo: str, limit: int) -> Dict[str, Any]:
         rows = self.jugada_repo.get_predicciones_historico(tipo, limit)
         data = [{"fecha": _format_fecha(r[0]), "numeros": _normalize_numeros(r[1])} for r in rows]

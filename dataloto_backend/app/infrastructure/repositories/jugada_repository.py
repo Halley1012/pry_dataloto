@@ -99,6 +99,39 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 # mapeamos a (fecha, [b1, b2, b3, b4, b5], [balotaroja], sorteo)
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 else "Baloto") for r in rows]
 
+    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                if sorteo:
+                    cur.execute("""
+                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
+                        FROM resultados_bloto
+                        WHERE balota1 <> 0
+                        AND LOWER(sorteo) = LOWER(%s)
+                        ORDER BY fecha DESC;
+                    """, (sorteo,))
+                else:
+                    cur.execute("""
+                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
+                        FROM resultados_bloto
+                        WHERE balota1 <> 0
+                        ORDER BY fecha DESC;
+                    """)
+                rows = cur.fetchall()
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 else "Baloto") for r in rows]
+
+    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int]]]:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT fecha, balota1, balota2, balota3, balota4, balota5
+                    FROM resultados_mloto
+                    WHERE balota1 <> 0
+                    ORDER BY fecha DESC;
+                """)
+                rows = cur.fetchall()
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]]) for r in rows]
+
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
