@@ -75,20 +75,29 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 # mapeamos a (fecha, [b1, b2, b3, b4, b5])
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]]) for r in rows]
             
-    def get_ultimos_resultados_bloto(self) -> List[Tuple[datetime, List[int], List[int]]]:
+    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
         with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:                
-                cur.execute(f"""
-                    SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja
-                    FROM resultados_bloto
-                    WHERE balota1 <> 0
-                    and sorteo = 'Baloto'
-                    ORDER BY fecha DESC
-                    LIMIT 5;
-                """)
+            with conn.cursor() as cur:
+                if sorteo:
+                    cur.execute("""
+                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
+                        FROM resultados_bloto
+                        WHERE balota1 <> 0
+                        AND LOWER(sorteo) = LOWER(%s)
+                        ORDER BY fecha DESC
+                        LIMIT 5;
+                    """, (sorteo,))
+                else:
+                    cur.execute("""
+                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
+                        FROM resultados_bloto
+                        WHERE balota1 <> 0
+                        ORDER BY fecha DESC
+                        LIMIT 10;
+                    """)
                 rows = cur.fetchall()
-                # mapeamos a (fecha, [b1, b2, b3, b4, b5], [balotaroja])
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]]) for r in rows]
+                # mapeamos a (fecha, [b1, b2, b3, b4, b5], [balotaroja], sorteo)
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 else "Baloto") for r in rows]
 
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:

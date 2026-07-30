@@ -63,7 +63,7 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_bloto(self) -> List[Tuple[datetime, List[int], List[int]]]:
+    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
         pass
 
     @abstractmethod
