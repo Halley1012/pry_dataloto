@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Optional
 from app.api import schemas, dependencies
 from app.application.jugada_use_cases import JugadaUseCases
 
@@ -49,8 +49,8 @@ def get_bloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_ju
     return res
 
 @router.get("/bloto/ultimos5")
-def get_bloto_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    res = use_cases.obtener_ultimos5_bloto()
+def get_bloto_ultimos5(sorteo: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    res = use_cases.obtener_ultimos5_bloto(sorteo=sorteo)
     if "error" in res:
         return res
     return res
