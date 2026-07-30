@@ -91,8 +91,8 @@ class JugadaUseCases:
         return {"resultados": resultados}
     
 
-    def obtener_ultimos5_bloto(self) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_ultimos_resultados_bloto()
+    def obtener_ultimos5_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_ultimos_resultados_bloto(sorteo=sorteo)
         if not rows:
             return {"error": "No hay resultados registrados"}
         
@@ -101,9 +101,11 @@ class JugadaUseCases:
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+            sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
             resultados.append({
                 "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja
+                "numeros": numeros + balotaroja,
+                "sorteo": sorteo_nombre
             })
         return {"resultados": resultados}
 
