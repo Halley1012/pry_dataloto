@@ -1,0 +1,29 @@
+# --- Framework principal ---
+fastapi
+uvicorn[standard]
+
+# --- Validación y utilidades ---
+pydantic
+python-multipart
+email-validator
+
+# --- PostgreSQL drivers ---
+psycopg2-binary
+asyncpg
+
+# --- ORM + migraciones ---
+sqlalchemy[asyncio]
+alembic
+
+# --- Seguridad y autenticación ---
+passlib[bcrypt]
+bcrypt<4.0   # 👈 aquí sí limitamos porque ya sabemos que >4 rompe
+python-jose[cryptography]
+
+# --- Archivos y requests asíncronos ---
+aiofiles
+httpx
+
+# --- Logging mejorado (opcional) ---
+loguru
+requests
