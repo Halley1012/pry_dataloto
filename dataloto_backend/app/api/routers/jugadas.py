@@ -143,3 +143,55 @@ async def borrar_jugada_cloto(jugada_id: int, user_id: int, use_cases: JugadaUse
     if not success:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada de ColorLoto eliminada"}
+
+
+# --- Endpoints Genéricos para Loterías de EE.UU. ---
+LOTERIAS_EEUU = [
+    ("powerball", "Powerball"),
+    ("lotto_america", "Lotto America"),
+    ("double_play", "Double Play"),
+    ("millionaire_life", "Millionaire for Life"),
+    ("megamillions", "Mega Millions")
+]
+
+for route_name, display_name in LOTERIAS_EEUU:
+    def _make_endpoints(r_name, d_name):
+        @router.get(f"/{r_name}", name=f"get_{r_name}_prediccion")
+        def get_prediccion(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            cache_key = f"{r_name}:prediccion"
+            cached = memory_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            res = use_cases.obtener_prediccion_generico(r_name)
+            if "error" not in res:
+                memory_cache.set(cache_key, res, ttl=300)
+            return res
+
+        @router.get(f"/{r_name}/ultimos5", name=f"get_{r_name}_ultimos5")
+        def get_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            cache_key = f"{r_name}:ultimos5"
+            cached = memory_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            res = use_cases.obtener_ultimos5_generico(r_name, d_name)
+            if "error" not in res:
+                memory_cache.set(cache_key, res, ttl=300)
+            return res
+
+        @router.post(f"/jugadas_{r_name}", response_model=schemas.JugadaOut, name=f"crear_jugada_{r_name}")
+        async def crear_jugada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros)
+
+        @router.get(f"/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name=f"listar_jugadas_{r_name}")
+        async def listar_jugadas(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            return await use_cases.listar_jugadas(r_name, user_id)
+
+        @router.delete(f"/jugadas_{r_name}/{{jugada_id}}", name=f"borrar_jugada_{r_name}")
+        async def borrar_jugada(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            success = await use_cases.borrar_jugada(r_name, jugada_id, user_id)
+            if not success:
+                raise HTTPException(status_code=404, detail="Jugada no encontrada")
+            return {"message": "Jugada eliminada"}
+
+    _make_endpoints(route_name, display_name)
+

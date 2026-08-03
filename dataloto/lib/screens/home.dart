@@ -11,6 +11,12 @@ import 'package:google_fonts/google_fonts.dart';
 import 'baloto.dart';
 import 'miloto.dart';
 import 'color_loto.dart';
+import 'powerball.dart';
+import 'lotto_america.dart';
+import 'double_play.dart';
+import 'millionaire_life.dart';
+import 'megamillions.dart';
+
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'login.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -936,6 +942,8 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
           ),
+            ],
+          ),
         ],
       ),
     );
@@ -1528,13 +1536,15 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _resolveScreen(String? tipo) {
-    switch (tipo) {
-      case "Baloto / Revancha":
-        return BalotoScreen();
-      case "Miloto":
-        return MilotoScreen();
-      default:
-        return ColorLotoScreen();
-    }
+    final t = (tipo ?? "").toLowerCase().trim();
+    if (t.contains("baloto")) return const BalotoScreen();
+    if (t.contains("miloto")) return const MilotoScreen();
+    if (t.contains("powerball")) return const PowerballScreen();
+    if (t.contains("lotto america")) return const LottoAmericaScreen();
+    if (t.contains("double play")) return const DoublePlayScreen();
+    if (t.contains("millionaire")) return const MillionaireLifeScreen();
+    if (t.contains("mega millions") || t.contains("megamillions")) return const MegaMillionsScreen();
+    return ColorLotoScreen();
   }
+
 }
