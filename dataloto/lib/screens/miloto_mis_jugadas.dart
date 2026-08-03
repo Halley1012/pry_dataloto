@@ -7,6 +7,7 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:dataloto/services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
@@ -20,7 +21,7 @@ class MilotoMisJugadasScreen extends StatefulWidget {
 }
 
 class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final _storage = const FlutterSecureStorage();
 
   List<Map<String, dynamic>> _jugadasList = [];
   Set<int> _selectedIds = {};
@@ -34,22 +35,30 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
   }
 
   Future<void> _cargarDatos() async {
-    setState(() => _cargando = true);
+    _userId = await _storage.read(key: 'user_id');
+    final cached = await CacheService.getJson('user_jugadas_mloto_${_userId ?? "anon"}');
+    if (cached != null && mounted) {
+      setState(() {
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+        _cargando = false;
+      });
+    }
+
+    if (!mounted) return;
+    if (_jugadasList.isEmpty) setState(() => _cargando = true);
+
     try {
-      _userId = await _storage.read(key: 'user_id');
       final jugadas = await ApiService.listarJugadasMloto();
       if (mounted) {
         setState(() {
           _jugadasList = List<Map<String, dynamic>>.from(jugadas);
           _cargando = false;
         });
+        CacheService.setJson('user_jugadas_mloto_${_userId ?? "anon"}', jugadas);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _cargando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error al cargar jugadas de MiLoto: $e")),
-        );
       }
     }
   }

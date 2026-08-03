@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:dataloto/services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
@@ -34,9 +35,20 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
   }
 
   Future<void> _cargarJugadas() async {
-    setState(() => _cargando = true);
+    final uId = await _storage.read(key: 'user_id');
+    final cached = await CacheService.getJson('user_jugadas_bloto_${uId ?? "anon"}');
+    if (cached != null && mounted) {
+      setState(() {
+        _userId = uId;
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+        _cargando = false;
+      });
+    }
+
+    if (!mounted) return;
+    if (_jugadasList.isEmpty) setState(() => _cargando = true);
+
     try {
-      final uId = await _storage.read(key: 'user_id');
       final response = await ApiService.listarJugadasBloto();
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(response);
 
@@ -47,13 +59,11 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
           _selectedIds.clear();
           _cargando = false;
         });
+        CacheService.setJson('user_jugadas_bloto_${uId ?? "anon"}', data);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _cargando = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error al cargar jugadas: $e")),
-        );
       }
     }
   }

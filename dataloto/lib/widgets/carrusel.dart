@@ -1,4 +1,3 @@
-import 'package:dataloto/styles/colores.dart';
 import 'package:flutter/material.dart';
 import 'package:dataloto/widgets/cardbussiness.dart'; // Asume que BusinessCard está aquí
 import 'dart:async';
@@ -87,28 +86,22 @@ class _InfiniteAdsCarouselState extends State<InfiniteAdsCarousel> {
               constraints: BoxConstraints(maxHeight: screenHeight * 0.3),
               child: SingleChildScrollView(
                 child: Container(
-                  margin: const EdgeInsets.all(
-                    4.0,
-                  ), // Margen extra para que la sombra "respire"
+                  margin: const EdgeInsets.all(4.0),
                   decoration: BoxDecoration(
-                    color: AppColors.yellow, // Fondo principal amber
-                    borderRadius: BorderRadius.circular(
-                      12.0,
-                    ), // Bordes redondeados
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(20.0),
                     boxShadow: [
-                      // Sombra ajustada para amber (más cálida y sutil)
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15), // Opacidad media
+                        color: Colors.black.withValues(alpha: 0.2),
                         spreadRadius: 1,
-                        blurRadius: 10, // Blur suave para esquinas
+                        blurRadius: 10,
                         offset: const Offset(0, 4),
                       ),
                     ],
                   ),
                   child: Material(
-                    color: AppColors.yellow, // 👈 ¡Clave! Fuerza amber en el Material para cubrir esquinas
-                    elevation: 4.0, // Mantiene la elevación para profundidad
-                    borderRadius: BorderRadius.circular(12.0),
+                    color: Colors.transparent,
+                    borderRadius: BorderRadius.circular(20.0),
                     child: BusinessCard(
                       paginaweb: anuncio["pagina_url"] ?? "",
                       title: anuncio["titulo"] ?? "",

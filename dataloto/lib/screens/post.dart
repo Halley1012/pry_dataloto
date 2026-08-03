@@ -183,8 +183,12 @@ class _PostScreenState extends State<PostScreen> {
     }).toList();
 
     return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) {},
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.of(context).pop(comments.length);
+        }
+      },
       child: Scaffold(
         backgroundColor: const Color(0xFF121212),
         resizeToAvoidBottomInset: true,
@@ -239,7 +243,7 @@ class _PostScreenState extends State<PostScreen> {
                           ],
                         ),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 12),
 
                       // Lista de comentarios estilo YouTube
                       AppContainer4(
@@ -271,7 +275,7 @@ class _PostScreenState extends State<PostScreen> {
                       ),
 
                       // Espacio final para que el teclado/input no tape los últimos comentarios
-                      const SizedBox(height: 120),
+                      const SizedBox(height: 80),
                     ],
                   ),
                 ),
@@ -394,238 +398,165 @@ class _PostScreenState extends State<PostScreen> {
         : "?";
 
     return Container(
-      margin: EdgeInsets.only(top: isReply ? 8 : 12, bottom: 4),
+      margin: EdgeInsets.only(top: isReply ? 2 : 4, bottom: 2),
+      padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. FILA DE ARRIBA: Avatar + @usuario • tiempo
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Avatar Circular del usuario
               CircleAvatar(
-                radius: isReply ? 14 : 17,
+                radius: isReply ? 11 : 12,
                 backgroundColor: AppColors.getAvatarColor(comment.userName, userId: comment.userId),
                 child: Text(
                   initialLetter,
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: isReply ? 12 : 14,
+                    fontSize: isReply ? 11 : 12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-
-              // 2. Nombre del usuario + Tiempo relativo ("hace 2 d") + Contenido
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Encabezado: @userName • hace 2 d
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            "@${comment.userName}",
-                            style: AppTextStyles.mensajeSecundario.copyWith(
-                              fontWeight: FontWeight.bold,
-                              fontSize: isReply ? 13 : 14,
-                              color: Colors.white,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Text(
-                          "•",
-                          style: TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          comment.relativeTime, // 🕒 Hace X días / horas sin la hora completa
-                          style: AppTextStyles.caption.copyWith(
-                            fontSize: 11,
-                            color: Colors.white54,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 4),
-
-                    // Texto del comentario
-                    Text(
-                      comment.content,
-                      style: AppTextStyles.caption.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: isReply ? 13 : 14,
-                        height: 1.3,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // 3. Fila de Acciones inferior (Boton Responder + Ver Respuestas estilo YouTube)
-                    Row(
-                      children: [
-                        // Botón "Responder"
-                        InkWell(
-                          onTap: () => _iniciarRespuesta(comment),
-                          borderRadius: BorderRadius.circular(12),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Icon(Icons.reply_outlined, color: Colors.white60, size: 15),
-                                SizedBox(width: 4),
-                                Text(
-                                  "Responder",
-                                  style: TextStyle(
-                                    color: Colors.white60,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Desplegable de número de respuestas
-                        if (hasReplies && !isReply) ...[
-                          const SizedBox(width: 16),
-                          InkWell(
-                            onTap: () {
-                              setState(() {
-                                if (isExpanded) {
-                                  _expandedReplies.remove(comment.id);
-                                } else {
-                                  _expandedReplies.add(comment.id);
-                                }
-                              });
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isExpanded
-                                        ? Icons.keyboard_arrow_up
-                                        : Icons.keyboard_arrow_down,
-                                    color: Colors.amberAccent,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    "${respuestas.length} ${respuestas.length == 1 ? 'respuesta' : 'respuestas'}",
-                                    style: const TextStyle(
-                                      color: Colors.amberAccent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  "@${comment.userName}",
+                  style: AppTextStyles.mensajeSecundario.copyWith(
+                    fontWeight: FontWeight.w600,
+                    fontSize: isReply ? 13 : 14,
+                    color: Colors.white,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                "•",
+                style: TextStyle(color: Colors.white38, fontSize: 12),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                comment.relativeTime,
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 11,
+                  color: Colors.white54,
+                ),
+              ),
+              const Spacer(),
+              if (isOwner)
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white54, size: 16),
+                  color: const Color(0xFF1E1E2E),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (value) {
+                    if (value == 'delete') {
+                      _eliminarComentario(comment.id);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'delete',
+                      child: Row(
+                        children: [
+                          Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                          SizedBox(width: 8),
+                          Text('Eliminar', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
                         ],
-                      ],
+                      ),
                     ),
                   ],
                 ),
+            ],
+          ),
+          const SizedBox(height: 6),
+
+          // 2. DEBAJO DE LA INICIAL: TEXTO DEL COMENTARIO
+          Text(
+            comment.content,
+            style: AppTextStyles.mensajeSecundario.copyWith(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: isReply ? 13 : 13.5,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 6),
+
+          // 3. FILA DE ACCIONES (RESPONDER Y RESPUESTAS)
+          Row(
+            children: [
+              InkWell(
+                onTap: () => _iniciarRespuesta(comment),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.reply_outlined, color: AppColors.yellow, size: 15),
+                      const SizedBox(width: 4),
+                      Text(
+                        "Responder",
+                        style: AppTextStyles.caption.copyWith(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
-              // 4. Menú de 3 punticos (⋮) a la derecha del comentario
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, color: Colors.white54, size: 18),
-                color: const Color(0xFF1E1E2E),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                onSelected: (value) async {
-                  if (value == 'eliminar') {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (_) => AlertDialog(
-                        backgroundColor: const Color(0xFF1E1E1E),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+              if (hasReplies && !isReply) ...[
+                const SizedBox(width: 16),
+                InkWell(
+                  onTap: () {
+                    setState(() {
+                      if (isExpanded) {
+                        _expandedReplies.remove(comment.id);
+                      } else {
+                        _expandedReplies.add(comment.id);
+                      }
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                          color: AppColors.yellow,
+                          size: 16,
                         ),
-                        title: Row(
-                          children: [
-                            const Icon(Icons.delete, color: Colors.redAccent, size: 22),
-                            const SizedBox(width: 10),
-                            Text(
-                              "Eliminar",
-                              style: AppTextStyles.h2.copyWith(
-                                color: Colors.white,
-                                fontSize: 18,
-                              ),
-                            ),
-                          ],
-                        ),
-                        content: Text(
-                          "¿Estás seguro de eliminar este comentario?",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
+                        const SizedBox(width: 4),
+                        Text(
+                          "${respuestas.length} ${respuestas.length == 1 ? 'respuesta' : 'respuestas'}",
+                          style: AppTextStyles.caption.copyWith(
                             color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text("Cancelar", style: TextStyle(color: Colors.amber)),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text("Eliminar", style: TextStyle(color: Colors.redAccent)),
-                          ),
-                        ],
-                      ),
-                    );
-
-                    if (confirm == true) {
-                      _eliminarComentario(comment.id);
-                    }
-                  } else if (value == 'denunciar') {
-                    _denunciarComentario(comment);
-                  }
-                },
-                itemBuilder: (context) => [
-                  if (isOwner)
-                    const PopupMenuItem(
-                      value: 'eliminar',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
-                          SizedBox(width: 8),
-                          Text('Eliminar', style: TextStyle(color: Colors.white, fontSize: 13)),
-                        ],
-                      ),
-                    )
-                  else
-                    const PopupMenuItem(
-                      value: 'denunciar',
-                      child: Row(
-                        children: [
-                          Icon(Icons.flag_outlined, color: Colors.amber, size: 18),
-                          SizedBox(width: 8),
-                          Text('Reportar', style: TextStyle(color: Colors.white, fontSize: 13)),
-                        ],
-                      ),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ],
           ),
 
-          // 5. Lista de respuestas anidadas (desplegables)
+          // 4. Lista de respuestas anidadas (desplegables)
           if (hasReplies && isExpanded && !isReply)
             Padding(
-              padding: const EdgeInsets.only(left: 28, top: 6, bottom: 4),
+              padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
               child: Container(
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border: Border(
-                    left: BorderSide(color: Color(0xFF334155), width: 1.5),
+                    left: BorderSide(
+                      color: AppColors.grayBlue.withValues(alpha: 0.5),
+                      width: 1.2,
+                    ),
                   ),
                 ),
                 padding: const EdgeInsets.only(left: 10),
@@ -640,8 +571,13 @@ class _PostScreenState extends State<PostScreen> {
               ),
             ),
 
-          if (!isReply)
-            const Divider(color: Color(0xFF1E293B), thickness: 0.8, height: 16),
+          if (!isReply) ...[
+            const SizedBox(height: 6),
+            const Divider(
+              color: AppColors.grayBlue,
+              thickness: 0.3,
+            ),
+          ],
         ],
       ),
     );

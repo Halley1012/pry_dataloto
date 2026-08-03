@@ -125,7 +125,7 @@ class _HomeScreenState extends State<HomeScreen>
       final rawPosts = resultados[0] as List<Post>;
 
       final postsConConteo = await Future.wait(
-        rawPosts.map<Future<Post>>((p) async {
+        rawPosts.map((p) async {
           try {
             final comments = await ApiService.getComments(p.id);
             return Post(
@@ -286,8 +286,8 @@ class _HomeScreenState extends State<HomeScreen>
 
     try {
       final rawPosts = await ApiService.getPosts();
-      final postsConConteo = await Future.wait(
-        rawPosts.map<Future<Post>>((p) async {
+      final postsConConteo = await Future.wait<Post>(
+        rawPosts.map((p) async {
           try {
             final comments = await ApiService.getComments(p.id);
             return Post(
@@ -696,13 +696,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 2.0, bottom: 0.0),
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 0.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            height: 110,
+            height: 80,
             child: Image.asset(
               "assets/images/logo_letras.png",
               fit: BoxFit.contain,
@@ -722,13 +722,9 @@ class _HomeScreenState extends State<HomeScreen>
                 icon: Container(
                   width: 52,
                   height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF252B35),
+                  decoration: const BoxDecoration(
+                    color: AppColors.grayBlue,
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.yellow,
-                      width: 1.5,
-                    ),
                   ),
                   child: Center(
                     child: Text(
@@ -1189,8 +1185,8 @@ class _HomeScreenState extends State<HomeScreen>
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
-                                                "@${post.userName}",
-                                                style: AppTextStyles.mensajeSecundario
+                                                  "@${post.userName}",
+                                                  style: AppTextStyles.mensajeSecundario
                                               ),
                                               const SizedBox(width: 6),
                                               const Text(
@@ -1386,19 +1382,15 @@ class _HomeScreenState extends State<HomeScreen>
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         width: 140,
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF282E3B), Color(0xFF191D26)],
+          gradient: LinearGradient(
+            colors: [color.withOpacity(0.8), color],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 1,
-          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
+              color: Colors.black.withOpacity(0.2),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
