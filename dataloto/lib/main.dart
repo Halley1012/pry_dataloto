@@ -9,6 +9,7 @@ import 'screens/login.dart';
 import 'screens/color_loto.dart';
 import 'screens/registro.dart';
 import 'screens/splash_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'styles/colores.dart';
 import 'styles/app_text_styles.dart';
 
@@ -17,6 +18,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 import 'providers/locale_provider.dart';
+import 'providers/notification_provider.dart';
+import 'package:provider/provider.dart';
 import 'screens/estadisticas_bloto.dart';
 import 'screens/estadisticas_mloto.dart';
 
@@ -58,10 +61,15 @@ class DataLotoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: localeProvider,
-      builder: (context, _) {
-        return MaterialApp(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: localeProvider),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+      ],
+      child: ListenableBuilder(
+        listenable: localeProvider,
+        builder: (context, _) {
+          return MaterialApp(
           navigatorKey: navigatorKey, // 👈 importante para navegar globalmente
           debugShowCheckedModeBanner: false,
           initialRoute: '/splash',
@@ -113,6 +121,7 @@ class DataLotoApp extends StatelessWidget {
             '/estadisticas_bloto': (context) => const EstadisticasBlotoScreen(),
             '/estadisticas_mloto': (context) => const EstadisticasMlotoScreen(),
             '/home': (context) => HomeScreen(),
+            '/notifications': (context) => const NotificationsScreen(),
             '/registro': (context) {
               final args = ModalRoute.of(context)?.settings.arguments;
 
