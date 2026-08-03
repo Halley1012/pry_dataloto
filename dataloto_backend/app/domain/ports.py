@@ -78,6 +78,15 @@ class JugadaRepositoryPort(ABC):
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         pass
 
+    @abstractmethod
+    def get_prediccion_generico(self, tabla: str) -> Optional[Tuple[datetime, List[int], List[int]]]:
+        pass
+
+    @abstractmethod
+    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+        pass
+
+
 
 class PostRepositoryPort(ABC):
     @abstractmethod

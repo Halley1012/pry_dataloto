@@ -1,6 +1,11 @@
 import 'package:dataloto/screens/baloto.dart';
 import 'package:dataloto/screens/color_loto.dart';
 import 'package:dataloto/screens/miloto.dart';
+import 'package:dataloto/screens/powerball.dart';
+import 'package:dataloto/screens/lotto_america.dart';
+import 'package:dataloto/screens/double_play.dart';
+import 'package:dataloto/screens/millionaire_life.dart';
+import 'package:dataloto/screens/megamillions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/services/api_service.dart';
@@ -8,6 +13,7 @@ import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
+
 
 class LoteriasPais extends StatefulWidget {
   const LoteriasPais({super.key});
@@ -295,15 +301,17 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   // 🔹 RESOLVER PANTALLA
   // ===============================
   Widget _resolveScreen(String? tipo) {
-    switch (tipo) {
-      case "Baloto / Revancha":
-        return BalotoScreen();
-      case "Miloto":
-        return MilotoScreen();
-      default:
-        return ColorLotoScreen();
-    }
+    final t = (tipo ?? "").toLowerCase().trim();
+    if (t.contains("baloto")) return const BalotoScreen();
+    if (t.contains("miloto")) return const MilotoScreen();
+    if (t.contains("powerball")) return const PowerballScreen();
+    if (t.contains("lotto america")) return const LottoAmericaScreen();
+    if (t.contains("double play")) return const DoublePlayScreen();
+    if (t.contains("millionaire")) return const MillionaireLifeScreen();
+    if (t.contains("mega millions") || t.contains("megamillions")) return const MegaMillionsScreen();
+    return ColorLotoScreen();
   }
+
 
   Widget _buildPaisDropdown() {
     return DropdownButtonFormField<int>(
