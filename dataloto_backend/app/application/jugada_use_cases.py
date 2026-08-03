@@ -170,3 +170,20 @@ class JugadaUseCases:
             })
         return {"resultados": resultados}
 
+    def obtener_historico_completo_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
+        tabla = f"resultados_{loteria_nombre}"
+        rows = self.jugada_repo.get_historico_completo_generico(tabla, display_name)
+        if not rows:
+            return {"error": f"No hay resultados registrados para {loteria_nombre}"}
+        resultados = []
+        for row in rows:
+            fecha = row[0]
+            numeros = _normalize_numeros(row[1])
+            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+            resultados.append({
+                "fecha": _format_fecha(fecha),
+                "numeros": numeros + balotaroja,
+                "sorteo": display_name
+            })
+        return {"resultados": resultados}
+

@@ -178,6 +178,17 @@ for route_name, display_name in LOTERIAS_EEUU:
                 memory_cache.set(cache_key, res, ttl=300)
             return res
 
+        @router.get(f"/{r_name}/historico_completo", name=f"get_{r_name}_historico_completo")
+        def get_historico_completo(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            cache_key = f"{r_name}:historico_completo"
+            cached = memory_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            res = use_cases.obtener_historico_completo_generico(r_name, d_name)
+            if "error" not in res:
+                memory_cache.set(cache_key, res, ttl=300)
+            return res
+
         @router.post(f"/jugadas_{r_name}", response_model=schemas.JugadaOut, name=f"crear_jugada_{r_name}")
         async def crear_jugada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
             return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros)

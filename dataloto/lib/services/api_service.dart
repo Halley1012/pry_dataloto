@@ -1044,5 +1044,4 @@ static Future<List<dynamic>> getLoteriasPorPais(String paisId) async {
     );
   }
 }
-
 }
