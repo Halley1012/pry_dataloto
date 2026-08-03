@@ -4,6 +4,7 @@ import 'package:dataloto/screens/miloto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/services/api_service.dart';
+import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
@@ -38,13 +39,33 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   // 🔹 CARGAR PAISES
   // ===============================
   Future<void> _cargarPaises() async {
+    // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms)
+    final cachedPaises = await CacheService.getJson('loterias_paises');
+    final paisIdStr = await _storage.read(key: "pais_id");
+    final int? paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
+    final cachedLoterias = paisId != null ? await CacheService.getJson('loterias_list_$paisId') : null;
+
+    if (cachedPaises != null && mounted) {
+      final paisesList = (cachedPaises as List).cast<Map<String, dynamic>>();
+      final loteriasList = cachedLoterias != null ? (cachedLoterias as List).cast<Map<String, dynamic>>() : <Map<String, dynamic>>[];
+      setState(() {
+        _paises = paisesList;
+        _paisSeleccionadoId = paisId;
+        _loterias = loteriasList;
+        _paisNombre = paisesList
+            .firstWhere(
+              (p) => p['id'] == paisId,
+              orElse: () => {'nombre': 'Seleccione país'},
+            )['nombre']
+            .toString();
+        _isLoading = false;
+      });
+    }
+
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (_paises.isEmpty) setState(() => _isLoading = true);
 
     try {
-      final paisIdStr = await _storage.read(key: "pais_id");
-      final int? paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
-
       final results = await Future.wait([
         ApiService.getPaises(),
         if (paisId != null)
@@ -70,12 +91,17 @@ class _LoteriasPaisState extends State<LoteriasPais> {
             .toString();
         _isLoading = false;
       });
+
+      // 💾 Guardar en caché local
+      CacheService.setJson('loterias_paises', paises);
+      if (paisId != null) {
+        CacheService.setJson('loterias_list_$paisId', loterias);
+      }
     } catch (e) {
       debugPrint("❌ Error cargando datos iniciales: $e");
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _paisNombre = "Error al cargar datos";
       });
     }
   }
@@ -84,19 +110,31 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   // 🔹 CARGAR LOTERÍAS
   // ===============================
   Future<void> _loadLoterias(int paisId) async {
+    // ⚡ 1. Cargar desde caché local de inmediato (0 ms)
+    final cached = await CacheService.getJson('loterias_list_$paisId');
+    if (cached != null && mounted) {
+      setState(() {
+        _loterias = (cached as List).cast<Map<String, dynamic>>();
+        _isLoading = false;
+      });
+    }
+
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
       final data = await ApiService.getLoteriasPorPais(paisId.toString());
 
       if (!mounted) return;
+      final loteriasList = data.cast<Map<String, dynamic>>();
       setState(() {
-        _loterias = data.cast<Map<String, dynamic>>();
+        _loterias = loteriasList;
         _isLoading = false;
       });
-    } catch (e) {
 
+      // 💾 Guardar en caché local
+      CacheService.setJson('loterias_list_$paisId', loteriasList);
+    } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
     }
@@ -192,15 +230,19 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         width: 140,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color.withOpacity(0.8), color],
+          gradient: const LinearGradient(
+            colors: [Color(0xFF282E3B), Color(0xFF191D26)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.12),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

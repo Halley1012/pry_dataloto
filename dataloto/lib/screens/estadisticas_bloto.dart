@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../styles/colores.dart';
 import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
+import '../services/cache_service.dart';
 
 class EstadisticasBlotoScreen extends StatefulWidget {
   const EstadisticasBlotoScreen({super.key});
@@ -33,10 +34,25 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
   }
 
   Future<void> _cargarDatos() async {
-    setState(() {
-      cargando = true;
-      errorMensaje = null;
-    });
+    // ⚡ 1. Cargar desde caché local para renderizado instantáneo (0 ms)
+    final cachedHist = await CacheService.getJson('bloto_historico_completo');
+    final cachedPred = await CacheService.getJson('bloto_prediccion');
+
+    if (cachedHist != null && cachedHist["resultados"] != null && mounted) {
+      setState(() {
+        todosResultados = List<Map<String, dynamic>>.from(cachedHist["resultados"]);
+        if (cachedPred != null) prediccionIA = cachedPred;
+        cargando = false;
+      });
+    }
+
+    if (!mounted) return;
+    if (todosResultados.isEmpty) {
+      setState(() {
+        cargando = true;
+        errorMensaje = null;
+      });
+    }
 
     try {
       final resHist = await http.get(
@@ -48,18 +64,28 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
 
       if (resHist.statusCode == 200) {
         final data = jsonDecode(resHist.body);
-        if (data["resultados"] != null) {
-          todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
+        if (data["resultados"] != null && mounted) {
+          setState(() {
+            todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
+          });
+          CacheService.setJson('bloto_historico_completo', data);
         }
       }
 
       if (resPred.statusCode == 200) {
         final dataP = jsonDecode(resPred.body);
-        prediccionIA = dataP;
+        if (mounted) {
+          setState(() {
+            prediccionIA = dataP;
+          });
+        }
+        CacheService.setJson('bloto_prediccion', dataP);
       }
     } catch (e) {
       debugPrint("Error cargando estadísticas: $e");
-      errorMensaje = "No se pudieron cargar los datos de estadísticas.";
+      if (todosResultados.isEmpty) {
+        errorMensaje = "No se pudieron cargar los datos de estadísticas.";
+      }
     } finally {
       if (mounted) {
         setState(() => cargando = false);
@@ -89,21 +115,24 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     final resultadosFiltrados = _filtrarResultados();
 
     return Scaffold(
-      backgroundColor: AppColors.blackfondo,
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        backgroundColor: AppColors.darkBlue,
+        backgroundColor: AppColors.blackfondo,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 24, color: AppColors.yellow),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Estadísticas Baloto / Revancha",
-          style: AppTextStyles.tituloPrincipal,
+          style: AppTextStyles.h2,
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.yellow),
+            icon: const Icon(Icons.refresh, size: 24, color: AppColors.yellow),
             onPressed: _cargarDatos,
           )
         ],
@@ -629,7 +658,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                       (idx) => FlSpot(idx.toDouble(), reversedSumas[idx]),
                     ),
                     isCurved: true,
-                    color: AppColors.yellow,
+                    color: AppColors.amber,
                     barWidth: 3,
                     isStrokeCapRound: true,
                     dotData: FlDotData(show: true),
@@ -748,15 +777,14 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
           const SizedBox(height: 12),
           Text("Predicción actual del modelo IA:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: predNums
-                .map((n) => Padding(
-                      padding: const EdgeInsets.only(right: 6.0),
-                      child: CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.redAccent,
-                        child: Text("$n", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
+                .map((n) => CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Colors.redAccent,
+                      child: Text("$n", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                     ))
                 .toList(),
           ),
