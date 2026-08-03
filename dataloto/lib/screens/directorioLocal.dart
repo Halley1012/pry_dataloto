@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:dataloto/screens/publicidad.dart';
 import 'package:dataloto/services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/cardbussiness.dart';
@@ -116,14 +117,23 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   }
 
   Future<void> buscarAnuncios(String titulo) async {
+    final int? paisId = _paisSeleccionadoId;
+    final int? departamentoId = _departamentoSeleccionadoId;
+    final int? categoriaId = _categoriaSeleccionadaId;
+    final cacheKey = 'directorio_anuncios_${paisId}_${departamentoId}_${categoriaId}_$titulo';
+
+    final cached = await CacheService.getJson(cacheKey);
+    if (cached != null && mounted) {
+      setState(() {
+        anuncios = List<Map<String, dynamic>>.from(cached);
+        cargando = false;
+      });
+    }
+
     if (!mounted) return;
-    setState(() => cargando = true);
+    if (anuncios.isEmpty) setState(() => cargando = true);
 
     try {
-      final int? paisId = _paisSeleccionadoId;
-      final int? departamentoId = _departamentoSeleccionadoId;
-      final int? categoriaId = _categoriaSeleccionadaId;
-
       final data = await ApiService.getPublicidades(
         paisId: paisId,
         departamentoId: departamentoId,
@@ -133,6 +143,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
 
       if (mounted) {
         setState(() => anuncios = data);
+        CacheService.setJson(cacheKey, data);
       }
     } catch (e) {
       if (mounted) {
@@ -270,13 +281,12 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                         child: Container(
                           margin: const EdgeInsets.symmetric(vertical: 4.0),
                           decoration: BoxDecoration(
-                            color: AppColors.yellow,
-                            borderRadius: BorderRadius.circular(12.0),
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(20.0),
                           ),
                           child: Material(
-                            color: AppColors.yellow,
-                            elevation: 4.0,
-                            borderRadius: BorderRadius.circular(12.0),
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(20.0),
                             child: BusinessCard(
                               paginaweb: anuncio["pagina_url"] ?? "",
                               title: anuncio["titulo"] ?? "",

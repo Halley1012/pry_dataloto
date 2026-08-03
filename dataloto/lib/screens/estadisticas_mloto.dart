@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../styles/colores.dart';
 import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
+import '../services/cache_service.dart';
 
 class EstadisticasMlotoScreen extends StatefulWidget {
   const EstadisticasMlotoScreen({super.key});
@@ -28,10 +29,25 @@ class _EstadisticasMlotoScreenState extends State<EstadisticasMlotoScreen> {
   }
 
   Future<void> _cargarDatos() async {
-    setState(() {
-      cargando = true;
-      errorMensaje = null;
-    });
+    // ⚡ 1. Cargar desde caché local para renderizado instantáneo (0 ms)
+    final cachedHist = await CacheService.getJson('mloto_historico_completo');
+    final cachedPred = await CacheService.getJson('mloto_prediccion');
+
+    if (cachedHist != null && cachedHist["resultados"] != null && mounted) {
+      setState(() {
+        todosResultados = List<Map<String, dynamic>>.from(cachedHist["resultados"]);
+        if (cachedPred != null) prediccionIA = cachedPred;
+        cargando = false;
+      });
+    }
+
+    if (!mounted) return;
+    if (todosResultados.isEmpty) {
+      setState(() {
+        cargando = true;
+        errorMensaje = null;
+      });
+    }
 
     try {
       final resHist = await http.get(
@@ -43,18 +59,28 @@ class _EstadisticasMlotoScreenState extends State<EstadisticasMlotoScreen> {
 
       if (resHist.statusCode == 200) {
         final data = jsonDecode(resHist.body);
-        if (data["resultados"] != null) {
-          todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
+        if (data["resultados"] != null && mounted) {
+          setState(() {
+            todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
+          });
+          CacheService.setJson('mloto_historico_completo', data);
         }
       }
 
       if (resPred.statusCode == 200) {
         final dataP = jsonDecode(resPred.body);
-        prediccionIA = dataP;
+        if (mounted) {
+          setState(() {
+            prediccionIA = dataP;
+          });
+        }
+        CacheService.setJson('mloto_prediccion', dataP);
       }
     } catch (e) {
       debugPrint("Error cargando estadísticas MiLoto: $e");
-      errorMensaje = "No se pudieron cargar los datos de estadísticas de MiLoto.";
+      if (todosResultados.isEmpty) {
+        errorMensaje = "No se pudieron cargar los datos de estadísticas de MiLoto.";
+      }
     } finally {
       if (mounted) {
         setState(() => cargando = false);
@@ -79,19 +105,22 @@ class _EstadisticasMlotoScreenState extends State<EstadisticasMlotoScreen> {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
-        backgroundColor: AppColors.darkBlue,
+        backgroundColor: AppColors.blackfondo,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 24, color: AppColors.yellow),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           "Estadísticas MiLoto",
-          style: AppTextStyles.tituloPrincipal,
+          style: AppTextStyles.h2,
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.yellow),
+            icon: const Icon(Icons.refresh, size: 24, color: AppColors.yellow),
             onPressed: _cargarDatos,
           )
         ],
@@ -709,15 +738,14 @@ class _EstadisticasMlotoScreenState extends State<EstadisticasMlotoScreen> {
           const SizedBox(height: 12),
           Text("Predicción actual del modelo IA (MiLoto):", style: AppTextStyles.caption),
           const SizedBox(height: 6),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: predNums
-                .map((n) => Padding(
-                      padding: const EdgeInsets.only(right: 6.0),
-                      child: CircleAvatar(
-                        radius: 14,
-                        backgroundColor: Colors.amber,
-                        child: Text("$n", style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
+                .map((n) => CircleAvatar(
+                      radius: 14,
+                      backgroundColor: Colors.amber,
+                      child: Text("$n", style: const TextStyle(color: Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
                     ))
                 .toList(),
           ),

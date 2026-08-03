@@ -3,14 +3,19 @@ import '../styles/colores.dart';
 
 class AppContainer4 extends StatelessWidget {
   final Widget child;
+  final EdgeInsetsGeometry padding;
 
-  const AppContainer4({super.key, required this.child});
+  const AppContainer4({
+    super.key, 
+    required this.child,
+    this.padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(1),
+      padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         gradient: LinearGradient(

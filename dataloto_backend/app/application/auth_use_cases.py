@@ -27,6 +27,11 @@ class AuthUseCases:
         if not user or not security.verify_password(password, user["password_hashed"]):
             raise ValueError("Credenciales inválidas")
 
+        # 🔒 Auto-migrar la contraseña a Bcrypt si estaba guardada en texto plano
+        if user["password_hashed"] == password:
+            new_hash = security.hash_password(password)
+            await self.user_repo.update(user["id"], {"password_hashed": new_hash})
+
         # Crear tokens
         access_token = security.create_access_token(data={"sub": str(user["id"]), "email": user["email"]})
         refresh_token = security.create_refresh_token(data={"sub": str(user["id"]), "email": user["email"]})

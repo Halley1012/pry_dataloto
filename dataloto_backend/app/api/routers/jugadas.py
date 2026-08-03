@@ -3,28 +3,42 @@ from typing import List, Optional
 from app.api import schemas, dependencies
 from app.application.jugada_use_cases import JugadaUseCases
 
+from app.core.cache import memory_cache
+
 router = APIRouter()
 
 # --- MLoto endpoints ---
 @router.get("/mloto")
 def get_mloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = "mloto:prediccion"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_prediccion_mloto()
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.get("/mloto/ultimos5")
 def get_mloto_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = "mloto:ultimos5"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_ultimos5_mloto()
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.get("/mloto/historico_completo")
 def get_mloto_historico_completo(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = "mloto:historico_completo"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_historico_completo_mloto()
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.get("/mloto/historico")
@@ -50,23 +64,35 @@ async def borrar_jugada_mloto(jugada_id: int, user_id: int, use_cases: JugadaUse
 # --- Bloto endpoints ---
 @router.get("/bloto")
 def get_bloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = "bloto:prediccion"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_prediccion_bloto()
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.get("/bloto/ultimos5")
 def get_bloto_ultimos5(sorteo: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = f"bloto:ultimos5:{sorteo or 'todos'}"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_ultimos5_bloto(sorteo=sorteo)
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.get("/bloto/historico_completo")
 def get_bloto_historico_completo(sorteo: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = f"bloto:historico_completo:{sorteo or 'todos'}"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
     res = use_cases.obtener_historico_completo_bloto(sorteo=sorteo)
-    if "error" in res:
-        return res
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
     return res
 
 @router.post("/jugadas_bloto", response_model=schemas.JugadaOut)
