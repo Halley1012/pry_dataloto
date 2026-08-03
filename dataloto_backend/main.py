@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core import config
 from app.infrastructure import db_connection
-from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata
+from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications
 
 app = FastAPI(title="Dataloto Backend")
 
@@ -43,6 +43,7 @@ app.include_router(posts.router)
 app.include_router(publicidad.router)
 app.include_router(transacciones.router)
 app.include_router(metadata.router)
+app.include_router(notifications.router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

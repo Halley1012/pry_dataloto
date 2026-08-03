@@ -65,3 +65,14 @@ class Transaction:
         self.respuesta_json = respuesta_json
         self.created_at = created_at or datetime.utcnow()
         self.updated_at = updated_at
+
+class Notification:
+    def __init__(self, id: int, user_id: Optional[int], loteria_id: Optional[int], fecha_sorteo: Optional[datetime], mensaje: str, tipo: str, leido: bool = False, created_at: Optional[datetime] = None):
+        self.id = id
+        self.user_id = user_id
+        self.loteria_id = loteria_id
+        self.fecha_sorteo = fecha_sorteo
+        self.mensaje = mensaje
+        self.tipo = tipo
+        self.leido = leido
+        self.created_at = created_at or datetime.utcnow()
