@@ -138,6 +138,7 @@ class DataLotoApp extends StatelessWidget {
           },
         );
       },
+    ),
     );
   }
 }
