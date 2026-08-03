@@ -19,9 +19,12 @@ import 'package:dataloto/widgets/footer.dart';
 import '../services/api_service.dart';
 import '../models/post.dart';
 import '../screens/createpostscreen.dart';
+import '../screens/notifications_screen.dart';
 import 'post.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/screens/registro.dart';
+import 'package:provider/provider.dart';
+import 'package:dataloto/providers/notification_provider.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -64,6 +67,11 @@ class _HomeScreenState extends State<HomeScreen>
 
     _controller.forward();
     _loadUserAndData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationProvider>().fetchNotifications();
+      }
+    });
   }
 
   Future<void> _loadUserAndData() async {
@@ -708,11 +716,56 @@ class _HomeScreenState extends State<HomeScreen>
               fit: BoxFit.contain,
             ),
           ),
-          FutureBuilder<String>(
-            future: _getUserInitial(),
-            builder: (context, snapshot) {
-              final initial = snapshot.data ?? "?";
-              return PopupMenuButton<int>(
+          Row(
+            children: [
+              Consumer<NotificationProvider>(
+                builder: (context, provider, child) {
+                  return Stack(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_outlined, color: AppColors.yellow, size: 28),
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                          );
+                        },
+                      ),
+                      if (provider.unreadCount > 0)
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            constraints: const BoxConstraints(
+                              minWidth: 16,
+                              minHeight: 16,
+                            ),
+                            child: Text(
+                              '${provider.unreadCount}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+              FutureBuilder<String>(
+                future: _getUserInitial(),
+                builder: (context, snapshot) {
+                  final initial = snapshot.data ?? "?";
+                  return PopupMenuButton<int>(
                 constraints: const BoxConstraints(minWidth: 180),
                 offset: const Offset(0, 55),
                 color: AppColors.black,
@@ -901,6 +954,7 @@ class _HomeScreenState extends State<HomeScreen>
               buscarAnuncios(),
               _loadPosts(),
               _loadLoterias(),
+              context.read<NotificationProvider>().fetchNotifications(),
             ]);
           },
           child: SingleChildScrollView(

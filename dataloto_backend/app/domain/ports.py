@@ -181,3 +181,17 @@ class EmailSenderPort(ABC):
     @abstractmethod
     def send_reset_password_email(self, email: str, reset_link: str) -> bool:
         pass
+
+
+class NotificationRepositoryPort(ABC):
+    @abstractmethod
+    async def create_notification(self, loteria_id: Optional[int], fecha_sorteo: Optional[datetime], mensaje: str, tipo: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def list_notifications(self, user_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def mark_as_read(self, notification_id: int) -> bool:
+        pass

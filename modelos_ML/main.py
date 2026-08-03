@@ -18,6 +18,7 @@ from src.miloto.scraper import MilotoScraper
 from src.miloto.predictor import MilotoPredictor
 from src.baloto.scraper import BalotoScraper
 from src.baloto.predictor import BalotoPredictor
+from src.notification_generator import NotificationGenerator
 #from src.colorloto.scraper import ColorLotoScraper
 #from src.colorloto.predictor import ColorLotoPredictor
 
@@ -34,8 +35,8 @@ def main():
         "--task",
         type=str,
         default="all",
-        choices=["scrap", "predict", "all"],
-        help="La tarea a ejecutar (scraping, predicción o ambas) (default: all)"
+        choices=["scrap", "predict", "notify", "all"],
+        help="La tarea a ejecutar (scraping, predicción, notificación o todas) (default: all)"
     )
 
     args = parser.parse_args()
@@ -79,6 +80,15 @@ def main():
             except Exception as e:
                 print(f"❌ Falló la tarea de predicción para {loteria}: {e}")
                 sys.exit(1)
+
+        # 3. Ejecutar notificaciones
+        if task in ["notify", "all"]:
+            try:
+                notif_inst = NotificationGenerator()
+                notif_inst.run(loteria)
+            except Exception as e:
+                print(f"❌ Falló la tarea de notificaciones para {loteria}: {e}")
+                # No hacemos sys.exit(1) aquí para que no rompa el flujo si solo falló el mensaje
 
     print("✅ ¡Proceso completado exitosamente!")
 

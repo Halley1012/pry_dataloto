@@ -18,6 +18,7 @@ if "/opt/airflow" not in sys.path:
 
 from src.miloto.scraper import MilotoScraper
 from src.miloto.predictor import MilotoPredictor
+from src.notification_generator import NotificationGenerator
 
 def main():
     parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para MiLoto")
@@ -25,8 +26,8 @@ def main():
         "--task",
         type=str,
         default="all",
-        choices=["scrap", "predict", "all"],
-        help="La tarea a ejecutar (scraping, predicción o ambas) (default: all)"
+        choices=["scrap", "predict", "notify", "all"],
+        help="La tarea a ejecutar (scraping, predicción, notificación o todas) (default: all)"
     )
 
     args, _ = parser.parse_known_args()
@@ -53,6 +54,14 @@ def main():
         except Exception as e:
             print(f"❌ Falló la tarea de predicción para miloto: {e}")
             sys.exit(1)
+
+    # 3. Ejecutar notificaciones
+    if task in ["notify", "all"]:
+        try:
+            notif_inst = NotificationGenerator()
+            notif_inst.run("miloto")
+        except Exception as e:
+            print(f"❌ Falló la tarea de notificaciones para miloto: {e}")
 
     print("✅ ¡Proceso completado exitosamente para MiLoto!")
 
