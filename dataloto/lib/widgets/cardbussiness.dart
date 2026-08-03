@@ -56,14 +56,18 @@ class BusinessCard extends StatelessWidget {
       margin: const EdgeInsets.all(0),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)],
+          colors: [Color(0xFF282E3B), Color(0xFF191D26)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.12),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.25),
+            color: Colors.black.withValues(alpha: 0.25),
             blurRadius: 8,
             offset: const Offset(2, 4),
           ),
@@ -234,7 +238,7 @@ class BusinessCard extends StatelessWidget {
 
             const SizedBox(height: 2),
 
-            // 🔗 Redes sociales
+            // 🔗 Redes sociales (Colores oficiales)
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
@@ -243,7 +247,7 @@ class BusinessCard extends StatelessWidget {
                     onPressed: () => _launchUrl(facebookUrl),
                     icon: const FaIcon(
                       FontAwesomeIcons.facebook,
-                      color: AppColors.yellow,
+                      color: Color(0xFF1877F2),
                     ),
                   ),
                 if (instagramUrl != null && instagramUrl!.isNotEmpty)
@@ -251,7 +255,7 @@ class BusinessCard extends StatelessWidget {
                     onPressed: () => _launchUrl(instagramUrl),
                     icon: const FaIcon(
                       FontAwesomeIcons.instagram,
-                      color: AppColors.yellow,
+                      color: Color(0xFFE4405F),
                     ),
                   ),
                 if (whatsappUrl != null && whatsappUrl!.isNotEmpty)
@@ -259,7 +263,7 @@ class BusinessCard extends StatelessWidget {
                     onPressed: () => _launchUrl(whatsappUrl),
                     icon: const FaIcon(
                       FontAwesomeIcons.whatsapp,
-                      color: AppColors.yellow,
+                      color: Color(0xFF25D366),
                     ),
                   ),
               ],

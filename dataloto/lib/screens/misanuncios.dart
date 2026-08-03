@@ -204,19 +204,12 @@ class _MisAnunciosScreenState extends State<MisAnunciosScreen> {
                             // === TARJETA AMARILLA (solo BusinessCard) ===
                             Container(
                               decoration: BoxDecoration(
-                                color: AppColors.yellow,
-                                borderRadius: BorderRadius.circular(12.0),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.4),
-                                    blurRadius: 6,
-                                    offset: const Offset(2, 3),
-                                  ),
-                                ],
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(20.0),
                               ),
                               child: Material(
-                                color: AppColors.yellow,
-                                borderRadius: BorderRadius.circular(12.0),
+                                color: Colors.transparent,
+                                borderRadius: BorderRadius.circular(20.0),
                                 child: Column(
                                   children: [
                                     BusinessCard(

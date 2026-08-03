@@ -1,4 +1,5 @@
 import 'package:dataloto/services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor2.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
@@ -85,7 +86,24 @@ class _MilotoScreenState extends State<MilotoScreen>
 
   Future<void> _cargarMilotoOptimizado() async {
     if (!mounted) return;
-    setState(() => cargando = true);
+
+    // ⚡ 1. Cargar primero de la caché local para despliegue instantáneo (0 ms)
+    final cached = await CacheService.getJson('mloto_prediccion');
+    if (cached != null && cached["numeros"] != null && mounted) {
+      final List<dynamic>? numeros = cached["numeros"];
+      final String? fecha = cached["fecha"];
+      if (numeros != null && fecha != null) {
+        setState(() {
+          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          fechaPrediccion = fecha;
+          cargando = false;
+        });
+      }
+    }
+
+    if (listaProbables.isEmpty && mounted) {
+      setState(() => cargando = true);
+    }
 
     try {
       final keys = await Future.wait([
@@ -167,6 +185,13 @@ class _MilotoScreenState extends State<MilotoScreen>
   }
 
   Future<void> _fetchUltimosResultados() async {
+    final cached = await CacheService.getJson('mloto_ultimos5');
+    if (cached != null && cached["resultados"] != null && mounted) {
+      setState(() {
+        ultimosResultados = List<Map<String, dynamic>>.from(cached["resultados"]);
+      });
+    }
+
     if (!mounted) return;
     try {
       final response = await http.get(Uri.parse("$backendUrl/ultimos5"));
@@ -180,30 +205,30 @@ class _MilotoScreenState extends State<MilotoScreen>
               data["resultados"],
             );
           });
-        } else {
-          setState(() {
-            ultimosResultados = [];
-          });
-          debugPrint("Respuesta sin resultados válidos: $data");
+          CacheService.setJson('mloto_ultimos5', data);
         }
-      } else {
-        setState(() {
-          ultimosResultados = [];
-        });
-        debugPrint("Error HTTP: ${response.statusCode}");
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        ultimosResultados = [];
-      });
       debugPrint("Excepción al consultar últimos resultados: $e");
     }
   }
 
   Future<void> fetchNumeros() async {
+    final cached = await CacheService.getJson('mloto_prediccion');
+    if (cached != null && cached["numeros"] != null && mounted) {
+      final List<dynamic>? numeros = cached["numeros"];
+      final String? fecha = cached["fecha"];
+      if (numeros != null && fecha != null) {
+        setState(() {
+          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          fechaPrediccion = fecha;
+          cargando = false;
+        });
+      }
+    }
+
     if (!mounted) return;
-    setState(() => cargando = true);
+    if (listaProbables.isEmpty) setState(() => cargando = true);
 
     try {
       final response = await http.get(Uri.parse(backendUrl));
@@ -222,38 +247,17 @@ class _MilotoScreenState extends State<MilotoScreen>
             fechaPrediccion = fecha;
             cargando = false;
           });
+          CacheService.setJson('mloto_prediccion', data);
         } else {
           setState(() => cargando = false);
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Error: Datos del servidor incompletos"),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
         }
       } else {
         setState(() => cargando = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Error al conectar con el servidor"),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
       }
     } catch (e) {
       debugPrint("Error en fetchNumeros: $e");
-      if (!mounted) return;
-      setState(() => cargando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error al obtener los números"),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    } finally {
+      if (mounted) setState(() => cargando = false);
     }
   }
 
@@ -330,6 +334,13 @@ class _MilotoScreenState extends State<MilotoScreen>
   }
 
   Future<void> _loadJugadas() async {
+    final cached = await CacheService.getJson('user_jugadas_mloto_${userId ?? "anon"}');
+    if (cached != null && mounted) {
+      setState(() {
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+      });
+    }
+
     try {
       final response = await ApiService.listarJugadasMloto();
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
@@ -340,6 +351,7 @@ class _MilotoScreenState extends State<MilotoScreen>
         setState(() {
           _jugadasList = data;
         });
+        CacheService.setJson('user_jugadas_mloto_${userId ?? "anon"}', data);
       }
     } catch (e) {
       debugPrint("Error al cargar jugadas: $e");
@@ -746,7 +758,7 @@ class _MilotoScreenState extends State<MilotoScreen>
                           ),
                         ),
 
-                        cargando || listaProbables.isEmpty
+                        listaProbables.isEmpty
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24.0),
                                 child: Center(

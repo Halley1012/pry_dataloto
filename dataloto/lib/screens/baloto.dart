@@ -1,5 +1,6 @@
 import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/services/api_service.dart';
+import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor2.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
@@ -90,7 +91,26 @@ class _BalotoScreenState extends State<BalotoScreen>
 
   Future<void> _cargarBalotoOptimizado() async {
     if (!mounted) return;
-    setState(() => cargando = true);
+
+    // ⚡ 1. Cargar primero de la caché local para despliegue instantáneo (0 ms)
+    final cached = await CacheService.getJson('bloto_prediccion');
+    if (cached != null && cached["numeros"] != null && mounted) {
+      final List<dynamic>? numeros = cached["numeros"];
+      final List<dynamic>? balotaroja = cached["balotaroja"];
+      final String? fecha = cached["fecha"];
+      if (numeros != null && fecha != null && balotaroja != null) {
+        setState(() {
+          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          listaBalotaRoja = balotaroja.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          fechaPrediccion = fecha;
+          cargando = false;
+        });
+      }
+    }
+
+    if (listaProbables.isEmpty && mounted) {
+      setState(() => cargando = true);
+    }
 
     try {
       final keys = await Future.wait([
@@ -161,6 +181,25 @@ class _BalotoScreenState extends State<BalotoScreen>
   }
 
   Future<void> _fetchUltimosResultados() async {
+    final cached = await CacheService.getJson('bloto_ultimos5');
+    if (cached != null && cached["resultados"] != null && mounted) {
+      final list = List<Map<String, dynamic>>.from(cached["resultados"]);
+      final balotoList = list.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == "baloto" || s.isEmpty;
+      }).take(5).toList();
+      final revanchaList = list.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == "revancha";
+      }).take(5).toList();
+
+      setState(() {
+        ultimosResultados = list;
+        ultimosResultadosBaloto = balotoList.isNotEmpty ? balotoList : list.take(5).toList();
+        ultimosResultadosRevancha = revanchaList;
+      });
+    }
+
     try {
       final response = await http.get(
         Uri.parse("https://pry-dataloto.onrender.com/bloto/ultimos5"),
@@ -187,6 +226,8 @@ class _BalotoScreenState extends State<BalotoScreen>
                 balotoList.isNotEmpty ? balotoList : list.take(5).toList();
             ultimosResultadosRevancha = revanchaList;
           });
+          
+          CacheService.setJson('bloto_ultimos5', data);
         } else {
           if (mounted) {
             setState(() {
@@ -220,8 +261,23 @@ class _BalotoScreenState extends State<BalotoScreen>
   }
 
   Future<void> fetchNumeros() async {
+    final cached = await CacheService.getJson('bloto_prediccion');
+    if (cached != null && cached["numeros"] != null && mounted) {
+      final List<dynamic>? numeros = cached["numeros"];
+      final List<dynamic>? balotaroja = cached["balotaroja"];
+      final String? fecha = cached["fecha"];
+      if (numeros != null && fecha != null && balotaroja != null) {
+        setState(() {
+          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          listaBalotaRoja = balotaroja.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          fechaPrediccion = fecha;
+          cargando = false;
+        });
+      }
+    }
+
     if (!mounted) return;
-    setState(() => cargando = true);
+    if (listaProbables.isEmpty) setState(() => cargando = true);
 
     try {
       final response = await http.get(Uri.parse(backendUrl));
@@ -245,9 +301,9 @@ class _BalotoScreenState extends State<BalotoScreen>
                 .toList();
             fechaPrediccion = fecha;
             cargando = false;
-            debugPrint("Probables: $listaProbables");
-            debugPrint("Rojas: $listaBalotaRoja");
           });
+          
+          CacheService.setJson('bloto_prediccion', data);
         } else {
           if (mounted) {
             setState(() => cargando = false);
@@ -272,14 +328,8 @@ class _BalotoScreenState extends State<BalotoScreen>
       }
     } catch (e) {
       debugPrint("Error en fetchNumeros: $e");
-      if (!mounted) return;
-      setState(() => cargando = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Error al obtener los números"),
-          duration: Duration(seconds: 2),
-        ),
-      );
+    } finally {
+      if (mounted) setState(() => cargando = false);
     }
   }
 
@@ -362,6 +412,13 @@ class _BalotoScreenState extends State<BalotoScreen>
   }
 
   Future<void> _loadJugadas() async {
+    final cached = await CacheService.getJson('user_jugadas_bloto_${userId ?? "anon"}');
+    if (cached != null && mounted) {
+      setState(() {
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+      });
+    }
+
     try {
       final response = await ApiService.listarJugadasBloto();
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
@@ -372,6 +429,7 @@ class _BalotoScreenState extends State<BalotoScreen>
         setState(() {
           _jugadasList = data;
         });
+        CacheService.setJson('user_jugadas_bloto_${userId ?? "anon"}', data);
       }
     } catch (e) {
       debugPrint("Error al cargar jugadas: $e");
@@ -886,7 +944,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                             fontSize: 12,
                           ),
                         ),
-                        cargando || listaProbables.isEmpty
+                        listaProbables.isEmpty
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24.0),
                                 child: Center(
@@ -958,7 +1016,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                             fontSize: 12,
                           ),
                         ),
-                        cargando || listaBalotaRoja.isEmpty
+                        listaBalotaRoja.isEmpty
                             ? const Padding(
                                 padding: EdgeInsets.symmetric(vertical: 24.0),
                                 child: Center(
