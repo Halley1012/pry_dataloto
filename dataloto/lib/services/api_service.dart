@@ -438,6 +438,64 @@ class ApiService {
     }
   }
 
+  /// 🎲 Crear jugada genérica
+  static Future<Map<String, dynamic>> crearJugadaGenerica(
+    String loteriaName,
+    List<int> numeros,
+    String userId,
+  ) async {
+    if (userId.isEmpty) {
+      throw Exception("El userId enviado está vacío");
+    }
+
+    final response = await http.post(
+      Uri.parse("$baseUrl/jugadas_$loteriaName"),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"numeros": numeros, "user_id": userId}),
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data;
+      }
+    }
+    throw Exception("Error al crear jugada $loteriaName: ${response.statusCode}");
+  }
+
+  /// 📋 Listar jugadas genéricas
+  static Future<List<dynamic>> listarJugadasGenerica(String loteriaName) async {
+    final storage = const FlutterSecureStorage();
+    final userId = await storage.read(key: 'user_id');
+
+    if (userId == null) return [];
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          "$baseUrl/jugadas_$loteriaName?user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}",
+        ),
+        headers: {"Content-Type": "application/json"},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) return data;
+      }
+    } catch (_) {}
+    return [];
+  }
+
+  /// 🗑️ Borrar jugada genérica
+  static Future<bool> borrarJugadaGenerica(String loteriaName, int jugadaId, String userId) async {
+    final response = await http.delete(
+      Uri.parse("$baseUrl/jugadas_$loteriaName/$jugadaId?user_id=$userId"),
+      headers: {"Content-Type": "application/json"},
+    );
+    return response.statusCode == 200;
+  }
+
+
   /// GET genérico
   static Future<http.Response> get(String endpoint) async {
     final headers = await _getHeaders();

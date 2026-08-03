@@ -9,7 +9,9 @@ PROJECT_ROOT = str(Path(__file__).resolve().parents[1])
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-# Dejamos también /opt/airflow por compatibilidad absoluta con los contenedores
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 if "/opt/airflow" not in sys.path:
     sys.path.append("/opt/airflow")
 
@@ -18,9 +20,17 @@ from src.miloto.scraper import MilotoScraper
 from src.miloto.predictor import MilotoPredictor
 from src.baloto.scraper import BalotoScraper
 from src.baloto.predictor import BalotoPredictor
+from src.powerball.scraper import PowerballScraper
+from src.powerball.predictor import PowerballPredictor
+from src.lotto_america.scraper import LottoAmericaScraper
+from src.lotto_america.predictor import LottoAmericaPredictor
+from src.double_play.scraper import DoublePlayScraper
+from src.double_play.predictor import DoublePlayPredictor
+from src.millionaire_life.scraper import MillionaireLifeScraper
+from src.millionaire_life.predictor import MillionaireLifePredictor
+from src.megamillions.scraper import MegaMillionsScraper
+from src.megamillions.predictor import MegaMillionsPredictor
 from src.notification_generator import NotificationGenerator
-#from src.colorloto.scraper import ColorLotoScraper
-#from src.colorloto.predictor import ColorLotoPredictor
 
 def main():
     parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para Dataloto")
@@ -28,7 +38,7 @@ def main():
         "--loteria",
         type=str,
         default="all",
-        choices=["miloto", "baloto"],
+        choices=["miloto", "baloto", "powerball", "lotto_america", "double_play", "millionaire_life", "megamillions", "all"],
         help="El nombre de la lotería a procesar (default: all)"
     )
     parser.add_argument(
@@ -47,12 +57,20 @@ def main():
     scrapers = {
         "miloto": MilotoScraper,
         "baloto": BalotoScraper,
-        # "colorloto": ColorLotoScraper,
+        "powerball": PowerballScraper,
+        "lotto_america": LottoAmericaScraper,
+        "double_play": DoublePlayScraper,
+        "millionaire_life": MillionaireLifeScraper,
+        "megamillions": MegaMillionsScraper,
     }
     predictors = {
         "miloto": MilotoPredictor,
         "baloto": BalotoPredictor,
-        # "colorloto": ColorLotoPredictor,
+        "powerball": PowerballPredictor,
+        "lotto_america": LottoAmericaPredictor,
+        "double_play": DoublePlayPredictor,
+        "millionaire_life": MillionaireLifePredictor,
+        "megamillions": MegaMillionsPredictor,
     }
     
     # Determine which lotteries to process (default "all" runs every configured lottery)
