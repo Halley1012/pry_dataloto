@@ -185,3 +185,15 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre) for r in rows]
 
+    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(f"""
+                    SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
+                    FROM {tabla}
+                    WHERE balota1 <> 0
+                    ORDER BY fecha DESC;
+                """)
+                rows = cur.fetchall()
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre) for r in rows]
+
