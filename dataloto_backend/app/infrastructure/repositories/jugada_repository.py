@@ -4,10 +4,22 @@ from app.domain.ports import JugadaRepositoryPort
 from app.infrastructure import db_connection
 
 class PostgresJugadaRepository(JugadaRepositoryPort):
+    async def _ensure_table(self, conn, tabla: str):
+        await conn.execute(f"""
+            CREATE TABLE IF NOT EXISTS {tabla} (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL,
+                numeros INTEGER[] NOT NULL,
+                fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                expira TIMESTAMP WITH TIME ZONE
+            );
+        """)
+
     async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         tabla = f"jugadas_{tipo}"
         async with pool.acquire() as conn:
+            await self._ensure_table(conn, tabla)
             row = await conn.fetchrow(f"""
                 INSERT INTO {tabla} (user_id, numeros, fecha_guardado, expira)
                 VALUES ($1, $2, $3, $4)
@@ -19,6 +31,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         pool = db_connection.get_pool()
         tabla = f"jugadas_{tipo}"
         async with pool.acquire() as conn:
+            await self._ensure_table(conn, tabla)
             rows = await conn.fetch(f"""
                 SELECT id, user_id, numeros, fecha_guardado, expira
                 FROM {tabla}
@@ -31,11 +44,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         pool = db_connection.get_pool()
         tabla = f"jugadas_{tipo}"
         async with pool.acquire() as conn:
+            await self._ensure_table(conn, tabla)
             result = await conn.execute(f"""
                 DELETE FROM {tabla}
                 WHERE id = $1 AND user_id = $2
             """, jugada_id, user_id)
             return result == "DELETE 1"
+
 
     def get_prediccion_reciente_mloto(self) -> Optional[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:
