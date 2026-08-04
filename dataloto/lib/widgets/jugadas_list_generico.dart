@@ -20,6 +20,7 @@ class JugadasListGenerico extends StatefulWidget {
 
 class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTickerProviderStateMixin {
   List<dynamic> _jugadasList = [];
+  List<dynamic> get jugadas => _jugadasList;
   bool _isLoading = true;
   String? userId;
   final storage = const FlutterSecureStorage();

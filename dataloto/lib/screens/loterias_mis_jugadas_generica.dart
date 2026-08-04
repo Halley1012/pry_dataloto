@@ -107,21 +107,17 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
           ],
         ),
         content: Text(
-          "¿Estás seguro de que deseas eliminar las ${_selectedIds.length} jugadas seleccionadas?",
-          style: AppTextStyles.mensajeSecundario,
+          "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?",
+          style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+            child: const Text("Cancelar", style: TextStyle(color: Colors.amber)),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+          TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.white)),
+            child: const Text("Eliminar", style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -129,16 +125,171 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
     if (confirm != true || _userId == null) return;
 
-    final idsParaEliminar = Set<int>.from(_selectedIds);
-    setState(() {
-      _jugadasList.removeWhere((j) => idsParaEliminar.contains(j["id"]));
-      _selectedIds.clear();
-    });
+    setState(() => _cargando = true);
 
-    for (final id in idsParaEliminar) {
+    for (final id in _selectedIds.toList()) {
       try {
         await ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint("Error al eliminar jugada $id: $e");
+      }
+    }
+
+    await _cargarJugadas();
+  }
+
+  void _compartirWhatsApp() async {
+    final jugadasACompartir = _jugadasList
+        .where((j) => _selectedIds.isEmpty || _selectedIds.contains(j["id"]))
+        .toList();
+
+    if (jugadasACompartir.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No hay jugadas para compartir")),
+      );
+      return;
+    }
+
+    final StringBuffer buffer = StringBuffer();
+    buffer.writeln("🎰 *Mis Jugadas de ${widget.loteriaNombre} - DataLoto* 🎰\n");
+
+    for (int i = 0; i < jugadasACompartir.length; i++) {
+      final play = jugadasACompartir[i];
+      final nums = (play["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
+      if (nums.length >= 6) {
+        final whites = nums.sublist(0, 5).join(", ");
+        final red = nums[5];
+        buffer.writeln("📌 *Jugada #${i + 1}*: $whites | 🔴 *$red*");
+      } else {
+        buffer.writeln("📌 *Jugada #${i + 1}*: ${nums.join(', ')}");
+      }
+    }
+
+    buffer.writeln("\n🍀 _¡Buena suerte con DataLoto!_");
+
+    final text = buffer.toString();
+    final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
+
+    try {
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+      } else {
+        await Share.share(text);
+      }
+    } catch (_) {
+      await Share.share(text);
+    }
+  }
+
+  Future<void> _imprimirPDF() async {
+    final jugadasAImprimir = _selectedIds.isNotEmpty
+        ? _jugadasList.where((j) => _selectedIds.contains(j["id"])).toList()
+        : _jugadasList;
+
+    if (jugadasAImprimir.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No hay jugadas seleccionadas para imprimir")),
+      );
+      return;
+    }
+
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        build: (pw.Context ctx) {
+          return pw.Padding(
+            padding: const pw.EdgeInsets.all(24),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Header(
+                  level: 0,
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        "DATALOTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
+                        style: pw.TextStyle(
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                          color: PdfColors.amber900,
+                        ),
+                      ),
+                      pw.Text(
+                        DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                      ),
+                    ],
+                  ),
+                ),
+                pw.SizedBox(height: 12),
+                pw.Text(
+                  "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.SizedBox(height: 16),
+                pw.TableHelper.fromTextArray(
+                  headers: ["#", "Fecha Guardado", "Balotas ${widget.loteriaNombre}"],
+                  data: jugadasAImprimir.asMap().entries.map((entry) {
+                    final index = entry.key + 1;
+                    final item = entry.value;
+                    final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
+                    final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+                    final red = nums.length >= 6 ? nums[5] : null;
+                    final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+
+                    final balotasStr = red != null
+                        ? "${whites.join(' - ')}  [Roja: $red]"
+                        : nums.join(' - ');
+
+                    return [
+                      "$index",
+                      fecha,
+                      balotasStr,
+                    ];
+                  }).toList(),
+                  headerStyle: pw.TextStyle(
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.white,
+                  ),
+                  headerDecoration: const pw.BoxDecoration(color: PdfColors.amber800),
+                  cellHeight: 28,
+                  cellAlignments: {
+                    0: pw.Alignment.centerLeft,
+                    1: pw.Alignment.centerLeft,
+                    2: pw.Alignment.center,
+                  },
+                ),
+                pw.Spacer(),
+                pw.Divider(),
+                pw.Center(
+                  child: pw.Text(
+                    "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
+                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: "Tiquete_${widget.loteriaNombre}_DataLoto.pdf",
+    );
+  }
+
+  String _formatFecha(dynamic rawDate) {
+    if (rawDate == null) return "";
+    try {
+      final parsed = DateTime.parse(rawDate.toString()).toLocal();
+      return DateFormat('dd/MM/yyyy').format(parsed);
+    } catch (_) {
+      return rawDate.toString();
     }
   }
 
@@ -160,11 +311,16 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),
-            offset: const Offset(2, 2),
+            offset: const Offset(3, 3),
+            blurRadius: 6,
+          ),
+          BoxShadow(
+            color: baseColor.withValues(alpha: 0.3),
+            offset: const Offset(-2, -2),
             blurRadius: 4,
           ),
         ],
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
       ),
       child: Center(
         child: Text(
@@ -172,7 +328,16 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
           style: TextStyle(
             fontSize: size * 0.4,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: numero != null ? Colors.white : Colors.white54,
+            shadows: numero != null
+                ? [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      offset: const Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ]
+                : null,
           ),
         ),
       ),
@@ -181,123 +346,307 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      appBar: CustomAppBar(
-        title: "Mis Jugadas - ${widget.loteriaNombre}",
-      ),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-          : _jugadasList.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.style_outlined, color: Colors.grey, size: 64),
-                      const SizedBox(height: 16),
-                      Text("No tienes jugadas guardadas aún", style: AppTextStyles.h2),
-                      const SizedBox(height: 8),
-                      Text(
-                        "Genera y guarda combinaciones en la pantalla de ${widget.loteriaNombre}.",
-                        style: AppTextStyles.mensajeSecundario,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton.icon(
-                            onPressed: _toggleSelectAll,
-                            icon: Icon(
-                              _selectedIds.length == _jugadasList.length
-                                  ? Icons.check_box
-                                  : Icons.check_box_outline_blank,
-                              color: AppColors.yellow,
-                            ),
-                            label: Text(
-                              _selectedIds.length == _jugadasList.length
-                                  ? "Deseleccionar todas"
-                                  : "Seleccionar todas",
-                              style: const TextStyle(color: Colors.white),
-                            ),
-                          ),
-                          if (_selectedIds.isNotEmpty)
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.redAccent,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                              ),
-                              onPressed: _eliminarSeleccionadas,
-                              icon: const Icon(Icons.delete, size: 18, color: Colors.white),
-                              label: Text("Eliminar (${_selectedIds.length})", style: const TextStyle(color: Colors.white)),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: ListView.builder(
-                          itemCount: _jugadasList.length,
-                          itemBuilder: (context, index) {
-                            final jugada = _jugadasList[index];
-                            final id = jugada["id"] as int? ?? 0;
-                            final isSelected = _selectedIds.contains(id);
-                            final numeros = (jugada["numeros"] as List? ?? []).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+    final bool hasSelection = _selectedIds.isNotEmpty;
 
-                            return AppContainer3(
-                              child: InkWell(
-                                onTap: () {
-                                  setState(() {
-                                    if (isSelected) {
-                                      _selectedIds.remove(id);
-                                    } else {
-                                      _selectedIds.add(id);
-                                    }
-                                  });
-                                },
-                                child: Row(
+    return Scaffold(
+      backgroundColor: AppColors.blackfondo,
+      body: CustomScrollView(
+        slivers: [
+          CustomSliverAppBar(title: "Mis Jugadas - ${widget.loteriaNombre}"),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  AppContainer3(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _toggleSelectAll,
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 40),
+                                  backgroundColor: AppColors.yellow,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: Text(
+                                  hasSelection ? "Desmarcar todo" : "Seleccionar todo",
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.button.copyWith(
+                                    fontSize: 13,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: hasSelection ? _eliminarSeleccionadas : null,
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 40),
+                                  backgroundColor: hasSelection
+                                      ? Colors.redAccent.shade700
+                                      : Colors.grey.shade800,
+                                  disabledBackgroundColor: Colors.grey.shade800,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: Text(
+                                  hasSelection ? "Eliminar (${_selectedIds.length})" : "Eliminar",
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.button.copyWith(
+                                    fontSize: 13,
+                                    color: hasSelection ? Colors.white : Colors.white38,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _compartirWhatsApp,
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 40),
+                                  backgroundColor: hasSelection
+                                      ? const Color(0xFF25D366)
+                                      : AppColors.yellow,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: Text(
+                                  "WhatsApp",
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.button.copyWith(
+                                    fontSize: 13,
+                                    color: hasSelection ? Colors.white : Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _imprimirPDF,
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size(double.infinity, 40),
+                                  backgroundColor: AppColors.yellow,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30),
+                                  ),
+                                ),
+                                child: Text(
+                                  "Imprimir PDF",
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.button.copyWith(
+                                    fontSize: 13,
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Center(
+                    child: Column(
+                      children: [
+                        Text(
+                          "Historial de Jugadas",
+                          style: AppTextStyles.h2.copyWith(fontSize: 18),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          "${_jugadasList.length} guardada(s)",
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.yellow,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _cargando
+                      ? const Center(
+                          child: CircularProgressIndicator(color: AppColors.yellow),
+                        )
+                      : _jugadasList.isEmpty
+                          ? Center(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 40),
+                                child: Column(
                                   children: [
-                                    Checkbox(
-                                      value: isSelected,
-                                      activeColor: AppColors.yellow,
-                                      checkColor: Colors.black,
-                                      onChanged: (val) {
-                                        setState(() {
-                                          if (val == true) {
-                                            _selectedIds.add(id);
-                                          } else {
-                                            _selectedIds.remove(id);
-                                          }
-                                        });
-                                      },
+                                    Text(
+                                      "No tienes jugadas guardadas aún",
+                                      style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
-                                    Expanded(
-                                      child: Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                        children: List.generate(numeros.length, (bIndex) {
-                                          final isLast = bIndex == numeros.length - 1;
-                                          return _build3DBall(
-                                            numeros[bIndex],
-                                            baseColor: isLast ? Colors.redAccent : Colors.amber,
-                                          );
-                                        }),
-                                      ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}",
+                                      style: AppTextStyles.caption,
+                                      textAlign: TextAlign.center,
                                     ),
                                   ],
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                            )
+                          : ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _jugadasList.length,
+                              itemBuilder: (context, index) {
+                                final item = _jugadasList[index];
+                                final id = item["id"] as int? ?? 0;
+                                final isSelected = _selectedIds.contains(id);
+                                final fechaStr = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+                                final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
+                                final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+                                final red = nums.length >= 6 ? nums[5] : null;
+
+                                final Color color = [
+                                  Colors.blueAccent,
+                                  Colors.purpleAccent,
+                                  Colors.tealAccent,
+                                  Colors.orangeAccent,
+                                  Colors.greenAccent,
+                                  Colors.pinkAccent,
+                                  Colors.indigoAccent,
+                                  Colors.cyanAccent,
+                                  Colors.deepOrangeAccent,
+                                  Colors.amberAccent,
+                                ][index % 10];
+
+                                return Container(
+                                  key: Key(id.toString()),
+                                  margin: const EdgeInsets.symmetric(vertical: 4.0),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        color.withValues(alpha: 0.15),
+                                        Colors.black.withValues(alpha: 0.1),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: color.withValues(alpha: 0.2),
+                                        blurRadius: 5,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? AppColors.yellow
+                                          : color.withValues(alpha: 0.3),
+                                      width: isSelected ? 1.8 : 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      // 1. Checkbox
+                                      SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: Checkbox(
+                                          value: isSelected,
+                                          activeColor: AppColors.yellow,
+                                          checkColor: Colors.black,
+                                          materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                          onChanged: (val) {
+                                            setState(() {
+                                              if (val == true) {
+                                                _selectedIds.add(id);
+                                              } else {
+                                                _selectedIds.remove(id);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+
+                                      // 2. Solo el Número (Sin la palabra "Nro.")
+                                      Text(
+                                        "${index + 1}",
+                                        style: AppTextStyles.mensajeSecundario.copyWith(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // 3. Balotas compactas (5 Amarillas/Colores + 1 Roja)
+                                      Expanded(
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            ...whites.map((n) => Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                                              child: _build3DBall(
+                                                n,
+                                                baseColor: color,
+                                                size: 35,
+                                              ),
+                                            )),
+                                            if (red != null)
+                                              Padding(
+                                                padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                                                child: _build3DBall(
+                                                  red,
+                                                  baseColor: Colors.redAccent,
+                                                  size: 35,
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ),
+                                      // 4. Fecha (dd/MM/yyyy con tamaño reducido)
+                                      if (fechaStr.isNotEmpty)
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              fechaStr,
+                                              style: AppTextStyles.caption.copyWith(
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      const SizedBox(width: 6)
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
