@@ -60,6 +60,10 @@ async def borrar_jugada_mloto(jugada_id: int, user_id: int, use_cases: JugadaUse
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada eliminada"}
 
+@router.get("/mis_loterias_activas", response_model=List[str])
+async def get_active_lotteries(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    return await use_cases.obtener_loterias_con_jugadas(user_id)
+
 
 # --- Bloto endpoints ---
 @router.get("/bloto")

@@ -57,6 +57,9 @@ class JugadaUseCases:
     async def borrar_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
         return await self.jugada_repo.delete_jugada(tipo, jugada_id, user_id)
 
+    async def obtener_loterias_con_jugadas(self, user_id: int) -> List[str]:
+        return await self.jugada_repo.list_active_lotteries(user_id)
+
     def obtener_prediccion_colorloto(self, tipo: str) -> Dict[str, Any]:
         return null
     

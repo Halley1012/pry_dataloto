@@ -51,6 +51,30 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             """, jugada_id, user_id)
             return result == "DELETE 1"
 
+    async def list_active_lotteries(self, user_id: int) -> List[str]:
+        pool = db_connection.get_pool()
+        tipos = [
+            "mloto", "bloto", "colorloto", "powerball", 
+            "lotto_america", "double_play", "millionaire_life", "megamillions"
+        ]
+        activas = []
+        async with pool.acquire() as conn:
+            for tipo in tipos:
+                tabla = f"jugadas_{tipo}"
+                # Verificamos si la tabla existe antes de consultar
+                exists_table = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = $1
+                    );
+                """, tabla)
+                
+                if exists_table:
+                    has_rows = await conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM {tabla} WHERE user_id = $1)", user_id)
+                    if has_rows:
+                        activas.append(tipo)
+        return activas
+
 
     def get_prediccion_reciente_mloto(self) -> Optional[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:
