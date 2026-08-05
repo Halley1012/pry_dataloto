@@ -16,6 +16,9 @@ import 'lotto_america.dart';
 import 'double_play.dart';
 import 'millionaire_life.dart';
 import 'megamillions.dart';
+import 'baloto_mis_jugadas.dart';
+import 'estadisticas_bloto.dart';
+import 'profile_screen.dart';
 
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'login.dart';
@@ -31,6 +34,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/screens/registro.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
+import '../utils/pais_helper.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -43,6 +47,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   final storage = const FlutterSecureStorage();
+  final TextEditingController _searchController = TextEditingController();
   late final AnimationController _controller;
   late final Animation<double> _fadeAnimation;
   late final Animation<double> _scaleAnimation;
@@ -53,6 +58,8 @@ class _HomeScreenState extends State<HomeScreen>
   String? currentUserId;
   String? pais;
   List<dynamic> _loterias = [];
+  List<dynamic> _filteredLoterias = [];
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -106,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen>
           currentUserId = userIdStr;
           pais = paisNombreStr ?? "Colombia";
           _loterias = List<dynamic>.from(cachedLoterias);
+          _filteredLoterias = List<dynamic>.from(_loterias);
           if (cachedAnuncios != null) anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
           isLoading = false;
           cargando = false;
@@ -164,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen>
         posts = postsConConteo;
         anuncios = resultados[1] as List<Map<String, dynamic>>;
         _loterias = resultados[2] as List<dynamic>;
+        _filteredLoterias = List<dynamic>.from(_loterias);
         isLoading = false;
         cargando = false;
       });
@@ -184,7 +193,213 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _controller.dispose();
+    _searchController.dispose();
     super.dispose();
+  }
+
+  Widget _buildCountryHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      child: Row(
+        children: [
+          Text(
+            PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
+            style: const TextStyle(fontSize: 32),
+          ), 
+          const SizedBox(width: 12),
+          Text(
+            pais ?? "Colombia",
+            style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 28),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onSearchChanged(String query) {
+    setState(() {
+      if (query.isEmpty) {
+        _filteredLoterias = List<dynamic>.from(_loterias);
+      } else {
+        _filteredLoterias = _loterias
+            .where((l) => l["nombre"]
+                .toString()
+                .toLowerCase()
+                .contains(query.toLowerCase()))
+            .toList();
+      }
+    });
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: TextField(
+          controller: _searchController,
+          onChanged: _onSearchChanged,
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
+            hintText: "Buscar lotería...",
+            hintStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white38),
+            prefixIcon: const Icon(Icons.search, color: Colors.white38),
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPopularesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Populares", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              TextButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
+                child: Text("Ver todas", style: TextStyle(color: Colors.white54, fontSize: 14)),
+              ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _filteredLoterias.length > 3 ? 3 : _filteredLoterias.length,
+          itemBuilder: (context, index) {
+            final loteria = _filteredLoterias[index];
+            return _buildLoteriaCard(loteria);
+          },
+        ),
+      ],
+    );
+  }
+
+  String _formatearFechaSimple(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "Próximamente";
+    try {
+      DateTime parsed = DateTime.parse(fecha.substring(0, 10));
+      const meses = [
+        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
+        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
+      ];
+      String mes = meses[parsed.month - 1];
+      return "${parsed.day.toString().padLeft(2, '0')} $mes ${parsed.year}";
+    } catch (_) {
+      return fecha;
+    }
+  }
+
+  Widget _buildLoteriaCard(dynamic loteria) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
+          );
+        },
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
+        leading: Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              loteria["nombre"][0],
+              style: const TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 20),
+            ),
+          ),
+        ),
+        title: Text(
+          loteria["nombre"],
+          style: AppTextStyles.mensajeImportante.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            const Text("Próximo sorteo", style: TextStyle(color: Colors.white38, fontSize: 10)),
+            Text(
+              _formatearFechaSimple(loteria["proximo_sorteo"]), 
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
+        ),
+        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+      ),
+    );
+  }
+
+  Widget _buildTodasLoteriasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+          child: Text("Todas las loterías", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _filteredLoterias.length > 3 ? _filteredLoterias.length - 3 : 0,
+          separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1, indent: 16, endIndent: 16),
+          itemBuilder: (context, index) {
+            final loteria = _filteredLoterias[index + 3];
+            return ListTile(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
+                );
+              },
+              title: Text(loteria["nombre"], style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70)),
+              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavBar() {
+    return BottomNavigationBar(
+      currentIndex: _selectedIndex,
+      onTap: (index) {
+        if (index == 0) _loadUserData(); // Actualizar país al volver al inicio
+        setState(() => _selectedIndex = index);
+      },
+      backgroundColor: AppColors.black,
+      type: BottomNavigationBarType.fixed,
+      selectedItemColor: AppColors.yellow,
+      unselectedItemColor: Colors.white54,
+      selectedLabelStyle: const TextStyle(fontSize: 12),
+      unselectedLabelStyle: const TextStyle(fontSize: 12),
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: "Inicio"),
+        BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: "Explorar"),
+        BottomNavigationBarItem(icon: Icon(Icons.bookmark_outline), activeIcon: Icon(Icons.bookmark), label: "Mis Jugadas"),
+        BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: "Resultados"),
+        BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: "Perfil"),
+      ],
+    );
   }
 
   Future<void> _loadLoterias() async {
@@ -199,6 +414,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (mounted) {
         setState(() {
           _loterias = data;
+          _filteredLoterias = List<dynamic>.from(_loterias);
           isLoading = false;
         });
       }
@@ -278,21 +494,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _loadUserAndPosts() async {
-    await _loadCurrentUserId(); // Esperamos al userId
-    await _loadPosts(); // Luego cargamos posts
-  }
-
-  // Cargar ID del usuario actual
-  Future<void> _loadCurrentUserId() async {
-    final userId = await storage.read(key: 'user_id'); // CLAVE CORRECTA
-    //print("Usuario actual (user_id): $userId"); // DEBUG
-
-    if (mounted) {
-      setState(() => currentUserId = userId);
-    }
-  }
-
   // Cargar posts
   Future<void> _loadPosts() async {
     if (!mounted) return;
@@ -340,84 +541,29 @@ class _HomeScreenState extends State<HomeScreen>
     return "?";
   }
 
-  Future<String> _getUserName() async {
-    final name = await storage.read(key: 'name');
-    if (name != null && name.isNotEmpty) return name;
-    return "?";
-  }
-
-  void _showDialog(BuildContext context, String title, String content) {
-    if (!mounted) return;
+  void _showJustifiedDialog(
+      BuildContext context,
+      String title,
+      String content,
+      ) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: Text(title, style: GoogleFonts.montserrat(color: Colors.white)),
-        content: Text(
-          content,
-          style: GoogleFonts.montserrat(color: Colors.white70),
-        ),
-      ),
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context) {
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.logout, color: Colors.redAccent, size: 24),
-            const SizedBox(width: 10),
-            Text(
-              "Cerrar sesión",
-              style: AppTextStyles.h2.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          "¿Seguro que quieres cerrar sesión?",
-          style: AppTextStyles.mensajeSecundario.copyWith(
-            color: Colors.white70,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.blackfondo,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
+          title: Text(title, style: AppTextStyles.h2),
+          content: SingleChildScrollView(
             child: Text(
-              "Cancelar",
-              style: AppTextStyles.mensajeSecundario.copyWith(
-                color: Colors.amber,
-              ),
+              content,
+              textAlign: TextAlign.justify, // texto justificado
+              style: AppTextStyles.mensajeSecundario, // mantiene tus estilos
             ),
           ),
-          TextButton(
-            onPressed: () async {
-              await storage.deleteAll();
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.clear();
-              if (!mounted) return;
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-                    (route) => false,
-              );
-            },
-            child: Text(
-              "Cerrar sesión",
-              style: AppTextStyles.mensajeSecundario.copyWith(
-                color: Colors.redAccent,
-              ),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -554,160 +700,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _denunciarPost(BuildContext context, Post post) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Has denunciado el post de @${post.userName}")),
-    );
-  }
-
-  Future<void> _eliminarCuenta(BuildContext context) async {
-    // Estado del botón
-    bool isDeleting = false;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false, // Evita cerrar tocando fuera
-      builder: (_) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Row(
-            children: [
-              const Icon(
-                Icons.delete_forever,
-                color: Colors.redAccent,
-                size: 24,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                "Eliminar cuenta",
-                style: AppTextStyles.h2.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          content: isDeleting
-              ? const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: AppColors.yellow,
-                  strokeWidth: 2,
-                ),
-              ),
-              SizedBox(width: 12),
-              Text(
-                "Borrando cuenta...",
-                style: TextStyle(color: AppColors.yellow),
-              ),
-            ],
-          )
-              : Text(
-            "¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.",
-            style: AppTextStyles.mensajeSecundario.copyWith(
-              color: Colors.white70,
-            ),
-          ),
-          actions: [
-            // CANCELAR (solo si no está borrando)
-            if (!isDeleting)
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(
-                  "Cancelar",
-                  style: AppTextStyles.mensajeSecundario.copyWith(
-                    color: Colors.amber,
-                  ),
-                ),
-              ),
-
-            // ELIMINAR O "BORRANDO..."
-            TextButton(
-              onPressed: isDeleting
-                  ? null // Desactiva el botón
-                  : () async {
-                Navigator.pop(context, true); // Cierra diálogo con true
-              },
-              child: isDeleting
-                  ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  color: Colors.redAccent,
-                  strokeWidth: 2,
-                ),
-              )
-                  : Text(
-                "Eliminar",
-                style: AppTextStyles.mensajeSecundario.copyWith(
-                  color: Colors.redAccent,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    // Si no confirmó → salir
-    if (confirm != true) return;
-
-    // Evitar múltiples ejecuciones
-    if (isDeleting) return;
-    isDeleting = true;
-
-    try {
-      final userIdStr = await storage.read(key: 'user_id');
-      final userId = int.tryParse(userIdStr ?? '');
-
-      if (userId == null) {
-        _showDialog(context, "Error", "No se encontró el ID del usuario.");
-        return;
-      }
-
-      // Mostrar diálogo de progreso
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(
-          child: CircularProgressIndicator(color: AppColors.yellow),
-        ),
-      );
-
-      final result = await ApiService.deleteUser(userId);
-
-      // Cerrar loader
-      if (context.mounted) Navigator.pop(context);
-
-      // Éxito
-      _showDialog(
-        context,
-        "Cuenta eliminada",
-        result['message'] ?? "Tu cuenta fue eliminada exitosamente.",
-      );
-
-      await storage.deleteAll();
-
-      if (!context.mounted) return;
-
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-            (route) => false,
-      );
-    } catch (e) {
-      if (context.mounted) Navigator.pop(context); // Cierra loader
-      _showDialog(context, "Error", "No se pudo eliminar la cuenta: $e");
-    }
-  }
-
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 2.0, bottom: 0.0),
@@ -771,177 +763,35 @@ class _HomeScreenState extends State<HomeScreen>
                 future: _getUserInitial(),
                 builder: (context, snapshot) {
                   final initial = snapshot.data ?? "?";
-                  return PopupMenuButton<int>(
-                constraints: const BoxConstraints(minWidth: 180),
-                offset: const Offset(0, 55),
-                color: AppColors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                icon: Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF252B35),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: AppColors.yellow,
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: AppColors.yellow,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                onSelected: (value) async {
-                  if (!mounted) return;
-                  switch (value) {
-                    case 0:
-                      _showJustifiedDialog(
-                        context,
-                        "Aviso legal",
-                        "Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.",
-                      );
-                      break;
-
-                    case 1:
-                      _showJustifiedDialog(
-                        context,
-                        "Acerca de",
-                        "DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías y ofrecer predicciones informadas. Aunque nuestras predicciones se basan en datos, no hay certeza absoluta de que esos números sean los ganadores, ya que la lotería es un juego de azar. No garantizamos premios, solo te ayudamos a elegir con más confianza. Usa la app con responsabilidad y solo con fines de entretenimiento. La decisión de utilizar estas predicciones queda bajo tu propia responsabilidad.",
-                      );
-                      break;
-                    case 2:
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const MisAnunciosScreen(),
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() => _selectedIndex = 4);
+                    },
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF252B35),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.yellow,
+                          width: 1.5,
                         ),
-                      );
-                      break;
-                    case 3:
-                      final allData = await storage.readAll();
-
-                      if (allData['user_id'] == null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text("Debes iniciar sesión"),
+                      ),
+                      child: Center(
+                        child: Text(
+                          initial,
+                          style: const TextStyle(
+                            color: AppColors.yellow,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
                           ),
-                        );
-                        break;
-                      }
-
-                      final user = {
-                        'name': allData['name'],
-                        'email': allData['email'],
-                        'pais_id': int.tryParse(allData['pais_id'] ?? '0'),
-                        'departamento_id': int.tryParse(
-                          allData['departamento_id'] ?? '0',
                         ),
-                      };
-
-                      final userId = int.tryParse(allData['user_id'] ?? '0');
-
-                      if (!context.mounted) return;
-
-                      final updatedUser = await Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              RegistroScreen(user: user, userId: userId),
-                        ),
-                      );
-
-                      if (updatedUser != null &&
-                          updatedUser is Map<String, dynamic>) {
-                        await storage.write(
-                          key: 'name',
-                          value: updatedUser['name'] ?? allData['name'],
-                        );
-                        await storage.write(
-                          key: 'email',
-                          value: updatedUser['email'] ?? allData['email'],
-                        );
-                        await storage.write(
-                          key: 'pais_id',
-                          value:
-                          updatedUser['pais_id']?.toString() ??
-                              allData['pais_id'],
-                        );
-                        await storage.write(
-                          key: 'departamento_id',
-                          value:
-                          updatedUser['departamento_id']?.toString() ??
-                              allData['departamento_id'],
-                        );
-                      }
-
-                      break;
-
-                    case 4:
-                      _showLogoutDialog(context);
-                      break;
-                    case 5:
-                      await _eliminarCuenta(context);
-                      break;
-                  }
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 0,
-                    child: Text(
-                      "Aviso legal",
-                      style: AppTextStyles.mensajeSecundario,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 1,
-                    child: Text(
-                      "Acerca de",
-                      style: AppTextStyles.mensajeSecundario,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 2,
-                    child: Text(
-                      "Mis anuncios",
-                      style: AppTextStyles.mensajeSecundario,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 3,
-                    child: Text(
-                      "Mis datos",
-                      style: AppTextStyles.mensajeSecundario,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 4,
-                    child: Text(
-                      "Cerrar sesión",
-                      style: AppTextStyles.mensajeSecundario,
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 5,
-                    child: Text(
-                      "Eliminar cuenta",
-                      style: AppTextStyles.mensajeSecundario.copyWith(
-                        color: Colors.redAccent,
                       ),
                     ),
-                  ),
-                ],
-              );
-            },
-          ),
+                  );
+                },
+              ),
             ],
           ),
         ],
@@ -953,481 +803,189 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: Colors.amber,
-          onRefresh: () async {
-            await Future.wait([
-              _loadUserData(),
-              buscarAnuncios(),
-              _loadPosts(),
-              _loadLoterias(),
-              context.read<NotificationProvider>().fetchNotifications(),
-            ]);
-          },
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            child: Column(
-              children: [
-                _buildHeaderRow(context),
+      bottomNavigationBar: _buildBottomNavBar(),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _buildHomeTab(),
+          const LoteriasPais(),
+          const BalotoMisJugadasScreen(),
+          const EstadisticasBlotoScreen(),
+          const ProfileScreen(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHomeTab() {
+    return SafeArea(
+      child: RefreshIndicator(
+        color: Colors.amber,
+        onRefresh: () async {
+          await Future.wait([
+            _loadUserData(),
+            buscarAnuncios(),
+            _loadPosts(),
+            _loadLoterias(),
+            context.read<NotificationProvider>().fetchNotifications(),
+          ]);
+        },
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeaderRow(context),
+              _buildCountryHeader(),
+              _buildSearchBar(),
+              
+              if (isLoading && _loterias.isEmpty)
+                const Center(child: Padding(
+                  padding: EdgeInsets.all(20.0),
+                  child: CircularProgressIndicator(color: AppColors.yellow),
+                ))
+              else ...[
+                _buildPopularesSection(),
                 const SizedBox(height: 10),
-                FutureBuilder<String>(
-                  future: _getUserName(),
-                  builder: (context, snapshot) {
-                    final name = snapshot.data ?? "";
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                _buildTodasLoteriasSection(),
+              ],
+
+              const SizedBox(height: 30),
+
+              // SECCIÓN DE PUBLICIDAD (SE MANTIENE)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: cargando
+                    ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                    : anuncios.isEmpty
+                    ? const SizedBox.shrink()
+                    : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(
-                        children: [
-                          Expanded(
-                            child: Text("Hola, $name", style: AppTextStyles.h2),
-                          ),
-                          //const AnimatedShimmerClover(),
-                        ],
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 50),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: ShimmerBorderContainer(
-                    child: Padding(
-                      padding: const EdgeInsets.all(5.0),
-                      child: Text(
-                        "Olvídate del azar, aquí analizamos por ti. Predicciones con IA para que elijas tus números con más confianza.",
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.mensajeSecundario.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 50),
-                Text(
-                  "Loterías disponibles en ${pais ?? 'tu país'}",
-                  style: AppTextStyles.mensajeImportante,
-                ),
-                const SizedBox(height: 15),
-                Center(
-                  child: SizedBox(
-                    width: 300,
-                    child: Divider(
-                      color: AppColors.yellow,
-                      thickness: 1,
-                      height: 0,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 50),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: isLoading
-                      ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                      : Column(
-                    children: [
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: _loterias.length > 4
-                            ? 4
-                            : _loterias.length,
-                        gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 6,
-                          crossAxisSpacing: 6,
-                          childAspectRatio: 1.45,
-                        ),
-                        itemBuilder: (context, index) {
-                          final loteria = _loterias[index];
-
-                          return _buildGameCardIcon(
-                            context,
-                            loteria["nombre"],
-                            null,
-                            AppColors.darkGray,
-                                () => _resolveScreen(loteria["nombre"]),
-                          );
-                        },
-                      ),
-
-                      if (_loterias.length > 4) ...[
-                        const SizedBox(height: 12),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: GestureDetector(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const LoteriasPais(),
-                                ),
-                              );
-                            },
-                            child: Text(
-                              "Ver más loterías",
-                              style: AppTextStyles.mensajeSecundario
-                                  .copyWith(color: AppColors.yellow),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: cargando
-                      ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                      : anuncios.isEmpty
-                      ? Column(
-                    children: [
-                      const SizedBox(height: 20),
-                      Center(
-                        child: Text(
-                          "No hay anuncios disponibles.",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                  )
-                      : Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // 🔹 Encabezado: "Explora negocios cerca de ti"
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 0,
-                          vertical: 10,
-                        ),
-                        child: Row(
-                          mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
-                          children: [
-                            GestureDetector(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                  const DirectorioLocalScreen(),
-                                ),
-                              ),
-                              child: Text(
-                                "Explora negocios cerca de ti",
-                                style: AppTextStyles.h2,
-                              ),
-                            ),
-                            IconButton(
-                              onPressed: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                  const DirectorioLocalScreen(),
-                                ),
-                              ),
-                              icon: Icon(
-                                Icons.search,
-                                color: AppColors.yellow,
-                                size: 24,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                      const SizedBox(height: 30),
-
-                      // 🔸 Carrusel horizontal
-                      InfiniteAdsCarousel(
-                        key: ValueKey(anuncios.length),
-                        anuncios: anuncios,
-                      ),
-
-                      const SizedBox(height: 10),
-                    ],
-                  ),
-                ),
-
-                // SECCIÓN DE POSTS
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text("Comentarios", style: AppTextStyles.h2),
+                          GestureDetector(
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
+                            child: Text("Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                          ),
                           IconButton(
-                            icon: const Icon(Icons.add),
-                            color: AppColors.yellow,
-                            iconSize: 30,
-                            onPressed: () async {
-                              if (!mounted) return;
-                              final newPost = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const CreatePostScreen(),
-                                ),
-                              );
-                              if (newPost != null && mounted) {
-                                setState(() => posts.insert(0, newPost));
-                              }
-                            },
+                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
+                            icon: const Icon(Icons.search, color: AppColors.yellow, size: 24),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
+                    ),
+                    const SizedBox(height: 10),
+                    InfiniteAdsCarousel(key: ValueKey(anuncios.length), anuncios: anuncios),
+                  ],
+                ),
+              ),
 
-                      // LISTA DE POSTS
-                      AppContainer4(
-                        child: isLoading
-                            ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                            : posts.isEmpty
-                            ? const Center(
-                          child: Text(
-                            "No hay posts",
-                            style: TextStyle(color: AppColors.yellow),
-                          ),
-                        )
-                            : SizedBox(
-                          height: 500,
-                          child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: posts.length,
-                            itemBuilder: (context, index) {
-                              final post = posts[index];
-
-                              // DETERMINAR SI ES DUEÑO
-                              final bool isOwner =
-                                  currentUserId != null &&
-                                      post.userId ==
-                                          int.tryParse(currentUserId!);
-
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 4.0,
-                                  horizontal: 2.0,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                                  children: [
-                                    InkWell(
-                                      onTap: () => _abrirPostScreen(post),
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                        children: [
-                                          // 1. FILA DE ENCABEZADO: Avatar + @userName • hace X d + Menú Opciones (⋮)
-                                          Row(
-                                            children: [
-                                              CircleAvatar(
-                                                radius: 12,
-                                                backgroundColor: AppColors.getAvatarColor(post.userName, userId: post.userId),
-                                                child: Text(
-                                                  post.userName.isNotEmpty ? post.userName[0].toUpperCase() : "?",
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 12,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                "@${post.userName}",
-                                                style: AppTextStyles.mensajeSecundario
-                                              ),
-                                              const SizedBox(width: 6),
-                                              const Text(
-                                                "•",
-                                                style: TextStyle(
-                                                  color: Colors.white38,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                post.relativeTime,
-                                                style: AppTextStyles
-                                                    .caption
-                                                    .copyWith(
-                                                  fontSize: 11,
-                                                  color: Colors.white54,
-                                                ),
-                                              ),
-                                              const Spacer(),
-                                              if (isOwner)
-                                                PopupMenuButton<String>(
-                                                  icon: const Icon(
-                                                    Icons.more_vert,
-                                                    color: Colors.white54,
-                                                    size: 18,
-                                                  ),
-                                                  color: const Color(0xFF1E1E2E),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius: BorderRadius.circular(12),
-                                                  ),
-                                                  onSelected: (value) {
-                                                    if (value == 'edit') {
-                                                      _editarPost(context, post);
-                                                    } else if (value == 'delete') {
-                                                      _eliminarPost(context, post);
-                                                    }
-                                                  },
-                                                  itemBuilder: (context) => [
-                                                    const PopupMenuItem(
-                                                      value: 'edit',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(
-                                                            Icons.edit_outlined,
-                                                            color: Colors.lightBlueAccent,
-                                                            size: 16,
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text('Editar', style: TextStyle(color: Colors.white, fontSize: 13)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                    const PopupMenuItem(
-                                                      value: 'delete',
-                                                      child: Row(
-                                                        children: [
-                                                          Icon(
-                                                            Icons.delete_outline,
-                                                            color: Colors.redAccent,
-                                                            size: 16,
-                                                          ),
-                                                          SizedBox(width: 8),
-                                                          Text('Eliminar', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 8),
-
-                                          // 2. DEBAJO DEL ICONO DE LA INICIAL: TÍTULO DEL POST
-                                          Text(
-                                            post.title,
-                                            style: AppTextStyles.h2.copyWith(
-                                              fontSize: 15,
-                                              color: AppColors.white,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-
-                                          // 3. DESCRIPCIÓN / CONTENIDO DEL POST
-                                          Text(
-                                            post.content,
-                                            style: AppTextStyles.mensajeSecundario.copyWith(
-                                              color: Colors.white.withValues(alpha: 0.9),
-                                              fontSize: 13.5,
-                                              height: 1.35,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 10),
-
-                                          // 4. FILA DE ACCIONES (RESPONDER Y RESPUESTAS)
-                                          Row(
-                                            children: [
-                                              InkWell(
-                                                onTap: () => _abrirPostScreen(post),
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                                  child: Row(
-                                                    children: [
-                                                      const Icon(Icons.reply_outlined, color: AppColors.yellow, size: 15),
-                                                      const SizedBox(width: 4),
-                                                      Text(
-                                                        "Responder",
-                                                        style: AppTextStyles.caption.copyWith(
-                                                          color: Colors.white70,
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(width: 16),
-
-                                              InkWell(
-                                                onTap: () => _abrirPostScreen(post),
-                                                borderRadius: BorderRadius.circular(8),
-                                                child: Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                                  child: Row(
-                                                    children: [
-                                                      const Icon(
-                                                        Icons.keyboard_arrow_down,
-                                                        color: AppColors.yellow,
-                                                        size: 16,
-                                                      ),
-                                                      const SizedBox(width: 4),
-                                                      Text(
-                                                        "${post.commentsCount} ${post.commentsCount == 1 ? 'respuesta' : 'respuestas'}",
-                                                        style: AppTextStyles.caption.copyWith(
-                                                          color: Colors.white70,
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Divider(
-                                      color: AppColors.grayBlue,
-                                      thickness: 0.3,
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
+              // SECCIÓN DE POSTS (SE MANTIENE)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          color: AppColors.yellow,
+                          iconSize: 28,
+                          onPressed: () async {
+                            final newPost = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatePostScreen()));
+                            if (newPost != null && mounted) setState(() => posts.insert(0, newPost));
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    AppContainer4(
+                      child: isLoading && posts.isEmpty
+                          ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                          : posts.isEmpty
+                          ? const Center(child: Text("No hay posts", style: TextStyle(color: AppColors.yellow)))
+                          : SizedBox(
+                        height: 400,
+                        child: ListView.builder(
+                          shrinkWrap: true,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: posts.length,
+                          itemBuilder: (context, index) {
+                            final post = posts[index];
+                            final bool isOwner = currentUserId != null && post.userId == int.tryParse(currentUserId!);
+                            return _buildPostItem(post, isOwner);
+                          },
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-                const SizedBox(height: 30),
-                const Footer(),
-                const SizedBox(height: 10),
-              ],
-            ),
+              ),
+              const SizedBox(height: 30),
+              Footer(),
+              const SizedBox(height: 10),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPostItem(Post post, bool isOwner) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => _abrirPostScreen(post),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 12,
+                      backgroundColor: AppColors.getAvatarColor(post.userName, userId: post.userId),
+                      child: Text(post.userName.isNotEmpty ? post.userName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                    ),
+                    const SizedBox(width: 8),
+                    Text("@${post.userName}", style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12)),
+                    const Spacer(),
+                    if (isOwner) _buildPostOptions(post),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(post.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 4),
+                Text(post.content, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white10, thickness: 0.5),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPostOptions(Post post) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_horiz, color: Colors.white38, size: 18),
+      onSelected: (val) {
+        if (val == 'edit') _editarPost(context, post);
+        else if (val == 'delete') _eliminarPost(context, post);
+      },
+      itemBuilder: (ctx) => [
+        const PopupMenuItem(value: 'edit', child: Text("Editar")),
+        const PopupMenuItem(value: 'delete', child: Text("Eliminar", style: TextStyle(color: Colors.redAccent))),
+      ],
     );
   }
 
@@ -1506,32 +1064,6 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
       ),
-    );
-  }
-
-  void _showJustifiedDialog(
-      BuildContext context,
-      String title,
-      String content,
-      ) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.blackfondo,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(title, style: AppTextStyles.h2),
-          content: SingleChildScrollView(
-            child: Text(
-              content,
-              textAlign: TextAlign.justify, // texto justificado
-              style: AppTextStyles.mensajeSecundario, // mantiene tus estilos
-            ),
-          ),
-        );
-      },
     );
   }
 
