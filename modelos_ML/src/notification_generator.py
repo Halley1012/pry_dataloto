@@ -8,11 +8,20 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 from config.database import get_engine
 
 class NotificationGenerator:
     def __init__(self):
         self.engine = get_engine()
+
+    def _get_mitad(self, pred_nums):
+        total = len(pred_nums)
+        if total <= 43:
+            return 20  # Baloto (43) y Miloto (39): 20 más probables
+        return round(total / 2)  # Powerball(35), MegaMillions(35), LottoAmerica(26), MillionaireLife(30), DoublePlay(35)
 
     def run(self, loteria="all"):
         print(f"🔔 Iniciando Generador de Notificaciones para: {loteria}")
@@ -33,8 +42,8 @@ class NotificationGenerator:
 
     def procesar_baloto(self):
         try:
-            # Obtener último resultado
-            res = pd.read_sql('SELECT * FROM resultados_bloto WHERE sorteo = \'Baloto\' ORDER BY fecha DESC LIMIT 1', self.engine)
+            # Obtener último resultado con balotas válidas (> 0)
+            res = pd.read_sql('SELECT * FROM resultados_bloto WHERE sorteo = \'Baloto\' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1', self.engine)
             if res.empty: return
             
             fecha = res.iloc[0]['fecha']
@@ -48,23 +57,23 @@ class NotificationGenerator:
             pred_nums = pred.iloc[0]['numeros']
             pred_rojas = pred.iloc[0]['balotaroja']
 
-            # 1. Casi! (Top 10)
-            top_10 = set(pred_nums[:10])
-            coincidencias = ganadores.intersection(top_10)
+            mitad = self._get_mitad(pred_nums)
+            top_mitad = set(pred_nums[:mitad])
+            coincidencias = ganadores.intersection(top_mitad)
+
+            # 1. Casi! (Acierto parcial en el top de más probables)
             if len(coincidencias) >= 3:
-                msj = f"¡Casi! De los 10 números con mayor probabilidad generados por la IA para Baloto, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
+                msj = f"¡Casi! De los {mitad} números con mayor probabilidad generados por la IA para Baloto, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
                 self.guardar_notificacion(1, fecha, msj, "acierto_parcial")
 
             # 2. Superbalota
             if super_ganadora == pred_rojas[0]:
-                msj = "¡La IA acertó la Superbalota en el sorteo de hoy!"
+                msj = "¡La IA acertó la Superbalota en el sorteo de hoy de Baloto!"
                 self.guardar_notificacion(1, fecha, msj, "acierto_directo")
 
-            # 3. Precisión Top 5
-            top_5 = set(pred_nums[:5])
-            coincidencias_5 = ganadores.intersection(top_5)
-            efectividad = (len(coincidencias_5) / 5) * 100
-            msj = f"En el sorteo de Baloto, el top 5 de números calientes tuvo una efectividad del {int(efectividad)}%."
+            # 3. Precisión sobre los números más probables (mitad de balotas)
+            efectividad = (len(coincidencias) / 5) * 100
+            msj = f"En el sorteo de Baloto, los {mitad} números más probables tuvieron una efectividad del {int(efectividad)}% ({len(coincidencias)} de 5 aciertos)."
             self.guardar_notificacion(1, fecha, msj, "precision")
 
         except Exception as e:
@@ -72,8 +81,8 @@ class NotificationGenerator:
 
     def procesar_miloto(self):
         try:
-            # Obtener último resultado
-            res = pd.read_sql('SELECT * FROM resultados_mloto ORDER BY fecha DESC LIMIT 1', self.engine)
+            # Obtener último resultado con balotas válidas (> 0)
+            res = pd.read_sql('SELECT * FROM resultados_mloto WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1', self.engine)
             if res.empty: return
             
             fecha = res.iloc[0]['fecha']
@@ -84,19 +93,18 @@ class NotificationGenerator:
             if pred.empty: return
 
             pred_nums = pred.iloc[0]['numeros']
+            mitad = self._get_mitad(pred_nums)
+            top_mitad = set(pred_nums[:mitad])
+            coincidencias = ganadores.intersection(top_mitad)
 
-            # 1. Casi! (Top 10)
-            top_10 = set(pred_nums[:10])
-            coincidencias = ganadores.intersection(top_10)
+            # 1. Casi!
             if len(coincidencias) >= 3:
-                msj = f"¡Casi! De los 10 números con mayor probabilidad generados por la IA para Miloto, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
+                msj = f"¡Casi! De los {mitad} números con mayor probabilidad generados por la IA para Miloto, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
                 self.guardar_notificacion(2, fecha, msj, "acierto_parcial")
 
-            # 2. Precisión Top 5
-            top_5 = set(pred_nums[:5])
-            coincidencias_5 = ganadores.intersection(top_5)
-            efectividad = (len(coincidencias_5) / 5) * 100
-            msj = f"En el sorteo de Miloto, el top 5 de números calientes tuvo una efectividad del {int(efectividad)}%."
+            # 2. Precisión
+            efectividad = (len(coincidencias) / 5) * 100
+            msj = f"En el sorteo de Miloto, los {mitad} números más probables tuvieron una efectividad del {int(efectividad)}% ({len(coincidencias)} de 5 aciertos)."
             self.guardar_notificacion(2, fecha, msj, "precision")
 
         except Exception as e:
@@ -104,7 +112,7 @@ class NotificationGenerator:
 
     def procesar_generico(self, clave_loteria, nombre_display, tabla_resultados, tabla_predicciones, loteria_id):
         try:
-            res = pd.read_sql(f'SELECT * FROM {tabla_resultados} ORDER BY fecha DESC LIMIT 1', self.engine)
+            res = pd.read_sql(f'SELECT * FROM {tabla_resultados} WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1', self.engine)
             if res.empty: return
 
             fecha = res.iloc[0]['fecha']
@@ -117,10 +125,12 @@ class NotificationGenerator:
             pred_nums = pred.iloc[0]['numeros']
             pred_rojas = pred.iloc[0].get('balotaroja', None)
 
-            top_10 = set(pred_nums[:10])
-            coincidencias = ganadores.intersection(top_10)
+            mitad = self._get_mitad(pred_nums)
+            top_mitad = set(pred_nums[:mitad])
+            coincidencias = ganadores.intersection(top_mitad)
+
             if len(coincidencias) >= 3:
-                msj = f"¡Casi! De los 10 números con mayor probabilidad generados por la IA para {nombre_display}, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
+                msj = f"¡Casi! De los {mitad} números con mayor probabilidad generados por la IA para {nombre_display}, cayeron {len(coincidencias)} números ({', '.join(map(str, sorted(list(coincidencias))))})."
                 self.guardar_notificacion(loteria_id, fecha, msj, "acierto_parcial")
 
             if super_ganadora is not None and pred_rojas is not None and len(pred_rojas) > 0:
@@ -128,10 +138,8 @@ class NotificationGenerator:
                     msj = f"¡La IA acertó la balota especial en el sorteo de hoy de {nombre_display}!"
                     self.guardar_notificacion(loteria_id, fecha, msj, "acierto_directo")
 
-            top_5 = set(pred_nums[:5])
-            coincidencias_5 = ganadores.intersection(top_5)
-            efectividad = (len(coincidencias_5) / 5) * 100
-            msj = f"En el sorteo de {nombre_display}, el top 5 de números calientes tuvo una efectividad del {int(efectividad)}%."
+            efectividad = (len(coincidencias) / 5) * 100
+            msj = f"En el sorteo de {nombre_display}, los {mitad} números más probables tuvieron una efectividad del {int(efectividad)}% ({len(coincidencias)} de 5 aciertos)."
             self.guardar_notificacion(loteria_id, fecha, msj, "precision")
 
         except Exception as e:
@@ -154,18 +162,19 @@ class NotificationGenerator:
                 """))
                 conn.commit()
 
-                existe = conn.execute(text("""
-                    SELECT 1 FROM notificaciones 
-                    WHERE loteria_id = :l_id AND fecha_sorteo = :fecha AND mensaje = :msj
-                """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje}).fetchone()
+                # Reemplazar o actualizar si ya existe para esa lotería, fecha y tipo
+                conn.execute(text("""
+                    DELETE FROM notificaciones 
+                    WHERE loteria_id = :l_id AND fecha_sorteo = :fecha AND tipo = :tipo
+                """), {"l_id": loteria_id, "fecha": fecha, "tipo": tipo})
+                conn.commit()
 
-                if not existe:
-                    conn.execute(text("""
-                        INSERT INTO notificaciones (loteria_id, fecha_sorteo, mensaje, tipo)
-                        VALUES (:l_id, :fecha, :msj, :tipo)
-                    """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje, "tipo": tipo})
-                    conn.commit()
-                    print(f"✅ Notificación guardada: {tipo}")
+                conn.execute(text("""
+                    INSERT INTO notificaciones (loteria_id, fecha_sorteo, mensaje, tipo)
+                    VALUES (:l_id, :fecha, :msj, :tipo)
+                """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje, "tipo": tipo})
+                conn.commit()
+                print(f"✅ Notificación guardada/actualizada ({tipo}): {mensaje}")
         except Exception as e:
             print(f"❌ Error al guardar notificación: {e}")
 
