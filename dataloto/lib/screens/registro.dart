@@ -8,6 +8,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dataloto/styles/colores.dart';
 import '../widgets/custom_app_bar.dart';
+import '../utils/pais_helper.dart';
 
 class RegistroScreen extends StatefulWidget {
   final Map<String, dynamic>? user; // Para edición
@@ -350,7 +351,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                   .map(
                                     (p) => DropdownMenuItem<int>(
                                       value: p["id"],
-                                      child: Text(
+                                      child: PaisHelper.buildItemConBandera(
                                         p["nombre"].toString(),
                                         style: AppTextStyles.mensajeSecundario,
                                       ),

@@ -73,6 +73,7 @@ class LoteriaOut(BaseModel):
     nombre: str
     tipo: Optional[str] = None
     pais_id: int
+    proximo_sorteo: Optional[str] = None
 
 class PublicidadQuery:
     def __init__(

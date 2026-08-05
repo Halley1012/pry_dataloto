@@ -264,4 +264,31 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                       AND activa = true
                     ORDER BY nombre
                 """, (pais_id,))
-                return cur.fetchall()
+                loterias = cur.fetchall()
+
+                # Mapeo de nombres a tablas de resultados para obtener fechas reales
+                table_map = {
+                    "baloto": "resultados_bloto",
+                    "miloto": "resultados_mloto",
+                    "colorloto": "resultados_colorloto",
+                    "powerball": "resultados_powerball",
+                    "mega millions": "resultados_megamillions",
+                    "lotto america": "resultados_lotto_america",
+                    "double play": "resultados_double_play",
+                    "millionaire": "resultados_millionaire_life"
+                }
+
+                for lot in loterias:
+                    nombre_lower = lot['nombre'].lower()
+                    tabla = next((v for k, v in table_map.items() if k in nombre_lower), None)
+
+                    if tabla:
+                        try:
+                            # Buscamos la fecha del próximo sorteo (donde aún no hay resultados registrados)
+                            cur.execute(f"SELECT MAX(fecha) FROM {tabla} WHERE balota1 = 0")
+                            res = cur.fetchone()
+                            if res and res['max']:
+                                lot['proximo_sorteo'] = str(res['max'])
+                        except Exception:
+                            pass
+                return loterias
