@@ -37,13 +37,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   final storage = const FlutterSecureStorage();
   final TextEditingController _searchController = TextEditingController();
-  late final AnimationController _controller;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _scaleAnimation;
   bool cargando = false;
   List<Map<String, dynamic>> anuncios = [];
   bool isLoading = false;
@@ -57,21 +53,6 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
-    );
-
-    _controller.forward();
     _loadUserAndData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -163,8 +144,8 @@ class _HomeScreenState extends State<HomeScreen>
         currentUserId = userIdStr;
         pais = paisNombreStr ?? "Colombia";
         posts = postsConConteo;
-        anuncios = resultados[1] as List<Map<String, dynamic>>;
-        _loterias = resultados[2] as List<dynamic>;
+        anuncios = List<Map<String, dynamic>>.from(resultados[1]);
+        _loterias = resultados[2];
         _filteredLoterias = List<dynamic>.from(_loterias);
         isLoading = false;
         cargando = false;
@@ -185,7 +166,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -450,21 +430,12 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       // 🧠 1. Cargar los filtros guardados del usuario (por ID) usando FlutterSecureStorage
       final paisIdStr = await storage.read(key: "pais_id");
-      final departamentoIdStr = await storage.read(key: "departamento_id");
-      final ciudadIdStr = await storage.read(key: "ciudad_id");
 
       final paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
-      final departamentoId = departamentoIdStr != null
-          ? int.tryParse(departamentoIdStr)
-          : null;
-      final ciudadId = ciudadIdStr != null ? int.tryParse(ciudadIdStr) : null;
 
       // 🛰️ 2. Llamar al API con los filtros por defecto
       final data = await ApiService.getPublicidades(
         paisId: paisId,
-        //departamentoId: departamentoId,
-        //ciudadId: ciudadId,
-        //titulo: titulo.trim().isEmpty ? null : titulo.trim(),
       );
 
       if (!mounted) return;
@@ -488,9 +459,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   // NUEVO: MÉTODO PARA RECARGAR DATOS DEL USUARIO
   Future<void> _loadUserData() async {
-    final name = await storage.read(key: 'name');
     final paisNombre = await storage.read(key: 'pais_nombre');
-    final departamentoNombre = await storage.read(key: 'departamento_nombre');
     // Puedes usar estos valores en otros FutureBuilder si necesitas
 
     if (mounted) {
@@ -687,13 +656,13 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 0.0, bottom: 0.0),
+      padding: const EdgeInsets.only(left: 1.0, right: 1.0, top: 0.0, bottom: 0.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            height: 60,
+            height: 110,
             child: Image.asset(
               "assets/images/logo_letras.png",
               fit: BoxFit.contain,
@@ -921,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 6),
                 Text(post.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 4),
-                Text(post.content, style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13)),
+                Text(post.content, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
               ],
             ),
           ),
@@ -935,8 +904,11 @@ class _HomeScreenState extends State<HomeScreen>
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_horiz, color: Colors.white38, size: 18),
       onSelected: (val) {
-        if (val == 'edit') _editarPost(context, post);
-        else if (val == 'delete') _eliminarPost(context, post);
+        if (val == 'edit') {
+          _editarPost(context, post);
+        } else if (val == 'delete') {
+          _eliminarPost(context, post);
+        }
       },
       itemBuilder: (ctx) => [
         const PopupMenuItem(value: 'edit', child: Text("Editar")),
@@ -945,83 +917,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildGameCardIcon(
-      BuildContext context,
-      String title,
-      IconData? icon,
-      Color color,
-      Widget Function() destinationBuilder,
-      ) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => destinationBuilder()),
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        width: 140,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF282E3B), Color(0xFF191D26)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: Colors.white.withValues(alpha: 0.12),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              padding: const EdgeInsets.all(5),
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.yellow,
-              ),
-              alignment: Alignment.center,
-              child: icon != null
-                  ? Icon(icon, size: 32, color: AppColors.grayBlue)
-                  : Text(
-                title.isNotEmpty ? title[0].toUpperCase() : "?",
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.grayBlue,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.mensajeImportante.copyWith(
-                shadows: [
-                  const Shadow(
-                    blurRadius: 4,
-                    color: Colors.black26,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Widget _resolveScreen(String? tipo) {
     final t = (tipo ?? "").toLowerCase().trim();

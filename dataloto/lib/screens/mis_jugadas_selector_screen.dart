@@ -31,6 +31,20 @@ class _MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
+      // 1. Obtener qué loterías tienen jugadas para este usuario
+      final activas = await ApiService.getLoteriasConJugadas();
+      
+      // Si no hay ninguna, paramos aquí
+      if (activas.isEmpty && mounted) {
+        setState(() {
+          _loterias = [];
+          _filteredLoterias = [];
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 2. Obtener la lista completa de loterías para el mapeo
       final paisesRaw = await ApiService.getPaises();
       _paises = paisesRaw.cast<Map<String, dynamic>>();
       
@@ -44,7 +58,12 @@ class _MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         for (var item in list) {
           final mapItem = Map<String, dynamic>.from(item as Map);
           mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-          todas.add(mapItem);
+          
+          // 3. Filtrar: Solo agregar si está en la lista de 'activas'
+          final route = _getRouteFromName(mapItem['nombre'] ?? "");
+          if (activas.contains(route)) {
+            todas.add(mapItem);
+          }
         }
       }
 
@@ -58,6 +77,19 @@ class _MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _getRouteFromName(String nombre) {
+    final n = nombre.toLowerCase().trim();
+    if (n.contains("baloto")) return "bloto";
+    if (n.contains("miloto")) return "mloto";
+    if (n.contains("colorloto")) return "colorloto";
+    if (n.contains("powerball")) return "powerball";
+    if (n.contains("mega millions")) return "megamillions";
+    if (n.contains("lotto america")) return "lotto_america";
+    if (n.contains("double play")) return "double_play";
+    if (n.contains("millionaire")) return "millionaire_life";
+    return "unknown";
   }
 
   void _onSearchChanged(String query) {
@@ -136,6 +168,32 @@ class _MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   Widget _buildLotteryList() {
+    if (_filteredLoterias.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(40.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
+              const SizedBox(height: 20),
+              Text(
+                "Aún no tienes jugadas",
+                style: AppTextStyles.h2.copyWith(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                "Empieza a guardar tus números favoritos desde la sección Explorar.",
+                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 20),
       itemCount: _filteredLoterias.length,
@@ -191,27 +249,22 @@ class _MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   void _navigateToJugadas(String nombre) {
-    final n = nombre.toLowerCase().trim();
+    final route = _getRouteFromName(nombre);
     Widget screen;
     
-    if (n.contains("baloto")) {
+    if (route == "bloto") {
       screen = const BalotoMisJugadasScreen();
-    } else if (n.contains("miloto")) {
+    } else if (route == "mloto") {
       screen = const MilotoMisJugadasScreen();
     } else {
-      String route = "powerball";
-      if (n.contains("mega millions")) route = "megamillions";
-      if (n.contains("lotto america")) route = "lotto_america";
-      if (n.contains("double play")) route = "double_play";
-      if (n.contains("millionaire")) route = "millionaire_life";
-      if (n.contains("colorloto")) route = "colorloto";
-      
       screen = LoteriasMisJugadasGenericaScreen(
         loteriaNombre: nombre,
         loteriaRoute: route,
       );
     }
 
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen)).then((_) {
+      _cargarLoterias();
+    });
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/models/post.dart';
@@ -493,6 +494,27 @@ class ApiService {
       headers: {"Content-Type": "application/json"},
     );
     return response.statusCode == 200;
+  }
+
+  /// 🔍 Obtener lista de loterías donde el usuario tiene jugadas
+  static Future<List<String>> getLoteriasConJugadas() async {
+    final userId = await getUserId();
+    if (userId == null) return [];
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
+        headers: {"Content-Type": "application/json"},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data.cast<String>();
+      }
+    } catch (e) {
+      debugPrint("Error obteniendo loterías activas: $e");
+    }
+    return [];
   }
 
 
