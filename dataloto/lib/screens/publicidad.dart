@@ -7,6 +7,7 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shimmer/shimmer.dart';
+import '../utils/pais_helper.dart';
 
 class CrearPublicidadForm extends StatefulWidget {
   final Map<String, dynamic>? publicidad;
@@ -706,8 +707,13 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       value: value != null && items.any((e) => e['id'] == value) ? value : null,
       items: items
           .map(
-            (e) =>
-                DropdownMenuItem<int>(value: e['id'], child: Text(e['nombre'])),
+            (e) => DropdownMenuItem<int>(
+              value: e['id'],
+              child: PaisHelper.buildItemConBandera(
+                e['nombre'].toString(),
+                style: AppTextStyles.mensajeSecundario,
+              ),
+            ),
           )
           .toList(),
       onChanged: onChanged,
