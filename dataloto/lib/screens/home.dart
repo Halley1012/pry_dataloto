@@ -1,7 +1,6 @@
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/loteriasPais.dart';
-import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
@@ -13,9 +12,9 @@ import 'lotto_america.dart';
 import 'double_play.dart';
 import 'millionaire_life.dart';
 import 'megamillions.dart';
-import 'baloto_mis_jugadas.dart';
 import 'estadisticas_bloto.dart';
 import 'profile_screen.dart';
+import 'mis_jugadas_selector_screen.dart';
 
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -301,43 +300,67 @@ class _HomeScreenState extends State<HomeScreen>
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
           );
         },
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    loteria["nombre"][0],
+                    style: const TextStyle(
+                      color: AppColors.yellow,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  loteria["nombre"],
+                  style: AppTextStyles.mensajeImportante.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  const Text(
+                    "Próximo sorteo",
+                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
+                  Text(
+                    _formatearFechaSimple(loteria["proximo_sorteo"]),
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+            ],
           ),
-          child: Center(
-            child: Text(
-              loteria["nombre"][0],
-              style: const TextStyle(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 20),
-            ),
-          ),
         ),
-        title: Text(
-          loteria["nombre"],
-          style: AppTextStyles.mensajeImportante.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            const Text("Próximo sorteo", style: TextStyle(color: Colors.white38, fontSize: 10)),
-            Text(
-              _formatearFechaSimple(loteria["proximo_sorteo"]), 
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
       ),
     );
   }
@@ -664,16 +687,17 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 2.0, bottom: 0.0),
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 0.0, bottom: 0.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            height: 110,
+            height: 60,
             child: Image.asset(
               "assets/images/logo_letras.png",
               fit: BoxFit.contain,
+              alignment: Alignment.centerLeft,
             ),
           ),
           Row(
@@ -737,9 +761,13 @@ class _HomeScreenState extends State<HomeScreen>
         children: [
           _buildHomeTab(),
           const LoteriasPais(),
-          const BalotoMisJugadasScreen(),
+          const MisJugadasSelectorScreen(),
           const EstadisticasBlotoScreen(),
-          const ProfileScreen(),
+          ProfileScreen(
+            onTabChange: (index) {
+              setState(() => _selectedIndex = index);
+            },
+          ),
         ],
       ),
     );
