@@ -1,13 +1,10 @@
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/loteriasPais.dart';
-import 'package:dataloto/screens/misanuncios.dart';
 import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/widgets/carrusel.dart';
-import 'package:dataloto/widgets/contenedor2.dart';
 import 'package:dataloto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'baloto.dart';
 import 'miloto.dart';
 import 'color_loto.dart';
@@ -21,8 +18,6 @@ import 'estadisticas_bloto.dart';
 import 'profile_screen.dart';
 
 import 'package:dataloto/styles/app_text_styles.dart';
-import 'login.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/widgets/footer.dart';
 import '../services/api_service.dart';
@@ -31,7 +26,6 @@ import '../screens/createpostscreen.dart';
 import '../screens/notifications_screen.dart';
 import 'post.dart';
 import 'package:dataloto/styles/colores.dart';
-import 'package:dataloto/screens/registro.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
@@ -535,38 +529,6 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<String> _getUserInitial() async {
-    final name = await storage.read(key: 'name');
-    if (name != null && name.isNotEmpty) return name[0].toUpperCase();
-    return "?";
-  }
-
-  void _showJustifiedDialog(
-      BuildContext context,
-      String title,
-      String content,
-      ) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: AppColors.blackfondo,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(title, style: AppTextStyles.h2),
-          content: SingleChildScrollView(
-            child: Text(
-              content,
-              textAlign: TextAlign.justify, // texto justificado
-              style: AppTextStyles.mensajeSecundario, // mantiene tus estilos
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   Future<void> _abrirPostScreen(Post post) async {
     final updatedCount = await Navigator.push<int>(
       context,
@@ -755,40 +717,6 @@ class _HomeScreenState extends State<HomeScreen>
                           ),
                         ),
                     ],
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-              FutureBuilder<String>(
-                future: _getUserInitial(),
-                builder: (context, snapshot) {
-                  final initial = snapshot.data ?? "?";
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedIndex = 4);
-                    },
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF252B35),
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.yellow,
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          initial,
-                          style: const TextStyle(
-                            color: AppColors.yellow,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
                   );
                 },
               ),
