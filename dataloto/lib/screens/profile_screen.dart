@@ -13,7 +13,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
-  const ProfileScreen({super.key, this.onLogout});
+  final Function(int)? onTabChange;
+  const ProfileScreen({super.key, this.onLogout, this.onTabChange});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -155,7 +156,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Opciones
-              _buildOptionItem(Icons.bookmark_outline, "Mis jugadas", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()))),
+              _buildOptionItem(Icons.bookmark_outline, "Mis jugadas", () {
+                if (widget.onTabChange != null) {
+                  widget.onTabChange!(2);
+                } else {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()));
+                }
+              }),
               _buildOptionItem(Icons.notifications_none, "Notificaciones", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
               _buildOptionItem(Icons.ads_click, "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
               _buildOptionItem(Icons.payment, "Métodos de pago", () {}),
