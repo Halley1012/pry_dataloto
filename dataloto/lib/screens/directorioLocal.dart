@@ -8,6 +8,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/cardbussiness.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/pais_helper.dart';
 
 class DirectorioLocalScreen extends StatefulWidget {
   const DirectorioLocalScreen({super.key});
@@ -356,7 +357,13 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           ),
           iconEnabledColor: AppColors.yellow,
           items: paisesConTodas.map((p) {
-            return DropdownMenuItem<String>(value: p, child: Text(p));
+            return DropdownMenuItem<String>(
+              value: p,
+              child: PaisHelper.buildItemConBandera(
+                p,
+                style: AppTextStyles.mensajeSecundario,
+              ),
+            );
           }).toList(),
           onChanged: (value) async {
             if (value == null) return;

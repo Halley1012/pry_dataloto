@@ -542,7 +542,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                           },
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: 6),
 
                                       // 2. Solo el Número (Sin la palabra "Nro.")
                                       Text(
@@ -560,20 +560,20 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                           mainAxisAlignment: MainAxisAlignment.center,
                                           children: [
                                             ...whites.map((n) => Padding(
-                                                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                                  padding: const EdgeInsets.symmetric(horizontal: 2.5),
                                                   child: _build3DBall(
                                                     n,
                                                     baseColor: color,
-                                                    size: 33,
+                                                    size: 35,
                                                   ),
                                                 )),
                                             if (red != null)
                                               Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                                padding: const EdgeInsets.symmetric(horizontal: 2.5),
                                                 child: _build3DBall(
                                                   red,
                                                   baseColor: Colors.redAccent,
-                                                  size: 33,
+                                                  size: 35,
                                                 ),
                                               ),
                                           ],
