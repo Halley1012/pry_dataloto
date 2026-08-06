@@ -58,7 +58,7 @@ with DAG(
     'dataloto_ejecucion_powerball',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Powerball usando main_powerball.py',
-    schedule='0 3 * * 1,3,6', # Lunes, Miércoles y Sábados
+    schedule='0 3 * * 2,4,7', # Martes, Jueves y Domingos
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['dataloto', 'ml', 'powerball'],

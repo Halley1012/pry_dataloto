@@ -14,6 +14,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 expira TIMESTAMP WITH TIME ZONE
             );
         """)
+        await conn.execute(f"""
+            DELETE FROM {tabla}
+            WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
+               OR fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days';
+        """)
 
     async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pool = db_connection.get_pool()
@@ -36,6 +41,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 SELECT id, user_id, numeros, fecha_guardado, expira
                 FROM {tabla}
                 WHERE user_id = $1
+                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
                 ORDER BY fecha_guardado DESC
             """, user_id)
             return [dict(r) for r in rows]
@@ -70,7 +77,14 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 """, tabla)
                 
                 if exists_table:
-                    has_rows = await conn.fetchval(f"SELECT EXISTS (SELECT 1 FROM {tabla} WHERE user_id = $1)", user_id)
+                    has_rows = await conn.fetchval(f"""
+                        SELECT EXISTS (
+                            SELECT 1 FROM {tabla} 
+                            WHERE user_id = $1 
+                              AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                              AND fecha_guardado >= NOW() - INTERVAL '7 days'
+                        )
+                    """, user_id)
                     if has_rows:
                         activas.append(tipo)
         return activas
@@ -177,6 +191,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 cur.execute(f"""
                     SELECT fecha, numeros
                     FROM predicciones_{tipo}
+                    WHERE fecha >= CURRENT_DATE - INTERVAL '7 days'
                     ORDER BY fecha DESC
                     LIMIT %s;
                 """, (limit,))
