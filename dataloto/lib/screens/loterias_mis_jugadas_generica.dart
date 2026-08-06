@@ -350,7 +350,10 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        color: AppColors.yellow,
+        onRefresh: _cargarJugadas,
+        child: CustomScrollView(
         slivers: [
           CustomSliverAppBar(title: "Mis Jugadas - ${widget.loteriaNombre}"),
           SliverToBoxAdapter(
@@ -647,6 +650,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 }

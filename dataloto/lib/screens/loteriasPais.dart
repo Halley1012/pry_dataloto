@@ -12,9 +12,8 @@ import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
-import 'package:dataloto/widgets/custom_app_bar.dart';
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/utils/pais_helper.dart';
-
 
 class LoteriasPais extends StatefulWidget {
   const LoteriasPais({super.key});
@@ -24,14 +23,13 @@ class LoteriasPais extends StatefulWidget {
 }
 
 class _LoteriasPaisState extends State<LoteriasPais> {
-  static const String titulo = 'Loterías por País';
-
-  final _storage = const FlutterSecureStorage();
 
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   final TextEditingController _searchController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
+  String? _userCountry;
 
   bool _isLoading = true;
   bool _isShowingAll = false;
@@ -44,16 +42,35 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   Future<void> _cargarExplorarMundial() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+
+    // ⚡ 1. Mostrar caché al instante (0 ms)
+    final cached = await CacheService.getJson('explorar_loterias_mundial');
+    final cachedPaises = await CacheService.getJson('paises_list_cache');
+    final uCountry = await _storage.read(key: 'pais_nombre');
+
+    if (cached != null && mounted) {
+      setState(() {
+        _userCountry = uCountry;
+        _loterias = List<Map<String, dynamic>>.from(cached);
+        _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
+        if (cachedPaises != null) {
+          _paises = List<Map<String, dynamic>>.from(cachedPaises);
+        }
+        _isLoading = false;
+      });
+    }
+
+    if (_loterias.isEmpty) setState(() => _isLoading = true);
+
     try {
       // 1. Obtener todos los países
       final paisesRaw = await ApiService.getPaises();
       _paises = paisesRaw.cast<Map<String, dynamic>>();
+      CacheService.setJson('paises_list_cache', _paises);
       
       List<Map<String, dynamic>> todas = [];
       
-      // 2. Intentar cargar loterías de TODOS los países para la vista "Explorar Mundial"
-      // Usamos Future.wait para hacerlo en paralelo y que sea rápido
+      // 2. Cargar loterías de TODOS los países en paralelo
       final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) {
         debugPrint("Error cargando loterías para país ${p['id']}: $e");
         return [];
@@ -64,22 +81,21 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       for (int i = 0; i < _paises.length; i++) {
         final pId = _paises[i]['id'].toString();
         final list = resultadosLoterias[i];
-        if (list is List) {
-          for (var item in list) {
-            final mapItem = Map<String, dynamic>.from(item as Map);
-            // Aseguramos que el item tenga el pais_id para el filtrado del buscador
-            mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-            todas.add(mapItem);
-          }
+        for (var item in list) {
+          final mapItem = Map<String, dynamic>.from(item as Map);
+          mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
+          todas.add(mapItem);
         }
       }
 
       if (mounted) {
         setState(() {
+          _userCountry = uCountry;
           _loterias = todas;
           _filteredLoterias = todas;
           _isLoading = false;
         });
+        CacheService.setJson('explorar_loterias_mundial', todas);
       }
     } catch (e) {
       debugPrint("❌ Error crítico en Explorar Mundial: $e");
@@ -103,7 +119,6 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   }
 
   List<Map<String, dynamic>> _getDisplayList() {
-    // Si hay búsqueda activa, mostramos todo lo que coincida (sin límite de 2)
     if (_searchController.text.trim().isNotEmpty) {
       return _filteredLoterias;
     }
@@ -112,7 +127,6 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       return _filteredLoterias;
     }
 
-    // Lógica para mostrar máximo 2 por país
     final Map<String, int> countsPerCountry = {};
     final List<Map<String, dynamic>> limitedList = [];
 
@@ -134,24 +148,28 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
-              child: Text(
-                "Explorar Loterías",
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+        child: RefreshIndicator(
+          color: AppColors.yellow,
+          onRefresh: _cargarExplorarMundial,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+                child: Text(
+                  "Explorar Loterías",
+                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            _buildSearchBar(),
-            Expanded(
-              child: _isLoading 
-                ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                : _buildLotteryList(),
-            ),
-            _buildFooterButton(),
-          ],
+              _buildSearchBar(),
+              Expanded(
+                child: _isLoading && _loterias.isEmpty
+                  ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                  : _buildLotteryList(),
+              ),
+              _buildFooterButton(),
+            ],
+          ),
         ),
       ),
     );
@@ -183,24 +201,47 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   Widget _buildLotteryList() {
     final displayList = _getDisplayList();
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Text("Destacadas en el mundo", style: TextStyle(color: Colors.white70, fontSize: 16, fontWeight: FontWeight.w500)),
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: displayList.length,
-            itemBuilder: (context, index) {
-              final loteria = displayList[index];
-              return _buildExploreItem(loteria);
-            },
-          ),
-        ),
-      ],
+    final grouped = <String, List<Map<String, dynamic>>>{};
+
+    for (var lot in displayList) {
+      final pNombre = _getPaisNombre(lot["pais_id"]);
+      grouped.putIfAbsent(pNombre, () => []).add(lot);
+    }
+
+    // Ordenar países: Usuario primero, luego resto alfabético
+    final sortedCountries = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == _userCountry) return -1;
+        if (b == _userCountry) return 1;
+        return a.compareTo(b);
+      });
+
+    return ListView.builder(
+      itemCount: sortedCountries.length,
+      itemBuilder: (context, i) {
+        final country = sortedCountries[i];
+        final lots = grouped[country]!;
+        
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              child: Row(
+                children: [
+                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 20)),
+                  const SizedBox(width: 8),
+                  Text(
+                    country.toUpperCase(),
+                    style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontSize: 14, letterSpacing: 1.2),
+                  ),
+                ],
+              ),
+            ),
+            ...lots.map((loteria) => _buildExploreItem(loteria)),
+          ],
+        );
+      },
     );
   }
 
@@ -217,24 +258,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       child: ListTile(
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resolveScreen(nombre))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: const BoxDecoration(
-            color: Colors.black,
-            shape: BoxShape.circle,
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Center(
-            child: Transform.scale(
-              scale: 1.8, // Escala el emoji para que llene el círculo
-              child: Text(
-                PaisHelper.getBanderaEmoji(paisNombre),
-                style: const TextStyle(fontSize: 24),
-              ),
-            ),
-          ),
-        ),
+        leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
           nombre,
           style: AppTextStyles.mensajeImportante.copyWith(
