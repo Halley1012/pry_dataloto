@@ -284,11 +284,16 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
 
                     if tabla:
                         try:
-                            # Buscamos la fecha del próximo sorteo (donde aún no hay resultados registrados)
-                            cur.execute(f"SELECT MAX(fecha) FROM {tabla} WHERE balota1 = 0")
+                            # Buscamos la fecha del próximo sorteo futura o de hoy (donde aún no hay resultados registrados)
+                            if tabla == "resultados_colorloto":
+                                cur.execute("SELECT MAX(fecha) AS max_fecha FROM resultados_colorloto2 WHERE fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                            else:
+                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
                             res = cur.fetchone()
-                            if res and res['max']:
-                                lot['proximo_sorteo'] = str(res['max'])
-                        except Exception:
-                            pass
+                            if res:
+                                max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
+                                if max_fecha:
+                                    lot['proximo_sorteo'] = str(max_fecha)
+                        except Exception as e:
+                            logger.error(f"Error obteniendo fecha del próximo sorteo para {tabla}: {e}")
                 return loterias
