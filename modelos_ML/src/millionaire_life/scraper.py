@@ -26,12 +26,16 @@ class MillionaireLifeScraper:
         }
         self.draw_days = (0, 1, 2, 3, 4, 5, 6) # Diario
 
-    def run(self, max_pages=30):
+    def run(self, max_pages=None):
         print("🚀 Iniciando Scraping de Millionaire for Life...")
         df_final = pd.DataFrame()
         resultados = []
 
-        for pagina in range(1, max_pages + 1):
+        pagina = 1
+        while True:
+            if max_pages is not None and pagina > max_pages:
+                print(f"🛑 Se alcanzó el límite máximo de páginas especificado ({max_pages}).")
+                break
             print(f"➡️ Scrapeando página {pagina} de Millionaire for Life...")
             params = {"gc": self.game_code, "pg": pagina}
             response = None
@@ -81,6 +85,7 @@ class MillionaireLifeScraper:
                 if len(numeros) == 6:
                     resultados.append(["Millionaire for Life", fecha_str] + numeros)
 
+            pagina += 1
             time.sleep(0.5)
 
         if resultados:

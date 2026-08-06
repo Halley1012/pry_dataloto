@@ -169,6 +169,12 @@ class LottoAmericaPredictor:
             conn.commit()
 
             conn.execute(text("""
+                DELETE FROM predicciones_lotto_america 
+                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
+            """))
+            conn.commit()
+
+            conn.execute(text("""
                 INSERT INTO predicciones_lotto_america (fecha, numeros, balotaroja)
                 VALUES (:fecha, :numeros, :balotaroja)
                 ON CONFLICT (fecha) DO UPDATE
