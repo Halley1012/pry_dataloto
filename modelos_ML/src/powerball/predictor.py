@@ -171,6 +171,12 @@ class PowerballPredictor:
             conn.commit()
 
             conn.execute(text("""
+                DELETE FROM predicciones_powerball 
+                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
+            """))
+            conn.commit()
+
+            conn.execute(text("""
                 INSERT INTO predicciones_powerball (fecha, numeros, balotaroja)
                 VALUES (:fecha, :numeros, :balotaroja)
                 ON CONFLICT (fecha) DO UPDATE
