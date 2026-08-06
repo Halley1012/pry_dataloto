@@ -35,7 +35,7 @@ class JugadaUseCases:
     async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int]) -> Dict[str, Any]:
         colombia_tz = timezone(timedelta(hours=-5))
         hoy = datetime.now(colombia_tz)
-        expira = hoy + timedelta(days=1)
+        expira = hoy + timedelta(days=7)
 
         numeros_clean = [int(n) for n in numeros]
         record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, hoy, expira)

@@ -24,11 +24,15 @@ class MegaMillionsScraper:
         }
         self.draw_days = (1, 4) # Martes (1), Viernes (4)
 
-    def run(self, max_pages=30, page_size=100):
+    def run(self, max_pages=None, page_size=100):
         print("🚀 Iniciando Scraping de Mega Millions...")
         resultados = []
 
-        for pagina in range(1, max_pages + 1):
+        pagina = 1
+        while True:
+            if max_pages is not None and pagina > max_pages:
+                print(f"🛑 Se alcanzó el límite máximo de páginas especificado ({max_pages}).")
+                break
             print(f"➡️ Solicitando datos de la página {pagina} para Mega Millions...")
             payload = {
                 "pageNumber": pagina,
@@ -83,6 +87,7 @@ class MegaMillionsScraper:
                 print(f"❌ Error al procesar respuesta JSON en pág {pagina}: {e}")
                 break
 
+            pagina += 1
             time.sleep(0.5)
 
         if resultados:

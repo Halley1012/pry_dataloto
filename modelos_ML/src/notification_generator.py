@@ -25,6 +25,7 @@ class NotificationGenerator:
 
     def run(self, loteria="all"):
         print(f"🔔 Iniciando Generador de Notificaciones para: {loteria}")
+        self.limpiar_notificaciones_antiguas()
         if loteria in ["baloto", "all"]:
             self.procesar_baloto()
         if loteria in ["miloto", "all"]:
@@ -39,6 +40,31 @@ class NotificationGenerator:
             self.procesar_generico("millionaire_life", "Millionaire for Life", "resultados_millionaire_life", "predicciones_millionaire_life", 6)
         if loteria in ["megamillions", "all"]:
             self.procesar_generico("megamillions", "Mega Millions", "resultados_megamillions", "predicciones_megamillions", 7)
+
+    def limpiar_notificaciones_antiguas(self):
+        try:
+            with self.engine.connect() as conn:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS notificaciones (
+                        id SERIAL PRIMARY KEY,
+                        usuario_id INT,
+                        loteria_id INT,
+                        fecha_sorteo DATE,
+                        mensaje TEXT,
+                        tipo VARCHAR(50),
+                        leido BOOLEAN DEFAULT FALSE,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+                conn.commit()
+                res = conn.execute(text("""
+                    DELETE FROM notificaciones 
+                    WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '2 days';
+                """))
+                conn.commit()
+                print("🧹 Purga de notificaciones antiguas (más de 2 días) completada.")
+        except Exception as e:
+            print(f"⚠️ Error al limpiar notificaciones antiguas: {e}")
 
     def procesar_baloto(self):
         try:

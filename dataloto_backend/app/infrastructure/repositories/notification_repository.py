@@ -17,10 +17,10 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             if user_id:
-                query = "SELECT * FROM notificaciones WHERE usuario_id = $1 OR usuario_id IS NULL ORDER BY created_at DESC LIMIT $2"
+                query = "SELECT * FROM notificaciones WHERE (usuario_id = $1 OR usuario_id IS NULL) AND created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT $2"
                 rows = await conn.fetch(query, user_id, limit)
             else:
-                query = "SELECT * FROM notificaciones WHERE usuario_id IS NULL ORDER BY created_at DESC LIMIT $1"
+                query = "SELECT * FROM notificaciones WHERE usuario_id IS NULL AND created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT $1"
                 rows = await conn.fetch(query, limit)
             return [dict(r) for r in rows]
 

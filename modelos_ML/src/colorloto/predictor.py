@@ -154,6 +154,12 @@ class ColorLotoPredictor:
             conn.commit()
 
             conn.execute(text("""
+                DELETE FROM predicciones_colorloto2 
+                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
+            """))
+            conn.commit()
+
+            conn.execute(text("""
                 INSERT INTO predicciones_colorloto2 (fecha, ranking)
                 VALUES (:fecha, :ranking)
                 ON CONFLICT (fecha)
