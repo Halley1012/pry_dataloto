@@ -272,7 +272,10 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        color: AppColors.yellow,
+        onRefresh: _cargarDatos,
+        child: CustomScrollView(
         slivers: [
           const CustomSliverAppBar(title: "Mis Jugadas - MiLoto"),
           SliverToBoxAdapter(
@@ -573,7 +576,8 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _build3DBall(

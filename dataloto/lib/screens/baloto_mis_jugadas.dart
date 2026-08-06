@@ -292,7 +292,10 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      body: CustomScrollView(
+      body: RefreshIndicator(
+        color: AppColors.yellow,
+        onRefresh: _cargarJugadas,
+        child: CustomScrollView(
         slivers: [
           const CustomSliverAppBar(title: "Mis Jugadas - Baloto"),
           SliverToBoxAdapter(
@@ -605,7 +608,8 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _build3DBall(
