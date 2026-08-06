@@ -1,49 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/services/api_service.dart';
+import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
-import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
-import 'package:dataloto/screens/miloto_mis_jugadas.dart';
-import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
+import 'package:dataloto/utils/pais_helper.dart';
+import 'package:dataloto/screens/estadisticas_bloto.dart';
+import 'package:dataloto/screens/estadisticas_mloto.dart';
+import 'package:dataloto/screens/estadisticas_powerball.dart';
+import 'package:dataloto/screens/estadisticas_megamillions.dart';
+import 'package:dataloto/screens/estadisticas_lotto_america.dart';
+import 'package:dataloto/screens/estadisticas_double_play.dart';
+import 'package:dataloto/screens/estadisticas_millionaire_life.dart';
 
-import 'package:dataloto/services/cache_service.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-class MisJugadasSelectorScreen extends StatefulWidget {
-  const MisJugadasSelectorScreen({super.key});
+class ResultadosSelectorScreen extends StatefulWidget {
+  const ResultadosSelectorScreen({super.key});
 
   @override
-  State<MisJugadasSelectorScreen> createState() => MisJugadasSelectorScreenState();
+  State<ResultadosSelectorScreen> createState() => _ResultadosSelectorScreenState();
 }
 
-class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
-  final _storage = const FlutterSecureStorage();
+class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   final TextEditingController _searchController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
   String? _userCountry;
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    cargarLoterias();
+    _cargarLoterias();
   }
 
-  /// ⚡ Carga súper rápida con caché a 0ms + peticiones en paralelo (Future.wait)
-  Future<void> cargarLoterias({bool forceRefresh = false}) async {
+  Future<void> _cargarLoterias() async {
     if (!mounted) return;
 
-    final uId = await _storage.read(key: 'user_id');
-    final cacheKey = 'mis_jugadas_selector_${uId ?? "anon"}';
+    // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
+    final cached = await CacheService.getJson('resultados_loterias_selector');
+    final cachedPaises = await CacheService.getJson('paises_list_cache');
     final uCountry = await _storage.read(key: 'pais_nombre');
 
-    // ⚡ 1. Mostrar caché al instante (0 ms) si existe
-    final cached = await CacheService.getJson(cacheKey);
-    final cachedPaises = await CacheService.getJson('paises_list_cache');
     if (cached != null && mounted) {
       setState(() {
         _userCountry = uCountry;
@@ -59,79 +59,36 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
-      // ⚡ 2. Cargar datos en PARALELO
-      final resultados = await Future.wait([
-        ApiService.getLoteriasConJugadas().catchError((e) {
-          debugPrint("⚠️ Error obteniendo jugadas activas: $e");
-          return <String>[];
-        }),
-        _obtenerTodasLasLoterias(),
-      ]);
+      final paisesRaw = await ApiService.getPaises();
+      _paises = paisesRaw.cast<Map<String, dynamic>>();
+      CacheService.setJson('paises_list_cache', _paises);
+      
+      List<Map<String, dynamic>> todas = [];
+      final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) => <dynamic>[]));
+      final resultadosLoterias = await Future.wait(listadoFutures);
 
-      final List<String> activas = List<String>.from(resultados[0] as List);
-      final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
-
-      final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
-        final route = _getRouteFromName(mapItem['nombre'] ?? "");
-        return activas.contains(route);
-      }).toList();
+      for (int i = 0; i < _paises.length; i++) {
+        final pId = _paises[i]['id'].toString();
+        final list = resultadosLoterias[i];
+        for (var item in list) {
+          final mapItem = Map<String, dynamic>.from(item as Map);
+          mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
+          todas.add(mapItem);
+        }
+      }
 
       if (mounted) {
         setState(() {
           _userCountry = uCountry;
-          _loterias = jugadasLoterias;
-          _filteredLoterias = jugadasLoterias;
+          _loterias = todas;
+          _filteredLoterias = todas;
           _isLoading = false;
         });
-        CacheService.setJson(cacheKey, jugadasLoterias);
+        CacheService.setJson('resultados_loterias_selector', todas);
       }
     } catch (e) {
-      debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
       if (mounted) setState(() => _isLoading = false);
     }
-  }
-
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias() async {
-    final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
-    if (cachedMapeo != null) {
-      return List<Map<String, dynamic>>.from(cachedMapeo);
-    }
-
-    final paisesRaw = await ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]);
-    _paises = paisesRaw.cast<Map<String, dynamic>>();
-    CacheService.setJson('paises_list_cache', _paises);
-
-    final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) => <dynamic>[]));
-    final resultadosLoterias = await Future.wait(listadoFutures);
-
-    List<Map<String, dynamic>> todas = [];
-    for (int i = 0; i < _paises.length; i++) {
-      final pId = _paises[i]['id'].toString();
-      final list = resultadosLoterias[i];
-      for (var item in list) {
-        final mapItem = Map<String, dynamic>.from(item as Map);
-        mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-        todas.add(mapItem);
-      }
-    }
-
-    if (todas.isNotEmpty) {
-      CacheService.setJson('loterias_mapeadas_all', todas);
-    }
-    return todas;
-  }
-
-  String _getRouteFromName(String nombre) {
-    final n = nombre.toLowerCase().trim();
-    if (n.contains("baloto")) return "bloto";
-    if (n.contains("miloto")) return "mloto";
-    if (n.contains("colorloto")) return "colorloto";
-    if (n.contains("powerball")) return "powerball";
-    if (n.contains("mega millions")) return "megamillions";
-    if (n.contains("lotto america")) return "lotto_america";
-    if (n.contains("double play")) return "double_play";
-    if (n.contains("millionaire")) return "millionaire_life";
-    return "unknown";
   }
 
   void _onSearchChanged(String query) {
@@ -165,14 +122,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.yellow,
-          onRefresh: () async => cargarLoterias(forceRefresh: true),
+          onRefresh: _cargarLoterias,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
                 child: Text(
-                  "Mis Jugadas",
+                  "Análisis y Resultados",
                   style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -214,32 +171,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   Widget _buildLotteryList() {
-    if (_filteredLoterias.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
-              const SizedBox(height: 20),
-              Text(
-                "Aún no tienes jugadas",
-                style: AppTextStyles.h2.copyWith(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                "Empieza a guardar tus números favoritos desde la sección Explorar.",
-                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     final grouped = <String, List<Map<String, dynamic>>>{};
     for (var lot in _filteredLoterias) {
       final pNombre = _getPaisNombre(lot["pais_id"]);
@@ -293,7 +224,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        onTap: () => _navigateToJugadas(nombre),
+        onTap: () => _navigateToEstadisticas(nombre),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
@@ -301,31 +232,37 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           style: AppTextStyles.mensajeImportante.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          "Ver mis jugadas guardadas",
+          "Ver análisis estadístico e IA",
           style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white38, fontSize: 12),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+        trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 20),
       ),
     );
   }
 
-  void _navigateToJugadas(String nombre) {
-    final route = _getRouteFromName(nombre);
+  void _navigateToEstadisticas(String nombre) {
+    final n = nombre.toLowerCase().trim();
     Widget screen;
     
-    if (route == "bloto") {
-      screen = const BalotoMisJugadasScreen();
-    } else if (route == "mloto") {
-      screen = const MilotoMisJugadasScreen();
+    if (n.contains("baloto")) {
+      screen = const EstadisticasBlotoScreen();
+    } else if (n.contains("miloto")) {
+      screen = const EstadisticasMlotoScreen();
+    } else if (n.contains("powerball")) {
+      screen = const EstadisticasPowerballScreen();
+    } else if (n.contains("mega millions")) {
+      screen = const EstadisticasMegaMillionsScreen();
+    } else if (n.contains("lotto america")) {
+      screen = const EstadisticasLottoAmericaScreen();
+    } else if (n.contains("double play")) {
+      screen = const EstadisticasDoublePlayScreen();
+    } else if (n.contains("millionaire")) {
+      screen = const EstadisticasMillionaireLifeScreen();
     } else {
-      screen = LoteriasMisJugadasGenericaScreen(
-        loteriaNombre: nombre,
-        loteriaRoute: route,
-      );
+      // Por defecto o si no hay pantalla específica
+      screen = const EstadisticasBlotoScreen();
     }
 
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen)).then((_) {
-      cargarLoterias();
-    });
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
   }
 }

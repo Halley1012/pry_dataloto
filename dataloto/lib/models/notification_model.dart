@@ -28,4 +28,16 @@ class NotificationModel {
       createdAt: DateTime.parse(json['created_at']),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'loteria_id': loteriaId,
+      'fecha_sorteo': fechaSorteo?.toIso8601String(),
+      'mensaje': mensaje,
+      'tipo': tipo,
+      'leido': leido,
+      'created_at': createdAt.toIso8601String(),
+    };
+  }
 }

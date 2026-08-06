@@ -1,9 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/loteriasPais.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/widgets/contenedor4.dart';
-import 'package:flutter/material.dart';
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'baloto.dart';
 import 'miloto.dart';
 import 'color_loto.dart';
@@ -12,9 +13,9 @@ import 'lotto_america.dart';
 import 'double_play.dart';
 import 'millionaire_life.dart';
 import 'megamillions.dart';
-import 'estadisticas_bloto.dart';
 import 'profile_screen.dart';
 import 'mis_jugadas_selector_screen.dart';
+import 'resultados_selector_screen.dart';
 
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -48,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? pais;
   List<dynamic> _loterias = [];
   List<dynamic> _filteredLoterias = [];
+  List<dynamic> _globalLoterias = [];
   int _selectedIndex = 0;
 
   @override
@@ -82,12 +84,14 @@ class _HomeScreenState extends State<HomeScreen> {
       // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms)
       final cachedLoterias = await CacheService.getJson('home_loterias_$paisIdStr');
       final cachedAnuncios = await CacheService.getJson('home_anuncios_$paisIdStr');
+      final cachedGlobal = await CacheService.getJson('home_loterias_globales');
       if (cachedLoterias != null && mounted) {
         setState(() {
           currentUserId = userIdStr;
           pais = paisNombreStr ?? "Colombia";
           _loterias = List<dynamic>.from(cachedLoterias);
           _filteredLoterias = List<dynamic>.from(_loterias);
+          if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
           if (cachedAnuncios != null) anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
           isLoading = false;
           cargando = false;
@@ -138,6 +142,19 @@ class _HomeScreenState extends State<HomeScreen> {
         }),
       );
 
+      List<dynamic> loteriasRes = resultados[2];
+      List<dynamic> globalRes = [];
+      if (loteriasRes.isEmpty) {
+        try {
+          final resCol = await ApiService.getLoteriasPorPais("5");
+          final resUsa = await ApiService.getLoteriasPorPais("21");
+          globalRes = [...resCol, ...resUsa];
+          CacheService.setJson('home_loterias_globales', globalRes);
+        } catch (e) {
+          debugPrint("⚠️ Error obteniendo loterías globales: $e");
+        }
+      }
+
       if (!mounted) return;
 
       setState(() {
@@ -145,8 +162,9 @@ class _HomeScreenState extends State<HomeScreen> {
         pais = paisNombreStr ?? "Colombia";
         posts = postsConConteo;
         anuncios = List<Map<String, dynamic>>.from(resultados[1]);
-        _loterias = resultados[2];
+        _loterias = loteriasRes;
         _filteredLoterias = List<dynamic>.from(_loterias);
+        _globalLoterias = globalRes;
         isLoading = false;
         cargando = false;
       });
@@ -262,6 +280,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (fecha == null || fecha.isEmpty) return "Próximamente";
     try {
       DateTime parsed = DateTime.parse(fecha.substring(0, 10));
+      DateTime now = DateTime.now();
+      DateTime hoy = DateTime(now.year, now.month, now.day);
+      DateTime fechaSorteo = DateTime(parsed.year, parsed.month, parsed.day);
+      if (fechaSorteo.isBefore(hoy)) {
+        return "Próximamente";
+      }
       const meses = [
         "Ene", "Feb", "Mar", "Abr", "May", "Jun",
         "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
@@ -271,6 +295,23 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {
       return fecha;
     }
+  }
+
+  String _getPaisNombre(dynamic loteria) {
+    if (loteria["pais_nombre"] != null && loteria["pais_nombre"].toString().isNotEmpty) {
+      return loteria["pais_nombre"].toString();
+    }
+    final pId = loteria["pais_id"]?.toString();
+    if (pId == "5") return "Colombia";
+    if (pId == "21") return "Estados Unidos";
+    final nombre = (loteria["nombre"] ?? "").toString().toLowerCase();
+    if (nombre.contains("powerball") || nombre.contains("mega millions") || nombre.contains("double play") || nombre.contains("lotto america") || nombre.contains("millionaire")) {
+      return "Estados Unidos";
+    }
+    if (nombre.contains("baloto") || nombre.contains("miloto") || nombre.contains("colorloto") || nombre.contains("boyacá") || nombre.contains("bogotá") || nombre.contains("cundinamarca") || nombre.contains("cauca") || nombre.contains("nariño")) {
+      return "Colombia";
+    }
+    return pais ?? "Internacional";
   }
 
   Widget _buildLoteriaCard(dynamic loteria) {
@@ -293,32 +334,29 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.black,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    loteria["nombre"][0],
-                    style: const TextStyle(
-                      color: AppColors.yellow,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              ),
+              LotteryAvatar3D(nombre: loteria["nombre"] ?? "", size: 46),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  loteria["nombre"],
-                  style: AppTextStyles.mensajeImportante.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      loteria["nombre"],
+                      style: AppTextStyles.mensajeImportante.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _getPaisNombre(loteria),
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
@@ -361,13 +399,25 @@ class _HomeScreenState extends State<HomeScreen> {
           itemBuilder: (context, index) {
             final loteria = _filteredLoterias[index + 3];
             return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
                 );
               },
-              title: Text(loteria["nombre"], style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70)),
+              leading: LotteryAvatar3D(nombre: loteria["nombre"] ?? "", size: 40),
+              title: Text(
+                loteria["nombre"],
+                style: AppTextStyles.mensajeImportante.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              subtitle: Text(
+                _getPaisNombre(loteria),
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
               trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
             );
           },
@@ -381,6 +431,9 @@ class _HomeScreenState extends State<HomeScreen> {
       currentIndex: _selectedIndex,
       onTap: (index) {
         if (index == 0) _loadUserData(); // Actualizar país al volver al inicio
+        if (index == 2) {
+          _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
+        }
         setState(() => _selectedIndex = index);
       },
       backgroundColor: AppColors.black,
@@ -407,13 +460,26 @@ class _HomeScreenState extends State<HomeScreen> {
       }
 
       final data = await ApiService.getLoteriasPorPais(paisId);
+      List<dynamic> globalRes = [];
+      if (data.isEmpty) {
+        try {
+          final resCol = await ApiService.getLoteriasPorPais("5");
+          final resUsa = await ApiService.getLoteriasPorPais("21");
+          globalRes = [...resCol, ...resUsa];
+          CacheService.setJson('home_loterias_globales', globalRes);
+        } catch (e) {
+          debugPrint("⚠️ Error obteniendo loterías globales: $e");
+        }
+      }
 
       if (mounted) {
         setState(() {
           _loterias = data;
           _filteredLoterias = List<dynamic>.from(_loterias);
+          _globalLoterias = globalRes;
           isLoading = false;
         });
+        CacheService.setJson('home_loterias_$paisId', data);
       }
     } catch (e) {
       debugPrint("❌ Error cargando loterías: $e");
@@ -656,7 +722,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 1.0, right: 1.0, top: 0.0, bottom: 0.0),
+      padding: const EdgeInsets.only(left: 3.0, right: 1.0, top: 0.0, bottom: 0.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -720,6 +786,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  final GlobalKey<MisJugadasSelectorScreenState> _misJugadasKey = GlobalKey();
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -730,15 +798,100 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildHomeTab(),
           const LoteriasPais(),
-          const MisJugadasSelectorScreen(),
-          const EstadisticasBlotoScreen(),
+          MisJugadasSelectorScreen(key: _misJugadasKey),
+          const ResultadosSelectorScreen(),
           ProfileScreen(
             onTabChange: (index) {
+              if (index == 2) {
+                _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
+              }
               setState(() => _selectedIndex = index);
             },
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyLoteriasState() {
+    final countryName = pais ?? "este país";
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10, width: 1),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.public_outlined,
+              color: AppColors.yellow,
+              size: 38,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            "No hay loterías registradas para $countryName",
+            style: AppTextStyles.h2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!",
+            style: AppTextStyles.mensajeSecundario.copyWith(
+              color: Colors.white54,
+              fontSize: 13,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGlobalFallbackSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Loterías Destacadas",
+                style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              TextButton(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
+                child: const Text("Ver todas", style: TextStyle(color: Colors.white54, fontSize: 14)),
+              ),
+            ],
+          ),
+        ),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _globalLoterias.length > 4 ? 4 : _globalLoterias.length,
+          itemBuilder: (context, index) {
+            final loteria = _globalLoterias[index];
+            return _buildLoteriaCard(loteria);
+          },
+        ),
+      ],
     );
   }
 
@@ -769,7 +922,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding: EdgeInsets.all(20.0),
                   child: CircularProgressIndicator(color: AppColors.yellow),
                 ))
-              else ...[
+              else if (_filteredLoterias.isEmpty) ...[
+                _buildEmptyLoteriasState(),
+                if (_globalLoterias.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _buildGlobalFallbackSection(),
+                ],
+              ] else ...[
                 _buildPopularesSection(),
                 const SizedBox(height: 10),
                 _buildTodasLoteriasSection(),

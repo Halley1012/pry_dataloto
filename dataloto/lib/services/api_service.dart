@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/models/post.dart';
 import 'package:dataloto/models/comment.dart';
+import 'package:dataloto/services/cache_service.dart';
 
 class ApiService {
   static const String baseUrl = "https://pry-dataloto.onrender.com";
@@ -277,6 +278,7 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
+      CacheService.registrarJugadaOptimista("mloto");
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
@@ -366,6 +368,7 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
+      CacheService.registrarJugadaOptimista("bloto");
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
@@ -456,6 +459,7 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
+      CacheService.registrarJugadaOptimista(loteriaName);
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
