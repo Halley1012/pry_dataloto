@@ -19,6 +19,7 @@ class UpdateUser(BaseModel):
     email: Optional[EmailStr] = None
     pais_id: Optional[int] = None
     departamento_id: Optional[int] = None
+    fcm_token: Optional[str] = None
 
 class JugadaCreate(BaseModel):
     numeros: List[int]

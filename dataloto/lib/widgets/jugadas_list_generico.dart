@@ -153,7 +153,11 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
                       itemCount: jugadas.length,
                       itemBuilder: (context, index) {
                         final jugada = jugadas[index];
-                        final numeros = (jugada["numeros"] as List<dynamic>? ?? []).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+                        final rawNums = (jugada["numeros"] as List<dynamic>? ?? []).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+                        final bRoja = jugada["balota_roja"] ?? jugada["balotaroja"];
+                        final numeros = (rawNums.length == 5 && bRoja != null)
+                            ? [...rawNums, int.tryParse(bRoja.toString()) ?? 0]
+                            : rawNums;
 
                         final Color color = [
                           Colors.blueAccent,

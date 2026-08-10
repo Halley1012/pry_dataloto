@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -177,6 +178,8 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
@@ -195,7 +198,7 @@ class _LoginPageState extends State<LoginPage> {
             }
           },
         ),
-        title: Text("Iniciar Sesión", style: AppTextStyles.h2),
+        title: Text(l10n?.iniciarSesion ?? "Iniciar Sesión", style: AppTextStyles.h2),
         centerTitle: true,
       ),
       body: Center(

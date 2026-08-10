@@ -217,6 +217,20 @@ class ApiService {
     }
   }
 
+  /// 🔥 Actualizar el token de notificaciones FCM
+  static Future<bool> updateFCMToken(String fcmToken) async {
+    final userId = await getUserId();
+    if (userId == null) return false;
+
+    try {
+      final response = await updateUser(userId, {"fcm_token": fcmToken});
+      return response["success"] == true;
+    } catch (e) {
+      debugPrint("⚠️ Error actualizando FCM token: $e");
+      return false;
+    }
+  }
+
   static Future<Map<String, dynamic>> updateUser(
     int userId,
     Map<String, dynamic> updateData,
@@ -446,24 +460,35 @@ class ApiService {
   static Future<Map<String, dynamic>> crearJugadaGenerica(
     String loteriaName,
     List<int> numeros,
-    String userId,
-  ) async {
+    String userId, {
+    int? balotaRoja,
+  }) async {
     if (userId.isEmpty) {
       throw Exception("El userId enviado está vacío");
+    }
+
+    final Map<String, dynamic> payload = {
+      "numeros": numeros,
+      "user_id": userId,
+    };
+    if (balotaRoja != null) {
+      payload["balota_roja"] = balotaRoja;
+      payload["balotaroja"] = balotaRoja;
     }
 
     final response = await http.post(
       Uri.parse("$baseUrl/jugadas_$loteriaName"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"numeros": numeros, "user_id": userId}),
+      body: jsonEncode(payload),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       CacheService.registrarJugadaOptimista(loteriaName);
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
       }
+      return {"status": "ok"};
     }
     throw Exception("Error al crear jugada $loteriaName: ${response.statusCode}");
   }
