@@ -198,11 +198,13 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Row(
                 children: [
-                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 20)),
+                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 8),
                   Text(
-                    country.toUpperCase(),
-                    style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontSize: 14, letterSpacing: 1.2),
+                    country.isNotEmpty 
+                      ? country[0].toUpperCase() + country.substring(1).toLowerCase() 
+                      : "",
+                    style: AppTextStyles.h2.copyWith(color: AppColors.white),
                   ),
                 ],
               ),
@@ -216,6 +218,9 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   Widget _buildLotteryItem(Map<String, dynamic> loteria) {
     final nombre = loteria["nombre"] ?? "";
+    final String nombreFormateado = nombre.isNotEmpty
+        ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
+        : "";
     
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
@@ -228,12 +233,8 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
-          nombre,
-          style: AppTextStyles.mensajeImportante.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(
-          "Ver análisis estadístico e IA",
-          style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white38, fontSize: 12),
+          nombreFormateado,
+          style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 20),
       ),

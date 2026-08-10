@@ -50,12 +50,51 @@ def enviar_notificacion_exito():
     
     print("📧 Correo de notificación enviado exitosamente a", receiver)
 
+def enviar_notificacion_error(context):
+    sender = "michaelhalleydelgado@gmail.com"
+    password = "gukpxpfvpjutysmv"
+    receiver = "michaelhalleydelgado@gmail.com"
+
+    task_instance = context.get('task_instance')
+    task_id = task_instance.task_id if task_instance else 'Desconocida'
+    dag_id = context.get('dag').dag_id if context.get('dag') else 'Desconocido'
+    exception = context.get('exception', 'Error desconocido o Timeout (> 20 min)')
+    execution_date = context.get('execution_date', datetime.now())
+
+    msg = MIMEMultipart("alternative")
+    msg["Subject"] = f"⚠️ ALERTA: Fallo o Timeout en DAG {dag_id} (Tarea: {task_id})"
+    msg["From"] = sender
+    msg["To"] = receiver
+
+    html = f"""
+    <h3>⚠️ Alerta de Ejecución en Airflow</h3>
+    <p>Se ha detectado un fallo o sobrepaso del tiempo límite (20 minutos) en la tarea <b>{task_id}</b> del DAG <b>{dag_id}</b>.</p>
+    <ul>
+        <li><b>Fecha de Ejecución:</b> {execution_date}</li>
+        <li><b>Tarea:</b> {task_id}</li>
+        <li><b>Detalle / Excepción:</b> {exception}</li>
+    </ul>
+    <p>Por favor, revisa los logs de Airflow para más información.</p>
+    """
+    msg.attach(MIMEText(html, "html"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+            server.starttls()
+            server.login(sender, password)
+            server.sendmail(sender, receiver, msg.as_string())
+        print(f"📧 Correo de alerta de error enviado a {receiver}")
+    except Exception as e:
+        print(f"❌ Error enviando correo de alerta: {e}")
+
 # Configuración por defecto para las tareas del DAG
 default_args = {
     'owner': 'dataloto',
     'depends_on_past': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
+    'execution_timeout': timedelta(minutes=20),
+    'on_failure_callback': enviar_notificacion_error,
 }
 
 # Definición del DAG para MiLoto

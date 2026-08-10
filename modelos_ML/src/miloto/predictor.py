@@ -84,7 +84,8 @@ class MilotoPredictor:
                 reg_lambda=1,
                 #use_label_encoder=False,
                 eval_metric='logloss',
-                random_state=42
+                random_state=42,
+                n_jobs=1
             )
             model.fit(X_train, y_train)
 

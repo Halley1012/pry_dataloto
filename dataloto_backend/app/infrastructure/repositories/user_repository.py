@@ -11,7 +11,8 @@ class PostgresUserRepository(UserRepositoryPort):
                 SELECT 
                     u.id, u.name, u.email, u.password as password_hashed,
                     u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre
+                    u.departamento_id, d.nombre AS departamento_nombre,
+                    u.fcm_token
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id
@@ -27,7 +28,8 @@ class PostgresUserRepository(UserRepositoryPort):
                 SELECT 
                     u.id, u.name, u.email, u.password as password_hashed,
                     u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre
+                    u.departamento_id, d.nombre AS departamento_nombre,
+                    u.fcm_token
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id
@@ -50,7 +52,8 @@ class PostgresUserRepository(UserRepositoryPort):
                 SELECT 
                     u.id, u.name, u.email,
                     u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre
+                    u.departamento_id, d.nombre AS departamento_nombre,
+                    u.fcm_token
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id
@@ -80,7 +83,8 @@ class PostgresUserRepository(UserRepositoryPort):
                 SELECT 
                     u.id, u.name, u.email,
                     u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre
+                    u.departamento_id, d.nombre AS departamento_nombre,
+                    u.fcm_token
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id

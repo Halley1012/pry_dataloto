@@ -2,13 +2,14 @@ from datetime import datetime
 from typing import List, Optional
 
 class User:
-    def __init__(self, id: int, name: str, email: str, password_hashed: str, pais_id: Optional[int] = None, departamento_id: Optional[int] = None):
+    def __init__(self, id: int, name: str, email: str, password_hashed: str, pais_id: Optional[int] = None, departamento_id: Optional[int] = None, fcm_token: Optional[str] = None):
         self.id = id
         self.name = name
         self.email = email
         self.password_hashed = password_hashed
         self.pais_id = pais_id
         self.departamento_id = departamento_id
+        self.fcm_token = fcm_token
 
 class Jugada:
     def __init__(self, id: int, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime):

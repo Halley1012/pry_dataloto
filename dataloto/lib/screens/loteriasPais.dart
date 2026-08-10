@@ -229,11 +229,13 @@ class _LoteriasPaisState extends State<LoteriasPais> {
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Row(
                 children: [
-                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 20)),
+                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 8),
                   Text(
-                    country.toUpperCase(),
-                    style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontSize: 14, letterSpacing: 1.2),
+                    country.isNotEmpty 
+                      ? country[0].toUpperCase() + country.substring(1).toLowerCase() 
+                      : "",
+                    style: AppTextStyles.h2.copyWith(color: AppColors.white),
                   ),
                 ],
               ),
@@ -247,8 +249,11 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   Widget _buildExploreItem(Map<String, dynamic> loteria) {
     final nombre = loteria["nombre"] ?? "";
-    final paisNombre = _getPaisNombre(loteria["pais_id"]);
-    
+    final fechaSorteo = _formatearFechaSimple(loteria["proximo_sorteo"]);
+    final String nombreFormateado = nombre.isNotEmpty
+        ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
+        : "";
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       decoration: BoxDecoration(
@@ -260,17 +265,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
-          nombre,
-          style: AppTextStyles.mensajeImportante.copyWith(
+          nombreFormateado,
+          style: AppTextStyles.h2.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.bold,
+            fontSize: 16,
           ),
         ),
         subtitle: Text(
-          paisNombre,
+          "Próximo sorteo: $fechaSorteo",
           style: AppTextStyles.mensajeSecundario.copyWith(
             color: Colors.white38,
-            fontSize: 12,
+            fontSize: 11,
           ),
         ),
         trailing: const Icon(
@@ -280,6 +286,22 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         ),
       ),
     );
+  }
+
+  String _formatearFechaSimple(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "Próximamente";
+    try {
+      DateTime parsed = DateTime.parse(fecha.substring(0, 10));
+      DateTime now = DateTime.now();
+      DateTime hoy = DateTime(now.year, now.month, now.day);
+      DateTime fechaS = DateTime(parsed.year, parsed.month, parsed.day);
+      if (fechaS.isBefore(hoy)) return "Próximamente";
+
+      const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+      return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+    } catch (_) {
+      return "Próximamente";
+    }
   }
 
   String _getPaisNombre(dynamic id) {

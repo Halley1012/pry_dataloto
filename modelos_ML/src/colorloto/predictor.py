@@ -72,7 +72,8 @@ class ColorLotoPredictor:
             colsample_bytree=0.8,
             objective="multi:softprob",
             eval_metric="mlogloss",
-            random_state=42
+            random_state=42,
+            n_jobs=1
         )
         model_color.fit(X_color, y_color)
 
@@ -117,7 +118,8 @@ class ColorLotoPredictor:
                 colsample_bytree=0.8,
                 objective="multi:softprob",
                 eval_metric="mlogloss",
-                random_state=42
+                random_state=42,
+                n_jobs=1
             )
             model_num.fit(X_num, y_num)
             modelos_numeros[color] = model_num

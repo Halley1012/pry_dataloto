@@ -10,6 +10,8 @@ import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:dataloto/providers/locale_provider.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -191,6 +193,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           const SizedBox(height: 10),
           ListTile(
+            leading: const Icon(Icons.language, color: Colors.amber),
+            title: const Text("Idioma / Language / Idioma", style: TextStyle(color: Colors.white)),
+            onTap: () {
+              Navigator.pop(context);
+              _showLanguageDialog(context);
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
             title: const Text("Eliminar cuenta", style: TextStyle(color: Colors.white)),
             onTap: () {
@@ -200,6 +210,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    final locProvider = Provider.of<LocaleProvider>(context, listen: false);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text("Seleccionar Idioma / Select Language", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Text("🇪🇸", style: TextStyle(fontSize: 22)),
+              title: const Text("Español", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                locProvider.setLocale(const Locale('es'));
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Text("🇺🇸", style: TextStyle(fontSize: 22)),
+              title: const Text("English", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                locProvider.setLocale(const Locale('en'));
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: const Text("🇧🇷", style: TextStyle(fontSize: 22)),
+              title: const Text("Português", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                locProvider.setLocale(const Locale('pt'));
+                Navigator.pop(context);
+              },
+            ),
+            const Divider(color: Colors.white24),
+            ListTile(
+              leading: const Icon(Icons.settings_suggest, color: Colors.amber),
+              title: const Text("Idioma del Sistema", style: TextStyle(color: Colors.white70)),
+              onTap: () {
+                locProvider.clearLocale();
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
