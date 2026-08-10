@@ -156,10 +156,14 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
       final nums = (play["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
-      if (nums.length >= 6) {
-        final whites = nums.sublist(0, 5).join(", ");
-        final red = nums[5];
-        buffer.writeln("📌 *Jugada #${i + 1}*: $whites | 🔴 *$red*");
+      final bRoja = play["balota_roja"] ?? play["balotaroja"];
+      final int? redVal = nums.length >= 6
+          ? nums[5]
+          : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
+
+      final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+      if (redVal != null) {
+        buffer.writeln("📌 *Jugada #${i + 1}*: ${whites.join(', ')} | 🔴 *$redVal*");
       } else {
         buffer.writeln("📌 *Jugada #${i + 1}*: ${nums.join(', ')}");
       }
@@ -237,7 +241,8 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                     final item = entry.value;
                     final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
                     final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
-                    final red = nums.length >= 6 ? nums[5] : null;
+                    final bRoja = item["balota_roja"] ?? item["balotaroja"];
+                    final red = nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
                     final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
@@ -523,7 +528,8 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                 final fechaStr = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
                                 final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
                                 final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
-                                final red = nums.length >= 6 ? nums[5] : null;
+                                final bRoja = item["balota_roja"] ?? item["balotaroja"];
+                                final red = nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
 
                                 final Color color = [
                                   Colors.blueAccent,

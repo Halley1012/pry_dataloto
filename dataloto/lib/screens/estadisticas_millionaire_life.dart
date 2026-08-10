@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../styles/colores.dart';
 import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
+import '../widgets/fullscreen_chart_viewer.dart';
 import '../services/cache_service.dart';
 
 class EstadisticasMillionaireLifeScreen extends StatefulWidget {
@@ -324,78 +325,122 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
   Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados) {
     final frecs = _calcularFrecuencias(resultados);
     final maxFrec = frecs.values.fold(1, (max, val) => val > max ? val : max);
+    final titleText = "1. Frecuencia Histórica (Balotas 1 - $maxBalota)";
+    const subtitleText = "Toca una barra para interactuar";
+
+    Widget buildBarChart({bool isFullScreen = false}) {
+      return SizedBox(
+        height: isFullScreen ? double.infinity : 220,
+        child: BarChart(
+          BarChartData(
+            maxY: (maxFrec * 1.22).toDouble(),
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                fitInsideHorizontally: true,
+                fitInsideVertically: true,
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  final ball = group.x.toInt();
+                  return BarTooltipItem(
+                    "Balota $ball\n${rod.toY.toInt()} salidas",
+                    const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                  );
+                },
+              ),
+            ),
+            titlesData: FlTitlesData(
+              show: true,
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 22,
+                  getTitlesWidget: (val, meta) {
+                    final v = val.toInt();
+                    if (v % 10 == 0 || v == 1 || v == maxBalota) {
+                      return Text("$v", style: TextStyle(color: Colors.white54, fontSize: isFullScreen ? 12 : 10));
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 28,
+                  getTitlesWidget: (val, meta) {
+                    return Text("${val.toInt()}",
+                        style: TextStyle(color: Colors.white54, fontSize: isFullScreen ? 12 : 10));
+                  },
+                ),
+              ),
+              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            gridData: FlGridData(show: isFullScreen),
+            borderData: FlBorderData(show: false),
+            barGroups: List.generate(maxBalota, (idx) {
+              final ball = idx + 1;
+              final count = (frecs[ball] ?? 0).toDouble();
+              return BarChartGroupData(
+                x: ball,
+                barRods: [
+                  BarChartRodData(
+                    toY: count,
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFF4A148C),
+                        Color(0xFF1565C0),
+                        Color(0xFF00B0FF),
+                        Color(0xFF00E676),
+                        Color(0xFFFFEA00),
+                        Color(0xFFFF6D00),
+                        Color(0xFFFF1744),
+                      ],
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                    ),
+                    width: isFullScreen ? 10 : 5,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                  )
+                ],
+              );
+            }),
+          ),
+        ),
+      );
+    }
 
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("1. Frecuencia Histórica (Balotas 1 - $maxBalota)", style: AppTextStyles.h2),
-          const SizedBox(height: 8),
-          Text("Toca una barra para interactuar", style: AppTextStyles.caption),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 220,
-            child: BarChart(
-              BarChartData(
-                barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      final ball = group.x.toInt();
-                      return BarTooltipItem(
-                        "Balota $ball\n${rod.toY.toInt()} salidas",
-                        const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
-                      );
-                    },
-                  ),
-                ),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 22,
-                      getTitlesWidget: (val, meta) {
-                        final v = val.toInt();
-                        if (v % 10 == 0 || v == 1 || v == maxBalota) {
-                          return Text("$v", style: const TextStyle(color: Colors.white54, fontSize: 10));
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      getTitlesWidget: (val, meta) {
-                        return Text("${val.toInt()}",
-                            style: const TextStyle(color: Colors.white54, fontSize: 10));
-                      },
-                    ),
-                  ),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barGroups: List.generate(maxBalota, (idx) {
-                  final ball = idx + 1;
-                  final count = (frecs[ball] ?? 0).toDouble();
-                  return BarChartGroupData(
-                    x: ball,
-                    barRods: [
-                      BarChartRodData(
-                        toY: count,
-                        color: count > (maxFrec * 0.7) ? Colors.amber : AppColors.grayBlue,
-                        width: 4,
-                        borderRadius: BorderRadius.circular(2),
-                      )
-                    ],
-                  );
-                }),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
               ),
-            ),
+              InkWell(
+                onTap: () {
+                  FullScreenChartViewer.show(
+                    context,
+                    title: titleText,
+                    subtitle: subtitleText,
+                    chartWidget: buildBarChart(isFullScreen: true),
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.open_in_full, color: AppColors.yellow, size: 18),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 4),
+          Text(subtitleText, style: AppTextStyles.caption),
+          const SizedBox(height: 16),
+          buildBarChart(isFullScreen: false),
         ],
       ),
     );
@@ -460,54 +505,83 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
     final total = (pares + impares) == 0 ? 1 : (pares + impares);
     final pctPar = ((pares / total) * 100).toStringAsFixed(1);
     final pctImpar = ((impares / total) * 100).toStringAsFixed(1);
+    const titleText = "4. Distribución Par vs Impar";
+
+    Widget buildPieContent({bool isFullScreen = false}) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: isFullScreen ? 240 : 120,
+            width: isFullScreen ? 240 : 120,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 4,
+                centerSpaceRadius: isFullScreen ? 55 : 30,
+                sections: [
+                  PieChartSectionData(
+                    value: pares.toDouble(),
+                    color: Colors.amber,
+                    title: '$pctPar%',
+                    radius: isFullScreen ? 65 : 35,
+                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  PieChartSectionData(
+                    value: impares.toDouble(),
+                    color: Colors.deepOrangeAccent,
+                    title: '$pctImpar%',
+                    radius: isFullScreen ? 65 : 35,
+                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLegendItem("Pares: $pares ($pctPar%)", Colors.amber),
+                const SizedBox(height: 12),
+                _buildLegendItem("Impares: $impares ($pctImpar%)", Colors.deepOrangeAccent),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("4. Distribución Par vs Impar", style: AppTextStyles.h2),
-          const SizedBox(height: 16),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                height: 120,
-                width: 120,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 4,
-                    centerSpaceRadius: 30,
-                    sections: [
-                      PieChartSectionData(
-                        value: pares.toDouble(),
-                        color: Colors.amber,
-                        title: '$pctPar%',
-                        radius: 35,
-                        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
-                      PieChartSectionData(
-                        value: impares.toDouble(),
-                        color: Colors.deepOrangeAccent,
-                        title: '$pctImpar%',
-                        radius: 35,
-                        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLegendItem("Pares: $pares ($pctPar%)", Colors.amber),
-                    const SizedBox(height: 8),
-                    _buildLegendItem("Impares: $impares ($pctImpar%)", Colors.deepOrangeAccent),
-                  ],
+                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
+              ),
+              InkWell(
+                onTap: () {
+                  FullScreenChartViewer.show(
+                    context,
+                    title: titleText,
+                    chartWidget: buildPieContent(isFullScreen: true),
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.open_in_full, color: AppColors.yellow, size: 18),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          buildPieContent(isFullScreen: false),
         ],
       ),
     );
@@ -529,54 +603,83 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
     final total = (bajos + altos) == 0 ? 1 : (bajos + altos);
     final pctBajos = ((bajos / total) * 100).toStringAsFixed(1);
     final pctAltos = ((altos / total) * 100).toStringAsFixed(1);
+    final titleText = "5. Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)";
+
+    Widget buildPieContent({bool isFullScreen = false}) {
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: isFullScreen ? 240 : 120,
+            width: isFullScreen ? 240 : 120,
+            child: PieChart(
+              PieChartData(
+                sectionsSpace: 4,
+                centerSpaceRadius: isFullScreen ? 55 : 30,
+                sections: [
+                  PieChartSectionData(
+                    value: bajos.toDouble(),
+                    color: Colors.cyanAccent,
+                    title: '$pctBajos%',
+                    radius: isFullScreen ? 65 : 35,
+                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.black),
+                  ),
+                  PieChartSectionData(
+                    value: altos.toDouble(),
+                    color: Colors.purpleAccent,
+                    title: '$pctAltos%',
+                    radius: isFullScreen ? 65 : 35,
+                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildLegendItem("Bajos (1-$mitad): $bajos ($pctBajos%)", Colors.cyanAccent),
+                const SizedBox(height: 12),
+                _buildLegendItem("Altos (${mitad + 1}-$maxBalota): $altos ($pctAltos%)", Colors.purpleAccent),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
 
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("5. Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)", style: AppTextStyles.h2),
-          const SizedBox(height: 16),
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              SizedBox(
-                height: 120,
-                width: 120,
-                child: PieChart(
-                  PieChartData(
-                    sectionsSpace: 4,
-                    centerSpaceRadius: 30,
-                    sections: [
-                      PieChartSectionData(
-                        value: bajos.toDouble(),
-                        color: Colors.cyanAccent,
-                        title: '$pctBajos%',
-                        radius: 35,
-                        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
-                      PieChartSectionData(
-                        value: altos.toDouble(),
-                        color: Colors.purpleAccent,
-                        title: '$pctAltos%',
-                        radius: 35,
-                        titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildLegendItem("Bajos (1-$mitad): $bajos ($pctBajos%)", Colors.cyanAccent),
-                    const SizedBox(height: 8),
-                    _buildLegendItem("Altos (${mitad + 1}-$maxBalota): $altos ($pctAltos%)", Colors.purpleAccent),
-                  ],
+                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
+              ),
+              InkWell(
+                onTap: () {
+                  FullScreenChartViewer.show(
+                    context,
+                    title: titleText,
+                    chartWidget: buildPieContent(isFullScreen: true),
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.open_in_full, color: AppColors.yellow, size: 18),
                 ),
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          buildPieContent(isFullScreen: false),
         ],
       ),
     );
@@ -601,43 +704,72 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
     }
 
     final reversedSumas = sumas.reversed.toList();
-    final avgSuma = sumas.isEmpty ? "140" : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
+    final avgSuma = sumas.isEmpty ? "150" : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
+    const titleText = "6. Suma de la Combinación";
+    final subtitleText = "Promedio de suma histórica: $avgSuma";
+
+    Widget buildLineChart({bool isFullScreen = false}) {
+      return SizedBox(
+        height: isFullScreen ? double.infinity : 180,
+        child: LineChart(
+          LineChartData(
+            gridData: FlGridData(show: isFullScreen),
+            titlesData: const FlTitlesData(
+              show: true,
+              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            ),
+            borderData: FlBorderData(show: false),
+            lineBarsData: [
+              LineChartBarData(
+                spots: List.generate(
+                  reversedSumas.length,
+                  (idx) => FlSpot(idx.toDouble(), reversedSumas[idx]),
+                ),
+                isCurved: true,
+                color: AppColors.amber,
+                barWidth: isFullScreen ? 5 : 3,
+                isStrokeCapRound: true,
+                dotData: const FlDotData(show: true),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("6. Suma de la Combinación", style: AppTextStyles.h2),
-          const SizedBox(height: 4),
-          Text("Promedio de suma histórica: $avgSuma", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 180,
-            child: LineChart(
-              LineChartData(
-                gridData: const FlGridData(show: false),
-                titlesData: const FlTitlesData(
-                  show: true,
-                  topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                borderData: FlBorderData(show: false),
-                lineBarsData: [
-                  LineChartBarData(
-                    spots: List.generate(
-                      reversedSumas.length,
-                      (idx) => FlSpot(idx.toDouble(), reversedSumas[idx]),
-                    ),
-                    isCurved: true,
-                    color: AppColors.amber,
-                    barWidth: 3,
-                    isStrokeCapRound: true,
-                    dotData: const FlDotData(show: true),
-                  ),
-                ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
               ),
-            ),
+              InkWell(
+                onTap: () {
+                  FullScreenChartViewer.show(
+                    context,
+                    title: titleText,
+                    subtitle: subtitleText,
+                    chartWidget: buildLineChart(isFullScreen: true),
+                  );
+                },
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.open_in_full, color: AppColors.yellow, size: 18),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 4),
+          Text(subtitleText, style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
+          const SizedBox(height: 16),
+          buildLineChart(isFullScreen: false),
         ],
       ),
     );

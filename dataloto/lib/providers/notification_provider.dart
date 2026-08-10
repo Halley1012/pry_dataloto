@@ -64,4 +64,31 @@ class NotificationProvider with ChangeNotifier {
       debugPrint("Error marking as read: $e");
     }
   }
+
+  Future<void> markAllAsRead() async {
+    bool changed = false;
+    for (int i = 0; i < _notifications.length; i++) {
+      if (!_notifications[i].leido) {
+        changed = true;
+        final old = _notifications[i];
+        _notifications[i] = NotificationModel(
+          id: old.id,
+          loteriaId: old.loteriaId,
+          fechaSorteo: old.fechaSorteo,
+          mensaje: old.mensaje,
+          tipo: old.tipo,
+          leido: true,
+          createdAt: old.createdAt,
+        );
+        NotificationService.markAsRead(old.id).catchError((e) {
+          debugPrint("Error marking notification $old.id as read: $e");
+        });
+      }
+    }
+    if (changed) {
+      notifyListeners();
+      final rawList = _notifications.map((n) => n.toJson()).toList();
+      CacheService.setJson('notifications_cache', rawList);
+    }
+  }
 }

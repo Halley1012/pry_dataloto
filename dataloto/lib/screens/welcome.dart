@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: Center(
@@ -22,7 +25,7 @@ class WelcomeScreen extends StatelessWidget {
               ),
               const SizedBox(height: 30),
 
-              Text("¡Bienvenido a DataLoto!", style: AppTextStyles.h2),
+              Text(l10n?.bienvenido ?? "¡Bienvenido a DataLoto!", style: AppTextStyles.h2),
               const SizedBox(height: 20),
 
               Text(
@@ -48,7 +51,7 @@ class WelcomeScreen extends StatelessWidget {
                     ),
                     onPressed: () =>
                         Navigator.pushReplacementNamed(context, '/login'),
-                    child: Text("Iniciar sesión", style: AppTextStyles.button),
+                    child: Text(l10n?.iniciarSesion ?? "Iniciar sesión", style: AppTextStyles.button),
                   ),
                 ),
               ),
@@ -58,7 +61,7 @@ class WelcomeScreen extends StatelessWidget {
               InkWell(
                 onTap: () =>
                     Navigator.pushReplacementNamed(context, '/registro'),
-                child: Text("Crear cuenta", style: AppTextStyles.mensajeImportante),
+                child: Text(l10n?.registrarse ?? "Crear cuenta", style: AppTextStyles.mensajeImportante),
               ),
               const SizedBox(height: 40),
             ],

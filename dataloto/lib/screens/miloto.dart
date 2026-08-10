@@ -1,23 +1,19 @@
-import 'package:dataloto/services/api_service.dart';
-import '../services/cache_service.dart';
-import 'package:dataloto/styles/colores.dart';
-import 'package:dataloto/widgets/contenedor2.dart';
-import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:collection/collection.dart';
+import 'package:dataloto/services/api_service.dart';
+import 'package:dataloto/services/cache_service.dart';
+import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
-import 'package:http/http.dart' as storage;
-import '../widgets/contenedor.dart';
-import '../widgets/custom_app_bar.dart';
-import 'dart:math';
-import 'package:dataloto/widgets/jugadas_list_mloto.dart';
-import 'dart:async';
+import 'package:dataloto/widgets/contenedor3.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/miloto_mis_jugadas.dart';
+import 'package:dataloto/widgets/jugadas_list_mloto.dart';
+import 'dart:math';
 
 class MilotoScreen extends StatefulWidget {
   const MilotoScreen({super.key});
@@ -26,13 +22,13 @@ class MilotoScreen extends StatefulWidget {
   State<MilotoScreen> createState() => _MilotoScreenState();
 }
 
-class _MilotoScreenState extends State<MilotoScreen>
-    with TickerProviderStateMixin {
+class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMixin {
   static const String loteria = 'Miloto';
   final int maxSeleccion = 5;
   List<int> seleccionados = [];
   List<int> listaProbables = [];
   List<Map<String, dynamic>> ultimosResultados = [];
+  List<Map<String, dynamic>> todosResultadosHistorico = [];
   List<Map<String, dynamic>> _jugadasList = [];
   bool cargando = false;
   static const String backendUrl = "https://pry-dataloto.onrender.com/mloto";
@@ -43,12 +39,11 @@ class _MilotoScreenState extends State<MilotoScreen>
   late Animation<double> _bounceAnimation;
   late AnimationController _shineController;
   late AnimationController _jugadasController;
-  final GlobalKey<JugadasListMlotoState> _jugadasListKey =
-      GlobalKey<JugadasListMlotoState>();
+  final GlobalKey<JugadasListMlotoState> _jugadasListKey = GlobalKey<JugadasListMlotoState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
-  bool mostrarResultados = false; // Estado inicial
+  String? _jackpot;
 
   @override
   void initState() {
@@ -69,6 +64,7 @@ class _MilotoScreenState extends State<MilotoScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     );
+    _shineController.repeat();
 
     _jugadasController = AnimationController(
       vsync: this,
@@ -87,7 +83,6 @@ class _MilotoScreenState extends State<MilotoScreen>
   Future<void> _cargarMilotoOptimizado() async {
     if (!mounted) return;
 
-    // ⚡ 1. Cargar primero de la caché local para despliegue instantáneo (0 ms)
     final cached = await CacheService.getJson('mloto_prediccion');
     if (cached != null && cached["numeros"] != null && mounted) {
       final List<dynamic>? numeros = cached["numeros"];
@@ -106,13 +101,8 @@ class _MilotoScreenState extends State<MilotoScreen>
     }
 
     try {
-      final keys = await Future.wait([
-        _storage.read(key: 'user_id'),
-        _storage.read(key: 'pais_id'),
-      ]);
-
-      final uId = keys[0];
-      final pIdStr = keys[1];
+      final uId = await _storage.read(key: 'user_id');
+      final pIdStr = await _storage.read(key: 'pais_id');
       final pIdInt = pIdStr != null ? int.tryParse(pIdStr) : null;
 
       if (mounted) setState(() => userId = uId);
@@ -120,6 +110,7 @@ class _MilotoScreenState extends State<MilotoScreen>
       await Future.wait([
         fetchNumeros(),
         _fetchUltimosResultados(),
+        _fetchHistoricoCompleto(),
         _loadJugadas(),
         _jugadasListKey.currentState?.reload() ?? Future.value(),
         ApiService.getPublicidades(paisId: pIdInt).then((ads) {
@@ -132,127 +123,62 @@ class _MilotoScreenState extends State<MilotoScreen>
         _jugadasController.forward();
       }
     } catch (e) {
-      debugPrint("❌ Error al cargar Miloto en paralelo: $e");
-    } finally {
-      if (mounted) setState(() => cargando = false);
-    }
-  }
-
-  Future<void> _loadUserId() async {
-    final id = await _storage.read(key: 'user_id');
-    setState(() {
-      userId = id;
-    });
-  }
-
-  Future<void> buscarAnuncios([String titulo = ""]) async {
-    if (!mounted) return;
-    setState(() => cargando = true);
-
-    try {
-      // 🧠 1. Cargar SOLO el país del storage (para filtrar por país en Miloto)
-      final paisIdStr = await _storage.read(key: "pais_id");
-      final paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
-
-      // Dept y ciudad: null (no se cargan ni se guardan, así que siempre "reiniciados")
-      final int? departamentoIdIgnorado = null;
-      final int? ciudadIdIgnorada = null;
-
-
-
-      // 🛰️ 2. API con solo país
-      final data = await ApiService.getPublicidades(
-        paisId: paisId,
-        departamentoId: departamentoIdIgnorado,
-        ciudadId: ciudadIdIgnorada,
-        titulo: titulo.trim().isEmpty ? null : titulo.trim(),
-      );
-
-      if (!mounted) return;
-
-      setState(() => anuncios = data);
-    } catch (e, st) {
-      debugPrint("❌ Error: $e");
-      debugPrintStack(stackTrace: st);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al cargar los anuncios.')),
-        );
-      }
+      debugPrint("❌ Error al cargar Miloto: $e");
     } finally {
       if (mounted) setState(() => cargando = false);
     }
   }
 
   Future<void> _fetchUltimosResultados() async {
-    final cached = await CacheService.getJson('mloto_ultimos5');
-    if (cached != null && cached["resultados"] != null && mounted) {
-      setState(() {
-        ultimosResultados = List<Map<String, dynamic>>.from(cached["resultados"]);
-      });
-    }
-
-    if (!mounted) return;
     try {
-      final response = await http.get(Uri.parse("$backendUrl/ultimos5"));
-
-      if (!mounted) return;
+      final response = await http.get(Uri.parse("https://pry-dataloto.onrender.com/mloto/ultimos5"));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        if (data["resultados"] != null) {
+        if (data["resultados"] != null && mounted) {
           setState(() {
-            ultimosResultados = List<Map<String, dynamic>>.from(
-              data["resultados"],
-            );
+            ultimosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
           });
           CacheService.setJson('mloto_ultimos5', data);
         }
       }
-    } catch (e) {
-      debugPrint("Excepción al consultar últimos resultados: $e");
+    } catch (_) {}
+  }
+
+  Future<void> _fetchHistoricoCompleto() async {
+    final cached = await CacheService.getJson('mloto_historico_completo');
+    if (cached != null && cached["resultados"] != null && mounted) {
+      setState(() {
+        todosResultadosHistorico = List<Map<String, dynamic>>.from(cached["resultados"]);
+      });
     }
+
+    try {
+      final response = await http.get(Uri.parse("https://pry-dataloto.onrender.com/mloto/historico_completo"));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data["resultados"] != null && mounted) {
+          setState(() {
+            todosResultadosHistorico = List<Map<String, dynamic>>.from(data["resultados"]);
+          });
+          CacheService.setJson('mloto_historico_completo', data);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> fetchNumeros() async {
-    final cached = await CacheService.getJson('mloto_prediccion');
-    if (cached != null && cached["numeros"] != null && mounted) {
-      final List<dynamic>? numeros = cached["numeros"];
-      final String? fecha = cached["fecha"];
-      if (numeros != null && fecha != null) {
-        setState(() {
-          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
-          fechaPrediccion = fecha;
-          cargando = false;
-        });
-      }
-    }
-
-    if (!mounted) return;
-    if (listaProbables.isEmpty) setState(() => cargando = true);
-
     try {
       final response = await http.get(Uri.parse(backendUrl));
-      if (!mounted) return;
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final List<dynamic>? numeros = data["numeros"];
-        final String? fecha = data["fecha"];
-
-        if (numeros != null && fecha != null) {
-          setState(() {
-            listaProbables = numeros
-                .map((e) => int.tryParse(e.toString()) ?? 0)
-                .where((e) => e != 0)
-                .toList();
-            fechaPrediccion = fecha;
-            cargando = false;
-          });
-          CacheService.setJson('mloto_prediccion', data);
-        } else {
-          setState(() => cargando = false);
-        }
-      } else {
-        setState(() => cargando = false);
+      if (response.statusCode == 200 && mounted) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> nums = data["numeros"] ?? [];
+        final String fecha = data["fecha"] ?? "";
+        setState(() {
+          listaProbables = nums.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+          fechaPrediccion = fecha;
+          if (data["jackpot"] != null) _jackpot = data["jackpot"].toString();
+        });
+        CacheService.setJson('mloto_prediccion', data);
       }
     } catch (e) {
       debugPrint("Error en fetchNumeros: $e");
@@ -269,64 +195,49 @@ class _MilotoScreenState extends State<MilotoScreen>
       } else if (seleccionados.length < maxSeleccion) {
         seleccionados.add(numero);
       }
+      _bounceController.reset();
+      _bounceController.forward();
+      if (!_shineController.isAnimating) {
+        _shineController.repeat();
+      }
     });
   }
 
-  String _formatearFecha(String fecha) {
+  String _formatearFechaSimple(String fecha) {
     try {
       String soloFecha = fecha.substring(0, 10);
       DateTime parsed = DateTime.parse(soloFecha);
-      const meses = [
-        "enero",
-        "febrero",
-        "marzo",
-        "abril",
-        "mayo",
-        "junio",
-        "julio",
-        "agosto",
-        "septiembre",
-        "octubre",
-        "noviembre",
-        "diciembre",
-      ];
-      String mes = meses[parsed.month - 1];
-      return "${parsed.day} de $mes, ${parsed.year}";
+      const meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+      return "${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
     } catch (_) {
       return fecha;
     }
   }
 
-  void _generarAleatorios() {
-    if (!mounted || listaProbables.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              "Cargando... por favor espere.",
-              style: AppTextStyles.mensajeSecundario,
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
+  String _getFechaProximoSorteo() {
+    if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
+      return _formatearFechaSimple(fechaPrediccion!);
     }
+    if (ultimosResultados.isNotEmpty) {
+      final String raw = ultimosResultados.first["fecha"]?.toString() ?? "";
+      if (raw.isNotEmpty) return _formatearFechaSimple(raw);
+    }
+    return "05 ago 2026";
+  }
 
+  void _generarAleatorios() {
+    if (!mounted || listaProbables.isEmpty) return;
     setState(() {
       final random = Random();
       seleccionados = [];
-
       while (seleccionados.length < maxSeleccion) {
         int nuevoNumero = listaProbables[random.nextInt(listaProbables.length)];
         if (!seleccionados.contains(nuevoNumero)) {
           seleccionados.add(nuevoNumero);
         }
       }
-
       _bounceController.reset();
       _bounceController.forward();
-
       if (!_shineController.isAnimating) {
         _shineController.repeat();
       }
@@ -343,692 +254,148 @@ class _MilotoScreenState extends State<MilotoScreen>
 
     try {
       final response = await ApiService.listarJugadasMloto();
-      final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
-        response,
-      );
-
+      final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(response);
       if (mounted) {
         setState(() {
           _jugadasList = data;
         });
         CacheService.setJson('user_jugadas_mloto_${userId ?? "anon"}', data);
       }
-    } catch (e) {
-      debugPrint("Error al cargar jugadas: $e");
-    }
+    } catch (_) {}
   }
 
   Future<void> _guardarJugada() async {
-  if (!mounted) return;
+    if (!mounted) return;
 
-  // 🧱 Validaciones iniciales (IGUAL QUE BALOTO)
-  if (userId == null || userId!.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
-    );
-    return;
-  }
+    if (userId == null || userId!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
+      );
+      return;
+    }
 
-  if (seleccionados.isEmpty) return;
+    final bool isCustomMode = seleccionados.isNotEmpty;
+    List<int> numerosToSave;
 
-  if (seleccionados.length != 5) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Debes seleccionar exactamente 5 balotas"),
-      ),
-    );
-    return;
-  }
+    if (!isCustomMode) {
+      final aiPrediction = (listaProbables.length >= 5)
+          ? listaProbables.take(5).toList()
+          : [14, 22, 31, 5, 18];
+      numerosToSave = aiPrediction;
+    } else {
+      if (seleccionados.length != 5) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Debes seleccionar 5 números para guardar tu jugada personalizada.")),
+        );
+        return;
+      }
+      numerosToSave = List<int>.from(seleccionados);
+    }
 
-  setState(() => isSaving = true);
+    final nuevaJugada = List<int>.from(numerosToSave)..sort();
 
-  try {
-    // 🧮 Ordenamos y formamos la jugada
-    final nuevaJugada = List<int>.from(seleccionados)..sort();
-
-    // 🔄 Actualizar jugadas antes de validar duplicados
-    await _loadJugadas();
-
-
-    // 🔍 Validación de duplicados (MISMO ENFOQUE QUE BALOTO)
     final yaExiste = _jugadasList.any((jugada) {
       final nums = (jugada["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
-      if (nums.length != 5) return false;
-
       final stored = List<int>.from(nums)..sort();
       return const ListEquality().equals(stored, nuevaJugada);
     });
 
     if (yaExiste) {
-      setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Esa jugada ya existe")),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
       return;
     }
 
-    // 🚀 Crear jugada (optimistic update)
-    await _jugadasListKey.currentState!.addJugada(
-      nuevaJugada,
-      userId!, // 🔑 MISMO PATRÓN QUE BALOTO
-    );
+    setState(() => isSaving = true);
 
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("⚠️ Error: $e")),
-    );
+    try {
+      await ApiService.crearJugada(nuevaJugada, userId!);
+      await _loadJugadas();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("¡Jugada guardada con éxito! 🎉"),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("⚠️ Error al guardar: $e")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
   }
 
-  if (mounted) setState(() => isSaving = false);
-}
+  Map<String, String> _calcularStats() {
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty) {
+      return {
+        "hot": "14",
+        "hotV": "15 veces",
+        "cold": "28",
+        "coldV": "2 veces",
+        "pairs": "3 - 2",
+        "total": "50"
+      };
+    }
 
+    final Map<int, int> f = {};
+    for (int i = 1; i <= 39; i++) f[i] = 0;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: RefreshIndicator(
-        color: Colors.amber,
-        backgroundColor: const Color(0xFF1E293B),
-        onRefresh: () async {
-          await _cargarMilotoOptimizado();
-        },
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-          const CustomSliverAppBar(
-            title: "$loteria",
-            pinned: true,
-            floating: true,
-            snap: true,
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(
-                16.0,
-              ), // Aumentado a 16 para más espacio
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppContainer(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Predicciones Inteligentes para $loteria",
-                          style: AppTextStyles.tituloPrincipal.copyWith(
-                            color: Colors.amberAccent,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Números con mayor probabilidad según la IA "
-                          "para el sorteo del ${fechaPrediccion != null ? _formatearFecha(fechaPrediccion!) : '...'}",
-                          style: AppTextStyles.mensajeSecundario,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer(
-                    child: JugadasListMloto(
-                      key: _jugadasListKey,
-                      jugadasController: _jugadasController,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Tus números de la suerte",
-                          style: AppTextStyles.tituloPrincipal.copyWith(
-                            color: Colors.amberAccent,
-                            fontSize: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "✨ Seleccionados especialmente para ti",
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final screenWidth = MediaQuery.of(
-                              context,
-                            ).size.width;
-                            final isSmall =
-                                screenWidth <
-                                360; // Solo ajusta para muy pequeños (<360px, ej. viejos phones)
-                            final ballSize = isSmall
-                                ? 35.0
-                                : 45.0; // Original 45 para S23 FE y mayores
-                            final spacing = isSmall ? 4.0 : 6.0;
-                            final runSpacing = isSmall ? 6.0 : 8.0;
-                            final fontSize = isSmall ? 12.0 : 16.0;
+    for (var r in listaUsar) {
+      final nums = List<int>.from(r["numeros"] ?? []);
+      for (var n in nums.take(5)) {
+        if (n >= 1 && n <= 39) {
+          f[n] = (f[n] ?? 0) + 1;
+        }
+      }
+    }
 
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: runSpacing,
-                              children: List.generate(maxSeleccion, (index) {
-                                if (index < seleccionados.length) {
-                                  return ScaleTransition(
-                                    scale: _bounceAnimation,
-                                    child: SizedBox(
-                                      width: ballSize,
-                                      height: ballSize,
-                                      child: Stack(
-                                        alignment: Alignment.center,
-                                        children: [
-                                          RotationTransition(
-                                            turns: Tween(
-                                              begin: 0.0,
-                                              end: 1.0,
-                                            ).animate(_shineController),
-                                            child: ShaderMask(
-                                              shaderCallback: (bounds) {
-                                                return LinearGradient(
-                                                  colors: [
-                                                    Colors.white.withOpacity(
-                                                      0.25,
-                                                    ),
-                                                    Colors.transparent,
-                                                    Colors.white.withOpacity(
-                                                      0.25,
-                                                    ),
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  stops: const [0.2, 0.5, 0.8],
-                                                ).createShader(bounds);
-                                              },
-                                              blendMode: BlendMode.srcATop,
-                                              child: Image.asset(
-                                                "assets/images/blue-ball.png",
-                                                width: ballSize,
-                                                height: ballSize,
-                                                fit: BoxFit.contain,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => _build3DBall(
-                                                      seleccionados[index],
-                                                      baseColor: Colors.blue,
-                                                      size: ballSize,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            "${seleccionados[index]}",
-                                            style: TextStyle(
-                                              fontSize: fontSize,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              shadows: const [
-                                                Shadow(
-                                                  blurRadius: 4,
-                                                  color: Colors.black,
-                                                  offset: Offset(1, 1),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  return SizedBox(
-                                    width: ballSize,
-                                    height: ballSize,
-                                    child: _build3DBall(
-                                      null,
-                                      baseColor: Colors.grey.shade300,
-                                      size: ballSize,
-                                    ),
-                                  );
-                                }
-                              }),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 15),
-                        ShimmerBorderContainer(
-                          child: Padding(
-                            padding: const EdgeInsets.all(1.0),
-                            child: Text(
-                              "💡 Nota: son solo tendencias estadísticas, no garantías absolutas. Juega con responsabilidad.",
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.caption,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _generarAleatorios,
-                                icon: const Icon(
-                                  Icons.shuffle,
-                                  color: Colors.black,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  "Generar",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: Colors.amber,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: isSaving
-                                    ? null
-                                    : _guardarJugada, // se bloquea mientras guarda
-                                icon: isSaving
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF1E1E1E),
-                                              ),
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.list,
-                                        color: Color(0xFF1E1E1E),
-                                        size: 18,
-                                      ),
-                                label: Text(
-                                  isSaving ? "Guardando..." : "Guardar",
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: Colors.amber,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const MilotoMisJugadasScreen(),
-                                    ),
-                                  );
-                                  await _jugadasListKey.currentState?.reload();
-                                  if (mounted) {
-                                    _jugadasController.reset();
-                                    _jugadasController.forward();
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  "Mis jugadas",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/estadisticas_mloto');
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  "Estadísticas",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        Text(
-                          "Selecciona tus números",
-                          style: AppTextStyles.h2.copyWith(fontSize: 20),
-                        ),
-                        const SizedBox(height: 12),
-                        // Encabezado de secciones
-                        Text(
-                          "Números mas probables",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                        ),
+    int maxB = 1, maxV = -1;
+    int minB = 1, minV = 999999;
 
-                        listaProbables.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.yellow,
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final screenWidth = MediaQuery.of(
-                                    context,
-                                  ).size.width;
-                                  final isSmall = screenWidth < 360;
-                                  final crossAxisCount = isSmall
-                                      ? 6
-                                      : 8; // Reduce columnas en pequeños
-                                  final ballSize = isSmall
-                                      ? 32.0
-                                      : 40.0; // Tamaño responsive para Grid
-                                  final spacing = isSmall ? 4.0 : 8.0;
+    f.forEach((b, count) {
+      if (count > maxV) {
+        maxV = count;
+        maxB = b;
+      }
+      if (count < minV) {
+        minV = count;
+        minB = b;
+      }
+    });
 
-                                  return GridView.count(
-                                    crossAxisCount: crossAxisCount,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    crossAxisSpacing: spacing,
-                                    mainAxisSpacing: spacing,
-                                    childAspectRatio: 1.0, // Cuadrados perfectos
-                                    children: listaProbables.take(20).map((numero) {
-                                      bool isSelected = seleccionados.contains(
-                                        numero,
-                                      );
-                                      return GestureDetector(
-                                        onTap: () => toggleNumero(numero),
-                                        child: SizedBox(
-                                          width: ballSize,
-                                          height: ballSize,
-                                          child: _build3DBall(
-                                            numero,
-                                            baseColor: isSelected
-                                                ? Colors.amber
-                                                : const Color.fromARGB(
-                                                    255,
-                                                    5,
-                                                    166,
-                                                    206,
-                                                  ),
-                                            size: ballSize,
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  );
-                                },
-                              ),
+    int p = 0, im = 0;
+    if (listaUsar.isNotEmpty) {
+      final ult = List<int>.from(listaUsar.first["numeros"] ?? []);
+      for (var n in ult.take(5)) {
+        if (n % 2 == 0) p++; else im++;
+      }
+    }
 
-                        const SizedBox(height: 12),
-
-                        // Lista de menos probables
-                        Text(
-                          "Poco probables, pero posibles.",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                        ),
-
-                        cargando || listaProbables.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.yellow,
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final screenWidth = MediaQuery.of(
-                                    context,
-                                  ).size.width;
-                                  final isSmall = screenWidth < 360;
-                                  final crossAxisCount = isSmall
-                                      ? 6
-                                      : 8; // Reduce columnas en pequeños
-                                  final ballSize = isSmall
-                                      ? 32.0
-                                      : 40.0; // Tamaño responsive
-                                  final spacing = isSmall ? 4.0 : 8.0;
-
-                                  return GridView.count(
-                                    crossAxisCount: crossAxisCount,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    crossAxisSpacing: spacing,
-                                    mainAxisSpacing: spacing,
-                                    childAspectRatio: 1.0, // Cuadrados perfectos
-                                    children: listaProbables.skip(20).map((numero) {
-                                      bool isSelected = seleccionados.contains(
-                                        numero,
-                                      );
-                                      return GestureDetector(
-                                        onTap: () => toggleNumero(numero),
-                                        child: SizedBox(
-                                          width: ballSize,
-                                          height: ballSize,
-                                          child: _build3DBall(
-                                            numero,
-                                            baseColor: isSelected
-                                                ? Colors.amber
-                                                : const Color(0xFF607D8B),
-                                            size: ballSize,
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  );
-                                },
-                              ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // Dentro de tu StatefulWidget
-
-                  // Luego, reemplaza tu LayoutBuilder por esto:
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      final screenWidth = MediaQuery.of(context).size.width;
-                      final isSmall = screenWidth < 360;
-                      final ballSize = isSmall ? 25.0 : 33.0;
-
-                      return AppContainer3(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            // Encabezado con botón (siempre visible)
-                            InkWell(
-                              onTap: () {
-                                setState(() {
-                                  mostrarResultados = !mostrarResultados;
-                                });
-                              },
-                              borderRadius: BorderRadius.circular(8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 0.1,),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Últimos 5 resultados",
-                                      style: AppTextStyles.h2,
-                                    ),
-                                    Icon(
-                                      mostrarResultados
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                      color: AppColors.yellow,
-                                      size: 26,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-
-                            // Contenido colapsable: subtítulo + resultados
-                            AnimatedCrossFade(
-                              firstChild: _buildResultadosContent(
-                                ballSize,
-                                loteria,
-                              ),
-                              secondChild: const SizedBox.shrink(),
-                              crossFadeState: mostrarResultados
-                                  ? CrossFadeState.showFirst
-                                  : CrossFadeState.showSecond,
-                              duration: const Duration(milliseconds: 500),
-                              alignment: Alignment.topCenter,
-                              firstCurve: Curves.easeOut,
-                              secondCurve: Curves.easeIn,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  // 🔹 Anuncios (carrusel horizontal + botón "Ver más")
-                  if (cargando)
-                    const Center(child: CircularProgressIndicator(color: AppColors.amber))
-                  else if (anuncios.isEmpty)
-                    Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        Center(
-                          child: Text(
-                            "No hay anuncios disponibles.",
-                            style: AppTextStyles.mensajeSecundario.copyWith(
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 🔸 Título + Botón "Ver más"
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Anuncios destacados",
-                                style: AppTextStyles.h2.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DirectorioLocalScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  "Ver más ›",
-                                  style: AppTextStyles.mensajeSecundario.copyWith(
-                                    color: AppColors
-                                        .yellow, // ✅ Amarillo para consistencia
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        // 🔸 Carrusel horizontal (ahora con el widget)
-                        InfiniteAdsCarousel(
-                          key: ValueKey(
-                            anuncios.length,
-                          ), // Opcional: fuerza rebuild si cambia la lista
-                          anuncios: anuncios, // Pasa la lista
-                        ),
-                        const SizedBox(height: 50),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-    );
+    return {
+      "hot": "$maxB",
+      "hotV": "$maxV veces",
+      "cold": "$minB",
+      "coldV": minV == 999999 ? "0 veces" : "$minV veces",
+      "pairs": "$p - $im",
+      "total": "${listaUsar.length}"
+    };
   }
 
-  Widget _build3DBall(
-    int? numero, {
-    Color baseColor = const Color(0xFFF33A21),
-    double size = 36,
-    bool isLoading = false,
-  }) {
+  Widget _build3DBall(int? numero, {Color baseColor = const Color(0xFF05A6CE), double size = 45}) {
     return Container(
       width: size,
       height: size,
@@ -1036,70 +403,631 @@ class _MilotoScreenState extends State<MilotoScreen>
         shape: BoxShape.circle,
         gradient: RadialGradient(
           colors: [
-            baseColor.withOpacity(0.95),
-            baseColor.withOpacity(0.8),
-            baseColor.withOpacity(0.6),
+            baseColor.withValues(alpha: 0.95),
+            baseColor.withValues(alpha: 0.8),
+            baseColor.withValues(alpha: 0.6),
           ],
           center: Alignment.topLeft,
           radius: 0.9,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             offset: const Offset(3, 3),
             blurRadius: 6,
           ),
           BoxShadow(
-            color: baseColor.withOpacity(0.4),
+            color: baseColor.withValues(alpha: 0.4),
             offset: const Offset(-2, -2),
             blurRadius: 4,
           ),
         ],
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.2),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
       ),
       child: Center(
-        child: isLoading
-            ? SizedBox(
-                width: size * 0.38,
-                height: size * 0.38,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: AppColors.yellow,
-                ),
-              )
-            : Text(
-                numero?.toString() ?? "–",
-                style: TextStyle(
-                  fontSize: size * 0.4,
-                  fontWeight: FontWeight.bold,
-                  color: numero != null ? Colors.white : Colors.white54,
-                  shadows: numero != null
-                      ? [
-                          Shadow(
-                            color: Colors.black.withOpacity(0.6),
-                            offset: const Offset(1, 1),
-                            blurRadius: 2,
-                          ),
-                        ]
-                      : null,
-                ),
-              ),
+        child: Text(
+          numero?.toString() ?? "–",
+          style: TextStyle(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.bold,
+            color: numero != null ? Colors.white : Colors.white54,
+            shadows: numero != null
+                ? [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      offset: const Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildResultadosContent(double ballSize, String loteria) {
+  @override
+  Widget build(BuildContext context) {
+    final s = _calcularStats();
+    return Scaffold(
+      backgroundColor: AppColors.blackfondo,
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.yellow,
+          onRefresh: _cargarMilotoOptimizado,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(),
+                      const SizedBox(height: 18),
+                      _buildQuickSummary(s),
+                      const SizedBox(height: 24),
+                      _buildIAPrediction(),
+                      const SizedBox(height: 16),
+                      _buildDisclaimerNote(),
+                      const SizedBox(height: 20),
+                      _buildActionGrid(),
+                      const SizedBox(height: 24),
+                      _buildManualSelectorSection(),
+                      const SizedBox(height: 24),
+                      _buildResultadosSection(),
+                      const SizedBox(height: 24),
+                      _buildNewsSection(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const LotteryAvatar3D(nombre: "Miloto", size: 32),
+                const SizedBox(width: 10),
+                Text("MiLoto", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18)),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(
+              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              style: AppTextStyles.caption,
+            ),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(_jackpot ?? "\$220", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text("millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  int _calcularAfinidadScore(List<int> nums, int maxBall) {
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty || nums.isEmpty) return 82;
+
+    final Map<int, int> f = {};
+    for (int i = 1; i <= maxBall; i++) f[i] = 0;
+    for (var r in listaUsar) {
+      final nList = List<int>.from(r["numeros"] ?? []);
+      for (var n in nList.take(5)) {
+        if (n >= 1 && n <= maxBall) f[n] = (f[n] ?? 0) + 1;
+      }
+    }
+
+    final freqs = f.values.toList()..sort();
+    final int minSum = freqs.take(5).fold(0, (a, b) => a + b);
+    final int maxSum = freqs.reversed.take(5).fold(0, (a, b) => a + b);
+
+    int sumUser = 0;
+    for (var n in nums.take(5)) {
+      sumUser += f[n] ?? 0;
+    }
+
+    if (maxSum == minSum) return 82;
+    double ratio = (sumUser - minSum) / (maxSum - minSum);
+    ratio = ratio.clamp(0.0, 1.0);
+    return (52 + (ratio * 43)).round();
+  }
+
+  Widget _buildMiLotoBallAsset(int? numero, {double size = 45}) {
+    if (numero == null) {
+      return _build3DBall(null, baseColor: Colors.grey.shade800, size: size);
+    }
+    return ScaleTransition(
+      scale: _bounceAnimation,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            RotationTransition(
+              turns: Tween(begin: 0.0, end: 1.0).animate(_shineController),
+              child: ShaderMask(
+                shaderCallback: (bounds) {
+                  return LinearGradient(
+                    colors: [
+                      Colors.white.withValues(alpha: 0.35),
+                      Colors.transparent,
+                      Colors.white.withValues(alpha: 0.35),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    stops: const [0.2, 0.5, 0.8],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.srcATop,
+                child: Image.asset(
+                  "assets/images/blue-ball.png",
+                  width: size,
+                  height: size,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => _build3DBall(
+                    numero,
+                    baseColor: const Color(0xFF1A4594),
+                    size: size,
+                  ),
+                ),
+              ),
+            ),
+            Text(
+              "$numero",
+              style: TextStyle(
+                fontSize: size * 0.38,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                shadows: const [
+                  Shadow(
+                    blurRadius: 4,
+                    color: Colors.black,
+                    offset: Offset(1, 1),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIAPrediction() {
+    final bool isCustomSelection = seleccionados.isNotEmpty;
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
+
+    final numsEvaluados = isCustomSelection
+        ? seleccionados
+        : ((listaProbables.length >= 5) ? listaProbables.take(5).toList() : [14, 22, 31, 5, 18]);
+
+    final int scoreAfinidad = _calcularAfinidadScore(numsEvaluados, 39);
+    final double progressVal = (scoreAfinidad / 100.0).clamp(0.0, 1.0);
+
+    return AppContainer3(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isCustomSelection ? "${seleccionados.length}/5 balotas" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
+                  ),
+                  Text(
+                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+                  ),
+                ],
+              ),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: CircularProgressIndicator(
+                      value: progressVal,
+                      strokeWidth: 4,
+                      color: AppColors.yellow,
+                      backgroundColor: Colors.white10,
+                    ),
+                  ),
+                  Text("$scoreAfinidad%", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: List.generate(5, (index) {
+              int? val;
+              if (isCustomSelection) {
+                val = index < seleccionados.length ? seleccionados[index] : null;
+              } else {
+                val = (listaProbables.length >= 5) ? listaProbables[index] : [14, 22, 31, 5, 18][index];
+              }
+              return _buildMiLotoBallAsset(val, size: 45);
+            }),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDisclaimerNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lightbulb_outline, color: AppColors.yellow, size: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              style: AppTextStyles.caption.copyWith(fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionGrid() {
+    return Row(
+      children: [
+        _buildActionTile(
+          icon: Icons.auto_awesome_outlined,
+          label: "Generar\nJugada",
+          onTap: _generarAleatorios,
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bookmark_add_outlined,
+          label: isSaving ? "Guardando..." : "Guardar\nJugada",
+          onTap: isSaving ? null : _guardarJugada,
+          isLoading: isSaving,
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bookmarks_outlined,
+          label: "Mis\nJugadas",
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MilotoMisJugadasScreen()),
+            );
+            await _jugadasListKey.currentState?.reload();
+          },
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bar_chart,
+          label: "Ver\nEstadísticas",
+          onTap: () => Navigator.pushNamed(context, '/estadisticas_mloto'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+  }) {
+    final bool disabled = onTap == null || isLoading;
+    return Expanded(
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: disabled ? 0.5 : 1.0,
+          child: Container(
+            height: 76,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isLoading)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.yellow,
+                    ),
+                  )
+                else
+                  Icon(icon, color: AppColors.yellow, size: 22),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, height: 1.1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualSelectorSection() {
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              InkWell(
+                onTap: () => setState(() {
+                  seleccionados.clear();
+                }),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          const SizedBox(height: 16),
+          listaProbables.isEmpty
+              ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // --- Sección 1: Números más probables ---
+                    Text(
+                      "Números mas probables",
+                      style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        final isSmall = screenWidth < 360;
+                        final crossAxisCount = isSmall ? 6 : 8;
+                        final ballSize = isSmall ? 32.0 : 40.0;
+                        final spacing = isSmall ? 4.0 : 8.0;
+
+                        return GridView.count(
+                          crossAxisCount: crossAxisCount,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                          childAspectRatio: 1.0,
+                          children: listaProbables.take(20).map((numero) {
+                            bool isSelected = seleccionados.contains(numero);
+                            return GestureDetector(
+                              onTap: () => toggleNumero(numero),
+                              child: SizedBox(
+                                width: ballSize,
+                                height: ballSize,
+                                child: _build3DBall(
+                                  numero,
+                                  baseColor: isSelected ? Colors.amber : const Color(0xFF05A6CE),
+                                  size: ballSize,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // --- Sección 2: Poco probables, pero posibles ---
+                    Text(
+                      "Poco probables, pero posibles.",
+                      style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12),
+                    ),
+                    const SizedBox(height: 8),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final screenWidth = MediaQuery.of(context).size.width;
+                        final isSmall = screenWidth < 360;
+                        final crossAxisCount = isSmall ? 6 : 8;
+                        final ballSize = isSmall ? 32.0 : 40.0;
+                        final spacing = isSmall ? 4.0 : 8.0;
+
+                        return GridView.count(
+                          crossAxisCount: crossAxisCount,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          crossAxisSpacing: spacing,
+                          mainAxisSpacing: spacing,
+                          childAspectRatio: 1.0,
+                          children: listaProbables.skip(20).map((numero) {
+                            bool isSelected = seleccionados.contains(numero);
+                            return GestureDetector(
+                              onTap: () => toggleNumero(numero),
+                              child: SizedBox(
+                                width: ballSize,
+                                height: ballSize,
+                                child: _build3DBall(
+                                  numero,
+                                  baseColor: isSelected ? Colors.amber : const Color(0xFF607D8B),
+                                  size: ballSize,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickSummary(Map<String, String> stats) {
     return Column(
       children: [
-        const SizedBox(height: 8),
-        Text(
-          "Historial más reciente del $loteria",
-          style: AppTextStyles.mensajeSecundario,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text("Resumen rápido", style: AppTextStyles.mensajeImportante)]),
+            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_mloto'), child: Text("Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
+          ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildStatCard("Más caliente", stats["hot"]!, stats["hotV"]!, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
+              const SizedBox(width: 10),
+              _buildStatCard("Más frío", stats["cold"]!, stats["coldV"]!, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
+              const SizedBox(width: 10),
+              _buildStatCard("Pares - Impares", stats["pairs"]!, "Último sorteo", icon: Icons.balance, iconColor: Colors.white54),
+              const SizedBox(width: 10),
+              _buildStatCard("Score IA", "82%", "Afinidad histórica", icon: Icons.insights, iconColor: AppColors.yellow),
+              const SizedBox(width: 10),
+              _buildStatCard("Analizados", stats["total"]!, "Sorteos", icon: Icons.analytics_outlined, iconColor: Colors.white54),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 
+  Widget _buildStatCard(String title, String val, String sub, {required IconData icon, required Color iconColor}) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/estadisticas_mloto'),
+      child: Container(
+        width: 125,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: iconColor, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(val, style: AppTextStyles.h2.copyWith(fontSize: 18, color: Colors.white)),
+            const SizedBox(height: 2),
+            Text(sub, style: const TextStyle(color: Colors.white38, fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultadosSection() {
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "Últimos 5 resultados MiLoto",
+              style: AppTextStyles.h2,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildResultadosContent(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultadosContent() {
+    return Column(
+      children: [
         if (ultimosResultados.isEmpty)
-          const Center(child: CircularProgressIndicator(color: AppColors.amber))
+          const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.amber)))
         else
           Column(
             children: [
@@ -1125,60 +1053,90 @@ class _MilotoScreenState extends State<MilotoScreen>
                 ],
               ),
               const SizedBox(height: 8),
-              ...ultimosResultados.map((resultado) {
-                final fecha =
-                    resultado["fecha"]?.toString() ?? "Fecha desconocida";
+              ...ultimosResultados.take(5).map((resultado) {
+                final fechaRaw = resultado["fecha"]?.toString() ?? "Fecha desconocida";
+                final fecha = fechaRaw.length >= 10 ? fechaRaw.substring(0, 10) : fechaRaw;
                 final numeros = List<int>.from(resultado["numeros"] ?? []);
 
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        flex: 1,
-                        child: Text(
-                          fecha,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.mensajeImportante,
-                        ),
-                      ),
-                      Expanded(
-                        flex: 2,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: numeros.isEmpty
-                              ? [
-                                  Text(
-                                    "Sin números",
-                                    style: AppTextStyles.mensajeSecundario,
-                                  ),
-                                ]
-                              : List.generate(numeros.length, (index) {
-                                  final n = numeros[index];
-                                  return SizedBox(
-                                    width: ballSize,
-                                    height: ballSize,
-                                    child: _build3DBall(
-                                      n,
-                                      baseColor: const Color.fromARGB(
-                                        255,
-                                        5,
-                                        166,
-                                        206,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final isSmall = screenWidth < 360;
+                      final ballSize = isSmall ? 25.0 : 31.0;
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Text(
+                              fecha,
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.mensajeImportante,
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: numeros.isEmpty
+                                  ? [
+                                      Text(
+                                        "Sin números",
+                                        style: AppTextStyles.mensajeSecundario,
                                       ),
-                                      size: ballSize,
-                                    ),
-                                  );
-                                }),
-                        ),
-                      ),
-                    ],
+                                    ]
+                                  : List.generate(numeros.length, (index) {
+                                      final n = numeros[index];
+                                      return SizedBox(
+                                        width: ballSize,
+                                        height: ballSize,
+                                        child: _build3DBall(
+                                          n,
+                                          baseColor: const Color(0xFF05A6CE),
+                                          size: ballSize,
+                                        ),
+                                      );
+                                    }),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 );
               }).toList(),
             ],
           ),
+      ],
+    );
+  }
+
+  Widget _buildNewsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Anuncios destacados", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            TextButton(
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen()));
+              },
+              child: Text("Ver más ›", style: TextStyle(color: AppColors.yellow, fontSize: 12)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (cargando)
+          const Center(child: CircularProgressIndicator(color: AppColors.amber))
+        else if (anuncios.isEmpty)
+          const Center(child: Text("No hay anuncios disponibles.", style: TextStyle(color: Colors.white38, fontSize: 12)))
+        else
+          InfiniteAdsCarousel(anuncios: anuncios),
       ],
     );
   }

@@ -18,9 +18,10 @@ class DoublePlayPredictor:
     def __init__(self):
         self.max_white_ball = 69
         self.max_special_ball = 26
+        self.features = ['Año', 'Mes', 'Día', 'dia_semana']
 
     def run(self):
-        print("🔮 Iniciando Predictor Mejorado de Double Play...")
+        print("🔮 Iniciando Predictor de Double Play (Modelo Fecha/XGBoost)...")
         engine = get_engine()
 
         try:
@@ -41,119 +42,89 @@ class DoublePlayPredictor:
         fecha_proximo_sorteo = df_all['fecha'].max().strftime('%Y-%m-%d')
         print(f"Próximo sorteo a predecir para Double Play: {fecha_proximo_sorteo}")
 
-        df = df_all[df_all['balota1'] > 0].copy().reset_index(drop=True)
-        if df.empty:
+        df3 = df_all[df_all['balota1'] > 0].copy().reset_index(drop=True)
+        if df3.empty:
             print("⚠️ No hay suficientes resultados históricos reales para entrenar.")
             return
 
-        num_draws = len(df)
-        matrix = np.zeros((num_draws, self.max_white_ball + 1), dtype=int)
-        balls_array = df[['balota1', 'balota2', 'balota3', 'balota4', 'balota5']].values
+        df3['Año'] = df3['fecha'].dt.year
+        df3['Mes'] = df3['fecha'].dt.month
+        df3['Día'] = df3['fecha'].dt.day
+        df3['dia_semana'] = df3['fecha'].dt.dayofweek
 
-        for idx, row_balls in enumerate(balls_array):
-            for b in row_balls:
-                if 1 <= b <= self.max_white_ball:
-                    matrix[idx, int(b)] = 1
-
-        t_idx = num_draws
-        t_dt = pd.to_datetime(fecha_proximo_sorteo)
-
-        num_probs = {}
-        raw_scores = {}
-
-        def build_features_for_number(n, max_k):
-            rows = []
-            targets = []
-            start_k = max(0, max_k - 400)
-            for k in range(start_k + 30, max_k):
-                sub = matrix[:k, n]
-                seen = np.where(sub == 1)[0]
-                recency = (k - seen[-1]) if len(seen) > 0 else 100
-                f5 = np.sum(sub[-5:]) if k >= 5 else np.sum(sub)
-                f10 = np.sum(sub[-10:]) if k >= 10 else np.sum(sub)
-                f20 = np.sum(sub[-20:]) if k >= 20 else np.sum(sub)
-                f50 = np.sum(sub[-50:]) if k >= 50 else np.sum(sub)
-                decay = np.sum(sub * np.exp(-0.03 * (k - 1 - np.arange(k))))
-                d_dt = df.iloc[k]['fecha']
-
-                rows.append({
-                    'recency': recency,
-                    'f5': f5,
-                    'f10': f10,
-                    'f20': f20,
-                    'f50': f50,
-                    'decay': decay,
-                    'year': d_dt.year,
-                    'month': d_dt.month,
-                    'day': d_dt.day,
-                    'dayofweek': d_dt.dayofweek
-                })
-                targets.append(matrix[k, n])
-            return pd.DataFrame(rows), np.array(targets)
-
+        # --- MODELO 1: Balotas Blancas ---
         for n in range(1, self.max_white_ball + 1):
-            sub_test = matrix[:t_idx, n]
-            seen_t = np.where(sub_test == 1)[0]
-            recency_t = (t_idx - seen_t[-1]) if len(seen_t) > 0 else 100
-            f5_t = np.sum(sub_test[-5:]) if t_idx >= 5 else np.sum(sub_test)
-            f10_t = np.sum(sub_test[-10:]) if t_idx >= 10 else np.sum(sub_test)
-            f20_t = np.sum(sub_test[-20:]) if t_idx >= 20 else np.sum(sub_test)
-            f50_t = np.sum(sub_test[-50:]) if t_idx >= 50 else np.sum(sub_test)
-            decay_t = np.sum(sub_test * np.exp(-0.03 * (t_idx - 1 - np.arange(t_idx))))
+            df3[f'n_{n}'] = df3[['balota1', 'balota2', 'balota3', 'balota4', 'balota5']].apply(
+                lambda row: int(n in row.values), axis=1
+            )
 
-            X_train, y_train = build_features_for_number(n, t_idx)
+        df_future = df3[df3['fecha'] == df3['fecha'].max()].copy()
+        if df_future.empty:
+            print(f"⚠️ No se encontró la fila con la fecha reciente en Double Play.")
+            return
 
-            X_test = pd.DataFrame([{
-                'recency': recency_t,
-                'f5': f5_t,
-                'f10': f10_t,
-                'f20': f20_t,
-                'f50': f50_t,
-                'decay': decay_t,
-                'year': t_dt.year,
-                'month': t_dt.month,
-                'day': t_dt.day,
-                'dayofweek': t_dt.dayofweek
-            }])
+        X_future = df_future[self.features]
+        df_train = df3[df3['fecha'] < df3['fecha'].max()]
 
-            if len(y_train) == 0 or len(np.unique(y_train)) < 2:
-                num_probs[n] = 0.0
-            else:
-                model = XGBClassifier(
-                    n_estimators=100,
-                    learning_rate=0.05,
-                    max_depth=2,
-                    subsample=0.8,
-                    colsample_bytree=0.8,
-                    eval_metric='logloss',
-                    random_state=42
-                )
-                model.fit(X_train, y_train)
-                num_probs[n] = float(model.predict_proba(X_test)[0, 1])
+        predicciones_regular = {}
+        for i in range(1, self.max_white_ball + 1):
+            target_col = f'n_{i}'
+            y = df3[target_col]
 
-            raw_scores[n] = f20_t + decay_t
+            if y.nunique() < 2:
+                continue
 
-        max_raw = max(raw_scores.values()) if max(raw_scores.values()) > 0 else 1.0
-        hybrid_probs = {}
-        for n in range(1, self.max_white_ball + 1):
-            hybrid_probs[n] = 0.6 * num_probs[n] + 0.4 * (raw_scores[n] / max_raw)
+            X_train = df_train[self.features]
+            y_train = df_train[target_col]
 
-        df_pred_reg = pd.DataFrame.from_dict(hybrid_probs, orient='index', columns=['Probabilidad'])
+            model_reg = XGBClassifier(
+                n_estimators=100,
+                learning_rate=0.1,
+                max_depth=1,
+                subsample=0.8,
+                colsample_bytree=0.5,
+                gamma=1,
+                reg_alpha=0.1,
+                reg_lambda=1,
+                #use_label_encoder=False,
+                eval_metric='logloss',
+                random_state=42
+            )
+            
+            model_reg.fit(X_train, y_train)
+            proba = model_reg.predict_proba(X_future)[0, 1]
+            predicciones_regular[i] = proba
+
+        df_pred_reg = pd.DataFrame.from_dict(predicciones_regular, orient='index', columns=['Probabilidad'])
         df_pred_reg = df_pred_reg.sort_values('Probabilidad', ascending=False)
         numeros_prediccion = df_pred_reg.index.tolist()
 
-        # --- MODELO 2: Powerball ---
-        pb_series = df['balotaroja'].values
-        pb_freq = {}
-        for r in range(1, self.max_special_ball + 1):
-            pb_sub = (pb_series[:t_idx] == r).astype(int)
-            pb_f20 = np.sum(pb_sub[-20:]) if t_idx >= 20 else np.sum(pb_sub)
-            pb_decay = np.sum(pb_sub * np.exp(-0.03 * (t_idx - 1 - np.arange(t_idx))))
-            pb_freq[r] = pb_f20 + pb_decay
+        # --- MODELO 2: Balota Especial (Balota Roja) ---
+        X_train_roja = df_train[self.features]
+        y_train_roja = df_train["balotaroja"] - 1
 
-        pb_scores = pd.DataFrame.from_dict(pb_freq, orient='index', columns=['Score']).sort_values('Score', ascending=False)
-        rojaprediccion = pb_scores.index.tolist()
+        valid_mask = (y_train_roja >= 0) & (y_train_roja < self.max_special_ball)
+        X_train_roja = X_train_roja[valid_mask]
+        y_train_roja = y_train_roja[valid_mask]
 
+        model_roja = XGBClassifier(
+            objective="multi:softprob",
+            num_class=16,
+            eval_metric="mlogloss",
+            #use_label_encoder=False,
+            random_state=42
+        )
+        model_roja.fit(X_train_roja, y_train_roja)
+
+        probs_roja = model_roja.predict_proba(X_future)
+
+        ranking_roja = pd.DataFrame({
+            "Numero": [idx + 1 for idx in range(self.max_special_ball)],
+            "Probabilidad": probs_roja[0]
+        }).sort_values("Probabilidad", ascending=False)
+        rojaprediccion = ranking_roja["Numero"].tolist()
+
+        # --- Guardar en BD ---
         try:
             engine.dispose()
             conn = engine.connect()
@@ -185,7 +156,7 @@ class DoublePlayPredictor:
 
             print(f"✅ Predicción de Double Play guardada exitosamente para la fecha del próximo sorteo: {fecha_proximo_sorteo}")
             print(f"Top 20 números con mayor probabilidad: {numeros_prediccion[:20]}")
-            print(f"Top Powerball propuesta: {rojaprediccion[:5]}")
+            print(f"Top Double Play balota roja propuesta: {rojaprediccion[:5]}")
 
         except Exception as e:
             print(f"❌ Error al guardar predicciones de Double Play en BD: {e}")
