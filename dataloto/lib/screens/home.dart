@@ -30,6 +30,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -1189,6 +1190,31 @@ class _HomeScreenState extends State<HomeScreen> {
     if (t.contains("millionaire")) return const MillionaireLifeScreen();
     if (t.contains("mega millions") || t.contains("megamillions")) return const MegaMillionsScreen();
     return ColorLotoScreen();
+  }
+
+  Future<void> _setupFirebaseMessaging() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null) {
+        debugPrint("🔥 FCM Token obtenido: $token");
+        await ApiService.updateFCMToken(token);
+      }
+
+      // Escuchar cuando el token se renueve
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        ApiService.updateFCMToken(newToken);
+      });
+
+      // Escuchar notificaciones en primer plano (App abierta)
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        debugPrint("📩 Notificación Push recibida en primer plano: ${message.notification?.title}");
+        if (mounted) {
+          context.read<NotificationProvider>().fetchNotifications();
+        }
+      });
+    } catch (e) {
+      debugPrint("⚠️ Error al configurar FCM Token en HomeScreen: $e");
+    }
   }
 
 }
