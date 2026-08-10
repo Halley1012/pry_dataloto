@@ -201,8 +201,53 @@ class NotificationGenerator:
                 """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje, "tipo": tipo})
                 conn.commit()
                 print(f"✅ Notificación guardada/actualizada ({tipo}): {mensaje}")
+                
+                # 🔥 Enviar Push Notification vía FCM
+                self.enviar_fcm_push(mensaje, tipo)
         except Exception as e:
             print(f"❌ Error al guardar notificación: {e}")
+
+    def enviar_fcm_push(self, mensaje, tipo):
+        try:
+            import firebase_admin
+            from firebase_admin import credentials, messaging
+
+            if not firebase_admin._apps:
+                cred_path = PROJECT_ROOT / "config" / "firebase_credentials.json"
+                if cred_path.exists():
+                    cred = credentials.Certificate(str(cred_path))
+                    firebase_admin.initialize_app(cred)
+                else:
+                    try:
+                        firebase_admin.initialize_app()
+                    except Exception:
+                        pass
+
+            if not firebase_admin._apps:
+                return
+
+            with self.engine.connect() as conn:
+                res = conn.execute(text("SELECT fcm_token FROM usuarios WHERE fcm_token IS NOT NULL AND fcm_token != ''"))
+                tokens = [r[0] for r in res.fetchall() if r[0]]
+
+            if not tokens:
+                return
+
+            message = messaging.MulticastMessage(
+                notification=messaging.Notification(
+                    title="🍀 DataLoto - Acierto IA",
+                    body=mensaje,
+                ),
+                data={
+                    "tipo": tipo,
+                    "click_action": "FLUTTER_NOTIFICATION_CLICK"
+                },
+                tokens=tokens,
+            )
+            response = messaging.send_each_for_multicast(message)
+            print(f"📲 FCM Push enviada con éxito a {response.success_count} dispositivo(s).")
+        except Exception as e:
+            print(f"⚠️ FCM Push info: {e}")
 
 if __name__ == "__main__":
     lot = sys.argv[1] if len(sys.argv) > 1 else "all"
