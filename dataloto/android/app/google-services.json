@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "705812334903",
+    "project_id": "dataloto",
+    "storage_bucket": "dataloto.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:705812334903:android:91ede0829c7e539a23b2b2",
+        "android_client_info": {
+          "package_name": "com.example.dataloto"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuLeTnojAjzWgoY8UkHE6NlPvgu_E3EOU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

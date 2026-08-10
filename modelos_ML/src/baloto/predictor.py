@@ -81,7 +81,8 @@ class BalotoPredictor:
                 reg_alpha=0.1, 
                 reg_lambda=1, #use_label_encoder=False,
                 eval_metric='logloss', 
-                random_state=42
+                random_state=42,
+                n_jobs=1
             )
             
             model_reg.fit(X_train, y_train)
@@ -108,7 +109,8 @@ class BalotoPredictor:
             num_class=16,
             eval_metric="mlogloss",
             #use_label_encoder=False,
-            random_state=42
+            random_state=42,
+            n_jobs=1
         )
         model_roja.fit(X_train_roja, y_train_roja)
 

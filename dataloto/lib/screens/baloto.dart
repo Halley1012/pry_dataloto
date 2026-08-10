@@ -2,8 +2,6 @@ import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
-import 'package:dataloto/widgets/contenedor2.dart';
-import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/jugadas_list_bloto.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -11,11 +9,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
-import '../widgets/contenedor.dart';
-import '../widgets/custom_app_bar.dart';
+import '../widgets/contenedor3.dart';
 import 'dart:math';
-import 'package:dataloto/widgets/carrusel.dart';
-import 'package:dataloto/screens/directorioLocal.dart';
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
+import 'package:intl/intl.dart';
 
 class BalotoScreen extends StatefulWidget {
   const BalotoScreen({super.key});
@@ -24,9 +21,7 @@ class BalotoScreen extends StatefulWidget {
   State<BalotoScreen> createState() => _BalotoScreenState();
 }
 
-class _BalotoScreenState extends State<BalotoScreen>
-    with TickerProviderStateMixin {
-  static const String loteria = 'Baloto/Revancha';
+class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMixin {
   final storage = const FlutterSecureStorage();
 
   final int maxSeleccion = 5;
@@ -37,6 +32,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   List<Map<String, dynamic>> ultimosResultados = [];
   List<Map<String, dynamic>> ultimosResultadosBaloto = [];
   List<Map<String, dynamic>> ultimosResultadosRevancha = [];
+  List<Map<String, dynamic>> todosResultadosHistorico = [];
   List<Map<String, dynamic>> _jugadasList = [];
   bool cargando = false;
   static const String backendUrl = "https://pry-dataloto.onrender.com/bloto";
@@ -51,34 +47,21 @@ class _BalotoScreenState extends State<BalotoScreen>
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
-  List<Map<String, dynamic>> anuncios = [];
-  bool mostrarResultados = false;
-  bool mostrarResultadosRevancha = false;
+  String? _jackpot = "\$24.500";
+  String _viewMode = 'Tabla';
+  String _selectedResultadosTab = "baloto";
 
   @override
   void initState() {
     super.initState();
     _cargarBalotoOptimizado();
 
-    _bounceController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _bounceAnimation = CurvedAnimation(
-      parent: _bounceController,
-      curve: Curves.elasticOut,
-    );
+    _bounceController = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
+    _bounceAnimation = CurvedAnimation(parent: _bounceController, curve: Curves.elasticOut);
     _bounceController.forward();
 
-    _shineController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-
-    _jugadasController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
+    _shineController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _jugadasController = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
   }
 
   @override
@@ -91,1245 +74,909 @@ class _BalotoScreenState extends State<BalotoScreen>
 
   Future<void> _cargarBalotoOptimizado() async {
     if (!mounted) return;
-
-    // ⚡ 1. Cargar primero de la caché local para despliegue instantáneo (0 ms)
     final cached = await CacheService.getJson('bloto_prediccion');
-    if (cached != null && cached["numeros"] != null && mounted) {
-      final List<dynamic>? numeros = cached["numeros"];
-      final List<dynamic>? balotaroja = cached["balotaroja"];
-      final String? fecha = cached["fecha"];
-      if (numeros != null && fecha != null && balotaroja != null) {
-        setState(() {
-          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
-          listaBalotaRoja = balotaroja.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
-          fechaPrediccion = fecha;
-          cargando = false;
-        });
-      }
-    }
-
-    if (listaProbables.isEmpty && mounted) {
-      setState(() => cargando = true);
-    }
-
-    try {
-      final keys = await Future.wait([
-        storage.read(key: 'user_id'),
-        _storage.read(key: 'pais_id'),
-      ]);
-
-      final uId = keys[0];
-      final pIdStr = keys[1];
-      final pIdInt = pIdStr != null ? int.tryParse(pIdStr) : null;
-
-      if (mounted) setState(() => userId = uId);
-
-      await Future.wait([
-        fetchNumeros(),
-        _fetchUltimosResultados(),
-        _loadJugadas(),
-        _jugadasListKey.currentState?.reload() ?? Future.value(),
-        ApiService.getPublicidades(paisId: pIdInt).then((ads) {
-          if (mounted) setState(() => anuncios = ads);
-        }),
-      ]);
-
-      if (mounted) {
-        _jugadasController.reset();
-        _jugadasController.forward();
-      }
-    } catch (e) {
-      debugPrint("❌ Error al cargar Baloto en paralelo: $e");
-    } finally {
-      if (mounted) setState(() => cargando = false);
-    }
-  }
-
-  Future<void> buscarAnuncios([String titulo = ""]) async {
-    if (!mounted) return;
-    setState(() => cargando = true);
-
-    try {
-      final paisIdStr = await _storage.read(key: "pais_id");
-      final paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
-
-      // 🛰️ 2. Llamar al API con los filtros por defecto
-      final data = await ApiService.getPublicidades(
-        paisId: paisId,
-        //departamentoId: departamentoId,
-        //ciudadId: ciudadId,
-        //titulo: titulo.trim().isEmpty ? null : titulo.trim(),
-      );
-
-      if (!mounted) return;
-
-      // 🧩 3. Actualizar la lista de anuncios
+    if (cached != null && cached["numeros"] != null) {
       setState(() {
-        anuncios = data;
+        listaProbables = (cached["numeros"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+        listaBalotaRoja = (cached["balotaroja"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+        fechaPrediccion = cached["fecha"];
       });
-    } catch (e, st) {
-      debugPrint("❌ Error al buscar anuncios: $e");
-      debugPrintStack(stackTrace: st);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al cargar los anuncios.')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => cargando = false);
     }
+    if (listaProbables.isEmpty) setState(() => cargando = true);
+    try {
+      final uId = await storage.read(key: 'user_id');
+      if (mounted) setState(() => userId = uId);
+      await Future.wait([fetchNumeros(), _fetchUltimosResultados(), _fetchHistoricoCompleto(), _loadJugadas(), _jugadasListKey.currentState?.reload() ?? Future.value()]);
+      if (mounted) { _jugadasController.reset(); _jugadasController.forward(); }
+    } catch (e) { debugPrint("❌ Error carga: $e"); }
+    finally { if (mounted) setState(() => cargando = false); }
   }
 
   Future<void> _fetchUltimosResultados() async {
-    final cached = await CacheService.getJson('bloto_ultimos5');
-    if (cached != null && cached["resultados"] != null && mounted) {
-      final list = List<Map<String, dynamic>>.from(cached["resultados"]);
-      final balotoList = list.where((r) {
-        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
-        return s == "baloto" || s.isEmpty;
-      }).take(5).toList();
-      final revanchaList = list.where((r) {
-        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
-        return s == "revancha";
-      }).take(5).toList();
-
-      setState(() {
-        ultimosResultados = list;
-        ultimosResultadosBaloto = balotoList.isNotEmpty ? balotoList : list.take(5).toList();
-        ultimosResultadosRevancha = revanchaList;
-      });
-    }
-
     try {
-      final response = await http.get(
-        Uri.parse("https://pry-dataloto.onrender.com/bloto/ultimos5"),
-      );
-
+      final response = await http.get(Uri.parse("https://pry-dataloto.onrender.com/bloto/ultimos5"));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data["resultados"] != null && mounted) {
           final list = List<Map<String, dynamic>>.from(data["resultados"]);
-
-          final balotoList = list.where((r) {
-            final s = r["sorteo"]?.toString().toLowerCase() ?? "";
-            return s == "baloto" || s.isEmpty;
-          }).take(5).toList();
-
-          final revanchaList = list.where((r) {
-            final s = r["sorteo"]?.toString().toLowerCase() ?? "";
-            return s == "revancha";
-          }).take(5).toList();
-
           setState(() {
             ultimosResultados = list;
-            ultimosResultadosBaloto =
-                balotoList.isNotEmpty ? balotoList : list.take(5).toList();
-            ultimosResultadosRevancha = revanchaList;
+            ultimosResultadosBaloto = list.where((r) => (r["sorteo"]?.toString().toLowerCase() ?? "") == "baloto" || (r["sorteo"]?.toString() ?? "").isEmpty).take(5).toList();
+            ultimosResultadosRevancha = list.where((r) => (r["sorteo"]?.toString().toLowerCase() ?? "") == "revancha").take(5).toList();
           });
-          
           CacheService.setJson('bloto_ultimos5', data);
-        } else {
-          if (mounted) {
-            setState(() {
-              ultimosResultados = [];
-              ultimosResultadosBaloto = [];
-              ultimosResultadosRevancha = [];
-            });
-          }
-          debugPrint("Respuesta sin resultados válidos: $data");
         }
-      } else {
-        if (mounted) {
-          setState(() {
-            ultimosResultados = [];
-            ultimosResultadosBaloto = [];
-            ultimosResultadosRevancha = [];
-          });
-        }
-        debugPrint("Error HTTP: ${response.statusCode}");
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          ultimosResultados = [];
-          ultimosResultadosBaloto = [];
-          ultimosResultadosRevancha = [];
-        });
-      }
-      debugPrint("Excepción al consultar últimos resultados: $e");
+    } catch (_) {}
+  }
+
+  Future<void> _fetchHistoricoCompleto() async {
+    final cached = await CacheService.getJson('bloto_historico_completo');
+    if (cached != null && cached["resultados"] != null && mounted) {
+      setState(() {
+        todosResultadosHistorico = List<Map<String, dynamic>>.from(cached["resultados"]);
+      });
     }
+
+    try {
+      final response = await http.get(Uri.parse("https://pry-dataloto.onrender.com/bloto/historico_completo"));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data["resultados"] != null && mounted) {
+          setState(() {
+            todosResultadosHistorico = List<Map<String, dynamic>>.from(data["resultados"]);
+          });
+          CacheService.setJson('bloto_historico_completo', data);
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> fetchNumeros() async {
-    final cached = await CacheService.getJson('bloto_prediccion');
-    if (cached != null && cached["numeros"] != null && mounted) {
-      final List<dynamic>? numeros = cached["numeros"];
-      final List<dynamic>? balotaroja = cached["balotaroja"];
-      final String? fecha = cached["fecha"];
-      if (numeros != null && fecha != null && balotaroja != null) {
-        setState(() {
-          listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
-          listaBalotaRoja = balotaroja.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
-          fechaPrediccion = fecha;
-          cargando = false;
-        });
-      }
-    }
-
-    if (!mounted) return;
-    if (listaProbables.isEmpty) setState(() => cargando = true);
-
     try {
       final response = await http.get(Uri.parse(backendUrl));
-      if (!mounted) return;
-
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 && mounted) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final List<dynamic>? numeros = data["numeros"];
-        final List<dynamic>? balotaroja = data["balotaroja"];
-        final String? fecha = data["fecha"];
-
-        if (numeros != null && fecha != null && balotaroja != null && mounted) {
+        if (data["numeros"] != null) {
           setState(() {
-            listaProbables = numeros
-                .map((e) => int.tryParse(e.toString()) ?? 0)
-                .where((e) => e != 0)
-                .toList();
-            listaBalotaRoja = balotaroja
-                .map((e) => int.tryParse(e.toString()) ?? 0)
-                .where((e) => e != 0)
-                .toList();
-            fechaPrediccion = fecha;
+            listaProbables = (data["numeros"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+            listaBalotaRoja = (data["balotaroja"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
+            fechaPrediccion = data["fecha"];
             cargando = false;
           });
-          
           CacheService.setJson('bloto_prediccion', data);
-        } else {
-          if (mounted) {
-            setState(() => cargando = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Aún no hay predicciones..."),
-                duration: Duration(seconds: 2),
-              ),
-            );
-          }
-        }
-      } else {
-        if (mounted) {
-          setState(() => cargando = false);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Error de servidor..."),
-              duration: Duration(seconds: 2),
-            ),
-          );
         }
       }
-    } catch (e) {
-      debugPrint("Error en fetchNumeros: $e");
-    } finally {
-      if (mounted) setState(() => cargando = false);
-    }
+    } catch (_) {}
   }
 
   void toggleNumero(int numero) {
     if (!mounted) return;
     setState(() {
-      if (seleccionados.contains(numero)) {
-        seleccionados.remove(numero);
-      } else if (seleccionados.length < maxSeleccion) {
-        seleccionados.add(numero);
-      }
+      if (seleccionados.contains(numero)) { seleccionados.remove(numero); }
+      else if (seleccionados.length < maxSeleccion) { seleccionados.add(numero); }
     });
   }
 
   String _formatearFecha(String fecha) {
     try {
-      String soloFecha = fecha.substring(0, 10);
-      DateTime parsed = DateTime.parse(soloFecha);
-      const meses = [
-        "enero",
-        "febrero",
-        "marzo",
-        "abril",
-        "mayo",
-        "junio",
-        "julio",
-        "agosto",
-        "septiembre",
-        "octubre",
-        "noviembre",
-        "diciembre",
-      ];
-      String mes = meses[parsed.month - 1];
-      return "${parsed.day} de $mes, ${parsed.year}";
+      if (fecha.contains('T')) {
+        DateTime parsed = DateTime.parse(fecha);
+        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+      }
+      if (fecha.length >= 10 && fecha.contains('-')) {
+        DateTime parsed = DateTime.parse(fecha.substring(0, 10));
+        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+      }
+      if (fecha.contains('/')) {
+        final parts = fecha.split('/');
+        if (parts.length == 3) {
+          final day = int.parse(parts[0]);
+          final month = int.parse(parts[1]);
+          final year = int.parse(parts[2]);
+          final parsed = DateTime(year, month, day);
+          return DateFormat('dd MMM yyyy', 'es').format(parsed);
+        }
+      }
+      return fecha;
     } catch (_) {
       return fecha;
     }
   }
 
+  String _getFechaProximoSorteo() {
+    if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
+      return _formatearFecha(fechaPrediccion!);
+    }
+    if (ultimosResultados.isNotEmpty && ultimosResultados.first["fecha"] != null) {
+      return _formatearFecha(ultimosResultados.first["fecha"].toString());
+    }
+    return "05 Ago 2026";
+  }
+
   void _generarAleatorios() {
-    if (listaProbables.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No hay números probables cargados")),
-        );
-      }
-      return;
-    }
-    if (listaBalotaRoja.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("No hay balotas rojas disponibles")),
-        );
-      }
-      return;
-    }
-
-    if (!mounted) return;
+    if (listaProbables.isEmpty || listaBalotaRoja.isEmpty) return;
     setState(() {
-      final Random _random = Random();
+      final Random random = Random();
       seleccionados = [];
-
-      while (seleccionados.length < maxSeleccion && listaProbables.isNotEmpty) {
-        int nuevoNumero =
-            listaProbables[_random.nextInt(listaProbables.length)];
-        if (!seleccionados.contains(nuevoNumero)) {
-          seleccionados.add(nuevoNumero);
-        }
+      while (seleccionados.length < maxSeleccion) {
+        int n = listaProbables[random.nextInt(listaProbables.length)];
+        if (!seleccionados.contains(n)) seleccionados.add(n);
       }
-
-      balotaRojaSeleccionada =
-          listaBalotaRoja[_random.nextInt(listaBalotaRoja.length)];
-
-      _bounceController.reset();
-      _bounceController.forward();
-      if (!_shineController.isAnimating) _shineController.repeat();
-
-      debugPrint("Generada: $seleccionados + Roja: $balotaRojaSeleccionada");
+      balotaRojaSeleccionada = listaBalotaRoja[random.nextInt(listaBalotaRoja.length)];
+      _bounceController.reset(); _bounceController.forward();
     });
   }
 
   Future<void> _loadJugadas() async {
-    final cached = await CacheService.getJson('user_jugadas_bloto_${userId ?? "anon"}');
-    if (cached != null && mounted) {
-      setState(() {
-        _jugadasList = List<Map<String, dynamic>>.from(cached);
-      });
-    }
-
     try {
       final response = await ApiService.listarJugadasBloto();
-      final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
-        response,
-      );
-
-      if (mounted) {
-        setState(() {
-          _jugadasList = data;
-        });
-        CacheService.setJson('user_jugadas_bloto_${userId ?? "anon"}', data);
-      }
-    } catch (e) {
-      debugPrint("Error al cargar jugadas: $e");
-    }
+      if (mounted) setState(() => _jugadasList = List<Map<String, dynamic>>.from(response));
+    } catch (_) {}
   }
 
   Future<void> _guardarJugada() async {
-  if (!mounted) return;
+    if (isSaving) return;
 
-  // 🧱 Validaciones iniciales
-  if (userId == null || userId!.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
-    );
-    return;
-  }
+    String? currentUid = userId;
+    if (currentUid == null || currentUid.isEmpty) {
+      currentUid = await storage.read(key: 'user_id');
+      if (mounted && currentUid != null) {
+        setState(() => userId = currentUid);
+      }
+    }
 
-  if (seleccionados.isEmpty || balotaRojaSeleccionada == null) return;
-
-  if (seleccionados.length != 5) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text("Debes seleccionar exactamente 5 balotas y 1 roja"),
-      ),
-    );
-    return;
-  }
-
-  setState(() => isSaving = true);
-
-  try {
-    // 🧮 Ordenamos y formamos la jugada nueva
-    final whites = List<int>.from(seleccionados)..sort();
-    final nuevaJugada = [...whites, balotaRojaSeleccionada!];
-
-    // 🔄 Actualiza jugadas antes de validar duplicados
-    await _loadJugadas();
-
-
-    // 🔍 Validación de duplicados
-    final yaExiste = _jugadasList.any((jugada) {
-      final nums = (jugada["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
-      if (nums.length != 6) return false;
-
-      final storedWhites = nums.sublist(0, 5)..sort();
-      final storedRed = nums[5];
-
-      return const ListEquality().equals(storedWhites, whites) &&
-          storedRed == balotaRojaSeleccionada;
-    });
-
-    if (yaExiste) {
-      setState(() => isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("❌ Esa jugada ya existe")),
-      );
+    if (currentUid == null || currentUid.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Inicia sesión para guardar tu jugada")),
+        );
+      }
       return;
     }
 
-    // 🚀 Crear jugada (optimistic update)
-    await _jugadasListKey.currentState!.addJugada(
-      nuevaJugada,
-      userId!, // ← YA NO ES NULL
-    );
+    final bool isCustomMode = seleccionados.isNotEmpty || balotaRojaSeleccionada != null;
 
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("⚠️ Error: $e")),
-    );
-  }
+    List<int> whitesToSave;
+    int? redToSave;
 
-  if (mounted) setState(() => isSaving = false);
-}
+    if (!isCustomMode) {
+      // Modo predicción por defecto de la IA
+      if (listaProbables.length < maxSeleccion || listaBalotaRoja.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Cargando predicción... Intenta de nuevo")),
+          );
+        }
+        return;
+      }
+      whitesToSave = List<int>.from(listaProbables.take(maxSeleccion));
+      redToSave = listaBalotaRoja.first;
+    } else {
+      // Modo selección personalizada: DEBE tener exactamente 5 balotas y 1 roja
+      if (seleccionados.length != maxSeleccion || balotaRojaSeleccionada == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada."),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+      whitesToSave = List<int>.from(seleccionados);
+      redToSave = balotaRojaSeleccionada!;
+    }
 
-Future<void> deleteJugada(int jugadaId, String userId) async {
-  if (!mounted) return;
+    final whites = List<int>.from(whitesToSave)..sort();
+    final jugadaCompleta = [...whites, redToSave];
 
-  final removedJugada = _jugadasList.firstWhere(
-    (j) => j["id"] == jugadaId,
-    orElse: () => {},
-  );
-
-  if (removedJugada.isEmpty) return;
-
-  setState(() {
-    _jugadasList.removeWhere((j) => j["id"] == jugadaId);
-  });
-
-  try {
-    await ApiService.borrarJugadaBloto(jugadaId, userId);
-  } catch (e) {
-    if (!mounted) return;
-    setState(() {
-      _jugadasList.insert(0, removedJugada);
+    // Verificar si esta jugada exacta ya fue guardada recientemente para evitar duplicados
+    final bool isDuplicate = _jugadasList.any((j) {
+      final existing = List<int>.from(j["numeros"] ?? []);
+      return const ListEquality().equals(existing, jugadaCompleta);
     });
+
+    if (isDuplicate) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => isSaving = true);
+
+    // Respuesta instantánea al usuario (0ms)
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("¡Jugada guardada con éxito! 🎉"),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+
+    try {
+      if (_jugadasListKey.currentState != null) {
+        await _jugadasListKey.currentState!.addJugada(jugadaCompleta, currentUid);
+      } else {
+        await ApiService.crearJugadaBloto(jugadaCompleta, currentUid);
+        await _loadJugadas();
+      }
+    } catch (e) {
+      debugPrint("❌ Error al guardar jugada: $e");
+    } finally {
+      if (mounted) {
+        setState(() {
+          isSaving = false;
+        });
+      }
+    }
   }
-}
 
+  Map<String, String> _calcularStats() {
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty) {
+      return {
+        "hot": "38",
+        "hotV": "12 veces",
+        "cold": "42",
+        "coldV": "1 veces",
+        "pairs": "3 - 2",
+        "total": "50"
+      };
+    }
 
+    final Map<int, int> f = {};
+    for (int i = 1; i <= 43; i++) f[i] = 0;
+
+    for (var r in listaUsar) {
+      final nums = List<int>.from(r["numeros"] ?? []);
+      for (var n in nums.take(5)) {
+        if (n >= 1 && n <= 43) {
+          f[n] = (f[n] ?? 0) + 1;
+        }
+      }
+    }
+
+    int maxB = 1, maxV = -1;
+    int minB = 1, minV = 999999;
+
+    f.forEach((b, count) {
+      if (count > maxV) {
+        maxV = count;
+        maxB = b;
+      }
+      if (count < minV) {
+        minV = count;
+        minB = b;
+      }
+    });
+
+    int p = 0, im = 0;
+    if (listaUsar.isNotEmpty) {
+      final ult = List<int>.from(listaUsar.first["numeros"] ?? []);
+      for (var n in ult.take(5)) {
+        if (n % 2 == 0) p++; else im++;
+      }
+    }
+
+    return {
+      "hot": "$maxB",
+      "hotV": "$maxV veces",
+      "cold": "$minB",
+      "coldV": minV == 999999 ? "0 veces" : "$minV veces",
+      "pairs": "$p - $im",
+      "total": "${listaUsar.length}"
+    };
+  }
+
+  Widget _build3DBall(int? numero, {Color baseColor = const Color(0xFFF33A21), double size = 45}) {
+    return Container(
+      width: size, height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [baseColor.withValues(alpha: 0.95), baseColor.withValues(alpha: 0.8), baseColor.withValues(alpha: 0.6)],
+          center: Alignment.topLeft, radius: 0.9,
+        ),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: 0.4), offset: const Offset(3, 3), blurRadius: 6),
+          BoxShadow(color: baseColor.withValues(alpha: 0.4), offset: const Offset(-2, -2), blurRadius: 4),
+        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
+      ),
+      child: Center(
+        child: Text(
+          numero?.toString() ?? "–",
+          style: TextStyle(
+            fontSize: size * 0.4, fontWeight: FontWeight.bold, color: numero != null ? Colors.white : Colors.white54,
+            shadows: numero != null ? [Shadow(color: Colors.black.withValues(alpha: 0.6), offset: const Offset(1, 1), blurRadius: 2)] : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, String subValue, {IconData? icon, Color? iconColor}) {
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto'),
+      child: Container(
+        width: 105, padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white.withValues(alpha: 0.08))),
+        child: Column(
+          children: [
+            if (icon != null) Icon(icon, color: iconColor ?? AppColors.yellow, size: 22),
+            const SizedBox(height: 6),
+            Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(color: Colors.white38, fontSize: 10), textAlign: TextAlign.center),
+            Text(subValue, style: const TextStyle(color: Colors.white54, fontSize: 9), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final s = _calcularStats();
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: RefreshIndicator(
-        color: Colors.amber,
-        backgroundColor: const Color(0xFF1E293B),
-        onRefresh: () async {
-          await _cargarBalotoOptimizado();
-        },
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-          const CustomSliverAppBar(
-            title: "$loteria",
-            pinned: true,
-            floating: true,
-            snap: true,
-          ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppContainer(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Predicciones Inteligentes para $loteria",
-                          style: AppTextStyles.tituloPrincipal.copyWith(
-                            color: Colors.amberAccent,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          "Números con mayor probabilidad según la IA "
-                          "para el sorteo del ${fechaPrediccion != null ? _formatearFecha(fechaPrediccion!) : '...'}",
-                          style: AppTextStyles.mensajeSecundario,
-                        ),
-                      ],
-                    ),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.yellow,
+          onRefresh: _cargarBalotoOptimizado,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 3),
+                      _buildHeader(),
+                      const SizedBox(height: 18),
+                      _buildQuickSummary(s),
+                      const SizedBox(height: 24),
+                      _buildIAPrediction(),
+                      const SizedBox(height: 16),
+                      _buildDisclaimerNote(),
+                      const SizedBox(height: 20),
+                      _buildActionGrid(),
+                      const SizedBox(height: 24),
+                      _buildManualSelectorSection(),
+                      const SizedBox(height: 24),
+                      _buildRedBallsSection(),
+                      const SizedBox(height: 24),
+                      _buildResultadosSection(),
+                      const SizedBox(height: 24),
+                      _buildNewsSection(),
+                      const SizedBox(height: 40),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  AppContainer(
-                    child: JugadasListBloto(
-                      key: _jugadasListKey,
-                      jugadasController: _jugadasController,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          "Tus números de la suerte",
-                          style: AppTextStyles.tituloPrincipal.copyWith(
-                            color: Colors.amberAccent,
-                            fontSize: 22,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          "✨ Seleccionados especialmente para ti",
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 13,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final screenWidth = MediaQuery.of(
-                              context,
-                            ).size.width;
-                            final isSmall =
-                                screenWidth <
-                                360; // Solo ajusta para muy pequeños (<360px, ej. viejos phones)
-                            final ballSize = isSmall
-                                ? 35.0
-                                : 45.0; // Original 45 para S23 FE y mayores
-                            final spacing = isSmall ? 4.0 : 6.0;
-                            final runSpacing = isSmall ? 6.0 : 8.0;
-                            final fontSize = isSmall ? 12.0 : 16.0;
-
-                            return Wrap(
-                              spacing: spacing,
-                              runSpacing: runSpacing,
-                              children: [
-                                ...List.generate(maxSeleccion, (index) {
-                                  if (index < seleccionados.length) {
-                                    return ScaleTransition(
-                                      scale: _bounceAnimation,
-                                      child: SizedBox(
-                                        width: ballSize,
-                                        height: ballSize,
-                                        child: Stack(
-                                          alignment: Alignment.center,
-                                          children: [
-                                            RotationTransition(
-                                              turns: Tween(
-                                                begin: 0.0,
-                                                end: 1.0,
-                                              ).animate(_shineController),
-                                              child: ShaderMask(
-                                                shaderCallback: (bounds) {
-                                                  return LinearGradient(
-                                                    colors: [
-                                                      Colors.white.withOpacity(
-                                                        0.25,
-                                                      ),
-                                                      Colors.transparent,
-                                                      Colors.white.withOpacity(
-                                                        0.25,
-                                                      ),
-                                                    ],
-                                                    begin: Alignment.topLeft,
-                                                    end: Alignment.bottomRight,
-                                                    stops: const [
-                                                      0.2,
-                                                      0.5,
-                                                      0.8,
-                                                    ],
-                                                  ).createShader(bounds);
-                                                },
-                                                blendMode: BlendMode.srcATop,
-                                                child: Image.asset(
-                                                  "assets/images/yellow-ball.png",
-                                                  width: ballSize,
-                                                  height: ballSize,
-                                                  fit: BoxFit.contain,
-                                                  errorBuilder:
-                                                      (
-                                                        context,
-                                                        error,
-                                                        stackTrace,
-                                                      ) => _build3DBall(
-                                                        seleccionados[index],
-                                                        baseColor:
-                                                            Colors.lightGreen,
-                                                        size: ballSize,
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                            Text(
-                                              "${seleccionados[index]}",
-                                              style: TextStyle(
-                                                fontSize: fontSize,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.white,
-                                                shadows: const [
-                                                  Shadow(
-                                                    blurRadius: 4,
-                                                    color: Colors.black,
-                                                    offset: Offset(1, 1),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    );
-                                  } else {
-                                    return SizedBox(
-                                      width: ballSize,
-                                      height: ballSize,
-                                      child: _build3DBall(
-                                        null,
-                                        baseColor: Colors.grey.shade300,
-                                        size: ballSize,
-                                      ),
-                                    );
-                                  }
-                                }),
-                                ScaleTransition(
-                                  scale: _bounceAnimation,
-                                  child: SizedBox(
-                                    width: ballSize,
-                                    height: ballSize,
-                                    child: Stack(
-                                      alignment: Alignment.center,
-                                      children: [
-                                        if (balotaRojaSeleccionada != null) ...[
-                                          RotationTransition(
-                                            turns: Tween(
-                                              begin: 0.0,
-                                              end: 1.0,
-                                            ).animate(_shineController),
-                                            child: ShaderMask(
-                                              shaderCallback: (bounds) {
-                                                return LinearGradient(
-                                                  colors: [
-                                                    Colors.white.withOpacity(
-                                                      0.25,
-                                                    ),
-                                                    Colors.transparent,
-                                                    Colors.white.withOpacity(
-                                                      0.25,
-                                                    ),
-                                                  ],
-                                                  begin: Alignment.topLeft,
-                                                  end: Alignment.bottomRight,
-                                                  stops: const [0.2, 0.5, 0.8],
-                                                ).createShader(bounds);
-                                              },
-                                              blendMode: BlendMode.srcATop,
-                                              child: Image.asset(
-                                                "assets/images/red-ball.png",
-                                                width: ballSize,
-                                                height: ballSize,
-                                                fit: BoxFit.contain,
-                                                errorBuilder:
-                                                    (
-                                                      context,
-                                                      error,
-                                                      stackTrace,
-                                                    ) => _build3DBall(
-                                                      balotaRojaSeleccionada,
-                                                      baseColor:
-                                                          Colors.redAccent,
-                                                      size: ballSize,
-                                                    ),
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            "$balotaRojaSeleccionada",
-                                            style: TextStyle(
-                                              fontSize: fontSize,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                              shadows: const [
-                                                Shadow(
-                                                  blurRadius: 4,
-                                                  color: Colors.black,
-                                                  offset: Offset(1, 1),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ] else ...[
-                                          _build3DBall(
-                                            null,
-                                            baseColor: Colors.grey.shade300,
-                                            size: ballSize,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 15),
-                        ShimmerBorderContainer(
-                          child: Padding(
-                            padding: const EdgeInsets.all(1.0),
-                            child: Text(
-                              "💡 Nota: son solo tendencias estadísticas, no garantías absolutas. Juega con responsabilidad.",
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.caption,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: _generarAleatorios,
-                                icon: const Icon(
-                                  Icons.shuffle,
-                                  color: Colors.black,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  "Generar",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: ElevatedButton.icon(
-                                onPressed: isSaving
-                                    ? null
-                                    : _guardarJugada, // se bloquea mientras guarda
-                                icon: isSaving
-                                    ? const SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          valueColor:
-                                              AlwaysStoppedAnimation<Color>(
-                                                Color(0xFF1E1E1E),
-                                              ),
-                                        ),
-                                      )
-                                    : const Icon(
-                                        Icons.list,
-                                        color: Color(0xFF1E1E1E),
-                                        size: 18,
-                                      ),
-                                label: Text(
-                                  isSaving ? "Guardando..." : "Guardar",
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-
-                        // 🏷️ Botones de Navegación con Estilo Idéntico a Generar / Guardar
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () async {
-                                  await Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const BalotoMisJugadasScreen(),
-                                    ),
-                                  );
-                                  await _jugadasListKey.currentState?.reload();
-                                  if (mounted) {
-                                    _jugadasController.reset();
-                                    _jugadasController.forward();
-                                  }
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  "Mis jugadas",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: () {
-                                  Navigator.pushNamed(context, '/estadisticas_bloto');
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  "Estadísticas",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
-                        Text("Selecciona tus números", style: AppTextStyles.h2),
-                        const SizedBox(height: 15),
-                        Text(
-                          "Números ordenados de mayor a menor probabilidad,\nColor rojo mayor probabilidad.",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                        ),
-                        listaProbables.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.yellow,
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final screenWidth = MediaQuery.of(
-                                    context,
-                                  ).size.width;
-                                  final isSmall = screenWidth < 360;
-                                  final crossAxisCount = isSmall
-                                      ? 6
-                                      : 8; // Reduce columnas en pequeños
-                                  final ballSize = isSmall
-                                      ? 32.0
-                                      : 40.0; // Tamaño responsive para Grid
-                                  final spacing = isSmall ? 4.0 : 8.0;
-
-                                  return GridView.count(
-                                    crossAxisCount: crossAxisCount,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    crossAxisSpacing: spacing,
-                                    mainAxisSpacing: spacing,
-                                    childAspectRatio: 1.0, // Cuadrados perfectos
-                                    children: listaProbables.asMap().entries.map((
-                                      entry,
-                                    ) {
-                                      int index = entry.key;
-                                      int numero = entry.value;
-                                      bool isSelected = seleccionados.contains(
-                                        numero,
-                                      );
-                                      Color baseColor = index < 21
-                                          ? Colors.redAccent
-                                          : const Color(0xFF607D8B);
-
-                                      return GestureDetector(
-                                        onTap: () => toggleNumero(numero),
-                                        child: SizedBox(
-                                          width: ballSize,
-                                          height: ballSize,
-                                          child: _build3DBall(
-                                            numero,
-                                            baseColor: isSelected
-                                                ? Colors.amber
-                                                : baseColor,
-                                            size: ballSize,
-                                          ),
-                                        ),
-                                      );
-                                    }).toList(),
-                                  );
-                                },
-                              ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "Balotas Rojas",
-                          style: AppTextStyles.h2.copyWith(fontSize: 20),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          "Números ordenados de mayor a menor probabilidad.",
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                        ),
-                        listaBalotaRoja.isEmpty
-                            ? const Padding(
-                                padding: EdgeInsets.symmetric(vertical: 24.0),
-                                child: Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.yellow,
-                                  ),
-                                ),
-                              )
-                            : LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final screenWidth = MediaQuery.of(
-                                    context,
-                                  ).size.width;
-                                  final isSmall = screenWidth < 360;
-                                  final crossAxisCount = isSmall
-                                      ? 6
-                                      : 8; // Reduce columnas en pequeños
-                                  final ballSize = isSmall
-                                      ? 32.0
-                                      : 40.0; // Tamaño responsive
-                                  final spacing = isSmall ? 4.0 : 8.0;
-
-                                  return GridView.count(
-                                    crossAxisCount: crossAxisCount,
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    crossAxisSpacing: spacing,
-                                    mainAxisSpacing: spacing,
-                                    childAspectRatio: 1.0, // Cuadrados perfectos
-                                    children: listaBalotaRoja.map((numero) {
-                                      bool isSelected =
-                                          balotaRojaSeleccionada == numero;
-
-                                return GestureDetector(
-                                  onTap: () {
-                                    if (!mounted) return;
-                                    setState(() {
-                                      if (balotaRojaSeleccionada == numero) {
-                                        balotaRojaSeleccionada = null;
-                                      } else {
-                                        balotaRojaSeleccionada = numero;
-                                        _bounceController.reset();
-                                        _bounceController.forward();
-                                      }
-                                    });
-                                  },
-                                  child: SizedBox(
-                                    width: ballSize,
-                                    height: ballSize,
-                                    child: _build3DBall(
-                                      numero,
-                                      baseColor: isSelected
-                                          ? Colors.amber
-                                          : Colors.redAccent,
-                                      size: ballSize,
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Encabezado clicable (siempre visible)
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              mostrarResultados =
-                                  !mostrarResultados;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 0.1),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Últimos 5 resultados Baloto",
-                                  style: AppTextStyles.h2,
-                                ),
-                                Icon(
-                                  mostrarResultados
-                                      ? Icons.expand_less
-                                      : Icons.expand_more,
-                                  color:
-                                      AppColors.yellow,
-                                  size: 26,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Contenido colapsable: subtítulo + resultados
-                        AnimatedCrossFade(
-                          firstChild: _buildResultadosContent(
-                            "Baloto",
-                            listaResultados: ultimosResultadosBaloto.isNotEmpty
-                                ? ultimosResultadosBaloto
-                                : ultimosResultados,
-                          ),
-                          secondChild: const SizedBox.shrink(),
-                          crossFadeState: mostrarResultados
-                              ? CrossFadeState.showFirst
-                              : CrossFadeState.showSecond,
-                          duration: const Duration(milliseconds: 500),
-                          alignment: Alignment.topCenter,
-                          firstCurve: Curves.easeOut,
-                          secondCurve: Curves.easeIn,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // Encabezado clicable (siempre visible)
-                        InkWell(
-                          onTap: () {
-                            setState(() {
-                              mostrarResultadosRevancha =
-                                  !mostrarResultadosRevancha;
-                            });
-                          },
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 0.1),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  "Últimos 5 resultados Revancha",
-                                  style: AppTextStyles.h2,
-                                ),
-                                Icon(
-                                  mostrarResultadosRevancha
-                                      ? Icons.expand_less
-                                      : Icons.expand_more,
-                                  color:
-                                      AppColors.yellow,
-                                  size: 26,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // Contenido colapsable: subtítulo + resultados
-                        AnimatedCrossFade(
-                          firstChild: _buildResultadosContent(
-                            "Baloto Revancha",
-                            listaResultados: ultimosResultadosRevancha,
-                          ),
-                          secondChild: const SizedBox.shrink(),
-                          crossFadeState: mostrarResultadosRevancha
-                              ? CrossFadeState.showFirst
-                              : CrossFadeState.showSecond,
-                          duration: const Duration(milliseconds: 500),
-                          alignment: Alignment.topCenter,
-                          firstCurve: Curves.easeOut,
-                          secondCurve: Curves.easeIn,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  // 🔹 Anuncios (carrusel horizontal + botón "Ver más")
-                  if (cargando)
-                    const Center(child: CircularProgressIndicator(color: AppColors.amber))
-                  else if (anuncios.isEmpty)
-                    Column(
-                      children: [
-                        const SizedBox(height: 20),
-                        Center(
-                          child: Text(
-                            "No hay anuncios disponibles.",
-                            style: AppTextStyles.mensajeSecundario.copyWith(
-                              fontSize: 12,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                    )
-                  else
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 🔸 Título + Botón "Ver más"
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                "Anuncios destacados",
-                                style: AppTextStyles.h2.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                ),
-                              ),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => DirectorioLocalScreen(),
-                                    ),
-                                  );
-                                },
-                                child: Text(
-                                  "Ver más ›",
-                                  style: AppTextStyles.mensajeSecundario.copyWith(
-                                    color: AppColors.yellow, // ✅ Amarillo para consistencia
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                        // 🔸 Carrusel horizontal (ahora con el widget)
-                        InfiniteAdsCarousel(
-                          key: ValueKey(
-                            anuncios.length,
-                          ), // Opcional: fuerza rebuild si cambia la lista
-                          anuncios: anuncios, // Pasa la lista
-                        ),
-                        const SizedBox(height: 50),
-                      ],
-                    ),
-                ],
+                ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const LotteryAvatar3D(nombre: "Baloto", size: 32),
+                const SizedBox(width: 10),
+                Text("Baloto / Revancha", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18)),
+
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(
+              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              style: AppTextStyles.caption
+            ),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(_jackpot ?? "\$24.500", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text("millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDisclaimerNote() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lightbulb_outline, color: AppColors.yellow, size: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              style: AppTextStyles.caption.copyWith(fontSize: 11),
             ),
           ),
         ],
       ),
-    ),
     );
   }
 
-  Widget _build3DBall(
-    int? numero, {
-    Color baseColor = const Color(0xFFF33A21),
-    double size = 45,
-    bool isLoading = false,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            baseColor.withOpacity(0.95),
-            baseColor.withOpacity(0.8),
-            baseColor.withOpacity(0.6),
+  Widget _buildQuickSummary(Map<String, String> stats) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text("Resumen rápido", style: AppTextStyles.mensajeImportante)]),
+            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_bloto'), child:  Text("Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
           ],
-          center: Alignment.topLeft,
-          radius: 0.9,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.4),
-            offset: const Offset(3, 3),
-            blurRadius: 6,
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal, physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildStatCard("Más caliente", stats["hot"]!, stats["hotV"]!, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
+              const SizedBox(width: 10),
+              _buildStatCard("Más frío", stats["cold"]!, stats["coldV"]!, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
+              const SizedBox(width: 10),
+              _buildStatCard("Pares - Impares", stats["pairs"]!, "Último sorteo", icon: Icons.balance, iconColor: Colors.white54),
+              const SizedBox(width: 10),
+              _buildStatCard("Score IA", "82%", "Afinidad histórica", icon: Icons.insights, iconColor: AppColors.yellow),
+              const SizedBox(width: 10),
+              _buildStatCard("Analizados", stats["total"]!, "Sorteos", icon: Icons.analytics_outlined, iconColor: Colors.white54),
+            ],
           ),
-          BoxShadow(
-            color: baseColor.withOpacity(0.4),
-            offset: const Offset(-2, -2),
-            blurRadius: 4,
+        ),
+      ],
+    );
+  }
+
+  Widget _build3DBallPrediction(int? numero, {Color baseColor = const Color(0xFF1A4594), double size = 45}) {
+    return ScaleTransition(
+      scale: _bounceAnimation,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          RotationTransition(
+            turns: Tween(begin: 0.0, end: 1.0).animate(_shineController),
+            child: ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(colors: [Colors.white.withValues(alpha: 0.25), Colors.transparent, Colors.white.withValues(alpha: 0.25)], stops: const [0.2, 0.5, 0.8]).createShader(bounds),
+              blendMode: BlendMode.srcATop,
+              child: Image.asset(baseColor == const Color(0xFFD32F2F) ? "assets/images/red-ball.png" : "assets/images/yellow-ball.png", width: size, height: size, fit: BoxFit.contain, errorBuilder: (_,__,___) => _build3DBall(numero, baseColor: baseColor, size: size)),
+            ),
+          ),
+          Text(numero?.toString() ?? "–", style: TextStyle(fontSize: size * 0.35, fontWeight: FontWeight.bold, color: Colors.white, shadows: const [Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1))])),
+        ],
+      ),
+    );
+  }
+
+  int _calcularAfinidadScore(List<int> nums, int maxBall) {
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty || nums.isEmpty) return 82;
+
+    final Map<int, int> f = {};
+    for (int i = 1; i <= maxBall; i++) f[i] = 0;
+    for (var r in listaUsar) {
+      final nList = List<int>.from(r["numeros"] ?? []);
+      for (var n in nList.take(5)) {
+        if (n >= 1 && n <= maxBall) f[n] = (f[n] ?? 0) + 1;
+      }
+    }
+
+    final freqs = f.values.toList()..sort();
+    final int minSum = freqs.take(5).fold(0, (a, b) => a + b);
+    final int maxSum = freqs.reversed.take(5).fold(0, (a, b) => a + b);
+
+    int sumUser = 0;
+    for (var n in nums.take(5)) {
+      sumUser += f[n] ?? 0;
+    }
+
+    if (maxSum == minSum) return 82;
+    double ratio = (sumUser - minSum) / (maxSum - minSum);
+    ratio = ratio.clamp(0.0, 1.0);
+    return (52 + (ratio * 43)).round();
+  }
+
+  Widget _buildIAPrediction() {
+    final bool isCustomSelection = seleccionados.isNotEmpty || balotaRojaSeleccionada != null;
+    final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
+
+    final numsEvaluados = isCustomSelection
+        ? seleccionados
+        : ((listaProbables.length >= 5) ? listaProbables.take(5).toList() : [12, 28, 35, 42, 59]);
+
+    final int scoreAfinidad = _calcularAfinidadScore(numsEvaluados, 43);
+    final double progressVal = (scoreAfinidad / 100.0).clamp(0.0, 1.0);
+
+    return AppContainer3(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isCustomSelection ? "${seleccionados.length}/5 balotas + ${balotaRojaSeleccionada != null ? 1 : 0}/1 roja" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
+                  ),
+                  Text(
+                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+                  ),
+                ],
+              ),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: CircularProgressIndicator(
+                      value: progressVal,
+                      strokeWidth: 4,
+                      color: AppColors.yellow,
+                      backgroundColor: Colors.white10,
+                    ),
+                  ),
+                  Text("$scoreAfinidad%", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ...List.generate(maxSeleccion, (index) {
+                int? val;
+                if (isCustomSelection) {
+                  val = index < seleccionados.length ? seleccionados[index] : null;
+                } else {
+                  val = listaProbables.length > index ? listaProbables[index] : null;
+                }
+                return _build3DBallPrediction(val, baseColor: const Color(0xFF1A4594), size: 45);
+              }),
+              _build3DBallPrediction(
+                isCustomSelection
+                    ? balotaRojaSeleccionada
+                    : (listaBalotaRoja.isNotEmpty ? listaBalotaRoja[0] : null),
+                baseColor: const Color(0xFFD32F2F),
+                size: 45,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+              ),
+            ],
           ),
         ],
-        border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.2),
       ),
-      child: Center(
-        child: isLoading
-            ? SizedBox(
-                width: size * 0.38,
-                height: size * 0.38,
-                child: const CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: AppColors.yellow,
+    );
+  }
+
+
+
+  Widget  _buildActionGrid() {
+    return Row(
+      children: [
+        _buildActionTile(icon: Icons.auto_awesome_outlined, label: "Generar\nJugada", onTap: _generarAleatorios),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bookmark_add_outlined,
+          label: isSaving ? "Guardando..." : "Guardar\nJugada",
+          onTap: isSaving ? null : _guardarJugada,
+          isLoading: isSaving,
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(icon: Icons.bookmarks_outlined, label: "Mis\nJugadas", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()))),
+        const SizedBox(width: 8),
+        _buildActionTile(icon: Icons.bar_chart, label: "Ver\nEstadísticas", onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto')),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+  }) {
+    final bool disabled = onTap == null || isLoading;
+    return Expanded(
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: disabled ? 0.5 : 1.0,
+          child: Container(
+            height: 76,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05)),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isLoading)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.yellow,
+                    ),
+                  )
+                else
+                  Icon(icon, color: AppColors.yellow, size: 22),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, height: 1.1),
                 ),
-              )
-            : Text(
-                numero?.toString() ?? "–",
-                style: TextStyle(
-                  fontSize: size * 0.4,
-                  fontWeight: FontWeight.bold,
-                  color: numero != null ? Colors.white : Colors.white54,
-                  shadows: numero != null
-                      ? [
-                          Shadow(
-                            color: Colors.black.withOpacity(0.6),
-                            offset: const Offset(1, 1),
-                            blurRadius: 2,
-                          ),
-                        ]
-                      : null,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualSelectorSection() {
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              InkWell(
+                onTap: () => setState(() {
+                  seleccionados.clear();
+                  balotaRojaSeleccionada = null;
+                }),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          const SizedBox(height: 20),
+          listaProbables.isEmpty
+              ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isSmall = screenWidth < 360;
+                    final crossAxisCount = isSmall ? 6 : 8;
+                    final spacing = isSmall ? 6.0 : 10.0;
+
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      children: listaProbables.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        int numero = entry.value;
+                        bool isSelected = seleccionados.contains(numero);
+                        // Estilo original: top 21 en rojo, resto en azul grisáceo
+                        Color baseColor = isSelected
+                            ? Colors.amber
+                            : (index < 21 ? Colors.redAccent : const Color(0xFF607D8B));
+
+                        return GestureDetector(
+                          onTap: () => toggleNumero(numero),
+                          child: _build3DBall(numero, baseColor: baseColor, size: 38),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedBallsSection() {
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("Balotas Rojas", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Text("Números ordenados de mayor a menor probabilidad.", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          const SizedBox(height: 20),
+          listaBalotaRoja.isEmpty
+              ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isSmall = screenWidth < 360;
+                    final crossAxisCount = isSmall ? 6 : 8;
+                    final spacing = isSmall ? 6.0 : 10.0;
+
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      children: listaBalotaRoja.map((numero) {
+                        bool isSelected = balotaRojaSeleccionada == numero;
+                        return GestureDetector(
+                          onTap: () {
+                            if (!mounted) return;
+                            setState(() {
+                              if (balotaRojaSeleccionada == numero) {
+                                balotaRojaSeleccionada = null;
+                              } else {
+                                balotaRojaSeleccionada = numero;
+                                _bounceController.reset();
+                                _bounceController.forward();
+                              }
+                            });
+                          },
+                          child: _build3DBall(numero, baseColor: isSelected ? Colors.amber : Colors.redAccent, size: 38),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultadosSection() {
+    final isBaloto = _selectedResultadosTab == "baloto";
+    final loteriaNombre = isBaloto ? "Baloto" : "Revancha";
+    final listToShow = isBaloto 
+        ? ultimosResultadosBaloto 
+        : (ultimosResultadosRevancha.isNotEmpty ? ultimosResultadosRevancha : ultimosResultadosBaloto);
+
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Título + Tabs
+          const Center(
+            child: Text(
+              "Resultados",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Botones Tab Baloto / Revancha
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF14171A),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedResultadosTab = "baloto"),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _selectedResultadosTab == "baloto" ? AppColors.yellow : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "Baloto",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _selectedResultadosTab == "baloto" ? Colors.black : Colors.white60,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedResultadosTab = "revancha"),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _selectedResultadosTab == "revancha" ? AppColors.yellow : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "Revancha",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _selectedResultadosTab == "revancha" ? Colors.black : Colors.white60,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildResultadosContent(loteriaNombre, listaResultados: listToShow),
+        ],
       ),
     );
   }
@@ -1338,15 +985,17 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
     final resultadosUsar = listaResultados ?? ultimosResultados;
     return Column(
       children: [
-        const SizedBox(height: 8),
-        Text(
-          "Historial más reciente del $loteria",
-          style: AppTextStyles.mensajeSecundario,
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Text(
+            "Últimos 5 resultados $loteria",
+            style: AppTextStyles.h2,
+          ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
 
         if (resultadosUsar.isEmpty)
-          const Center(child: CircularProgressIndicator(color: AppColors.amber))
+          const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.amber)))
         else
           Column(
             children: [
@@ -1372,9 +1021,9 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                 ],
               ),
               const SizedBox(height: 8),
-              ...resultadosUsar.map((resultado) {
-                final fecha =
-                    resultado["fecha"]?.toString() ?? "Fecha desconocida";
+              ...resultadosUsar.take(5).map((resultado) {
+                final fechaRaw = resultado["fecha"]?.toString() ?? "Fecha desconocida";
+                final fecha = fechaRaw.length >= 10 ? fechaRaw.substring(0, 10) : fechaRaw;
                 final numeros = List<int>.from(resultado["numeros"] ?? []);
 
                 return Padding(
@@ -1383,7 +1032,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                     builder: (context, constraints) {
                       final screenWidth = MediaQuery.of(context).size.width;
                       final isSmall = screenWidth < 360;
-                      final ballSize = isSmall ? 25.0 : 33.0;
+                      final ballSize = isSmall ? 25.0 : 31.0;
 
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -1409,16 +1058,13 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                                     ]
                                   : List.generate(numeros.length, (index) {
                                       final n = numeros[index];
-                                      final isLast =
-                                          index == numeros.length - 1;
+                                      final isLast = index == numeros.length - 1;
                                       return SizedBox(
                                         width: ballSize,
                                         height: ballSize,
                                         child: _build3DBall(
                                           n,
-                                          baseColor: isLast
-                                              ? Colors.redAccent
-                                              : Colors.amber,
+                                          baseColor: isLast ? Colors.redAccent : Colors.amber,
                                           size: ballSize,
                                         ),
                                       );
@@ -1433,6 +1079,20 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
               }).toList(),
             ],
           ),
+      ],
+    );
+  }
+
+  Widget _buildNewsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Noticias / Alertas", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), const Text("Ver todas ›", style: TextStyle(color: AppColors.yellow, fontSize: 12))]),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(16)),
+          child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.yellow.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.notifications_active_outlined, color: AppColors.yellow, size: 20)), const SizedBox(width: 16), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Hoy es el sorteo de Baloto", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text("No olvides revisar tus números y mucha suerte.", style: TextStyle(color: Colors.white54, fontSize: 12))]))]),
+        )
       ],
     );
   }

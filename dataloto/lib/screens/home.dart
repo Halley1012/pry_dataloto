@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/loteriasPais.dart';
@@ -51,11 +52,13 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
   int _selectedIndex = 0;
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
     super.initState();
     _loadUserAndData();
+    _setupFirebaseMessaging();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<NotificationProvider>().fetchNotifications();
@@ -269,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: _filteredLoterias.length > 3 ? 3 : _filteredLoterias.length,
           itemBuilder: (context, index) {
             final loteria = _filteredLoterias[index];
-            return _buildLoteriaCard(loteria);
+            return _buildLoteriaCard(loteria, showCountry: false);
           },
         ),
       ],
@@ -314,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return pais ?? "Internacional";
   }
 
-  Widget _buildLoteriaCard(dynamic loteria) {
+  Widget _buildLoteriaCard(dynamic loteria, {bool showCountry = true}) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
       decoration: BoxDecoration(
@@ -348,14 +351,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _getPaisNombre(loteria),
-                      style: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 12,
+                    if (showCountry) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _getPaisNombre(loteria),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 12,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -384,41 +389,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTodasLoteriasSection() {
+    // Si solo hay 3 o menos, ya se muestran en populares, ocultamos esta sección.
+    if (_filteredLoterias.length <= 3) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-          child: Text("Todas las loterías", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+          child: Text(
+            "Todas las loterías",
+            style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
         ),
-        ListView.separated(
+        ListView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          itemCount: _filteredLoterias.length > 3 ? _filteredLoterias.length - 3 : 0,
-          separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1, indent: 16, endIndent: 16),
+          itemCount: _filteredLoterias.length - 3,
           itemBuilder: (context, index) {
             final loteria = _filteredLoterias[index + 3];
-            return ListTile(
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
-                );
-              },
-              leading: LotteryAvatar3D(nombre: loteria["nombre"] ?? "", size: 40),
-              title: Text(
-                loteria["nombre"],
-                style: AppTextStyles.mensajeImportante.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
+            final String rawNombre = loteria["nombre"] ?? "";
+            // Transformar a Sentence Case (primera mayúscula)
+            final String nombreFormateado = rawNombre.isNotEmpty
+                ? rawNombre[0].toUpperCase() + rawNombre.substring(1).toLowerCase()
+                : "";
+
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListTile(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => _resolveScreen(rawNombre)),
+                  );
+                },
+                title: Text(
+                  nombreFormateado,
+                  style: AppTextStyles.h2.copyWith(color: Colors.white70, fontSize: 15),
                 ),
+                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
               ),
-              subtitle: Text(
-                _getPaisNombre(loteria),
-                style: const TextStyle(color: Colors.white38, fontSize: 12),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
             );
           },
         ),
@@ -790,25 +804,54 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.blackfondo,
-      bottomNavigationBar: _buildBottomNavBar(),
-      body: IndexedStack(
-        index: _selectedIndex,
-        children: [
-          _buildHomeTab(),
-          const LoteriasPais(),
-          MisJugadasSelectorScreen(key: _misJugadasKey),
-          const ResultadosSelectorScreen(),
-          ProfileScreen(
-            onTabChange: (index) {
-              if (index == 2) {
-                _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
-              }
-              setState(() => _selectedIndex = index);
-            },
-          ),
-        ],
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+
+        // Si el usuario se encuentra en alguna pestaña secundaria del BottomNav, volver a la pestaña Home (0)
+        if (_selectedIndex != 0) {
+          setState(() {
+            _selectedIndex = 0;
+          });
+          return;
+        }
+
+        // Si está en la pestaña principal Home, solicitar doble toque para salir
+        final now = DateTime.now();
+        if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+          _lastBackPressTime = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Presiona otra vez para salir"),
+              duration: Duration(seconds: 2),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } else {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.blackfondo,
+        bottomNavigationBar: _buildBottomNavBar(),
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            _buildHomeTab(),
+            const LoteriasPais(),
+            MisJugadasSelectorScreen(key: _misJugadasKey),
+            const ResultadosSelectorScreen(),
+            ProfileScreen(
+              onTabChange: (index) {
+                if (index == 2) {
+                  _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
+                }
+                setState(() => _selectedIndex = index);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1042,6 +1085,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text("@${post.userName}", style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12)),
+                    const SizedBox(width: 6),
+                    const Text("•", style: TextStyle(color: Colors.white38, fontSize: 12)),
+                    const SizedBox(width: 6),
+                    Text(
+                      post.relativeTime,
+                      style: AppTextStyles.caption.copyWith(fontSize: 11, color: Colors.white54),
+                    ),
                     const Spacer(),
                     if (isOwner) _buildPostOptions(post),
                   ],
@@ -1050,6 +1100,58 @@ class _HomeScreenState extends State<HomeScreen> {
                 Text(post.title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 4),
                 Text(post.content, style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    InkWell(
+                      onTap: () => _abrirPostScreen(post),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.reply_outlined, color: AppColors.yellow, size: 15),
+                            const SizedBox(width: 4),
+                            Text(
+                              "Responder",
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    InkWell(
+                      onTap: () => _abrirPostScreen(post),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.chat_bubble_outline,
+                              color: AppColors.yellow,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              "${post.commentsCount} ${post.commentsCount == 1 ? 'respuesta' : 'respuestas'}",
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
