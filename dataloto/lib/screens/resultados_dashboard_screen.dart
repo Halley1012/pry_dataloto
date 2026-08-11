@@ -25,20 +25,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
-  List<int> _winningNums = [4, 18, 34, 9, 41];
-  int? _winningRed = 2;
+  List<int> _winningNums = [];
+  int? _winningRed;
   bool _hasRevanchaData = false;
   List<int> _winningNumsRevancha = [];
   int? _winningRedRevancha;
   double _coberturaPorcentajeRevancha = 0.0;
   int _topHitsCountRevancha = 0;
-  String _fechaSorteo = "10 Ago 2026";
-  String _jackpot = r"$10 millones USD";
-  double _coberturaPorcentaje = 0.80;
+  String _fechaSorteo = "";
+  String _jackpot = "";
+  double _coberturaPorcentaje = 0.0;
   int _probablesCount = 20;
   int _totalWinningCount = 5;
-  int _topHitsCount = 4;
-  List<double> _historialCoberturasList = [0.80, 0.60, 0.40, 0.80, 0.60];
+  int _topHitsCount = 0;
+  List<double> _historialCoberturasList = [];
   int _rachaActualCount = 0;
   int _mejorRachaCount = 0;
   List<Map<String, dynamic>> _misJugadas = [];
@@ -91,15 +91,18 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // 1. Caché inmediato
     final cached = await CacheService.getJson(cacheKey);
     if (cached != null && mounted) {
-      _procesarDatosCargados(cached);
-      setState(() => _isLoading = false);
+      final cachedTop = cached["top20"];
+      if (cachedTop is List && cachedTop.isNotEmpty) {
+        _procesarDatosCargados(cached);
+        setState(() => _isLoading = false);
+      }
     }
 
     try {
       // 2. HTTP en paralelo
       final responses = await Future.wait([
         http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500)),
-        http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/prediccion")).catchError((_) => http.Response('{}', 500)),
+        http.get(Uri.parse("https://pry-dataloto.onrender.com/$route")).catchError((_) => http.Response('{}', 500)),
         _obtenerJugadasUsuario(_selectedLoteria),
       ]);
 
