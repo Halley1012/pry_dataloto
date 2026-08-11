@@ -13,6 +13,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class BalotoMisJugadasScreen extends StatefulWidget {
   const BalotoMisJugadasScreen({super.key});
@@ -84,6 +85,15 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
   Future<void> _eliminarSeleccionadas() async {
     if (_selectedIds.isEmpty) return;
 
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
+
+    final String confirmMsg = langCode == 'en'
+        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
+        : langCode == 'pt'
+            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
+            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -94,23 +104,23 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
             const Icon(Icons.delete, color: Colors.redAccent, size: 24),
             const SizedBox(width: 10),
             Text(
-              "Eliminar jugadas",
+              l10n?.eliminarJugadas ?? "Eliminar jugadas",
               style: AppTextStyles.h2.copyWith(color: Colors.white, fontSize: 18),
             ),
           ],
         ),
         content: Text(
-          "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?",
+          confirmMsg,
           style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.amber)),
+            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.amber)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.redAccent)),
+            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -288,7 +298,15 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
     final bool hasSelection = _selectedIds.isNotEmpty;
+
+    final String emptySubtext = langCode == 'en'
+        ? "Generate and save your plays from the Baloto main screen"
+        : langCode == 'pt'
+            ? "Gere e salve suas apostas na tela principal do Baloto"
+            : "Genera y guarda tus jugadas desde la pantalla principal de Baloto";
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -297,22 +315,19 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
         onRefresh: _cargarJugadas,
         child: CustomScrollView(
         slivers: [
-          const CustomSliverAppBar(title: "Mis Jugadas - Baloto"),
+          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - Baloto"),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Contenedor de Botones de Acción (Sin título superior)
                   AppContainer3(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 🏷️ Barra de Botones con Estilo Baloto (Dinamismo por Selección)
                         Row(
                           children: [
-                            // Botón Seleccionar / Desmarcar todo
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _toggleSelectAll,
@@ -324,7 +339,9 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Desmarcar todo" : "Seleccionar todo",
+                                  hasSelection
+                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
+                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -334,8 +351,6 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-
-                            // Botón Eliminar (Rojo resaltado si hay selección)
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: hasSelection ? _eliminarSeleccionadas : null,
@@ -350,7 +365,9 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Eliminar (${_selectedIds.length})" : "Eliminar",
+                                  hasSelection
+                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
+                                      : (l10n?.eliminar ?? "Eliminar"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -362,10 +379,8 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-
                         Row(
                           children: [
-                            // Botón WhatsApp (Verde resaltado si hay selección)
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _compartirWhatsApp,
@@ -389,8 +404,6 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-
-                            // Botón Imprimir PDF
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _imprimirPDF,
@@ -402,7 +415,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  "Imprimir PDF",
+                                  l10n?.imprimirPDF ?? "Imprimir PDF",
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -417,19 +430,17 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // 2. Encabezado Centrado Fuera del Contenedor
                   Center(
                     child: Column(
                       children: [
                         Text(
-                          "Historial de Jugadas",
+                          l10n?.historialJugadas ?? "Historial de Jugadas",
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} guardada(s)",
+                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -441,8 +452,6 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  // Lista de Jugadas (1 Sola Fila por Tarjeta)
                   _cargando
                       ? const Center(
                           child: CircularProgressIndicator(color: AppColors.yellow),
@@ -454,12 +463,12 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                 child: Column(
                                   children: [
                                     Text(
-                                      "No tienes jugadas guardadas aún",
+                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
                                       style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      "Genera y guarda tus jugadas desde la pantalla principal de Baloto",
+                                      emptySubtext,
                                       style: AppTextStyles.caption,
                                       textAlign: TextAlign.center,
                                     ),

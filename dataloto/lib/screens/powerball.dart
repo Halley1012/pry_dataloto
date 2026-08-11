@@ -336,12 +336,19 @@ class _PowerballScreenState extends State<PowerballScreen> with TickerProviderSt
 
     setState(() => isSaving = true);
 
+    final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
+      backendRoute,
+      fechaPrediccion: fechaPrediccion,
+      ultimoSorteoFecha: ultimosResultados.isNotEmpty ? ultimosResultados.first["fecha"]?.toString() : null,
+    );
+
     try {
       await ApiService.crearJugadaGenerica(
         backendRoute,
         jugadaCompleta,
         userId!,
         balotaRoja: redToSave,
+        fechaSorteo: targetFechaSorteo,
       );
       await _loadJugadas();
 

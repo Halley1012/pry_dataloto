@@ -12,6 +12,7 @@ import 'package:dataloto/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/locale_provider.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -48,15 +49,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLogoutDialog() {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text("Cerrar sesión", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text("¿Estás seguro de que deseas salir?", style: AppTextStyles.mensajeSecundario),
+        title: Text(l10n?.cerrarSesion ?? "Cerrar sesión", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(l10n?.confirmarCerrarSesion ?? "¿Estás seguro de que deseas salir?", style: AppTextStyles.mensajeSecundario),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancelar", style: TextStyle(color: AppColors.yellow))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: AppColors.yellow))),
           TextButton(
             onPressed: () async {
               await storage.deleteAll();
@@ -70,7 +72,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             },
-            child: const Text("Cerrar sesión", style: TextStyle(color: Colors.redAccent)),
+            child: Text(l10n?.cerrarSesion ?? "Cerrar sesión", style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -98,6 +100,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.yellow));
 
     return Scaffold(
@@ -107,7 +110,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
           child: Column(
             children: [
-              Text("Mi Perfil", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24)),
+              Text(l10n?.perfil ?? "Mi Perfil", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24)),
               const SizedBox(height: 30),
               
               // Header Perfil
@@ -128,11 +131,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Row(
                           children: [
-                            Flexible(child: Text(name ?? "Nombre", style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
+                            Flexible(child: Text(name ?? (l10n?.nombre ?? "Nombre"), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
                             IconButton(onPressed: _editProfile, icon: const Icon(Icons.edit, color: AppColors.yellow, size: 20)),
                           ],
                         ),
-                        Text(email ?? "Email", style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                        Text(email ?? (l10n?.email ?? "Email"), style: const TextStyle(color: Colors.white54, fontSize: 14)),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -140,12 +143,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             border: Border.all(color: AppColors.yellow),
                             borderRadius: BorderRadius.circular(20),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.star, color: AppColors.yellow, size: 14),
-                              SizedBox(width: 4),
-                              Text("Usuario Premium", style: TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold)),
+                              const Icon(Icons.star, color: AppColors.yellow, size: 14),
+                              const SizedBox(width: 4),
+                              Text(l10n?.usuarioPremium ?? "Usuario Premium", style: const TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -158,22 +161,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Opciones
-              _buildOptionItem(Icons.bookmark_outline, "Mis jugadas", () {
+              _buildOptionItem(Icons.bookmark_outline, l10n?.misJugadas ?? "Mis jugadas", () {
                 if (widget.onTabChange != null) {
                   widget.onTabChange!(2);
                 } else {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()));
                 }
               }),
-              _buildOptionItem(Icons.notifications_none, "Notificaciones", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
-              _buildOptionItem(Icons.ads_click, "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
-              _buildOptionItem(Icons.payment, "Métodos de pago", () {}),
-              _buildOptionItem(Icons.group_add_outlined, "Invitar amigos", () {}, trailingText: "Gana beneficios"),
-              _buildOptionItem(Icons.settings_outlined, "Configuración", _showConfigMenu),
-              _buildOptionItem(Icons.help_outline, "Ayuda y soporte", _showHelpMenu),
+              _buildOptionItem(Icons.notifications_none, l10n?.notificaciones ?? "Notificaciones", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+              _buildOptionItem(Icons.ads_click, l10n?.misAnuncios ?? "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
+              _buildOptionItem(Icons.payment, l10n?.metodosPago ?? "Métodos de pago", () {}),
+              _buildOptionItem(Icons.group_add_outlined, l10n?.invitarAmigos ?? "Invitar amigos", () {}, trailingText: l10n?.ganaBeneficios ?? "Gana beneficios"),
+              _buildOptionItem(Icons.settings_outlined, l10n?.configuracion ?? "Configuración", _showConfigMenu),
+              _buildOptionItem(Icons.help_outline, l10n?.ayudaSoporte ?? "Ayuda y soporte", _showHelpMenu),
               
               const SizedBox(height: 20),
-              _buildOptionItem(Icons.logout, "Cerrar sesión", _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),
+              _buildOptionItem(Icons.logout, l10n?.cerrarSesion ?? "Cerrar sesión", _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),
               
               const SizedBox(height: 50),
             ],
@@ -184,6 +187,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showConfigMenu() {
+    final l10n = AppLocalizations.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
@@ -202,7 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-            title: const Text("Eliminar cuenta", style: TextStyle(color: Colors.white)),
+            title: Text(l10n?.eliminarCuenta ?? "Eliminar cuenta", style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
               _eliminarCuenta(context);
@@ -215,13 +219,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLanguageDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final locProvider = Provider.of<LocaleProvider>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text("Seleccionar Idioma / Select Language", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(l10n?.seleccionarIdioma ?? "Seleccionar Idioma / Select Language", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -252,7 +257,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.settings_suggest, color: Colors.amber),
-              title: const Text("Idioma del Sistema", style: TextStyle(color: Colors.white70)),
+              title: Text(l10n?.idiomaSistema ?? "Idioma del Sistema", style: const TextStyle(color: Colors.white70)),
               onTap: () {
                 locProvider.clearLocale();
                 Navigator.pop(context);
@@ -329,6 +334,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showHelpMenu() {
+    final l10n = AppLocalizations.of(context);
+    final avisoTitle = l10n?.avisoLegal ?? "Aviso legal";
+    final avisoBody = l10n?.contenidoAvisoLegal ?? "Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país.";
+    final acercaTitle = l10n?.acercaDe ?? "Acerca de";
+    final acercaBody = l10n?.contenidoAcercaDe ?? "DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías...";
+
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
@@ -339,18 +350,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 10),
           ListTile(
             leading: const Icon(Icons.gavel_outlined, color: AppColors.yellow),
-            title: const Text("Aviso legal", style: TextStyle(color: Colors.white)),
+            title: Text(avisoTitle, style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
-              _showJustifiedDialog("Aviso legal", "Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.");
+              _showJustifiedDialog(avisoTitle, avisoBody);
             },
           ),
           ListTile(
             leading: const Icon(Icons.info_outline, color: AppColors.yellow),
-            title: const Text("Acerca de", style: TextStyle(color: Colors.white)),
+            title: Text(acercaTitle, style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
-              _showJustifiedDialog("Acerca de", "DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías y ofrecer predicciones informadas. Aunque nuestras predicciones se basan en datos, no hay certeza absoluta de que esos números sean los ganadores, ya que la lotería es un juego de azar. No garantizamos premios, solo te ayudamos a elegir con más confianza. Usa la app con responsabilidad y solo con fines de entretenimiento. La decisión de utilizar estas predicciones queda bajo tu propia responsabilidad.");
+              _showJustifiedDialog(acercaTitle, acercaBody);
             },
           ),
           const SizedBox(height: 20),
@@ -360,6 +371,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showJustifiedDialog(String title, String content) {
+    final l10n = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -370,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(content, textAlign: TextAlign.justify, style: AppTextStyles.mensajeSecundario),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cerrar", style: TextStyle(color: AppColors.yellow))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n?.cerrar ?? "Cerrar", style: const TextStyle(color: AppColors.yellow))),
         ],
       ),
     );

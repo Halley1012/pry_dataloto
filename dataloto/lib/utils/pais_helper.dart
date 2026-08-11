@@ -78,6 +78,37 @@ class PaisHelper {
     return "🌐";
   }
 
+  static String getNombreTraducido(String nombre, String langCode) {
+    final n = nombre.toLowerCase().trim();
+    if (langCode == 'en') {
+      if (n.contains("estados unidos") || n.contains("usa") || n.contains("eeuu") || n.contains("united states")) {
+        return "United States";
+      }
+      if (n.contains("españa") || n.contains("espana")) return "Spain";
+      if (n.contains("méxico") || n.contains("mexico")) return "Mexico";
+      if (n.contains("brasil")) return "Brazil";
+      if (n.contains("alemania")) return "Germany";
+      if (n.contains("francia")) return "France";
+      if (n.contains("reino unido") || n.contains("inglaterra")) return "United Kingdom";
+      if (n == "todos" || n == "internacional") return "International";
+    } else if (langCode == 'pt') {
+      if (n.contains("estados unidos") || n.contains("usa") || n.contains("eeuu") || n.contains("united states")) {
+        return "Estados Unidos";
+      }
+      if (n.contains("españa") || n.contains("espana")) return "Espanha";
+      if (n.contains("méxico") || n.contains("mexico")) return "México";
+      if (n.contains("brasil")) return "Brasil";
+      if (n.contains("alemania")) return "Alemanha";
+      if (n.contains("francia")) return "França";
+      if (n.contains("reino unido")) return "Reino Unido";
+      if (n == "todos" || n == "internacional") return "Internacional";
+    }
+    if (nombre.isNotEmpty) {
+      return nombre[0].toUpperCase() + nombre.substring(1).toLowerCase();
+    }
+    return nombre;
+  }
+
   static Widget buildItemConBandera(String nombre, {TextStyle? style}) {
     return Row(
       mainAxisSize: MainAxisSize.min,

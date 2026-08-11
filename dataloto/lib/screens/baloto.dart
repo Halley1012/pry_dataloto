@@ -303,11 +303,17 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
       );
     }
 
+    final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
+      "bloto",
+      fechaPrediccion: fechaPrediccion,
+      ultimoSorteoFecha: ultimosResultados.isNotEmpty ? ultimosResultados.first["fecha"]?.toString() : null,
+    );
+
     try {
       if (_jugadasListKey.currentState != null) {
-        await _jugadasListKey.currentState!.addJugada(jugadaCompleta, currentUid);
+        await _jugadasListKey.currentState!.addJugada(jugadaCompleta, currentUid, fechaSorteo: targetFechaSorteo);
       } else {
-        await ApiService.crearJugadaBloto(jugadaCompleta, currentUid);
+        await ApiService.crearJugadaBloto(jugadaCompleta, currentUid, fechaSorteo: targetFechaSorteo);
         await _loadJugadas();
       }
     } catch (e) {

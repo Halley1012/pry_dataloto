@@ -208,13 +208,13 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                "Bienvenido a DataLoto",
+                l10n?.bienvenido ?? "Bienvenido a DataLoto",
                 style: AppTextStyles.h2,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
-                "Inicia sesión para continuar",
+                l10n?.iniciaSesionParaContinuar ?? "Inicia sesión para continuar",
                 style: AppTextStyles.mensajeSecundario,
                 textAlign: TextAlign.center,
               ),
@@ -230,7 +230,7 @@ class _LoginPageState extends State<LoginPage> {
                       keyboardType: TextInputType.emailAddress,
                       style: AppTextStyles.mensajeSecundario,
                       decoration: InputDecoration(
-                        labelText: "Email",
+                        labelText: l10n?.email ?? "Email",
                         labelStyle: AppTextStyles.mensajeSecundario,
                         filled: true,
                         fillColor: Colors.white10,
@@ -246,7 +246,7 @@ class _LoginPageState extends State<LoginPage> {
                           _obscureText, // Use state variable for visibility
                       style: AppTextStyles.mensajeSecundario,
                       decoration: InputDecoration(
-                        labelText: "Contraseña",
+                        labelText: l10n?.contrasena ?? "Contraseña",
                         labelStyle: AppTextStyles.mensajeSecundario,
                         filled: true,
                         fillColor: Colors.white10,
@@ -274,14 +274,14 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 30),
               LoadingButton(
                 isLoading: isLoading,
-                text: "Ingresar",
+                text: l10n?.ingresar ?? "Ingresar",
                 onPressed: loginUser,
               ),
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () => _showFancyForgotPasswordDialog(context),
                 child: Text(
-                  "¿Olvidó la contraseña?",
+                  l10n?.olvidoContrasena ?? "¿Olvidó la contraseña?",
                   style: AppTextStyles.mensajeSecundario.copyWith(
                     color: AppColors.yellow,
                     fontWeight: FontWeight.bold,

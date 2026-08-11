@@ -67,13 +67,15 @@ class JugadasListMlotoState extends State<JugadasListMloto>
   }
 
 
-  Future<void> addJugada(List<int> numeros, String userId) async {
+  Future<void> addJugada(List<int> numeros, String userId, {String? fechaSorteo}) async {
     final tempId = DateTime.now().millisecondsSinceEpoch;
 
     final tempJugada = {
       "id": tempId,
       "numeros": numeros,
       "user_id": userId,
+      "fecha_sorteo": fechaSorteo,
+      "fecha": fechaSorteo ?? DateTime.now().toIso8601String(),
       "created_at": DateTime.now().toIso8601String(),
     };
 
@@ -85,7 +87,7 @@ class JugadasListMlotoState extends State<JugadasListMloto>
     widget.jugadasController.forward();
 
     try {
-      final newJugada = await ApiService.crearJugada(numeros, userId);
+      final newJugada = await ApiService.crearJugada(numeros, userId, fechaSorteo: fechaSorteo);
       if (!mounted) return;
 
       setState(() {
