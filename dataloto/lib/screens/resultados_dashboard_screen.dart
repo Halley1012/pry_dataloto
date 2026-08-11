@@ -98,7 +98,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Future<void> _cargarDatosReales() async {
     setState(() => _isLoading = true);
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_$route';
+    final cacheKey = 'resultados_dashboard_cache_v3_$route';
 
     // 1. Caché inmediato
     final cached = await CacheService.getJson(cacheKey);
