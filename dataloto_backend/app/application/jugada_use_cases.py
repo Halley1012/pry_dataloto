@@ -148,13 +148,13 @@ class JugadaUseCases:
         data = [{"fecha": _format_fecha(r[0]), "numeros": _normalize_numeros(r[1])} for r in rows]
         return {"items": data}
 
-    def obtener_prediccion_generico(self, loteria_nombre: str) -> Dict[str, Any]:
+    def obtener_prediccion_generico(self, loteria_nombre: str, fecha: Optional[str] = None) -> Dict[str, Any]:
         tabla = f"predicciones_{loteria_nombre}"
-        row = self.jugada_repo.get_prediccion_generico(tabla)
+        row = self.jugada_repo.get_prediccion_generico(tabla, fecha)
         if not row:
             return {"error": f"No hay predicciones registradas para {loteria_nombre}"}
-        fecha, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        return {"fecha": _format_fecha(fecha), "numeros": numeros, "balotaroja": balotaroja}
+        fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
+        return {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
 
     def obtener_ultimos5_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
         tabla = f"resultados_{loteria_nombre}"
