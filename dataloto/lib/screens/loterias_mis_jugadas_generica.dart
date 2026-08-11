@@ -13,6 +13,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class LoteriasMisJugadasGenericaScreen extends StatefulWidget {
   final String loteriaNombre;
@@ -91,6 +92,15 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
   Future<void> _eliminarSeleccionadas() async {
     if (_selectedIds.isEmpty) return;
 
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
+
+    final String confirmMsg = langCode == 'en'
+        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
+        : langCode == 'pt'
+            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
+            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -101,23 +111,23 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
             const Icon(Icons.delete, color: Colors.redAccent, size: 24),
             const SizedBox(width: 10),
             Text(
-              "Eliminar jugadas",
+              l10n?.eliminarJugadas ?? "Eliminar jugadas",
               style: AppTextStyles.h2.copyWith(color: Colors.white, fontSize: 18),
             ),
           ],
         ),
         content: Text(
-          "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?",
+          confirmMsg,
           style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.amber)),
+            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.amber)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.redAccent)),
+            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -351,7 +361,15 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
     final bool hasSelection = _selectedIds.isNotEmpty;
+
+    final String emptySubtext = langCode == 'en'
+        ? "Generate and save your plays from the ${widget.loteriaNombre} screen"
+        : langCode == 'pt'
+            ? "Gere e salve suas apostas na tela do ${widget.loteriaNombre}"
+            : "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}";
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -360,7 +378,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
         onRefresh: _cargarJugadas,
         child: CustomScrollView(
         slivers: [
-          CustomSliverAppBar(title: "Mis Jugadas - ${widget.loteriaNombre}"),
+          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -384,7 +402,9 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Desmarcar todo" : "Seleccionar todo",
+                                  hasSelection
+                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
+                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -408,7 +428,9 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Eliminar (${_selectedIds.length})" : "Eliminar",
+                                  hasSelection
+                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
+                                      : (l10n?.eliminar ?? "Eliminar"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -456,7 +478,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                   ),
                                 ),
                                 child: Text(
-                                  "Imprimir PDF",
+                                  l10n?.imprimirPDF ?? "Imprimir PDF",
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -475,13 +497,13 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                     child: Column(
                       children: [
                         Text(
-                          "Historial de Jugadas",
+                          l10n?.historialJugadas ?? "Historial de Jugadas",
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} guardada(s)",
+                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -504,12 +526,12 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                 child: Column(
                                   children: [
                                     Text(
-                                      "No tienes jugadas guardadas aún",
+                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
                                       style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}",
+                                      emptySubtext,
                                       style: AppTextStyles.caption,
                                       textAlign: TextAlign.center,
                                     ),

@@ -27,15 +27,7 @@ import 'screens/estadisticas_double_play.dart';
 import 'screens/estadisticas_lotto_america.dart';
 import 'screens/estadisticas_megamillions.dart';
 import 'screens/estadisticas_millionaire_life.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
-
-// 🔥 Función para manejar notificaciones en segundo plano
-@pragma('vm:entry-point')
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  debugPrint("📩 Notificación en segundo plano: ${message.notification?.title}");
-}
+import 'package:dataloto/services/push_notification_service.dart';
 
 // 🔑 Navigator key global y Provider de Idioma global
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -47,21 +39,8 @@ void main() {
       // Inicializar bindings y configuraciones dentro de la misma zona
       WidgetsFlutterBinding.ensureInitialized();
 
-      // 🔥 Inicializar Firebase
-      try {
-        await Firebase.initializeApp();
-        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-        
-        // Solicitar permisos en iOS/Android 13+
-        final messaging = FirebaseMessaging.instance;
-        await messaging.requestPermission(
-          alert: true,
-          badge: true,
-          sound: true,
-        );
-      } catch (e) {
-        debugPrint("⚠️ Error inicializando Firebase: $e");
-      }
+      // 🔥 Inicializar Notificaciones Push y Firebase
+      await PushNotificationService.initialize();
 
       // Bloquear la app en vertical
       await SystemChrome.setPreferredOrientations([

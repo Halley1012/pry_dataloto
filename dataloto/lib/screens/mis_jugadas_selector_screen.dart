@@ -7,6 +7,7 @@ import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/screens/miloto_mis_jugadas.dart';
 import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 import 'package:dataloto/services/cache_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -160,6 +161,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       body: SafeArea(
@@ -169,18 +171,18 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
                 child: Text(
-                  "Mis Jugadas",
-                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  l10n?.misJugadas ?? "Mis Jugadas",
+                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
-              _buildSearchBar(),
+              _buildSearchBar(l10n),
               Expanded(
                 child: _isLoading && _loterias.isEmpty
                   ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                  : _buildLotteryList(),
+                  : _buildLotteryList(l10n),
               ),
             ],
           ),
@@ -189,7 +191,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(AppLocalizations? l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
@@ -201,19 +203,19 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           controller: _searchController,
           onChanged: _onSearchChanged,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Buscar por lotería o país...",
-            hintStyle: TextStyle(color: Colors.white38),
-            prefixIcon: Icon(Icons.search, color: Colors.white38),
+          decoration: InputDecoration(
+            hintText: l10n?.buscarPorLoteriaOPais ?? "Buscar por lotería o país...",
+            hintStyle: const TextStyle(color: Colors.white38),
+            prefixIcon: const Icon(Icons.search, color: Colors.white38),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLotteryList() {
+  Widget _buildLotteryList(AppLocalizations? l10n) {
     if (_filteredLoterias.isEmpty) {
       return Center(
         child: Padding(
@@ -224,13 +226,13 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
               const SizedBox(height: 20),
               Text(
-                "Aún no tienes jugadas",
+                l10n?.aunNoTienesJugadas ?? "Aún no tienes jugadas",
                 style: AppTextStyles.h2.copyWith(color: Colors.white),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
-                "Empieza a guardar tus números favoritos desde la sección Explorar.",
+                l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar.",
                 style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
                 textAlign: TextAlign.center,
               ),
@@ -241,6 +243,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     }
 
     final grouped = <String, List<Map<String, dynamic>>>{};
+    final langCode = Localizations.localeOf(context).languageCode;
+
     for (var lot in _filteredLoterias) {
       final pNombre = _getPaisNombre(lot["pais_id"]);
       grouped.putIfAbsent(pNombre, () => []).add(lot);
@@ -259,6 +263,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       itemBuilder: (context, i) {
         final country = sortedCountries[i];
         final lots = grouped[country]!;
+        final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,9 +275,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                   Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 8),
                   Text(
-                    country.isNotEmpty 
-                      ? country[0].toUpperCase() + country.substring(1).toLowerCase() 
-                      : "",
+                    countryDisplay,
                     style: AppTextStyles.h2.copyWith(color: AppColors.white),
                   ),
                 ],

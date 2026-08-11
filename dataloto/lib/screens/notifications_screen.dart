@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'baloto.dart';
 import 'miloto.dart';
@@ -53,21 +54,37 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   bool _isNational(dynamic notification) {
     final msj = (notification.mensaje ?? "").toString().toLowerCase();
+    final pId = _userPaisId;
+    final pNom = (_userPaisNombre ?? "").toLowerCase();
 
-    final bool esColombia = _userPaisNombre == null ||
-        _userPaisNombre!.toLowerCase().contains("colombia") ||
-        _userPaisId == "1";
+    final bool esUSA = pId == "21" || 
+        pNom.contains("estados unidos") || 
+        pNom.contains("united states") || 
+        pNom.contains("eeuu") || 
+        pNom.contains("usa");
+
+    if (esUSA) {
+      if (notification.loteriaId >= 3 && notification.loteriaId <= 7) return true;
+      return msj.contains("powerball") ||
+          msj.contains("lotto america") ||
+          msj.contains("double play") ||
+          msj.contains("millionaire") ||
+          msj.contains("mega millions") ||
+          msj.contains("megamillions");
+    }
+
+    final bool esColombia = pNom.contains("colombia") || pId == "1" || pId == "5";
 
     if (esColombia) {
       if (notification.loteriaId == 1 || notification.loteriaId == 2) return true;
       return msj.contains("baloto") || msj.contains("miloto") || msj.contains("colorloto");
     }
 
-    if (_userPaisNombre != null && _userPaisNombre!.isNotEmpty) {
-      if (msj.contains(_userPaisNombre!.toLowerCase())) return true;
-    }
+    if (pNom.isNotEmpty && msj.contains(pNom)) return true;
 
-    return false;
+    // Si el país es nulo o por defecto, incluir la lotería según coincidencias
+    if (notification.loteriaId >= 3 && notification.loteriaId <= 7) return true;
+    return msj.contains("powerball") || msj.contains("lotto america") || msj.contains("double play") || msj.contains("millionaire") || msj.contains("mega millions");
   }
 
   bool _isInternational(dynamic notification) {
@@ -85,10 +102,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
-        title: Text("Notificaciones IA", style: AppTextStyles.h2),
+        title: Text(l10n?.notificacionesIA ?? "Notificaciones IA", style: AppTextStyles.h2),
         backgroundColor: AppColors.black,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.yellow),
@@ -99,9 +117,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               return TextButton(
                 onPressed: () => provider.markAllAsRead(),
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16)),
-                child: const Text(
-                  "Marcar todo como leído",
-                  style: TextStyle(
+                child: Text(
+                  l10n?.marcarTodoComoLeido ?? "Marcar todo como leído",
+                  style: const TextStyle(
                     color: AppColors.yellow,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -131,7 +149,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           children: [
                             const Icon(Icons.notifications_none, size: 80, color: Colors.white24),
                             const SizedBox(height: 16),
-                            Text("No tienes notificaciones aún", style: AppTextStyles.mensajeSecundario),
+                            Text(AppLocalizations.of(context)?.sinNotificaciones ?? "No tienes notificaciones aún", style: AppTextStyles.mensajeSecundario),
                           ],
                         ),
                       )
@@ -143,7 +161,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 const Icon(Icons.filter_alt_off_outlined, size: 60, color: Colors.white24),
                                 const SizedBox(height: 16),
                                 Text(
-                                  "Sin notificaciones en esta categoría",
+                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones en esta categoría",
                                   style: AppTextStyles.mensajeSecundario,
                                 ),
                                 const SizedBox(height: 12),
@@ -153,7 +171,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                     backgroundColor: const Color(0xFF1E1E1E),
                                     foregroundColor: AppColors.yellow,
                                   ),
-                                  child: const Text("Ver todas las notificaciones"),
+                                  child: Text(AppLocalizations.of(context)?.verTodasNotificaciones ?? "Ver todas las notificaciones"),
                                 ),
                               ],
                             ),
@@ -179,7 +197,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildFilterChips() {
-    final filters = ["Mi País", "Internacionales", "Todas"];
+    final l10n = AppLocalizations.of(context);
+    final filters = [
+      l10n?.miPais ?? "Mi País",
+      l10n?.internacionales ?? "Internacionales",
+      l10n?.todas ?? "Todas"
+    ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       color: AppColors.black,
@@ -302,7 +325,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      notification.mensaje,
+                      _traducirMensajeNotificacion(notification.mensaje ?? "", Localizations.localeOf(context).languageCode),
                       style: AppTextStyles.mensajeSecundario.copyWith(
                         color: Colors.white,
                         fontWeight: notification.leido ? FontWeight.normal : FontWeight.w600,
@@ -313,7 +336,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          DateFormat('dd MMM, yyyy').format(notification.createdAt),
+                          DateFormat('dd MMM, yyyy', Localizations.localeOf(context).languageCode).format(notification.createdAt),
                           style: AppTextStyles.caption.copyWith(color: Colors.white54),
                         ),
                         if (!notification.leido)
@@ -335,5 +358,61 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ),
     );
+  }
+
+  String _traducirMensajeNotificacion(String msj, String langCode) {
+    if (msj.isEmpty) return msj;
+
+    if (langCode == 'en') {
+      // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
+      final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+      if (regCasi.hasMatch(msj)) {
+        return msj.replaceAllMapped(regCasi, (match) => "Almost! Out of the ${match[1]} most probable numbers generated by the AI for ${match[2]}, ${match[3]} numbers matched (${match[4]}).");
+      }
+
+      // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
+      final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+      if (reg1.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg1, (match) => "In the ${match[1]} draw, the ${match[2]} most probable numbers achieved ${match[3]}% accuracy (${match[4]} out of ${match[5]} hits).");
+      }
+
+      // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
+      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo de hoy de (.*?)!");
+      if (reg2.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg2, (match) => "The AI matched the special ball in today's ${match[1]} draw!");
+      }
+
+      // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
+      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo de hoy de (.*?)!");
+      if (reg3.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg3, (match) => "The AI matched ${match[1]} numbers in today's ${match[2]} draw!");
+      }
+    } else if (langCode == 'pt') {
+      // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
+      final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+      if (regCasi.hasMatch(msj)) {
+        return msj.replaceAllMapped(regCasi, (match) => "Quase! Dos ${match[1]} números com maior probabilidade gerados pela IA para ${match[2]}, saíram ${match[3]} números (${match[4]}).");
+      }
+
+      // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
+      final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+      if (reg1.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg1, (match) => "No sorteio do ${match[1]}, os ${match[2]} números mais prováveis tiveram uma eficácia de ${match[3]}% (${match[4]} de ${match[5]} acertos).");
+      }
+
+      // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
+      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo de hoy de (.*?)!");
+      if (reg2.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg2, (match) => "A IA acertou a bola especial no sorteio de hoje do ${match[1]}!");
+      }
+
+      // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
+      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo de hoy de (.*?)!");
+      if (reg3.hasMatch(msj)) {
+        return msj.replaceAllMapped(reg3, (match) => "A IA acertou ${match[1]} números no sorteio de hoje do ${match[2]}!");
+      }
+    }
+
+    return msj;
   }
 }
