@@ -130,8 +130,37 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         }
       }
 
+      // Determinar la fecha exacta del sorteo evaluado
+      String targetDrawDate = "";
+      if (sorteosList.isNotEmpty) {
+        final isBalotoSession = _selectedLoteria.toLowerCase().contains("baloto");
+        Map<String, dynamic>? firstSort = isBalotoSession
+            ? (sorteosList.firstWhere(
+                (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("baloto") || (s["sorteo"]?.toString() ?? "").trim().isEmpty,
+                orElse: () => sorteosList.first,
+              ))
+            : sorteosList.first;
+        targetDrawDate = _normalizarFechaISO(firstSort["fecha"]?.toString() ?? "");
+      }
+
       List<int> top20 = [];
-      if (resPrediccion.statusCode == 200) {
+
+      // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
+      final cachedPred = await CacheService.getJson('${route}_prediccion');
+      if (cachedPred != null && cachedPred["numeros"] != null) {
+        final String predFecha = _normalizarFechaISO(cachedPred["fecha"]?.toString() ?? "");
+        if (targetDrawDate.isNotEmpty && predFecha == targetDrawDate) {
+          final rawNums = cachedPred["numeros"];
+          if (rawNums is List) {
+            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            final limit = _getTopLimitForLoteria(_selectedLoteria);
+            top20 = allNums.take(limit).toList();
+          }
+        }
+      }
+
+      // 2. Si no coincide la fecha de la caché previa, usar los probables del endpoint HTTP
+      if (top20.isEmpty && resPrediccion.statusCode == 200) {
         final body = jsonDecode(resPrediccion.body);
         final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
         if (rawNums is List) {
