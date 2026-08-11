@@ -25,20 +25,21 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
-  List<int> _winningNums = [4, 18, 34, 9, 41];
-  int? _winningRed = 2;
+  List<int> _top20List = [];
+  List<int> _winningNums = [];
+  int? _winningRed;
   bool _hasRevanchaData = false;
   List<int> _winningNumsRevancha = [];
   int? _winningRedRevancha;
   double _coberturaPorcentajeRevancha = 0.0;
   int _topHitsCountRevancha = 0;
-  String _fechaSorteo = "10 Ago 2026";
-  String _jackpot = r"$10 millones USD";
-  double _coberturaPorcentaje = 0.80;
+  String _fechaSorteo = "";
+  String _jackpot = "";
+  double _coberturaPorcentaje = 0.0;
   int _probablesCount = 20;
   int _totalWinningCount = 5;
-  int _topHitsCount = 4;
-  List<double> _historialCoberturasList = [0.80, 0.60, 0.40, 0.80, 0.60];
+  int _topHitsCount = 0;
+  List<double> _historialCoberturasList = [];
   int _rachaActualCount = 0;
   int _mejorRachaCount = 0;
   List<Map<String, dynamic>> _misJugadas = [];
@@ -53,32 +54,39 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _getRouteForLoteria(String name) {
+    final clean = name.trim().toLowerCase();
+    if (clean == "baloto" || clean.contains("revancha")) return "bloto";
+    if (clean == "miloto") return "mloto";
+    // Generación dinámica de ruta para cualquier lotería nueva:
+    return clean.replaceAll(RegExp(r'[^a-z0-9_]'), '_').replaceAll(RegExp(r'_+'), '_');
+  }
+
+  int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
     final lower = name.toLowerCase();
-    if (lower.contains("baloto")) return "bloto";
-    if (lower.contains("miloto") || lower.contains("mloto")) return "mloto";
-    if (lower.contains("powerball")) return "powerball";
-    if (lower.contains("megamillions") || lower.contains("mega millions")) return "megamillions";
-    if (lower.contains("lotto america") || lower.contains("lotto_america")) return "lotto_america";
-    if (lower.contains("double play") || lower.contains("double_play")) return "double_play";
-    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return "millionaire_life";
-    return "bloto";
+    if (lower.contains("powerball")) return 34;
+    if (lower.contains("megamillions") || lower.contains("mega millions")) return 35;
+    if (lower.contains("double play") || lower.contains("double_play")) return 34;
+    if (lower.contains("lotto america") || lower.contains("lotto_america")) return 26;
+    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return 29;
+    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
+    if (lower.contains("colorloto")) return 10;
+    if (lower.contains("baloto")) return 21;
+    
+    // Para cualquier lotería futura agregada sin configuración previa:
+    if (totalPoolSize != null && totalPoolSize > 0) {
+      return (totalPoolSize / 2).round();
+    }
+    return 20;
   }
 
   Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName) async {
     try {
-      final lower = loteriaName.toLowerCase();
-      if (lower.contains("baloto")) {
-        final raw = await ApiService.listarJugadasBloto();
-        return List<Map<String, dynamic>>.from(raw);
-      } else if (lower.contains("miloto") || lower.contains("mloto")) {
-        final raw = await ApiService.listarJugadasMloto();
-        return List<Map<String, dynamic>>.from(raw);
-      } else {
-        final raw = await ApiService.listarJugadasGenerica(loteriaName);
-        return List<Map<String, dynamic>>.from(raw);
-      }
+      final route = _getRouteForLoteria(loteriaName);
+      // Petición 100% genérica para cualquier lotería actual o futura
+      final raw = await ApiService.listarJugadasGenerica(route);
+      return List<Map<String, dynamic>>.from(raw);
     } catch (e) {
-      debugPrint("⚠️ Error obteniendo jugadas del usuario: $e");
+      debugPrint("⚠️ Error obteniendo jugadas del usuario para $loteriaName: $e");
       return [];
     }
   }
@@ -86,26 +94,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Future<void> _cargarDatosReales() async {
     setState(() => _isLoading = true);
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_$route';
+    final cacheKey = 'resultados_dashboard_cache_v4_$route';
 
     // 1. Caché inmediato
     final cached = await CacheService.getJson(cacheKey);
     if (cached != null && mounted) {
-      _procesarDatosCargados(cached);
-      setState(() => _isLoading = false);
+      final cachedTop = cached["top20"];
+      if (cachedTop is List && cachedTop.isNotEmpty) {
+        _procesarDatosCargados(cached);
+        setState(() => _isLoading = false);
+      }
     }
 
     try {
-      // 2. HTTP en paralelo
+      // 2. HTTP en dos fases para consultar la predicción por la fecha exacta del sorteo
       final responses = await Future.wait([
         http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500)),
-        http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/prediccion")).catchError((_) => http.Response('{}', 500)),
         _obtenerJugadasUsuario(_selectedLoteria),
       ]);
 
       final resSorteos = responses[0] as http.Response;
-      final resPrediccion = responses[1] as http.Response;
-      final userJugadas = responses[2] as List<Map<String, dynamic>>;
+      final userJugadas = responses[1] as List<Map<String, dynamic>>;
 
       List<Map<String, dynamic>> sorteosList = [];
       if (resSorteos.statusCode == 200) {
@@ -115,12 +124,50 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         }
       }
 
+      // Determinar la fecha exacta del sorteo evaluado
+      String targetDrawDate = "";
+      if (sorteosList.isNotEmpty) {
+        final isBalotoSession = _selectedLoteria.toLowerCase().contains("baloto");
+        Map<String, dynamic>? firstSort = isBalotoSession
+            ? (sorteosList.firstWhere(
+                (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("baloto") || (s["sorteo"]?.toString() ?? "").trim().isEmpty,
+                orElse: () => sorteosList.first,
+              ))
+            : sorteosList.first;
+        targetDrawDate = _normalizarFechaISO(firstSort["fecha"]?.toString() ?? "");
+      }
+
       List<int> top20 = [];
-      if (resPrediccion.statusCode == 200) {
-        final body = jsonDecode(resPrediccion.body);
-        final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
-        if (rawNums is List) {
-          top20 = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+
+      // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
+      final cachedPred = await CacheService.getJson('${route}_prediccion');
+      if (cachedPred != null && cachedPred["numeros"] != null) {
+        final String predFecha = _normalizarFechaISO(cachedPred["fecha"]?.toString() ?? "");
+        if (targetDrawDate.isNotEmpty && predFecha == targetDrawDate) {
+          final rawNums = cachedPred["numeros"];
+          if (rawNums is List) {
+            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            final limit = _getTopLimitForLoteria(_selectedLoteria);
+            top20 = allNums.take(limit).toList();
+          }
+        }
+      }
+
+      // 2. Si no coincide la fecha de la caché previa, consultar al backend pasando la fecha exacta del sorteo (?fecha=$targetDrawDate)
+      if (top20.isEmpty) {
+        final String predUrl = targetDrawDate.isNotEmpty
+            ? "https://pry-dataloto.onrender.com/$route?fecha=$targetDrawDate"
+            : "https://pry-dataloto.onrender.com/$route";
+
+        final resPrediccion = await http.get(Uri.parse(predUrl)).catchError((_) => http.Response('{}', 500));
+        if (resPrediccion.statusCode == 200) {
+          final body = jsonDecode(resPrediccion.body);
+          final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
+          if (rawNums is List) {
+            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            final limit = _getTopLimitForLoteria(_selectedLoteria);
+            top20 = allNums.take(limit).toList();
+          }
         }
       }
 
@@ -147,8 +194,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final rawTop20 = data["top20"] ?? data["numeros"] ?? data["probables"];
     List<int> top20 = [];
     if (rawTop20 is List) {
-      top20 = rawTop20.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+      final allNums = rawTop20.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+      final limit = _getTopLimitForLoteria(_selectedLoteria);
+      top20 = allNums.take(limit).toList();
     }
+    _top20List = top20;
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
     final bool tieneBalotaExtra = !_selectedLoteria.toLowerCase().contains("miloto") &&
@@ -1330,41 +1380,32 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             final rawDate = item["fecha"]?.toString() ?? "";
             final dateDisplay = _formatearFecha(rawDate);
 
-            List<int> nums = [];
-            if (item["numeros"] != null) {
-              nums = item["numeros"].toString().split(RegExp(r'[,\-\s]+')).map((e) => int.tryParse(e) ?? 0).where((n) => n > 0).toList();
-            } else if (item["n1"] != null) {
-              nums = [
-                int.tryParse(item["n1"].toString()) ?? 0,
-                int.tryParse(item["n2"].toString()) ?? 0,
-                int.tryParse(item["n3"].toString()) ?? 0,
-                int.tryParse(item["n4"].toString()) ?? 0,
-                int.tryParse(item["n5"].toString()) ?? 0,
-              ].where((n) => n > 0).toList();
-            }
-            if (nums.isEmpty) nums = [4, 18, 34, 9, 41];
-
+            List<int> nums = _extraerNumerosDeMap(item);
             int? red = int.tryParse(item["superbalota"]?.toString() ?? item["balota"]?.toString() ?? item["red"]?.toString() ?? "");
             if (red == null && nums.length > 5) {
               red = nums.removeLast();
             }
 
+            final main5 = nums.length > 5 ? nums.sublist(0, 5) : nums;
+            final hits = main5.where((n) => _top20List.contains(n)).length;
+            final covPercent = main5.isNotEmpty ? ((hits / main5.length) * 100).round() : 0;
+
             return {
               "fecha": dateDisplay,
               "nums": nums,
               "red": red,
-              "cobertura": "80%",
-              "aciertos": "4 / ${nums.length}",
-              "color": Colors.greenAccent,
+              "cobertura": "$covPercent%",
+              "aciertos": "$hits / ${main5.length}",
+              "color": covPercent >= 60 ? Colors.greenAccent : Colors.amber,
             };
           }).toList()
         : [
             {
-              "fecha": _fechaSorteo,
+              "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : "Reciente",
               "nums": _winningNums,
               "red": _winningRed,
               "cobertura": "${(_coberturaPorcentaje * 100).round()}%",
-              "aciertos": "${(_coberturaPorcentaje * _winningNums.length).round()} / ${_winningNums.length}",
+              "aciertos": "$_topHitsCount / ${_winningNums.length > 5 ? 5 : _winningNums.length}",
               "color": Colors.greenAccent,
             },
           ];

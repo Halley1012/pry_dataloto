@@ -161,12 +161,12 @@ LOTERIAS_EEUU = [
 for route_name, display_name in LOTERIAS_EEUU:
     def _make_endpoints(r_name, d_name):
         @router.get(f"/{r_name}", name=f"get_{r_name}_prediccion")
-        def get_prediccion(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            cache_key = f"{r_name}:prediccion"
+        def get_prediccion(fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            cache_key = f"{r_name}:prediccion:{fecha or 'latest'}"
             cached = memory_cache.get(cache_key)
             if cached is not None:
                 return cached
-            res = use_cases.obtener_prediccion_generico(r_name)
+            res = use_cases.obtener_prediccion_generico(r_name, fecha)
             if "error" not in res:
                 memory_cache.set(cache_key, res, ttl=300)
             return res
