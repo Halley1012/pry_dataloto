@@ -66,9 +66,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   int _getTopLimitForLoteria(String name) {
     final lower = name.toLowerCase();
-    if (lower.contains("miloto") || lower.contains("mloto")) return 15;
+    if (lower.contains("powerball")) return 34;
+    if (lower.contains("megamillions") || lower.contains("mega millions")) return 35;
+    if (lower.contains("double play") || lower.contains("double_play")) return 34;
+    if (lower.contains("lotto america") || lower.contains("lotto_america")) return 26;
+    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return 29;
+    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto")) return 10;
-    return 20; // Top 20 por defecto para Baloto, Powerball, Megamillions, etc.
+    return 21; // Baloto / Revancha (index < 21 en baloto.dart)
   }
 
   Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName) async {
