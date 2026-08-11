@@ -199,15 +199,24 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 # para predicciones el formato numeros es str o similar en BD
                 return [(r[0], r[1]) for r in rows]
 
-    def get_prediccion_generico(self, tabla: str) -> Optional[Tuple[datetime, List[int], List[int]]]:
+    def get_prediccion_generico(self, tabla: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT fecha, numeros, balotaroja
-                    FROM {tabla}
-                    ORDER BY fecha DESC
-                    LIMIT 1;
-                """)
+                if fecha:
+                    cur.execute(f"""
+                        SELECT fecha, numeros, balotaroja
+                        FROM {tabla}
+                        WHERE fecha <= %s
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """, (fecha,))
+                else:
+                    cur.execute(f"""
+                        SELECT fecha, numeros, balotaroja
+                        FROM {tabla}
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """)
                 row = cur.fetchone()
                 return row if row else None
 

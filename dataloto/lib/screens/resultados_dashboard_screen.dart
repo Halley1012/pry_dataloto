@@ -98,7 +98,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Future<void> _cargarDatosReales() async {
     setState(() => _isLoading = true);
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_v3_$route';
+    final cacheKey = 'resultados_dashboard_cache_v4_$route';
 
     // 1. Caché inmediato
     final cached = await CacheService.getJson(cacheKey);
@@ -111,16 +111,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
 
     try {
-      // 2. HTTP en paralelo
+      // 2. HTTP en dos fases para consultar la predicción por la fecha exacta del sorteo
       final responses = await Future.wait([
         http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500)),
-        http.get(Uri.parse("https://pry-dataloto.onrender.com/$route")).catchError((_) => http.Response('{}', 500)),
         _obtenerJugadasUsuario(_selectedLoteria),
       ]);
 
       final resSorteos = responses[0] as http.Response;
-      final resPrediccion = responses[1] as http.Response;
-      final userJugadas = responses[2] as List<Map<String, dynamic>>;
+      final userJugadas = responses[1] as List<Map<String, dynamic>>;
 
       List<Map<String, dynamic>> sorteosList = [];
       if (resSorteos.statusCode == 200) {
@@ -159,14 +157,21 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         }
       }
 
-      // 2. Si no coincide la fecha de la caché previa, usar los probables del endpoint HTTP
-      if (top20.isEmpty && resPrediccion.statusCode == 200) {
-        final body = jsonDecode(resPrediccion.body);
-        final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
-        if (rawNums is List) {
-          final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
-          final limit = _getTopLimitForLoteria(_selectedLoteria);
-          top20 = allNums.take(limit).toList();
+      // 2. Si no coincide la fecha de la caché previa, consultar al backend pasando la fecha exacta del sorteo (?fecha=$targetDrawDate)
+      if (top20.isEmpty) {
+        final String predUrl = targetDrawDate.isNotEmpty
+            ? "https://pry-dataloto.onrender.com/$route?fecha=$targetDrawDate"
+            : "https://pry-dataloto.onrender.com/$route";
+
+        final resPrediccion = await http.get(Uri.parse(predUrl)).catchError((_) => http.Response('{}', 500));
+        if (resPrediccion.statusCode == 200) {
+          final body = jsonDecode(resPrediccion.body);
+          final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
+          if (rawNums is List) {
+            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            final limit = _getTopLimitForLoteria(_selectedLoteria);
+            top20 = allNums.take(limit).toList();
+          }
         }
       }
 
