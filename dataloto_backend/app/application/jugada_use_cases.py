@@ -32,13 +32,26 @@ class JugadaUseCases:
     def __init__(self, jugada_repo: JugadaRepositoryPort):
         self.jugada_repo = jugada_repo
 
-    async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int]) -> Dict[str, Any]:
+    async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[str] = None) -> Dict[str, Any]:
         colombia_tz = timezone(timedelta(hours=-5))
         hoy = datetime.now(colombia_tz)
-        expira = hoy + timedelta(days=7)
+
+        fecha_guardado = hoy
+        if fecha_sorteo and isinstance(fecha_sorteo, str) and fecha_sorteo.strip():
+            try:
+                clean_str = fecha_sorteo.strip().split("T")[0]
+                parsed_date = datetime.strptime(clean_str, "%Y-%m-%d")
+                fecha_guardado = datetime(
+                    parsed_date.year, parsed_date.month, parsed_date.day,
+                    hoy.hour, hoy.minute, hoy.second, tzinfo=colombia_tz
+                )
+            except Exception:
+                fecha_guardado = hoy
+
+        expira = fecha_guardado + timedelta(days=7)
 
         numeros_clean = [int(n) for n in numeros]
-        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, hoy, expira)
+        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, fecha_guardado, expira)
         return record
 
     async def listar_jugadas(self, tipo: str, user_id: int) -> List[Dict[str, Any]]:
