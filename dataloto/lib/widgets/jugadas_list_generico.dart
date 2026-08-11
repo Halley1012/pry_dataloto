@@ -55,12 +55,15 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
     }
   }
 
-  Future<void> addJugada(List<int> numeros, String userId) async {
+  Future<void> addJugada(List<int> numeros, String userId, {int? balotaRoja, String? fechaSorteo}) async {
     final tempId = DateTime.now().millisecondsSinceEpoch;
     final tempJugada = {
       "id": tempId,
       "numeros": numeros,
       "user_id": userId,
+      if (balotaRoja != null) "balota_roja": balotaRoja,
+      "fecha_sorteo": fechaSorteo,
+      "fecha": fechaSorteo ?? DateTime.now().toIso8601String(),
       "created_at": DateTime.now().toIso8601String(),
     };
 
@@ -71,7 +74,13 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
     widget.jugadasController.forward();
 
     try {
-      final newJugada = await ApiService.crearJugadaGenerica(widget.loteriaRoute, numeros, userId);
+      final newJugada = await ApiService.crearJugadaGenerica(
+        widget.loteriaRoute,
+        numeros,
+        userId,
+        balotaRoja: balotaRoja,
+        fechaSorteo: fechaSorteo,
+      );
       if (!mounted) return;
       setState(() {
         final index = _jugadasList.indexWhere((j) => j["id"] == tempId);

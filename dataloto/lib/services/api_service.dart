@@ -280,24 +280,85 @@ class ApiService {
     return userIdStr != null ? int.tryParse(userIdStr) : null;
   }
 
-  /// 🎲 Crear jugada SIN TOKEN
+  /// 📅 Calcular o normalizar la fecha del próximo sorteo para guardar jugadas
+  static String getProximoSorteoFecha(String loteriaName, {String? fechaPrediccion, String? ultimoSorteoFecha}) {
+    if (fechaPrediccion != null && fechaPrediccion.trim().isNotEmpty) {
+      final clean = fechaPrediccion.trim().split("T").first;
+      if (clean.length >= 10 && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(clean.substring(0, 10))) {
+        return clean.substring(0, 10);
+      }
+    }
+
+    DateTime baseDate = DateTime.now();
+    if (ultimoSorteoFecha != null && ultimoSorteoFecha.trim().isNotEmpty) {
+      final clean = ultimoSorteoFecha.trim().split("T").first;
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        baseDate = parsed;
+      }
+    }
+
+    final lower = loteriaName.toLowerCase();
+    DateTime next = baseDate.add(const Duration(days: 1));
+
+    // Baloto / Revancha: Wed (3), Sat (6)
+    if (lower.contains("bloto") || lower.contains("baloto")) {
+      while (next.weekday != DateTime.wednesday && next.weekday != DateTime.saturday) {
+        next = next.add(const Duration(days: 1));
+      }
+    }
+    // MiLoto: Mon (1), Tue (2), Thu (4), Fri (5)
+    else if (lower.contains("mloto") || lower.contains("miloto")) {
+      while (next.weekday != DateTime.monday && next.weekday != DateTime.tuesday && next.weekday != DateTime.thursday && next.weekday != DateTime.friday) {
+        next = next.add(const Duration(days: 1));
+      }
+    }
+    // Powerball & Lotto America: Mon (1), Wed (3), Sat (6)
+    else if (lower.contains("powerball") || lower.contains("lotto_america") || lower.contains("lotto america")) {
+      while (next.weekday != DateTime.monday && next.weekday != DateTime.wednesday && next.weekday != DateTime.saturday) {
+        next = next.add(const Duration(days: 1));
+      }
+    }
+    // Mega Millions: Tue (2), Fri (5)
+    else if (lower.contains("megamillions") || lower.contains("mega millions")) {
+      while (next.weekday != DateTime.tuesday && next.weekday != DateTime.friday) {
+        next = next.add(const Duration(days: 1));
+      }
+    } else {
+      next = baseDate.add(const Duration(days: 1));
+    }
+
+    return "${next.year}-${next.month.toString().padLeft(2, '0')}-${next.day.toString().padLeft(2, '0')}";
+  }
+
+  /// 🎲 Crear jugada SIN TOKEN (MiLoto)
   static Future<Map<String, dynamic>> crearJugada(
     List<int> numeros,
-    String userId,
-  ) async {
+    String userId, {
+    String? fechaSorteo,
+  }) async {
+    final Map<String, dynamic> payload = {
+      "numeros": numeros,
+      "user_id": userId,
+    };
+    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
+      payload["fecha_sorteo"] = fechaSorteo;
+      payload["fecha"] = fechaSorteo;
+    }
+
     final response = await http.post(
       Uri.parse("$baseUrl/jugadas_mloto"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"numeros": numeros, "user_id": userId}),
+      body: jsonEncode(payload),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       CacheService.registrarJugadaOptimista("mloto");
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
       } else {
-        throw Exception("Formato de respuesta inválido: no es un objeto");
+        return {"status": "ok"};
       }
     } else {
       throw Exception(
@@ -369,25 +430,35 @@ class ApiService {
   /// 🎲 Crear jugada BLOTO SIN TOKEN
   static Future<Map<String, dynamic>> crearJugadaBloto(
     List<int> numeros,
-    String userId,
-  ) async {
+    String userId, {
+    String? fechaSorteo,
+  }) async {
     if (userId.isEmpty) {
       throw Exception("El userId enviado desde el front está vacío");
+    }
+
+    final Map<String, dynamic> payload = {
+      "numeros": numeros,
+      "user_id": userId,
+    };
+    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
+      payload["fecha_sorteo"] = fechaSorteo;
+      payload["fecha"] = fechaSorteo;
     }
 
     final response = await http.post(
       Uri.parse("$baseUrl/jugadas_bloto"),
       headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"numeros": numeros, "user_id": userId}),
+      body: jsonEncode(payload),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       CacheService.registrarJugadaOptimista("bloto");
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
       } else {
-        throw Exception("La API no devolvió un objeto JSON válido");
+        return {"status": "ok"};
       }
     }
 
@@ -462,6 +533,7 @@ class ApiService {
     List<int> numeros,
     String userId, {
     int? balotaRoja,
+    String? fechaSorteo,
   }) async {
     if (userId.isEmpty) {
       throw Exception("El userId enviado está vacío");
@@ -474,6 +546,10 @@ class ApiService {
     if (balotaRoja != null) {
       payload["balota_roja"] = balotaRoja;
       payload["balotaroja"] = balotaRoja;
+    }
+    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
+      payload["fecha_sorteo"] = fechaSorteo;
+      payload["fecha"] = fechaSorteo;
     }
 
     final response = await http.post(

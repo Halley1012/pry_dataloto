@@ -124,6 +124,12 @@ abstract class AppLocalizations {
   /// **'¡Bienvenido a DataLoto!'**
   String get bienvenido;
 
+  /// No description provided for @descripcionBienvenida.
+  ///
+  /// In es, this message translates to:
+  /// **'Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.'**
+  String get descripcionBienvenida;
+
   /// No description provided for @prediccionesInteligentes.
   ///
   /// In es, this message translates to:
@@ -267,6 +273,432 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Cambiar Idioma'**
   String get cambiarIdioma;
+
+  /// No description provided for @email.
+  ///
+  /// In es, this message translates to:
+  /// **'Correo Electrónico'**
+  String get email;
+
+  /// No description provided for @contrasena.
+  ///
+  /// In es, this message translates to:
+  /// **'Contraseña'**
+  String get contrasena;
+
+  /// No description provided for @olvidoContrasena.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Olvidó la contraseña?'**
+  String get olvidoContrasena;
+
+  /// No description provided for @ingresar.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresar'**
+  String get ingresar;
+
+  /// No description provided for @iniciaSesionParaContinuar.
+  ///
+  /// In es, this message translates to:
+  /// **'Inicia sesión para continuar'**
+  String get iniciaSesionParaContinuar;
+
+  /// No description provided for @nombre.
+  ///
+  /// In es, this message translates to:
+  /// **'Nombre'**
+  String get nombre;
+
+  /// No description provided for @crearCuenta.
+  ///
+  /// In es, this message translates to:
+  /// **'Crear cuenta'**
+  String get crearCuenta;
+
+  /// No description provided for @notificaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Notificaciones'**
+  String get notificaciones;
+
+  /// No description provided for @configuracion.
+  ///
+  /// In es, this message translates to:
+  /// **'Configuración'**
+  String get configuracion;
+
+  /// No description provided for @cerrarSesion.
+  ///
+  /// In es, this message translates to:
+  /// **'Cerrar sesión'**
+  String get cerrarSesion;
+
+  /// No description provided for @perfil.
+  ///
+  /// In es, this message translates to:
+  /// **'Perfil'**
+  String get perfil;
+
+  /// No description provided for @inicio.
+  ///
+  /// In es, this message translates to:
+  /// **'Inicio'**
+  String get inicio;
+
+  /// No description provided for @resultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Resultados'**
+  String get resultados;
+
+  /// No description provided for @misAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Mis anuncios'**
+  String get misAnuncios;
+
+  /// No description provided for @metodosPago.
+  ///
+  /// In es, this message translates to:
+  /// **'Métodos de pago'**
+  String get metodosPago;
+
+  /// No description provided for @invitarAmigos.
+  ///
+  /// In es, this message translates to:
+  /// **'Invitar amigos'**
+  String get invitarAmigos;
+
+  /// No description provided for @ayudaSoporte.
+  ///
+  /// In es, this message translates to:
+  /// **'Ayuda y soporte'**
+  String get ayudaSoporte;
+
+  /// No description provided for @eliminarCuenta.
+  ///
+  /// In es, this message translates to:
+  /// **'Eliminar cuenta'**
+  String get eliminarCuenta;
+
+  /// No description provided for @pais.
+  ///
+  /// In es, this message translates to:
+  /// **'País'**
+  String get pais;
+
+  /// No description provided for @departamentoEstado.
+  ///
+  /// In es, this message translates to:
+  /// **'Departamento / Estado'**
+  String get departamentoEstado;
+
+  /// No description provided for @editarPerfil.
+  ///
+  /// In es, this message translates to:
+  /// **'Editar Perfil'**
+  String get editarPerfil;
+
+  /// No description provided for @guardarCambios.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar Cambios'**
+  String get guardarCambios;
+
+  /// No description provided for @miPais.
+  ///
+  /// In es, this message translates to:
+  /// **'Mi País'**
+  String get miPais;
+
+  /// No description provided for @internacionales.
+  ///
+  /// In es, this message translates to:
+  /// **'Internacionales'**
+  String get internacionales;
+
+  /// No description provided for @todas.
+  ///
+  /// In es, this message translates to:
+  /// **'Todas'**
+  String get todas;
+
+  /// No description provided for @sinNotificaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'No tienes notificaciones aún'**
+  String get sinNotificaciones;
+
+  /// No description provided for @explorar.
+  ///
+  /// In es, this message translates to:
+  /// **'Explorar'**
+  String get explorar;
+
+  /// No description provided for @buscarLoteria.
+  ///
+  /// In es, this message translates to:
+  /// **'Buscar lotería...'**
+  String get buscarLoteria;
+
+  /// No description provided for @populares.
+  ///
+  /// In es, this message translates to:
+  /// **'Populares'**
+  String get populares;
+
+  /// No description provided for @verTodas.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver todas'**
+  String get verTodas;
+
+  /// No description provided for @proximoSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'Próximo sorteo'**
+  String get proximoSorteo;
+
+  /// No description provided for @todasLasLoterias.
+  ///
+  /// In es, this message translates to:
+  /// **'Todas las loterías'**
+  String get todasLasLoterias;
+
+  /// No description provided for @comentarios.
+  ///
+  /// In es, this message translates to:
+  /// **'Comentarios'**
+  String get comentarios;
+
+  /// No description provided for @responder.
+  ///
+  /// In es, this message translates to:
+  /// **'Responder'**
+  String get responder;
+
+  /// No description provided for @respuesta.
+  ///
+  /// In es, this message translates to:
+  /// **'respuesta'**
+  String get respuesta;
+
+  /// No description provided for @respuestas.
+  ///
+  /// In es, this message translates to:
+  /// **'respuestas'**
+  String get respuestas;
+
+  /// No description provided for @sinPosts.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay posts aún'**
+  String get sinPosts;
+
+  /// No description provided for @anunciosDestacados.
+  ///
+  /// In es, this message translates to:
+  /// **'Anuncios destacados'**
+  String get anunciosDestacados;
+
+  /// No description provided for @derechosReservados.
+  ///
+  /// In es, this message translates to:
+  /// **'© 2025 DataLoto. Todos los derechos reservados.'**
+  String get derechosReservados;
+
+  /// No description provided for @version.
+  ///
+  /// In es, this message translates to:
+  /// **'Versión'**
+  String get version;
+
+  /// No description provided for @sinNotificacionesCategoria.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin notificaciones en esta categoría'**
+  String get sinNotificacionesCategoria;
+
+  /// No description provided for @verTodasNotificaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver todas las notificaciones'**
+  String get verTodasNotificaciones;
+
+  /// No description provided for @explorarLoterias.
+  ///
+  /// In es, this message translates to:
+  /// **'Explorar Loterías'**
+  String get explorarLoterias;
+
+  /// No description provided for @buscarLoteriaOPais.
+  ///
+  /// In es, this message translates to:
+  /// **'Buscar lotería o país...'**
+  String get buscarLoteriaOPais;
+
+  /// No description provided for @buscarPorLoteriaOPais.
+  ///
+  /// In es, this message translates to:
+  /// **'Buscar por lotería o país...'**
+  String get buscarPorLoteriaOPais;
+
+  /// No description provided for @proximoSorteoConFecha.
+  ///
+  /// In es, this message translates to:
+  /// **'Próximo sorteo:'**
+  String get proximoSorteoConFecha;
+
+  /// No description provided for @verTodasLoteriasMundo.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver todas las loterías del mundo'**
+  String get verTodasLoteriasMundo;
+
+  /// No description provided for @analisisYResultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Análisis y Resultados'**
+  String get analisisYResultados;
+
+  /// No description provided for @aunNoTienesJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no tienes jugadas'**
+  String get aunNoTienesJugadas;
+
+  /// No description provided for @empiezaAGuardarNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Empieza a guardar tus números favoritos desde la sección Explorar.'**
+  String get empiezaAGuardarNumeros;
+
+  /// No description provided for @usuarioPremium.
+  ///
+  /// In es, this message translates to:
+  /// **'Usuario Premium'**
+  String get usuarioPremium;
+
+  /// No description provided for @ganaBeneficios.
+  ///
+  /// In es, this message translates to:
+  /// **'Gana beneficios'**
+  String get ganaBeneficios;
+
+  /// No description provided for @avisoLegal.
+  ///
+  /// In es, this message translates to:
+  /// **'Aviso legal'**
+  String get avisoLegal;
+
+  /// No description provided for @acercaDe.
+  ///
+  /// In es, this message translates to:
+  /// **'Acerca de'**
+  String get acercaDe;
+
+  /// No description provided for @cerrar.
+  ///
+  /// In es, this message translates to:
+  /// **'Cerrar'**
+  String get cerrar;
+
+  /// No description provided for @contenidoAvisoLegal.
+  ///
+  /// In es, this message translates to:
+  /// **'Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.'**
+  String get contenidoAvisoLegal;
+
+  /// No description provided for @contenidoAcercaDe.
+  ///
+  /// In es, this message translates to:
+  /// **'DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías y ofrecer predicciones informadas. Aunque nuestras predicciones se basan en datos, no hay certeza absoluta de que esos números sean los ganadores, ya que la lotería es un juego de azar. No garantizamos premios, solo te ayudamos a elegir con más confianza. Usa la app con responsabilidad y solo con fines de entretenimiento. La decisión de utilizar estas predicciones queda bajo tu propia responsabilidad.'**
+  String get contenidoAcercaDe;
+
+  /// No description provided for @notificacionesIA.
+  ///
+  /// In es, this message translates to:
+  /// **'Notificaciones IA'**
+  String get notificacionesIA;
+
+  /// No description provided for @marcarTodoComoLeido.
+  ///
+  /// In es, this message translates to:
+  /// **'Marcar todo como leído'**
+  String get marcarTodoComoLeido;
+
+  /// No description provided for @seleccionarTodo.
+  ///
+  /// In es, this message translates to:
+  /// **'Seleccionar todo'**
+  String get seleccionarTodo;
+
+  /// No description provided for @desmarcarTodo.
+  ///
+  /// In es, this message translates to:
+  /// **'Desmarcar todo'**
+  String get desmarcarTodo;
+
+  /// No description provided for @eliminar.
+  ///
+  /// In es, this message translates to:
+  /// **'Eliminar'**
+  String get eliminar;
+
+  /// No description provided for @imprimirPDF.
+  ///
+  /// In es, this message translates to:
+  /// **'Imprimir PDF'**
+  String get imprimirPDF;
+
+  /// No description provided for @historialJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Historial de Jugadas'**
+  String get historialJugadas;
+
+  /// No description provided for @guardadasCantidad.
+  ///
+  /// In es, this message translates to:
+  /// **'guardada(s)'**
+  String get guardadasCantidad;
+
+  /// No description provided for @noTienesJugadasGuardadas.
+  ///
+  /// In es, this message translates to:
+  /// **'No tienes jugadas guardadas aún'**
+  String get noTienesJugadasGuardadas;
+
+  /// No description provided for @eliminarJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Eliminar jugadas'**
+  String get eliminarJugadas;
+
+  /// No description provided for @confirmarCerrarSesion.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Estás seguro de que deseas salir?'**
+  String get confirmarCerrarSesion;
+
+  /// No description provided for @idiomaSistema.
+  ///
+  /// In es, this message translates to:
+  /// **'Idioma del Sistema'**
+  String get idiomaSistema;
+
+  /// No description provided for @seleccionarIdioma.
+  ///
+  /// In es, this message translates to:
+  /// **'Seleccionar Idioma'**
+  String get seleccionarIdioma;
+
+  /// No description provided for @cancelar.
+  ///
+  /// In es, this message translates to:
+  /// **'Cancelar'**
+  String get cancelar;
 }
 
 class _AppLocalizationsDelegate

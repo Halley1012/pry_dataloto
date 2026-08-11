@@ -12,6 +12,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class MilotoMisJugadasScreen extends StatefulWidget {
   const MilotoMisJugadasScreen({super.key});
@@ -79,27 +80,36 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
   Future<void> _eliminarSeleccionadas() async {
     if (_selectedIds.isEmpty) return;
 
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
+
+    final String confirmMsg = langCode == 'en'
+        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
+        : langCode == 'pt'
+            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
+            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E2E),
-        title: const Text(
-          "Confirmar eliminación",
-          style: TextStyle(color: Colors.white),
+        title: Text(
+          l10n?.eliminarJugadas ?? "Confirmar eliminación",
+          style: const TextStyle(color: Colors.white),
         ),
         content: Text(
-          "¿Deseas eliminar ${_selectedIds.length} jugada(s) seleccionada(s)?",
+          confirmMsg,
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.white)),
+            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -120,9 +130,14 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
     }
 
     if (mounted) {
+      final String deletedMsg = langCode == 'en'
+          ? "Successfully deleted $eliminadas play(s)."
+          : langCode == 'pt'
+              ? "$eliminadas aposta(s) excluída(s) com sucesso."
+              : "Se eliminaron $eliminadas jugada(s) correctamente.";
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Se eliminaron $eliminadas jugada(s) correctamente."),
+          content: Text(deletedMsg),
           backgroundColor: Colors.green,
         ),
       );
@@ -268,7 +283,15 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
     final bool hasSelection = _selectedIds.isNotEmpty;
+
+    final String emptySubtext = langCode == 'en'
+        ? "Generate and save your plays from the MiLoto main screen"
+        : langCode == 'pt'
+            ? "Gere e salve suas apostas na tela principal do MiLoto"
+            : "Genera y guarda tus jugadas desde la pantalla principal de MiLoto";
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -277,22 +300,19 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
         onRefresh: _cargarDatos,
         child: CustomScrollView(
         slivers: [
-          const CustomSliverAppBar(title: "Mis Jugadas - MiLoto"),
+          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - MiLoto"),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. Contenedor de Botones de Acción
                   AppContainer3(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // 🏷️ Barra de Botones con Estilo MiLoto (Dinamismo por Selección)
                         Row(
                           children: [
-                            // Botón Seleccionar / Desmarcar todo
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _toggleSelectAll,
@@ -304,7 +324,9 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Desmarcar todo" : "Seleccionar todo",
+                                  hasSelection
+                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
+                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -314,8 +336,6 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-
-                            // Botón Eliminar (Rojo resaltado si hay selección)
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: hasSelection ? _eliminarSeleccionadas : null,
@@ -330,7 +350,9 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  hasSelection ? "Eliminar (${_selectedIds.length})" : "Eliminar",
+                                  hasSelection
+                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
+                                      : (l10n?.eliminar ?? "Eliminar"),
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -342,10 +364,8 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-
                         Row(
                           children: [
-                            // Botón WhatsApp (Verde resaltado si hay selección)
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _compartirWhatsApp,
@@ -369,8 +389,6 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-
-                            // Botón Imprimir PDF
                             Expanded(
                               child: ElevatedButton(
                                 onPressed: _imprimirPDF,
@@ -382,7 +400,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  "Imprimir PDF",
+                                  l10n?.imprimirPDF ?? "Imprimir PDF",
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -397,19 +415,17 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // 2. Encabezado Centrado Fuera del Contenedor
                   Center(
                     child: Column(
                       children: [
                         Text(
-                          "Historial de Jugadas",
+                          l10n?.historialJugadas ?? "Historial de Jugadas",
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} guardada(s)",
+                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -421,8 +437,6 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-
-                  // 3. Lista de Jugadas (1 Sola Fila por Tarjeta)
                   _cargando
                       ? const Center(
                           child: CircularProgressIndicator(color: AppColors.yellow),
@@ -434,12 +448,12 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                 child: Column(
                                   children: [
                                     Text(
-                                      "No tienes jugadas guardadas aún",
+                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
                                       style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      "Genera y guarda tus jugadas desde la pantalla principal de MiLoto",
+                                      emptySubtext,
                                       style: AppTextStyles.caption,
                                       textAlign: TextAlign.center,
                                     ),
