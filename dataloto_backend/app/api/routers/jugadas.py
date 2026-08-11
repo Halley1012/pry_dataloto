@@ -47,7 +47,7 @@ def get_mloto_historico(limit: int = 10, use_cases: JugadaUseCases = Depends(dep
 
 @router.post("/jugadas_mloto", response_model=schemas.JugadaOut)
 async def crear_jugada_mloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    return await use_cases.guardar_jugada("mloto", int(jugada.user_id), jugada.numeros)
+    return await use_cases.guardar_jugada("mloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_mloto", response_model=List[schemas.JugadaOut])
 async def listar_jugadas_mloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -101,7 +101,7 @@ def get_bloto_historico_completo(sorteo: Optional[str] = None, use_cases: Jugada
 
 @router.post("/jugadas_bloto", response_model=schemas.JugadaOut)
 async def crear_jugada_bloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    return await use_cases.guardar_jugada("bloto", int(jugada.user_id), jugada.numeros)
+    return await use_cases.guardar_jugada("bloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_bloto", response_model=List[schemas.JugadaOut])
 async def listar_jugadas_bloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -134,7 +134,7 @@ def get_cloto_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_juga
 
 @router.post("/jugadas_cloto", response_model=schemas.JugadaOut)
 async def crear_jugada_cloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    return await use_cases.guardar_jugada("colorloto", int(jugada.user_id), jugada.numeros)
+    return await use_cases.guardar_jugada("colorloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_cloto", response_model=List[schemas.JugadaOut])
 async def listar_jugadas_cloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -195,7 +195,7 @@ for route_name, display_name in LOTERIAS_EEUU:
 
         @router.post(f"/jugadas_{r_name}", response_model=schemas.JugadaOut, name=f"crear_jugada_{r_name}")
         async def crear_jugada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros)
+            return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
         @router.get(f"/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name=f"listar_jugadas_{r_name}")
         async def listar_jugadas(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):

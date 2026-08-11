@@ -24,6 +24,8 @@ class UpdateUser(BaseModel):
 class JugadaCreate(BaseModel):
     numeros: List[int]
     user_id: str
+    fecha_sorteo: Optional[str] = None
+    fecha: Optional[str] = None
 
 class JugadaOut(BaseModel):
     id: int
