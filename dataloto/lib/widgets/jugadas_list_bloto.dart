@@ -60,7 +60,7 @@ class JugadasListBlotoState extends State<JugadasListBloto>
       "numeros": numeros,
       "user_id": userId,
       "fecha_sorteo": fechaSorteo,
-      "fecha": fechaSorteo ?? DateTime.now().toIso8601String(),
+      "fecha": fechaSorteo,
       "created_at": DateTime.now().toIso8601String(),
     };
 
@@ -128,15 +128,15 @@ class JugadasListBlotoState extends State<JugadasListBloto>
   }
 
   bool _esDeHoy(dynamic dateRaw) {
-    if (dateRaw == null) return false;
+    if (dateRaw == null) return true;
     try {
       final parsed = DateTime.parse(dateRaw.toString()).toLocal();
       final now = DateTime.now();
-      return parsed.year == now.year &&
-          parsed.month == now.month &&
-          parsed.day == now.day;
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final parsedDateOnly = DateTime(parsed.year, parsed.month, parsed.day);
+      return !parsedDateOnly.isBefore(todayStart);
     } catch (_) {
-      return false;
+      return true;
     }
   }
 

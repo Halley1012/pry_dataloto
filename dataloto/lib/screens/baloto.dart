@@ -191,7 +191,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     if (ultimosResultados.isNotEmpty && ultimosResultados.first["fecha"] != null) {
       return _formatearFecha(ultimosResultados.first["fecha"].toString());
     }
-    return "05 Ago 2026";
+    return "12 Oct 9999";
   }
 
   void _generarAleatorios() {

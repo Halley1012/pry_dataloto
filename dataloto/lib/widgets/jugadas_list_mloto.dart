@@ -41,9 +41,9 @@ class JugadasListMlotoState extends State<JugadasListMloto>
     try {
       final parsed = DateTime.parse(rawDate.toString()).toLocal();
       final now = DateTime.now();
-      return parsed.year == now.year &&
-          parsed.month == now.month &&
-          parsed.day == now.day;
+      final todayStart = DateTime(now.year, now.month, now.day);
+      final parsedDateOnly = DateTime(parsed.year, parsed.month, parsed.day);
+      return !parsedDateOnly.isBefore(todayStart);
     } catch (_) {
       return true;
     }
