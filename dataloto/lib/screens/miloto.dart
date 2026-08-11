@@ -314,8 +314,14 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
 
     setState(() => isSaving = true);
 
+    final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
+      "mloto",
+      fechaPrediccion: fechaPrediccion,
+      ultimoSorteoFecha: ultimosResultados.isNotEmpty ? ultimosResultados.first["fecha"]?.toString() : null,
+    );
+
     try {
-      await ApiService.crearJugada(nuevaJugada, userId!);
+      await ApiService.crearJugada(nuevaJugada, userId!, fechaSorteo: targetFechaSorteo);
       await _loadJugadas();
 
       if (mounted) {

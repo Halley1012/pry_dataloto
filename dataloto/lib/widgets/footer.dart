@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class Footer extends StatefulWidget {
   const Footer({super.key});
@@ -22,19 +23,24 @@ class _FooterState extends State<Footer> {
   Future<void> _loadVersion() async {
     final info = await PackageInfo.fromPlatform();
     setState(() {
-      _version = info.version; // Solo mostrará "1.1.0"
+      _version = info.version;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final derechos = l10n?.derechosReservados ?? "© 2025 DataLoto. Todos los derechos reservados.";
+    final lblVersion = l10n?.version ?? "Versión";
+    final text = _version.isNotEmpty ? "$derechos | $lblVersion $_version" : derechos;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF121212),
         border: Border(
           top: BorderSide(
-            color: Colors.white24, // 🔹 borde sutil para separar el footer
-            width: 1.0,
+            color: Colors.white12,
+            width: 0.5,
           ),
         ),
       ),
@@ -42,11 +48,8 @@ class _FooterState extends State<Footer> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const SizedBox(height: 1),
           Text(
-            _version.isNotEmpty
-                ? "© 2025 DataLoto. Todos los derechos reservados. | Versión $_version"
-                : "© 2025 DataLoto. Todos los derechos reservados.",
+            text,
             style: AppTextStyles.caption.copyWith(
               color: Colors.white54,
               fontSize: 10,

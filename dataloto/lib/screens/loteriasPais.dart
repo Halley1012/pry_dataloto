@@ -14,6 +14,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/utils/pais_helper.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class LoteriasPais extends StatefulWidget {
   const LoteriasPais({super.key});
@@ -145,6 +146,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: SafeArea(
@@ -154,20 +156,20 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 10),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
                 child: Text(
-                  "Explorar Loterías",
-                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  l10n?.explorarLoterias ?? "Explorar Loterías",
+                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                 ),
               ),
-              _buildSearchBar(),
+              _buildSearchBar(l10n),
               Expanded(
                 child: _isLoading && _loterias.isEmpty
                   ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                  : _buildLotteryList(),
+                  : _buildLotteryList(l10n),
               ),
-              _buildFooterButton(),
+              _buildFooterButton(l10n),
             ],
           ),
         ),
@@ -175,7 +177,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(AppLocalizations? l10n) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
@@ -187,28 +189,28 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           controller: _searchController,
           onChanged: _onSearchChanged,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: "Buscar lotería o país...",
-            hintStyle: TextStyle(color: Colors.white38),
-            prefixIcon: Icon(Icons.search, color: Colors.white38),
+          decoration: InputDecoration(
+            hintText: l10n?.buscarLoteriaOPais ?? "Buscar lotería o país...",
+            hintStyle: const TextStyle(color: Colors.white38),
+            prefixIcon: const Icon(Icons.search, color: Colors.white38),
             border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLotteryList() {
+  Widget _buildLotteryList(AppLocalizations? l10n) {
     final displayList = _getDisplayList();
     final grouped = <String, List<Map<String, dynamic>>>{};
+    final langCode = Localizations.localeOf(context).languageCode;
 
     for (var lot in displayList) {
       final pNombre = _getPaisNombre(lot["pais_id"]);
       grouped.putIfAbsent(pNombre, () => []).add(lot);
     }
 
-    // Ordenar países: Usuario primero, luego resto alfabético
     final sortedCountries = grouped.keys.toList()
       ..sort((a, b) {
         if (a == _userCountry) return -1;
@@ -221,6 +223,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       itemBuilder: (context, i) {
         final country = sortedCountries[i];
         final lots = grouped[country]!;
+        final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
         
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,27 +235,27 @@ class _LoteriasPaisState extends State<LoteriasPais> {
                   Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 8),
                   Text(
-                    country.isNotEmpty 
-                      ? country[0].toUpperCase() + country.substring(1).toLowerCase() 
-                      : "",
+                    countryDisplay,
                     style: AppTextStyles.h2.copyWith(color: AppColors.white),
                   ),
                 ],
               ),
             ),
-            ...lots.map((loteria) => _buildExploreItem(loteria)),
+            ...lots.map((loteria) => _buildExploreItem(loteria, l10n)),
           ],
         );
       },
     );
   }
 
-  Widget _buildExploreItem(Map<String, dynamic> loteria) {
+  Widget _buildExploreItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
     final nombre = loteria["nombre"] ?? "";
     final fechaSorteo = _formatearFechaSimple(loteria["proximo_sorteo"]);
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
+
+    final proximoLbl = l10n?.proximoSorteoConFecha ?? "Próximo sorteo:";
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
@@ -273,7 +276,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           ),
         ),
         subtitle: Text(
-          "Próximo sorteo: $fechaSorteo",
+          "$proximoLbl $fechaSorteo",
           style: AppTextStyles.mensajeSecundario.copyWith(
             color: Colors.white38,
             fontSize: 11,
@@ -297,8 +300,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       DateTime fechaS = DateTime(parsed.year, parsed.month, parsed.day);
       if (fechaS.isBefore(hoy)) return "Próximamente";
 
-      const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-      return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      final langCode = Localizations.localeOf(context).languageCode;
+      List<String> meses;
+      if (langCode == 'en') {
+        meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return "${meses[parsed.month - 1]} ${parsed.day}, ${parsed.year}";
+      } else if (langCode == 'pt') {
+        meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      } else {
+        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      }
     } catch (_) {
       return "Próximamente";
     }
@@ -313,7 +326,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     return p["nombre"];
   }
 
-  Widget _buildFooterButton() {
+  Widget _buildFooterButton(AppLocalizations? l10n) {
     if (_isShowingAll || _searchController.text.isNotEmpty) {
       return const SizedBox.shrink();
     }
@@ -331,7 +344,10 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
-        child: const Text("Ver todas las loterías del mundo", style: TextStyle(fontWeight: FontWeight.bold)),
+        child: Text(
+          l10n?.verTodasLoteriasMundo ?? "Ver todas las loterías del mundo",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }

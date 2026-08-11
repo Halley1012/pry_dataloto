@@ -31,6 +31,7 @@ import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -193,6 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildCountryHeader() {
+    final langCode = Localizations.localeOf(context).languageCode;
+    final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
       child: Row(
@@ -203,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ), 
           const SizedBox(width: 12),
           Text(
-            pais ?? "Colombia",
+            nombrePaisDisplay,
             style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 28),
           ),
         ],
@@ -227,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildSearchBar() {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       child: Container(
@@ -239,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onChanged: _onSearchChanged,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: "Buscar lotería...",
+            hintText: l10n?.buscarLoteria ?? "Buscar lotería...",
             hintStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white38),
             prefixIcon: const Icon(Icons.search, color: Colors.white38),
             border: InputBorder.none,
@@ -251,6 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildPopularesSection() {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -259,10 +264,10 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Populares", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              Text(l10n?.populares ?? "Populares", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
               TextButton(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
-                child: Text("Ver todas", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                child: Text(l10n?.verTodas ?? "Ver todas", style: const TextStyle(color: Colors.white54, fontSize: 14)),
               ),
             ],
           ),
@@ -290,32 +295,46 @@ class _HomeScreenState extends State<HomeScreen> {
       if (fechaSorteo.isBefore(hoy)) {
         return "Próximamente";
       }
-      const meses = [
-        "Ene", "Feb", "Mar", "Abr", "May", "Jun",
-        "Jul", "Ago", "Sep", "Oct", "Nov", "Dic",
-      ];
-      String mes = meses[parsed.month - 1];
-      return "${parsed.day.toString().padLeft(2, '0')} $mes ${parsed.year}";
+      final langCode = Localizations.localeOf(context).languageCode;
+      List<String> meses;
+      if (langCode == 'en') {
+        meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      } else if (langCode == 'pt') {
+        meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      } else {
+        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      }
     } catch (_) {
       return fecha;
     }
   }
 
   String _getPaisNombre(dynamic loteria) {
+    String rawPais = "Colombia";
     if (loteria["pais_nombre"] != null && loteria["pais_nombre"].toString().isNotEmpty) {
-      return loteria["pais_nombre"].toString();
+      rawPais = loteria["pais_nombre"].toString();
+    } else {
+      final pId = loteria["pais_id"]?.toString();
+      if (pId == "5") {
+        rawPais = "Colombia";
+      } else if (pId == "21") {
+        rawPais = "Estados Unidos";
+      } else {
+        final nombre = (loteria["nombre"] ?? "").toString().toLowerCase();
+        if (nombre.contains("powerball") || nombre.contains("mega millions") || nombre.contains("double play") || nombre.contains("lotto america") || nombre.contains("millionaire")) {
+          rawPais = "Estados Unidos";
+        } else if (nombre.contains("baloto") || nombre.contains("miloto") || nombre.contains("colorloto") || nombre.contains("boyacá") || nombre.contains("bogotá") || nombre.contains("cundinamarca") || nombre.contains("cauca") || nombre.contains("nariño")) {
+          rawPais = "Colombia";
+        } else {
+          rawPais = pais ?? "Internacional";
+        }
+      }
     }
-    final pId = loteria["pais_id"]?.toString();
-    if (pId == "5") return "Colombia";
-    if (pId == "21") return "Estados Unidos";
-    final nombre = (loteria["nombre"] ?? "").toString().toLowerCase();
-    if (nombre.contains("powerball") || nombre.contains("mega millions") || nombre.contains("double play") || nombre.contains("lotto america") || nombre.contains("millionaire")) {
-      return "Estados Unidos";
-    }
-    if (nombre.contains("baloto") || nombre.contains("miloto") || nombre.contains("colorloto") || nombre.contains("boyacá") || nombre.contains("bogotá") || nombre.contains("cundinamarca") || nombre.contains("cauca") || nombre.contains("nariño")) {
-      return "Colombia";
-    }
-    return pais ?? "Internacional";
+    final langCode = Localizations.localeOf(context).languageCode;
+    return PaisHelper.getNombreTraducido(rawPais, langCode);
   }
 
   Widget _buildLoteriaCard(dynamic loteria, {bool showCountry = true}) {
@@ -370,9 +389,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Text(
-                    "Próximo sorteo",
-                    style: TextStyle(color: Colors.white38, fontSize: 10),
+                  Text(
+                    AppLocalizations.of(context)?.proximoSorteo ?? "Próximo sorteo",
+                    style: const TextStyle(color: Colors.white38, fontSize: 10),
                   ),
                   Text(
                     _formatearFechaSimple(loteria["proximo_sorteo"]),
@@ -399,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
           child: Text(
-            "Todas las loterías",
+            AppLocalizations.of(context)?.todasLasLoterias ?? "Todas las loterías",
             style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
@@ -442,6 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBottomNavBar() {
+    final l10n = AppLocalizations.of(context);
     return BottomNavigationBar(
       currentIndex: _selectedIndex,
       onTap: (index) {
@@ -457,12 +477,12 @@ class _HomeScreenState extends State<HomeScreen> {
       unselectedItemColor: Colors.white54,
       selectedLabelStyle: const TextStyle(fontSize: 12),
       unselectedLabelStyle: const TextStyle(fontSize: 12),
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), activeIcon: Icon(Icons.home), label: "Inicio"),
-        BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), activeIcon: Icon(Icons.explore), label: "Explorar"),
-        BottomNavigationBarItem(icon: Icon(Icons.bookmark_outline), activeIcon: Icon(Icons.bookmark), label: "Mis Jugadas"),
-        BottomNavigationBarItem(icon: Icon(Icons.analytics_outlined), activeIcon: Icon(Icons.analytics), label: "Resultados"),
-        BottomNavigationBarItem(icon: Icon(Icons.person_outline), activeIcon: Icon(Icons.person), label: "Perfil"),
+      items: [
+        BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: l10n?.inicio ?? "Inicio"),
+        BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: l10n?.explorar ?? "Explorar"),
+        BottomNavigationBarItem(icon: const Icon(Icons.bookmark_outline), activeIcon: const Icon(Icons.bookmark), label: l10n?.misJugadas ?? "Mis Jugadas"),
+        BottomNavigationBarItem(icon: const Icon(Icons.analytics_outlined), activeIcon: const Icon(Icons.analytics), label: l10n?.resultados ?? "Resultados"),
+        BottomNavigationBarItem(icon: const Icon(Icons.person_outline), activeIcon: const Icon(Icons.person), label: l10n?.perfil ?? "Perfil"),
       ],
     );
   }
@@ -858,7 +878,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildEmptyLoteriasState() {
-    final countryName = pais ?? "este país";
+    final langCode = Localizations.localeOf(context).languageCode;
+    final countryName = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
+
+    final String titleText = langCode == 'en'
+        ? "No lotteries registered for $countryName"
+        : langCode == 'pt'
+            ? "Não há loterias registradas para $countryName"
+            : "No hay loterías registradas para $countryName";
+
+    final String bodyText = langCode == 'en'
+        ? "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!"
+        : langCode == 'pt'
+            ? "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!"
+            : "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!";
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
@@ -884,7 +918,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            "No hay loterías registradas para $countryName",
+            titleText,
             style: AppTextStyles.h2.copyWith(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -894,7 +928,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!",
+            bodyText,
             style: AppTextStyles.mensajeSecundario.copyWith(
               color: Colors.white54,
               fontSize: 13,
@@ -907,6 +941,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGlobalFallbackSection() {
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
+    final String featuredTitle = langCode == 'en'
+        ? "Featured Lotteries"
+        : langCode == 'pt'
+            ? "Loterias em Destaque"
+            : "Loterías Destacadas";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -916,12 +958,12 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Loterías Destacadas",
+                featuredTitle,
                 style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
               ),
               TextButton(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
-                child: const Text("Ver todas", style: TextStyle(color: Colors.white54, fontSize: 14)),
+                child: Text(l10n?.verTodas ?? "Ver todas", style: const TextStyle(color: Colors.white54, fontSize: 14)),
               ),
             ],
           ),
@@ -997,7 +1039,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           GestureDetector(
                             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                            child: Text("Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                            child: Text(AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
                           ),
                           IconButton(
                             onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
@@ -1021,7 +1063,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text(AppLocalizations.of(context)?.comentarios ?? "Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline),
                           color: AppColors.yellow,
@@ -1038,7 +1080,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: isLoading && posts.isEmpty
                           ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
                           : posts.isEmpty
-                          ? const Center(child: Text("No hay posts", style: TextStyle(color: AppColors.yellow)))
+                          ? Center(child: Text(AppLocalizations.of(context)?.sinPosts ?? "No hay posts", style: const TextStyle(color: AppColors.yellow)))
                           : SizedBox(
                         height: 400,
                         child: ListView.builder(
@@ -1114,7 +1156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             const Icon(Icons.reply_outlined, color: AppColors.yellow, size: 15),
                             const SizedBox(width: 4),
                             Text(
-                              "Responder",
+                              AppLocalizations.of(context)?.responder ?? "Responder",
                               style: AppTextStyles.caption.copyWith(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -1140,7 +1182,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              "${post.commentsCount} ${post.commentsCount == 1 ? 'respuesta' : 'respuestas'}",
+                              "${post.commentsCount} ${post.commentsCount == 1 ? (AppLocalizations.of(context)?.respuesta ?? 'respuesta') : (AppLocalizations.of(context)?.respuestas ?? 'respuestas')}",
                               style: AppTextStyles.caption.copyWith(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -1200,16 +1242,43 @@ class _HomeScreenState extends State<HomeScreen> {
         await ApiService.updateFCMToken(token);
       }
 
-      // Escuchar cuando el token se renueve
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         ApiService.updateFCMToken(newToken);
       });
 
-      // Escuchar notificaciones en primer plano (App abierta)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint("📩 Notificación Push recibida en primer plano: ${message.notification?.title}");
         if (mounted) {
           context.read<NotificationProvider>().fetchNotifications();
+
+          final title = message.notification?.title;
+          final body = message.notification?.body;
+          if (title != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.notifications_active, color: AppColors.yellow),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                          if (body != null) Text(body, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: const Color(0xFF1E2028),
+                duration: const Duration(seconds: 4),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            );
+          }
         }
       });
     } catch (e) {

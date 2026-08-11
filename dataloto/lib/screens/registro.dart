@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dataloto/styles/colores.dart';
 import '../widgets/custom_app_bar.dart';
 import '../utils/pais_helper.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class RegistroScreen extends StatefulWidget {
   final Map<String, dynamic>? user; // Para edición
@@ -216,7 +217,10 @@ class _RegistroPageState extends State<RegistroScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String titulo = _esEdicion ? 'Editar Perfil' : 'Registro';
+    final l10n = AppLocalizations.of(context);
+    final String titulo = _esEdicion 
+        ? (l10n?.editarPerfil ?? 'Editar Perfil') 
+        : (l10n?.registrarse ?? 'Registro');
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -256,15 +260,17 @@ class _RegistroPageState extends State<RegistroScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  _esEdicion ? "Actualiza tus datos" : "Bienvenido a DataLoto",
+                  _esEdicion 
+                      ? (l10n?.editarPerfil ?? "Actualiza tus datos") 
+                      : (l10n?.bienvenido ?? "Bienvenido a DataLoto"),
                   style: AppTextStyles.h2,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   _esEdicion
-                      ? "Modifica tu información"
-                      : "Registro de usuario",
+                      ? (l10n?.guardarCambios ?? "Modifica tu información")
+                      : (l10n?.registrarse ?? "Registro de usuario"),
                   style: AppTextStyles.mensajeSecundario,
                   textAlign: TextAlign.center,
                 ),
@@ -275,11 +281,10 @@ class _RegistroPageState extends State<RegistroScreen> {
                   key: _formKey,
                   child: Column(
                     children: [
-                      // 👤 Usuario: editable en ambos modos
                       // 👤 Usuario → editable siempre
                       CustomTextFormField(
                         controller: _nameController,
-                        labelText: "Usuario",
+                        labelText: l10n?.nombre ?? "Usuario",
                         readOnly: false, // ✅ siempre editable
                         validator: (v) => v != null && v.isNotEmpty
                             ? null
@@ -290,7 +295,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                       // 📧 Correo electrónico → editable solo en registro
                       CustomTextFormField(
                         controller: _emailController,
-                        labelText: "Correo electrónico",
+                        labelText: l10n?.email ?? "Correo electrónico",
                         readOnly: _esEdicion, // ✅ bloqueado en edición
                         validator: (v) => v != null && v.contains("@")
                             ? null
@@ -302,7 +307,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                       if (!_esEdicion) ...[
                         CustomTextFormField(
                           controller: _passwordController,
-                          labelText: "Contraseña",
+                          labelText: l10n?.contrasena ?? "Contraseña",
                           obscureText: _obscurePassword,
                           validator: (v) => v != null && v.length >= 6
                               ? null
@@ -321,7 +326,6 @@ class _RegistroPageState extends State<RegistroScreen> {
                             },
                           ),
                         ),
-                        //const SizedBox(height: 16),
                       ],
 
                       if (!_esEdicion) const SizedBox(height: 16),
@@ -339,7 +343,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                           : DropdownButtonFormField<int>(
                               dropdownColor: AppColors.blackfondo,
                               decoration: InputDecoration(
-                                labelText: "País",
+                                labelText: l10n?.pais ?? "País",
                                 labelStyle: AppTextStyles.mensajeSecundario,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),

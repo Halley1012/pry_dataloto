@@ -29,7 +29,7 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
 
               Text(
-                "Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.",
+                l10n?.descripcionBienvenida ?? "Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.",
                 textAlign: TextAlign.center,
                 style: AppTextStyles.mensajeSecundario,
               ),
