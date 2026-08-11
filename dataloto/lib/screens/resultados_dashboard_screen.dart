@@ -25,6 +25,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
+  List<int> _top20List = [];
   List<int> _winningNums = [];
   int? _winningRed;
   bool _hasRevanchaData = false;
@@ -53,18 +54,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _getRouteForLoteria(String name) {
-    final lower = name.toLowerCase();
-    if (lower.contains("baloto")) return "bloto";
-    if (lower.contains("miloto") || lower.contains("mloto")) return "mloto";
-    if (lower.contains("powerball")) return "powerball";
-    if (lower.contains("megamillions") || lower.contains("mega millions")) return "megamillions";
-    if (lower.contains("lotto america") || lower.contains("lotto_america")) return "lotto_america";
-    if (lower.contains("double play") || lower.contains("double_play")) return "double_play";
-    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return "millionaire_life";
-    return "bloto";
+    final clean = name.trim().toLowerCase();
+    if (clean == "baloto" || clean.contains("revancha")) return "bloto";
+    if (clean == "miloto") return "mloto";
+    // Generación dinámica de ruta para cualquier lotería nueva:
+    return clean.replaceAll(RegExp(r'[^a-z0-9_]'), '_').replaceAll(RegExp(r'_+'), '_');
   }
 
-  int _getTopLimitForLoteria(String name) {
+  int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
     final lower = name.toLowerCase();
     if (lower.contains("powerball")) return 34;
     if (lower.contains("megamillions") || lower.contains("mega millions")) return 35;
@@ -73,24 +70,23 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     if (lower.contains("millionaire") || lower.contains("millionaire_life")) return 29;
     if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto")) return 10;
-    return 21; // Baloto / Revancha (index < 21 en baloto.dart)
+    if (lower.contains("baloto")) return 21;
+    
+    // Para cualquier lotería futura agregada sin configuración previa:
+    if (totalPoolSize != null && totalPoolSize > 0) {
+      return (totalPoolSize / 2).round();
+    }
+    return 20;
   }
 
   Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName) async {
     try {
-      final lower = loteriaName.toLowerCase();
-      if (lower.contains("baloto")) {
-        final raw = await ApiService.listarJugadasBloto();
-        return List<Map<String, dynamic>>.from(raw);
-      } else if (lower.contains("miloto") || lower.contains("mloto")) {
-        final raw = await ApiService.listarJugadasMloto();
-        return List<Map<String, dynamic>>.from(raw);
-      } else {
-        final raw = await ApiService.listarJugadasGenerica(loteriaName);
-        return List<Map<String, dynamic>>.from(raw);
-      }
+      final route = _getRouteForLoteria(loteriaName);
+      // Petición 100% genérica para cualquier lotería actual o futura
+      final raw = await ApiService.listarJugadasGenerica(route);
+      return List<Map<String, dynamic>>.from(raw);
     } catch (e) {
-      debugPrint("⚠️ Error obteniendo jugadas del usuario: $e");
+      debugPrint("⚠️ Error obteniendo jugadas del usuario para $loteriaName: $e");
       return [];
     }
   }
@@ -202,6 +198,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final limit = _getTopLimitForLoteria(_selectedLoteria);
       top20 = allNums.take(limit).toList();
     }
+    _top20List = top20;
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
     final bool tieneBalotaExtra = !_selectedLoteria.toLowerCase().contains("miloto") &&
@@ -1383,41 +1380,32 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             final rawDate = item["fecha"]?.toString() ?? "";
             final dateDisplay = _formatearFecha(rawDate);
 
-            List<int> nums = [];
-            if (item["numeros"] != null) {
-              nums = item["numeros"].toString().split(RegExp(r'[,\-\s]+')).map((e) => int.tryParse(e) ?? 0).where((n) => n > 0).toList();
-            } else if (item["n1"] != null) {
-              nums = [
-                int.tryParse(item["n1"].toString()) ?? 0,
-                int.tryParse(item["n2"].toString()) ?? 0,
-                int.tryParse(item["n3"].toString()) ?? 0,
-                int.tryParse(item["n4"].toString()) ?? 0,
-                int.tryParse(item["n5"].toString()) ?? 0,
-              ].where((n) => n > 0).toList();
-            }
-            if (nums.isEmpty) nums = [4, 18, 34, 9, 41];
-
+            List<int> nums = _extraerNumerosDeMap(item);
             int? red = int.tryParse(item["superbalota"]?.toString() ?? item["balota"]?.toString() ?? item["red"]?.toString() ?? "");
             if (red == null && nums.length > 5) {
               red = nums.removeLast();
             }
 
+            final main5 = nums.length > 5 ? nums.sublist(0, 5) : nums;
+            final hits = main5.where((n) => _top20List.contains(n)).length;
+            final covPercent = main5.isNotEmpty ? ((hits / main5.length) * 100).round() : 0;
+
             return {
               "fecha": dateDisplay,
               "nums": nums,
               "red": red,
-              "cobertura": "80%",
-              "aciertos": "4 / ${nums.length}",
-              "color": Colors.greenAccent,
+              "cobertura": "$covPercent%",
+              "aciertos": "$hits / ${main5.length}",
+              "color": covPercent >= 60 ? Colors.greenAccent : Colors.amber,
             };
           }).toList()
         : [
             {
-              "fecha": _fechaSorteo,
+              "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : "Reciente",
               "nums": _winningNums,
               "red": _winningRed,
               "cobertura": "${(_coberturaPorcentaje * 100).round()}%",
-              "aciertos": "${(_coberturaPorcentaje * _winningNums.length).round()} / ${_winningNums.length}",
+              "aciertos": "$_topHitsCount / ${_winningNums.length > 5 ? 5 : _winningNums.length}",
               "color": Colors.greenAccent,
             },
           ];
