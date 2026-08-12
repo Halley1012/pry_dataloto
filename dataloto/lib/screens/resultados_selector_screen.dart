@@ -165,22 +165,35 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         child: RefreshIndicator(
           color: AppColors.yellow,
           onRefresh: _cargarLoterias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-                child: Text(
-                  l10n?.analisisYResultados ?? "Análisis y Resultados",
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                  child: Text(
+                    l10n?.analisisYResultados ?? "Análisis y Resultados",
+                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-              _buildSearchBar(l10n),
-              Expanded(
-                child: _isLoading && _loterias.isEmpty
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                  : _buildLotteryList(l10n),
+              SliverToBoxAdapter(
+                child: _buildSearchBar(l10n),
               ),
+              if (_isLoading && _loterias.isEmpty)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.yellow),
+                  ),
+                )
+              else if (_filteredLoterias.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(l10n),
+                )
+              else
+                _buildSliverLotteryList(l10n),
             ],
           ),
         ),
@@ -212,46 +225,46 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
-  Widget _buildLotteryList(AppLocalizations? l10n) {
-    if (_filteredLoterias.isEmpty) {
-      final langCode = Localizations.localeOf(context).languageCode;
-      final String emptyTitle = langCode == 'en'
-          ? "No results analysis yet"
-          : langCode == 'pt'
-              ? "Nenhum resultado analisado ainda"
-              : "Aún no tienes análisis de resultados";
+  Widget _buildEmptyState(AppLocalizations? l10n) {
+    final langCode = Localizations.localeOf(context).languageCode;
+    final String emptyTitle = langCode == 'en'
+        ? "No results analysis yet"
+        : langCode == 'pt'
+            ? "Nenhum resultado analisado ainda"
+            : "Aún no tienes análisis de resultados";
 
-      final String emptySub = langCode == 'en'
-          ? "Save your favorite numbers from the Explore section to track predictions and results."
-          : langCode == 'pt'
-              ? "Salve seus números favoritos na seção Explorar para acompanhar previsões e resultados."
-              : "Empieza a guardar tus números favoritos desde la sección Explorar para ver tus análisis y resultados.";
+    final String emptySub = langCode == 'en'
+        ? "Save your favorite numbers from the Explore section to track predictions and results."
+        : langCode == 'pt'
+            ? "Salve seus números favoritos na seção Explorar para acompanhar previsões e resultados."
+            : "Empieza a guardar tus números favoritos desde la sección Explorar para ver tus análisis y resultados.";
 
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.analytics_outlined, color: Colors.white24, size: 80),
-              const SizedBox(height: 20),
-              Text(
-                emptyTitle,
-                style: AppTextStyles.h2.copyWith(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                emptySub,
-                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.analytics_outlined, color: Colors.white24, size: 80),
+            const SizedBox(height: 20),
+            Text(
+              emptyTitle,
+              style: AppTextStyles.h2.copyWith(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              emptySub,
+              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _buildSliverLotteryList(AppLocalizations? l10n) {
     final grouped = <String, List<Map<String, dynamic>>>{};
     final langCode = Localizations.localeOf(context).languageCode;
 
@@ -267,34 +280,39 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         return a.compareTo(b);
       });
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 20),
-      itemCount: sortedCountries.length,
-      itemBuilder: (context, i) {
-        final country = sortedCountries[i];
-        final lots = grouped[country]!;
-        final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
+    final List<Widget> sliverItems = [];
+    for (var country in sortedCountries) {
+      final lots = grouped[country]!;
+      final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Row(
-                children: [
-                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 8),
-                  Text(
-                    countryDisplay,
-                    style: AppTextStyles.h2.copyWith(color: AppColors.white),
-                  ),
-                ],
+      sliverItems.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+          child: Row(
+            children: [
+              Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 8),
+              Text(
+                countryDisplay,
+                style: AppTextStyles.h2.copyWith(color: AppColors.white),
               ),
-            ),
-            ...lots.map((loteria) => _buildLotteryItem(loteria)),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      );
+
+      for (var loteria in lots) {
+        sliverItems.add(_buildLotteryItem(loteria));
+      }
+    }
+
+    sliverItems.add(const SizedBox(height: 20));
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => sliverItems[index],
+        childCount: sliverItems.length,
+      ),
     );
   }
 

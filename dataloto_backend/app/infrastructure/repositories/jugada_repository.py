@@ -90,27 +90,45 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         return activas
 
 
-    def get_prediccion_reciente_mloto(self) -> Optional[Tuple[datetime, List[int]]]:
+    def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT fecha, numeros
-                    FROM predicciones_mloto
-                    ORDER BY fecha DESC
-                    LIMIT 1;
-                """)
+                if fecha:
+                    cur.execute(f"""
+                        SELECT fecha, numeros
+                        FROM predicciones_mloto
+                        WHERE fecha <= %s
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """, (fecha,))
+                else:
+                    cur.execute(f"""
+                        SELECT fecha, numeros
+                        FROM predicciones_mloto
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """)
                 row = cur.fetchone()
                 return row if row else None
     
-    def get_prediccion_reciente_bloto(self) -> Optional[Tuple[datetime, List[int], List[int]]]:
+    def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT fecha, numeros, balotaroja
-                    FROM predicciones_bloto
-                    ORDER BY fecha DESC
-                    LIMIT 1;
-                """)
+                if fecha:
+                    cur.execute(f"""
+                        SELECT fecha, numeros, balotaroja
+                        FROM predicciones_bloto
+                        WHERE fecha <= %s
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """, (fecha,))
+                else:
+                    cur.execute(f"""
+                        SELECT fecha, numeros, balotaroja
+                        FROM predicciones_bloto
+                        ORDER BY fecha DESC
+                        LIMIT 1;
+                    """)
                 row = cur.fetchone()
                 return row if row else None
 
