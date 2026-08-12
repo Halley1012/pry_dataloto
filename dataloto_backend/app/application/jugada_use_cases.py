@@ -76,20 +76,20 @@ class JugadaUseCases:
     def obtener_prediccion_colorloto(self, tipo: str) -> Dict[str, Any]:
         return null
     
-    def obtener_prediccion_bloto(self) -> Dict[str, Any]:
-        row = self.jugada_repo.get_prediccion_reciente_bloto()
+    def obtener_prediccion_bloto(self, fecha: Optional[str] = None) -> Dict[str, Any]:
+        row = self.jugada_repo.get_prediccion_reciente_bloto(fecha)
         if not row:
             return {"error": "No hay predicciones registradas"}
-        fecha, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        return {"fecha": _format_fecha(fecha), "numeros": numeros, "balotaroja": balotaroja}
+        fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
+        return {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
     
-    def obtener_prediccion_mloto(self) -> Dict[str, Any]:
-        row = self.jugada_repo.get_prediccion_reciente_mloto()
+    def obtener_prediccion_mloto(self, fecha: Optional[str] = None) -> Dict[str, Any]:
+        row = self.jugada_repo.get_prediccion_reciente_mloto(fecha)
         if not row:
             return {"error": "No hay predicciones registradas"}
             
-        fecha, numeros = row[0], _normalize_numeros(row[1])
-        return {"fecha": _format_fecha(fecha), "numeros": numeros}
+        fecha_res, numeros = row[0], _normalize_numeros(row[1])
+        return {"fecha": _format_fecha(fecha_res), "numeros": numeros}
        
 
     def obtener_ultimos5_mloto(self) -> Dict[str, Any]:

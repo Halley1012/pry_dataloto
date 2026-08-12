@@ -1,11 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math' as math;
-import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/services/cache_service.dart';
+import 'resultados/widgets/ultimo_sorteo_card.dart';
+import 'resultados/widgets/cobertura_gauge_card.dart';
+import 'resultados/widgets/insight_ia_card.dart';
+import 'resultados/widgets/mis_jugadas_card.dart';
+import 'resultados/widgets/estadisticas_cards.dart';
+import 'resultados/widgets/resultados_tab_selector.dart';
+import 'resultados/widgets/ultimos_sorteos_table.dart';
+import 'resultados/widgets/header_card.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -45,6 +52,23 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<Map<String, dynamic>> _misJugadas = [];
   List<int> _distribucionAciertos = [0, 0, 0, 0, 0, 0];
   String _insightIAText = "";
+  int _selectedResultadosTab = 0; // 0 = Sorteo Principal, 1 = Sorteo Secundario
+
+  String get _nombreSorteoPrincipal {
+    final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
+    if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0];
+    }
+    return _selectedLoteria;
+  }
+
+  String get _nombreSorteoSecundario {
+    final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
+    if (parts.length > 1 && parts[1].isNotEmpty) {
+      return parts[1];
+    }
+    return "Revancha";
+  }
 
   @override
   void initState() {
@@ -163,7 +187,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         if (resPrediccion.statusCode == 200) {
           final body = jsonDecode(resPrediccion.body);
           final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
-          if (rawNums is List) {
+          
+          // Verificar si el backend nos devolvió la predicción del sorteo que pedimos
+          final String resFecha = _normalizarFechaISO(body["fecha"]?.toString() ?? "");
+          if (resFecha.isNotEmpty && targetDrawDate.isNotEmpty && resFecha != targetDrawDate) {
+            // El API ignoró la fecha y devolvió la predicción de un sorteo futuro.
+            // No tenemos la predicción histórica para este sorteo.
+            top20 = [];
+          } else if (rawNums is List) {
             final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
             final limit = _getTopLimitForLoteria(_selectedLoteria);
             top20 = allNums.take(limit).toList();
@@ -396,23 +427,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     // 7. Insight IA dinámico con lista de números acertados (Baloto y Revancha)
     if (_winningNums.isNotEmpty) {
-      final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
-      final balotoHits = mainBaloto.where((n) => top20.contains(n)).toList();
-
-      if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
-        final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
-        final revanchaHits = mainRevancha.where((n) => top20.contains(n)).toList();
-
-        final String bText = balotoHits.isNotEmpty ? "${balotoHits.length} en Baloto (${balotoHits.join(', ')})" : "0 en Baloto";
-        final String rText = revanchaHits.isNotEmpty ? "${revanchaHits.length} en Revancha (${revanchaHits.join(', ')})" : "0 en Revancha";
-
-        _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron $bText y $rText.";
+      if (top20.isEmpty) {
+         _insightIAText = "Las predicciones de la IA para este sorteo pasado no están disponibles en el historial.";
       } else {
-        if (balotoHits.isNotEmpty) {
-          final numsStr = balotoHits.join(', ');
-          _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron ${balotoHits.length} números ($numsStr).";
+        final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
+        final balotoHits = mainBaloto.where((n) => top20.contains(n)).toList();
+
+        if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
+          final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
+          final revanchaHits = mainRevancha.where((n) => top20.contains(n)).toList();
+
+          final String bText = balotoHits.isNotEmpty ? "${balotoHits.length} en Baloto (${balotoHits.join(', ')})" : "0 en Baloto";
+          final String rText = revanchaHits.isNotEmpty ? "${revanchaHits.length} en Revancha (${revanchaHits.join(', ')})" : "0 en Revancha";
+
+          _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron $bText y $rText.";
         } else {
-          _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, no hubo coincidencias en este sorteo.";
+          if (balotoHits.isNotEmpty) {
+            final numsStr = balotoHits.join(', ');
+            _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron ${balotoHits.length} números ($numsStr).";
+          } else {
+            _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, no hubo coincidencias en este sorteo.";
+          }
         }
       }
     }
@@ -493,890 +528,25 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Widget build(BuildContext context) {
     final canPop = Navigator.canPop(context);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF0D0E12),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8.0),
-                  child: LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: Colors.amber,
-                    minHeight: 2,
-                  ),
-                ),
-              // 0. Encabezado Estilizado (Avatar 3D + Lotería + Próximo Sorteo + Jackpot Estimado)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 16.0, top: 4.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Izquierda: Botón Atrás + Avatar 3D + Nombre Lotería + Próximo Sorteo
-                    Expanded(
-                      child: Row(
-                        children: [
-                         if (canPop) const SizedBox(width: 8),
-                          LotteryAvatar3D(nombre: _selectedLoteria, size: 44),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _selectedLoteria,
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  "Sorteo: $_fechaSorteo",
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 11,
-                                    color: Colors.white54,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+    // Preparar listToRender para la tabla
+    List<Map<String, dynamic>> rawSource = _ultimosSorteos;
 
-                    // Derecha: Card de Jackpot Estimado
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF191B22),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Jackpot estimado",
-                            style: GoogleFonts.montserrat(
-                              fontSize: 10,
-                              color: Colors.white54,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            _jackpot,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 1. Fila Superior: Números Ganadores + Cobertura del Resultado
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth > 600) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 3, child: _buildNumerosGanadoresCard()),
-                        const SizedBox(width: 12),
-                        Expanded(flex: 2, child: _buildCoberturaResultadoCard()),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        _buildNumerosGanadoresCard(),
-                        const SizedBox(height: 12),
-                        _buildCoberturaResultadoCard(),
-                      ],
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // 2. Insights IA (Ubicado justo debajo de Cobertura del resultado)
-              _buildInsightsIACard(),
-              const SizedBox(height: 14),
-
-              // 3. Comparación Mis Jugadas vs Resultado
-              _buildComparacionMisJugadasVsResultadoCard(),
-              const SizedBox(height: 14),
-
-              // 4. Gráficas: Distribución de Aciertos + Historial Cobertura + Racha Actual
-              _buildGraficasSection(context),
-              const SizedBox(height: 16),
-
-              // 5. Tabla de Últimos Sorteos
-              _buildUltimosSorteosTable(),
-              const SizedBox(height: 30),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // --- CARD 1: NUMEROS GANADORES ---
-  Widget _buildNumerosGanadoresCard() {
-    final bool tieneBalotaExtra = !_selectedLoteria.toLowerCase().contains("miloto") &&
-        !_selectedLoteria.toLowerCase().contains("colorloto");
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                "Resultados - $_selectedLoteria",
-                style: GoogleFonts.montserrat(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            "Sorteo: $_fechaSorteo",
-            style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white54),
-          ),
-          const SizedBox(height: 14),
-
-          // Fila Baloto Principal
-          Text(
-            _hasRevanchaData ? "Baloto" : "Números ganadores",
-            style: GoogleFonts.montserrat(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.amber,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ..._winningNums.take(5).map((nVal) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: _build3DBall(nVal, baseColor: const Color(0xFF1E3A8A)),
-                )),
-                if (tieneBalotaExtra && _winningRed != null) ...[
-                  const SizedBox(width: 10),
-                  _build3DBall(_winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
-                ],
-              ],
-            ),
-          ),
-
-          // Fila Revancha (si existe)
-          if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Text(
-              "Revancha",
-              style: GoogleFonts.montserrat(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.purpleAccent,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ..._winningNumsRevancha.take(5).map((nVal) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: _build3DBall(nVal, baseColor: const Color(0xFF4C1D95)),
-                  )),
-                  if (tieneBalotaExtra && _winningRedRevancha != null) ...[
-                    const SizedBox(width: 10),
-                    _build3DBall(_winningRedRevancha!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // --- CARD 2: COBERTURA DEL RESULTADO GAUGE ---
-  Widget _buildCoberturaResultadoCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Cobertura del resultado",
-                style: GoogleFonts.montserrat(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white70,
-                ),
-              ),
-              const Icon(Icons.info_outline, color: Colors.white38, size: 16),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          if (_hasRevanchaData) ...[
-            // MODO DUAL: BALOTO + REVANCHA
-            Row(
-              children: [
-                Expanded(
-                  child: _buildSingleGauge(
-                    "Baloto",
-                    _coberturaPorcentaje,
-                    _topHitsCount,
-                    Colors.amber,
-                  ),
-                ),
-                Container(
-                  width: 1,
-                  height: 110,
-                  color: Colors.white12,
-                ),
-                Expanded(
-                  child: _buildSingleGauge(
-                    "Revancha",
-                    _coberturaPorcentajeRevancha,
-                    _topHitsCountRevancha,
-                    Colors.purpleAccent,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              "Números en el Top $_probablesCount de la IA",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
-            ),
-          ] else ...[
-            // MODO INDIVIDUAL NORMAL
-            TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0.0, end: _coberturaPorcentaje),
-              duration: const Duration(milliseconds: 1800),
-              curve: Curves.easeOutCubic,
-              builder: (context, val, child) {
-                final int percentInt = (val * 100).round();
-                return SizedBox(
-                  width: 130,
-                  height: 130,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CustomPaint(
-                        size: const Size(130, 130),
-                        painter: _CircularGaugePainter(percentage: val),
-                      ),
-                      Text(
-                        "$percentInt%",
-                        style: GoogleFonts.montserrat(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 12),
-            Text(
-              "$_topHitsCount de $_totalWinningCount números ganadores están en los $_probablesCount más probables",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white70),
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.amber.withOpacity(0.4)),
-              ),
-              child: Text(
-                _coberturaPorcentaje >= 0.6 ? "¡Excelente resultado! 🎯" : "Buen desempeño 📊",
-                style: GoogleFonts.montserrat(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.amber,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSingleGauge(String label, double val, int hits, Color color) {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.4), width: 1),
-          ),
-          child: Text(
-            label,
-            style: GoogleFonts.montserrat(
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(begin: 0.0, end: val),
-          duration: const Duration(milliseconds: 1800),
-          curve: Curves.easeOutCubic,
-          builder: (context, v, child) {
-            final int percentInt = (v * 100).round();
-            return SizedBox(
-              width: 100,
-              height: 100,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CustomPaint(
-                    size: const Size(100, 100),
-                    painter: _CircularGaugePainter(percentage: v, activeColor: color),
-                  ),
-                  Text(
-                    "$percentInt%",
-                    style: GoogleFonts.montserrat(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 6),
-        Text(
-          "$hits de 5 aciertos",
-          textAlign: TextAlign.center,
-          style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
-        ),
-      ],
-    );
-  }
-
-  // --- CARD 3: COMPARACIÓN MIS JUGADAS VS RESULTADO ---
-  Widget _buildComparacionMisJugadasVsResultadoCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header sin overflow
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Comparación Mis Jugadas vs Resultado",
-                style: GoogleFonts.montserrat(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _selectedLoteria,
-                    style: GoogleFonts.montserrat(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600),
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      _buildDotLegend(Colors.greenAccent, "Aciertos"),
-                      _buildDotLegend(Colors.redAccent, "Balota"),
-                      _buildDotLegend(Colors.white38, "Sin acierto"),
-                    ],
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            "Tus jugadas guardadas vs Números ganadores del sorteo",
-            style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
-          ),
-          const SizedBox(height: 12),
-
-          // Lista de Jugadas del usuario con resaltado de coincidencias
-          if (_misJugadas.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16.0),
-              child: Center(
-                child: Text(
-                  "Aún no tienes jugadas guardadas para esta lotería.",
-                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white38, fontStyle: FontStyle.italic),
-                ),
-              ),
-            )
-          else
-            Column(
-              children: _misJugadas.map((jugada) {
-                final nums = jugada["nums"] as List<int>;
-                final red = jugada["red"] as int?;
-                final titulo = jugada["titulo"].toString();
-
-                int hitsCount = nums.where((n) => _winningNums.contains(n)).length;
-                bool redHit = (red != null && red == _winningRed);
-
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1B1E27),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: (hitsCount >= 3) ? Colors.amber.withValues(alpha: 0.4) : Colors.white10,
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      // Título Jugada
-                      SizedBox(
-                        width: 85,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              titulo,
-                              style: GoogleFonts.montserrat(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.amber,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              "$hitsCount acierto(s)",
-                              style: GoogleFonts.montserrat(
-                                fontSize: 10,
-                                color: hitsCount > 0 ? Colors.greenAccent : Colors.white38,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-
-                      // Esferas de la jugada
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          child: Row(
-                            children: [
-                              ...nums.map((n) {
-                                final isHit = _winningNums.contains(n);
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                                  child: _buildPlayBall(n, isHit: isHit),
-                                );
-                              }),
-                              if (red != null) ...[
-                                const SizedBox(width: 6),
-                                _buildPlayBall(red, isHit: redHit, isRed: true),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayBall(int num, {required bool isHit, bool isRed = false}) {
-    final Color bg = isRed
-        ? (isHit ? const Color(0xFFDC2626) : const Color(0xFF450A0A))
-        : (isHit ? const Color(0xFF15803D) : const Color(0xFF262933));
-
-    final Color borderColor = isRed
-        ? (isHit ? Colors.redAccent : Colors.red.withValues(alpha: 0.3))
-        : (isHit ? Colors.greenAccent : Colors.white24);
-
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: bg,
-        border: Border.all(color: borderColor, width: isHit ? 1.5 : 1),
-      ),
-      child: Center(
-        child: Text(
-          "$num",
-          style: GoogleFonts.montserrat(
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            color: isHit ? Colors.white : Colors.white60,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDotLegend(Color color, String text) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(text, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white60)),
-      ],
-    );
-  }
-
-  // --- SECCIÓN DE GRÁFICAS Y RACHA ---
-  Widget _buildGraficasSection(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final bool isMobile = constraints.maxWidth <= 750;
-
-        if (isMobile) {
-          return Column(
-            children: [
-              _buildDistribucionAciertosCard(),
-              const SizedBox(height: 14),
-              _buildHistorialCoberturaCard(),
-              const SizedBox(height: 14),
-              _buildRachaActualCard(),
-            ],
-          );
-        } else {
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(flex: 5, child: _buildDistribucionAciertosCard()),
-              const SizedBox(width: 10),
-              Expanded(flex: 5, child: _buildHistorialCoberturaCard()),
-              const SizedBox(width: 10),
-              Expanded(flex: 4, child: _buildRachaActualCard()),
-            ],
-          );
+    if (_hasRevanchaData) {
+      if (_selectedResultadosTab == 1) {
+        final revMatches = _ultimosSorteos.where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("revancha")).toList();
+        if (revMatches.isNotEmpty) {
+          rawSource = revMatches;
         }
-      },
-    );
-  }
+      } else {
+        final balMatches = _ultimosSorteos.where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("baloto") || (s["sorteo"]?.toString() ?? "").trim().isEmpty).toList();
+        if (balMatches.isNotEmpty) {
+          rawSource = balMatches;
+        }
+      }
+    }
 
-  Widget _buildDistribucionAciertosCard() {
-    final int totalJugadas = _misJugadas.length;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Distribución de aciertos",
-            style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          Text("(Tus jugadas guardadas)", style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54)),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: CustomPaint(
-                  painter: _DonutChartPainter(values: [
-                    _distribucionAciertos[0],
-                    _distribucionAciertos[1] + _distribucionAciertos[2],
-                    _distribucionAciertos[3] + _distribucionAciertos[4],
-                    _distribucionAciertos[5],
-                  ]),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("$totalJugadas", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                        Text(totalJugadas == 1 ? "jugada" : "jugadas", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white54)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDonutLegendItem(Colors.grey, "0 aciertos", "${_distribucionAciertos[0]}"),
-                    _buildDonutLegendItem(Colors.blueAccent, "1 - 2 aciertos", "${_distribucionAciertos[1] + _distribucionAciertos[2]}"),
-                    _buildDonutLegendItem(Colors.amber, "3 - 4 aciertos", "${_distribucionAciertos[3] + _distribucionAciertos[4]}"),
-                    _buildDonutLegendItem(Colors.greenAccent, "5 aciertos", "${_distribucionAciertos[5]}"),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.04),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.star_border, color: Colors.amber, size: 16),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    totalJugadas > 0
-                        ? "Distribución calculada a partir de tus $totalJugadas jugada(s)."
-                        : "Agrega jugadas para visualizar la distribución de aciertos.",
-                    style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildHistorialCoberturaCard() {
-    final double avg = _historialCoberturasList.isNotEmpty
-        ? _historialCoberturasList.reduce((a, b) => a + b) / _historialCoberturasList.length
-        : 0.8;
-    final double maxCov = _historialCoberturasList.isNotEmpty
-        ? _historialCoberturasList.reduce(math.max)
-        : 0.8;
-    final double minCov = _historialCoberturasList.isNotEmpty
-        ? _historialCoberturasList.reduce(math.min)
-        : 0.4;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Historial de cobertura",
-            style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          Text("(últimos ${_historialCoberturasList.length} sorteos)", style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54)),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 120,
-            child: CustomPaint(
-              size: const Size(double.infinity, 120),
-              painter: _LineChartPainter(coverages: _historialCoberturasList),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildMiniMetric("Promedio general", "${(avg * 100).round()}%"),
-              _buildMiniMetric("Mejor cobertura", "${(maxCov * 100).round()}%"),
-              _buildMiniMetric("Peor cobertura", "${(minCov * 100).round()}%"),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRachaActualCard() {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            "Racha actual",
-            style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 8),
-          const Text("🔥", style: TextStyle(fontSize: 32)),
-          Text(
-            "$_rachaActualCount",
-            style: GoogleFonts.montserrat(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
-          ),
-          Text(
-            "jugada(s) consecutiva(s) con aciertos",
-            textAlign: TextAlign.center,
-            style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white60),
-          ),
-          const SizedBox(height: 12),
-          Text("Mejor racha", style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white38)),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text("$_mejorRachaCount ", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
-              Text(
-                _mejorRachaCount == 1 ? "jugada" : "jugadas",
-                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDonutLegendItem(Color color, String label, String val) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1.5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-              const SizedBox(width: 4),
-              Text(label, style: GoogleFonts.montserrat(fontSize: 9, color: Colors.white70)),
-            ],
-          ),
-          Text(val, style: GoogleFonts.montserrat(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.white)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMiniMetric(String label, String val, {String? sub}) {
-    return Column(
-      children: [
-        Text(label, style: GoogleFonts.montserrat(fontSize: 8, color: Colors.white38)),
-        Text(val, style: GoogleFonts.montserrat(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
-        if (sub != null) Text(sub, style: GoogleFonts.montserrat(fontSize: 7, color: Colors.white38)),
-      ],
-    );
-  }
-
-  // --- CARD 4: INSIGHTS IA ---
-  Widget _buildInsightsIACard() {
-    final text = _insightIAText.isNotEmpty
-        ? _insightIAText
-        : "De los 20 números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron ${(_coberturaPorcentaje * _winningNums.length).round()} números.";
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFF141A1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: const BoxDecoration(
-              color: Color(0xFF064E3B),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.show_chart, color: Colors.greenAccent, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Text("💡", style: TextStyle(fontSize: 14)),
-                    const SizedBox(width: 4),
-                    Text(
-                      "Insights IA",
-                      style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  text,
-                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white.withValues(alpha: 0.9), height: 1.3),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(_fechaSorteo, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)),
-                    Container(width: 8, height: 8, decoration: const BoxDecoration(color: Colors.amber, shape: BoxShape.circle)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- CARD 5: ULTIMOS SORTEOS TABLE ---
-  Widget _buildUltimosSorteosTable() {
-    final List<Map<String, dynamic>> listToRender = _ultimosSorteos.isNotEmpty
-        ? _ultimosSorteos.take(5).map((item) {
+    final List<Map<String, dynamic>> listToRender = rawSource.isNotEmpty
+        ? rawSource.take(5).map((item) {
             final rawDate = item["fecha"]?.toString() ?? "";
             final dateDisplay = _formatearFecha(rawDate);
 
@@ -1402,360 +572,153 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         : [
             {
               "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : "Reciente",
-              "nums": _winningNums,
-              "red": _winningRed,
-              "cobertura": "${(_coberturaPorcentaje * 100).round()}%",
-              "aciertos": "$_topHitsCount / ${_winningNums.length > 5 ? 5 : _winningNums.length}",
+              "nums": _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
+              "red": _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
+              "cobertura": _selectedResultadosTab == 1 ? "${(_coberturaPorcentajeRevancha * 100).round()}%" : "${(_coberturaPorcentaje * 100).round()}%",
+              "aciertos": _selectedResultadosTab == 1 ? "$_topHitsCountRevancha / 5" : "$_topHitsCount / ${_winningNums.length > 5 ? 5 : _winningNums.length}",
               "color": Colors.greenAccent,
             },
           ];
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardBoxDecoration(),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Últimos sorteos",
-            style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          const SizedBox(height: 12),
+    final String subTitulo = _hasRevanchaData
+        ? (_selectedResultadosTab == 1 ? "Últimos 5 resultados $_nombreSorteoSecundario" : "Últimos 5 resultados $_nombreSorteoPrincipal")
+        : "Últimos sorteos";
 
-          // Header Tabla
-          Row(
+    return Scaffold(
+      backgroundColor: const Color(0xFF0D0E12),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: Colors.amber,
+          onRefresh: _cargarDatosReales,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 3, child: Text("Fecha", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
-              Expanded(flex: 7, child: Center(child: Text("Números ganadores", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Center(child: Text("Cobertura IA", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Align(alignment: Alignment.centerRight, child: Text("Aciertos", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-            ],
-          ),
-          const Divider(color: Colors.white12, height: 16),
-
-          // Filas Tabla
-          Column(
-            children: listToRender.map((item) {
-              final nums = item["nums"] as List<int>;
-              final red = item["red"] as int?;
-              final Color coverageColor = item["color"] as Color;
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Text(
-                        item["fecha"].toString(),
-                        style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 7,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ...nums.map((n) => Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                  child: _buildMiniBall(n, baseColor: coverageColor),
-                                )),
-                            if (red != null)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                child: _buildMiniBall(red, baseColor: const Color(0xFFB91C1C)),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Center(
-                        child: Text(
-                          item["cobertura"].toString(),
-                          style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.bold, color: coverageColor),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 3,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Text(
-                            item["aciertos"].toString(),
-                            style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
-                          const SizedBox(width: 2),
-                          const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 10),
-                        ],
-                      ),
-                    ),
-                  ],
+              if (_isLoading)
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8.0),
+                  child: LinearProgressIndicator(
+                    backgroundColor: Color(0xFF1E2029),
+                    color: Colors.amber,
+                    minHeight: 2,
+                  ),
                 ),
-              );
-            }).toList(),
-          ),
-        ],
-      ),
-    );
-  }
+              // 0. Encabezado Estilizado
+              HeaderCard(
+                selectedLoteria: _selectedLoteria,
+                fechaSorteo: _fechaSorteo,
+                jackpot: _jackpot,
+                canPop: canPop,
+              ),
 
-  // --- HELPERS BOLA 3D ---
-  Widget _build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool isSpecial = false}) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            baseColor.withValues(alpha: 0.95),
-            baseColor.withValues(alpha: 0.75),
-            baseColor.withValues(alpha: 0.4),
-          ],
-          center: Alignment.topLeft,
-          radius: 0.85,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.5),
-            offset: const Offset(3, 4),
-            blurRadius: 6,
-          ),
-        ],
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
-      ),
-      child: Center(
-        child: Text(
-          "$numero",
-          style: GoogleFonts.montserrat(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            shadows: [
-              Shadow(color: Colors.black.withValues(alpha: 0.6), offset: const Offset(1, 1), blurRadius: 2),
+              // 1. Fila Superior: Números Ganadores + Cobertura del Resultado
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final ultimoSorteoWidget = UltimoSorteoCard(
+                    selectedLoteria: _selectedLoteria,
+                    fechaSorteo: _fechaSorteo,
+                    hasRevanchaData: _hasRevanchaData,
+                    nombreSorteoPrincipal: _nombreSorteoPrincipal,
+                    nombreSorteoSecundario: _nombreSorteoSecundario,
+                    winningNums: _winningNums,
+                    winningRed: _winningRed,
+                    winningNumsRevancha: _winningNumsRevancha,
+                    winningRedRevancha: _winningRedRevancha,
+                  );
+
+                  final coberturaWidget = CoberturaGaugeCard(
+                    hasRevanchaData: _hasRevanchaData,
+                    nombreSorteoPrincipal: _nombreSorteoPrincipal,
+                    nombreSorteoSecundario: _nombreSorteoSecundario,
+                    coberturaPorcentaje: _coberturaPorcentaje,
+                    coberturaPorcentajeRevancha: _coberturaPorcentajeRevancha,
+                    topHitsCount: _topHitsCount,
+                    topHitsCountRevancha: _topHitsCountRevancha,
+                    probablesCount: _probablesCount,
+                    totalWinningCount: _totalWinningCount,
+                  );
+
+                  if (constraints.maxWidth > 600) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: ultimoSorteoWidget),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 2, child: coberturaWidget),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        ultimoSorteoWidget,
+                        const SizedBox(height: 12),
+                        coberturaWidget,
+                      ],
+                    );
+                  }
+                },
+              ),
+              const SizedBox(height: 14),
+
+              // 2. Insights IA
+              InsightIaCard(
+                insightIAText: _insightIAText,
+                selectedLoteria: _selectedLoteria,
+                probablesCount: _probablesCount,
+                coberturaPorcentaje: _coberturaPorcentaje,
+                winningNums: _winningNums,
+                fechaSorteo: _fechaSorteo,
+              ),
+              const SizedBox(height: 14),
+
+              // 3. Comparación Mis Jugadas vs Resultado
+              MisJugadasCard(
+                selectedLoteria: _selectedLoteria,
+                misJugadas: _misJugadas,
+                winningNums: _winningNums,
+                winningRed: _winningRed,
+                hasRevanchaData: _hasRevanchaData,
+                winningNumsRevancha: _winningNumsRevancha,
+                winningRedRevancha: _winningRedRevancha,
+                nombreSorteoPrincipal: _nombreSorteoPrincipal,
+                nombreSorteoSecundario: _nombreSorteoSecundario,
+              ),
+              const SizedBox(height: 14),
+
+              // 4. Gráficas
+              EstadisticasCards(
+                misJugadas: _misJugadas,
+                distribucionAciertos: _distribucionAciertos,
+                historialCoberturasList: _historialCoberturasList,
+                rachaActualCount: _rachaActualCount,
+                mejorRachaCount: _mejorRachaCount,
+              ),
+              const SizedBox(height: 16),
+
+              // 5. Tabla de Últimos Sorteos
+              UltimosSorteosTable(
+                subTitulo: subTitulo,
+                listToRender: listToRender,
+                tabSelector: ResultadosTabSelector(
+                  hasRevanchaData: _hasRevanchaData,
+                  selectedResultadosTab: _selectedResultadosTab,
+                  nombreSorteoPrincipal: _nombreSorteoPrincipal,
+                  nombreSorteoSecundario: _nombreSorteoSecundario,
+                  onTabChanged: (val) {
+                    setState(() {
+                      _selectedResultadosTab = val;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 30),
             ],
           ),
         ),
       ),
-    );
+    ),
+  );
   }
-
-  Widget _buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A)}) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: baseColor,
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
-      ),
-      child: Center(
-        child: Text(
-          "$numero",
-          style: GoogleFonts.montserrat(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-      ),
-    );
-  }
-
-  BoxDecoration _cardBoxDecoration() {
-    return BoxDecoration(
-      color: const Color(0xFF14161D),
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.3),
-          blurRadius: 8,
-          offset: const Offset(0, 4),
-        ),
-      ],
-    );
-  }
-}
-
-// --- PAINTER 1: GAUGE CIRCULAR ---
-class _CircularGaugePainter extends CustomPainter {
-  final double percentage;
-  final Color? activeColor;
-
-  _CircularGaugePainter({required this.percentage, this.activeColor});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - 16) / 2;
-
-    // Track de fondo (Gris Oscuro)
-    final bgPaint = Paint()
-      ..color = const Color(0xFF232733)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      math.pi * 0.75,
-      math.pi * 1.5,
-      false,
-      bgPaint,
-    );
-
-    // Track activo
-    final Color colorA = activeColor ?? const Color(0xFFFFD700);
-    final Color colorB = activeColor != null ? activeColor!.withOpacity(0.6) : const Color(0xFFFFA500);
-
-    final fgPaint = Paint()
-      ..shader = LinearGradient(
-        colors: [colorA, colorB],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      math.pi * 0.75,
-      math.pi * 1.5 * percentage,
-      false,
-      fgPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-// --- PAINTER 2: DONUT CHART ---
-class _DonutChartPainter extends CustomPainter {
-  final List<int> values;
-  _DonutChartPainter({required this.values});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    const strokeWidth = 12.0;
-
-    final total = values.fold(0, (a, b) => a + b);
-    if (total == 0) {
-      final bgPaint = Paint()
-        ..color = const Color(0xFF232733)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth;
-      canvas.drawCircle(center, radius - strokeWidth / 2, bgPaint);
-      return;
-    }
-
-    final colors = [
-      const Color(0xFF4B5563),
-      const Color(0xFF2563EB),
-      const Color(0xFFD97706),
-      const Color(0xFF16A34A),
-    ];
-
-    double startAngle = -math.pi / 2;
-    final int activeSlicesCount = values.where((v) => v > 0).length;
-
-    for (int i = 0; i < values.length && i < colors.length; i++) {
-      if (values[i] == 0) continue;
-      final sweepAngle = (values[i] / total) * 2 * math.pi;
-      final paint = Paint()
-        ..color = colors[i]
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth;
-
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: radius - strokeWidth / 2),
-        startAngle,
-        sweepAngle - (activeSlicesCount > 1 ? 0.05 : 0),
-        false,
-        paint,
-      );
-
-      startAngle += sweepAngle;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
-
-// --- PAINTER 3: SPARKLINE / LINE CHART ---
-class _LineChartPainter extends CustomPainter {
-  final List<double> coverages;
-  _LineChartPainter({required this.coverages});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (coverages.isEmpty) return;
-
-    final double stepX = coverages.length > 1 ? size.width / (coverages.length - 1) : size.width;
-    final List<Offset> points = [];
-
-    for (int i = 0; i < coverages.length; i++) {
-      final x = i * stepX;
-      final y = size.height * (1.0 - coverages[i].clamp(0.0, 1.0) * 0.7 - 0.15);
-      points.add(Offset(x, y));
-    }
-
-    // Grid horizontal
-    final gridPaint = Paint()
-      ..color = Colors.white10
-      ..strokeWidth = 0.8;
-
-    for (int i = 1; i < 4; i++) {
-      final y = size.height * (i / 4);
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
-    }
-
-    // Línea conectora
-    final linePaint = Paint()
-      ..color = const Color(0xFFF59E0B)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()..moveTo(points[0].dx, points[0].dy);
-    for (int i = 1; i < points.length; i++) {
-      path.lineTo(points[i].dx, points[i].dy);
-    }
-    canvas.drawPath(path, linePaint);
-
-    // Puntos
-    final dotPaint = Paint()..color = const Color(0xFFF59E0B);
-    for (var pt in points) {
-      canvas.drawCircle(pt, 3, dotPaint);
-    }
-
-    // Tooltip en el último punto
-    final lastPt = points.last;
-    final lastValPercent = "${(coverages.last * 100).round()}%";
-    final tooltipBg = Paint()..color = const Color(0xFFF59E0B);
-    final rect = RRect.fromLTRBR(
-      lastPt.dx - 18,
-      lastPt.dy - 22,
-      lastPt.dx + 18,
-      lastPt.dy - 6,
-      const Radius.circular(4),
-    );
-    canvas.drawRRect(rect, tooltipBg);
-
-    const textStyle = TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold);
-    final textSpan = TextSpan(text: lastValPercent, style: textStyle);
-    final textPainter = TextPainter(
-      text: textSpan,
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(canvas, Offset(lastPt.dx - (textPainter.width / 2), lastPt.dy - 20));
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
