@@ -9,12 +9,12 @@ router = APIRouter()
 
 # --- MLoto endpoints ---
 @router.get("/mloto")
-def get_mloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    cache_key = "mloto:prediccion"
+def get_mloto_prediction(fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = f"mloto:prediccion:{fecha or 'latest'}"
     cached = memory_cache.get(cache_key)
     if cached is not None:
         return cached
-    res = use_cases.obtener_prediccion_mloto()
+    res = use_cases.obtener_prediccion_mloto(fecha)
     if "error" not in res:
         memory_cache.set(cache_key, res, ttl=300)
     return res
@@ -67,12 +67,12 @@ async def get_active_lotteries(user_id: int, use_cases: JugadaUseCases = Depends
 
 # --- Bloto endpoints ---
 @router.get("/bloto")
-def get_bloto_prediction(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    cache_key = "bloto:prediccion"
+def get_bloto_prediction(fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    cache_key = f"bloto:prediccion:{fecha or 'latest'}"
     cached = memory_cache.get(cache_key)
     if cached is not None:
         return cached
-    res = use_cases.obtener_prediccion_bloto()
+    res = use_cases.obtener_prediccion_bloto(fecha)
     if "error" not in res:
         memory_cache.set(cache_key, res, ttl=300)
     return res

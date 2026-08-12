@@ -55,11 +55,11 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_prediccion_reciente_mloto(self) -> Optional[Tuple[datetime, List[int]]]:
+    def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
         pass
 
     @abstractmethod
-    def get_prediccion_reciente_bloto(self) -> Optional[Tuple[datetime, List[int], List[int]]]:
+    def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         pass
 
     @abstractmethod
