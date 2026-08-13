@@ -82,3 +82,9 @@ coverage.xml
 *.dylib
 *.pdb
 *.class
+
+# 🔥 Secrets (FCM / Firebase)
+**/firebase_credentials.json
+**/google-services.json
+modelos_ML/config/firebase_credentials.json
+dataloto/android/app/google-services.json

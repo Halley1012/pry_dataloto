@@ -30,7 +30,8 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
             name=user_update.name,
             email=user_update.email,
             pais_id=user_update.pais_id,
-            departamento_id=user_update.departamento_id
+            departamento_id=user_update.departamento_id,
+            fcm_token=user_update.fcm_token
         )
         return res
     except ValueError as e:
@@ -97,3 +98,14 @@ def forgot_password(request: schemas.ForgotPasswordRequest, use_cases: AuthUseCa
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error enviando correo: {str(e)}")
+
+@router.post("/users/fcm_token")
+async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+    try:
+        res = await use_cases.update_user_profile(
+            user_id=data.user_id,
+            fcm_token=data.fcm_token
+        )
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
