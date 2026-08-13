@@ -17,11 +17,16 @@ class NotificationGenerator:
     def __init__(self):
         self.engine = get_engine()
 
-    def _get_mitad(self, pred_nums):
-        total = len(pred_nums)
-        if total <= 43:
-            return 20  # Baloto (43) y Miloto (39): 20 más probables
-        return round(total / 2)  # Powerball(35), MegaMillions(35), LottoAmerica(26), MillionaireLife(30), DoublePlay(35)
+    def _get_mitad(self, loteria_key, pred_nums):
+        lower = loteria_key.lower()
+        if "powerball" in lower: return 34
+        if "megamillions" in lower or "mega millions" in lower: return 35
+        if "double play" in lower or "double_play" in lower: return 34
+        if "lotto america" in lower or "lotto_america" in lower: return 26
+        if "millionaire" in lower or "millionaire_life" in lower: return 29
+        if "miloto" in lower or "mloto" in lower: return 20
+        if "colorloto" in lower: return 10
+        return 21  # Default / Baloto
 
     def run(self, loteria="all"):
         print(f"🔔 Iniciando Generador de Notificaciones para: {loteria}")
@@ -83,7 +88,7 @@ class NotificationGenerator:
             pred_nums = pred.iloc[0]['numeros']
             pred_rojas = pred.iloc[0]['balotaroja']
 
-            mitad = self._get_mitad(pred_nums)
+            mitad = self._get_mitad("baloto", pred_nums)
             top_mitad = set(pred_nums[:mitad])
             coincidencias = ganadores.intersection(top_mitad)
 
@@ -119,7 +124,7 @@ class NotificationGenerator:
             if pred.empty: return
 
             pred_nums = pred.iloc[0]['numeros']
-            mitad = self._get_mitad(pred_nums)
+            mitad = self._get_mitad("miloto", pred_nums)
             top_mitad = set(pred_nums[:mitad])
             coincidencias = ganadores.intersection(top_mitad)
 
@@ -151,7 +156,7 @@ class NotificationGenerator:
             pred_nums = pred.iloc[0]['numeros']
             pred_rojas = pred.iloc[0].get('balotaroja', None)
 
-            mitad = self._get_mitad(pred_nums)
+            mitad = self._get_mitad(clave_loteria, pred_nums)
             top_mitad = set(pred_nums[:mitad])
             coincidencias = ganadores.intersection(top_mitad)
 
@@ -213,15 +218,33 @@ class NotificationGenerator:
             from firebase_admin import credentials, messaging
 
             if not firebase_admin._apps:
-                cred_path = PROJECT_ROOT / "config" / "firebase_credentials.json"
-                if cred_path.exists():
-                    print(f"📦 Inicializando Firebase con credenciales: {cred_path}")
-                    cred = credentials.Certificate(str(cred_path))
-                    firebase_admin.initialize_app(cred)
+                # 🔍 Intentar varias rutas para la "llave" JSON (Local vs Docker/Airflow)
+                rutas_credenciales = [
+                    PROJECT_ROOT / "config" / "firebase_credentials.json",
+                    Path("/opt/airflow/pry_dataloto/modelos_ML/config/firebase_credentials.json"),
+                    Path("firebase_credentials.json") # Raíz
+                ]
+                
+                cred_path = None
+                for ruta in rutas_credenciales:
+                    print(f"🧐 Buscando credenciales en: {ruta.absolute()}")
+                    if ruta.exists():
+                        cred_path = ruta
+                        break
+                
+                if cred_path:
+                    print(f"📦 Inicializando Firebase con: {cred_path.absolute()}")
+                    try:
+                        cred = credentials.Certificate(str(cred_path))
+                        firebase_admin.initialize_app(cred)
+                        print("✅ Firebase inicializado con éxito.")
+                    except Exception as e:
+                        print(f"❌ Error al inicializar con archivo: {e}")
                 else:
-                    print("⚠️ Archivo firebase_credentials.json no encontrado, intentando inicialización por defecto.")
+                    print("⚠️ Archivo firebase_credentials.json NO ENCONTRADO en ninguna ruta.")
                     try:
                         firebase_admin.initialize_app()
+                        print("✅ Firebase inicializado con configuración por defecto (ADC).")
                     except Exception as e:
                         print(f"❌ Falló inicialización por defecto: {e}")
 
@@ -248,9 +271,16 @@ class NotificationGenerator:
                 tokens=tokens,
             )
             response = messaging.send_each_for_multicast(message)
-            print(f"📲 FCM Push enviada con éxito a {response.success_count} dispositivo(s).")
+            print(f"📲 FCM Push enviada: {response.success_count} exitosas, {response.failure_count} fallidas.")
+            
+            if response.failure_count > 0:
+                for idx, resp in enumerate(response.responses):
+                    if not resp.success:
+                        print(f"   ❌ Error en token {idx}: {resp.exception}")
         except Exception as e:
-            print(f"⚠️ FCM Push info: {e}")
+            print(f"⚠️ FCM Error Crítico: {e}")
+            import traceback
+            print(traceback.format_exc())
 
 if __name__ == "__main__":
     lot = sys.argv[1] if len(sys.argv) > 1 else "all"

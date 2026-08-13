@@ -168,23 +168,26 @@ class MisJugadasCard extends StatelessWidget {
                               ),
                             ),
                             Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
-                                child: Row(
-                                  children: [
-                                    ...nums.map((n) {
-                                      final isHit = winningNums.contains(n);
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                                        child: buildPlayBall(n, isHit: isHit),
-                                      );
-                                    }),
-                                    if (red != null) ...[
-                                      const SizedBox(width: 6),
-                                      buildPlayBall(red, isHit: redHitBaloto, isRed: true),
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNums.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -203,23 +206,26 @@ class MisJugadasCard extends StatelessWidget {
                               ),
                             ),
                             Expanded(
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                physics: const BouncingScrollPhysics(),
-                                child: Row(
-                                  children: [
-                                    ...nums.map((n) {
-                                      final isHit = winningNumsRevancha.contains(n);
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 3),
-                                        child: buildPlayBall(n, isHit: isHit),
-                                      );
-                                    }),
-                                    if (red != null) ...[
-                                      const SizedBox(width: 6),
-                                      buildPlayBall(red, isHit: redHitRev, isRed: true),
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNumsRevancha.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitRev, isRed: true),
+                                      ],
                                     ],
-                                  ],
+                                  ),
                                 ),
                               ),
                             ),
@@ -227,24 +233,44 @@ class MisJugadasCard extends StatelessWidget {
                         ),
                       ] else ...[
                         // Fila estándar si no hay Revancha
-                        SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
-                          child: Row(
-                            children: [
-                              ...nums.map((n) {
-                                final isHit = winningNums.contains(n);
-                                return Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                                  child: buildPlayBall(n, isHit: isHit),
-                                );
-                              }),
-                              if (red != null) ...[
-                                const SizedBox(width: 6),
-                                buildPlayBall(red, isHit: redHitBaloto, isRed: true),
-                              ],
-                            ],
-                          ),
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 65,
+                              child: Text(
+                                selectedLoteria,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNums.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ],

@@ -35,9 +35,10 @@ class UltimoSorteoCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
               const SizedBox(width: 8),
@@ -60,7 +61,7 @@ class UltimoSorteoCard extends StatelessWidget {
 
           // Fila Baloto Principal
           Text(
-            hasRevanchaData ? nombreSorteoPrincipal : "Números ganadores",
+            "Números ganadores",
             style: GoogleFonts.montserrat(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -68,21 +69,23 @@ class UltimoSorteoCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ...winningNums.take(5).map((nVal) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: build3DBall(nVal, baseColor: const Color(0xFF1E3A8A)),
-                )),
-                if (tieneBalotaExtra && winningRed != null) ...[
-                  const SizedBox(width: 10),
-                  build3DBall(winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+          Center(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ...winningNums.map((nVal) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: build3DBall(nVal, baseColor: const Color(0xFF1E3A8A)),
+                  )),
+                  if (tieneBalotaExtra && winningRed != null) ...[
+                    const SizedBox(width: 10),
+                    build3DBall(winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
 
@@ -98,21 +101,23 @@ class UltimoSorteoCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ...winningNumsRevancha.take(5).map((nVal) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: build3DBall(nVal, baseColor: const Color(0xFF4C1D95)),
-                  )),
-                  if (tieneBalotaExtra && winningRedRevancha != null) ...[
-                    const SizedBox(width: 10),
-                    build3DBall(winningRedRevancha!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+            Center(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ...winningNumsRevancha.map((nVal) => Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: build3DBall(nVal, baseColor: const Color(0xFF4C1D95)),
+                    )),
+                    if (tieneBalotaExtra && winningRedRevancha != null) ...[
+                      const SizedBox(width: 10),
+                      build3DBall(winningRedRevancha!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ],
