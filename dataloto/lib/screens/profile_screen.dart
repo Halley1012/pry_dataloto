@@ -10,6 +10,7 @@ import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/locale_provider.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
@@ -169,6 +170,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 }
               }),
               _buildOptionItem(Icons.notifications_none, l10n?.notificaciones ?? "Notificaciones", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+              _buildOptionItem(Icons.bug_report_outlined, "Probar Notificación Push", () async {
+                final token = await FirebaseMessaging.instance.getToken();
+                if (token != null) {
+                  debugPrint("🚀 Token para prueba: $token");
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Token impreso en consola. Úsalo para probar."), backgroundColor: Colors.blue),
+                  );
+                }
+              }),
               _buildOptionItem(Icons.ads_click, l10n?.misAnuncios ?? "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
               _buildOptionItem(Icons.payment, l10n?.metodosPago ?? "Métodos de pago", () {}),
               _buildOptionItem(Icons.group_add_outlined, l10n?.invitarAmigos ?? "Invitar amigos", () {}, trailingText: l10n?.ganaBeneficios ?? "Gana beneficios"),

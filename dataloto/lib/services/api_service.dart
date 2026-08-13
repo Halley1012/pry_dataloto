@@ -217,14 +217,17 @@ class ApiService {
     }
   }
 
-  /// 🔥 Actualizar el token de notificaciones FCM
+  /// 🔥 Actualizar el token de notificaciones FCM (ID del celular)
   static Future<bool> updateFCMToken(String fcmToken) async {
     final userId = await getUserId();
     if (userId == null) return false;
 
     try {
-      final response = await updateUser(userId, {"fcm_token": fcmToken});
-      return response["success"] == true;
+      final response = await post("/users/fcm_token", {
+        "user_id": userId,
+        "fcm_token": fcmToken
+      });
+      return response.statusCode == 200;
     } catch (e) {
       debugPrint("⚠️ Error actualizando FCM token: $e");
       return false;
