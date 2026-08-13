@@ -44,7 +44,7 @@ class UltimosSorteosTable extends StatelessWidget {
             children: [
               Expanded(flex: 3, child: Text("Fecha", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
               Expanded(flex: 7, child: Center(child: Text("Números ganadores", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Center(child: Text("Cobertura IA", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 3, child: Center(child: Text("Cobertura", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
               Expanded(flex: 3, child: Align(alignment: Alignment.centerRight, child: Text("Aciertos", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
             ],
           ),
@@ -70,22 +70,24 @@ class UltimosSorteosTable extends StatelessWidget {
                     ),
                     Expanded(
                       flex: 7,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ...nums.map((n) => Padding(
+                      child: Center(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              ...nums.map((n) => Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                    child: buildMiniBall(n, baseColor: coverageColor, size: 20),
+                                  )),
+                              if (red != null)
+                                Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                  child: buildMiniBall(n, baseColor: coverageColor),
-                                )),
-                            if (red != null)
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C)),
-                              ),
-                          ],
+                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: 20),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
