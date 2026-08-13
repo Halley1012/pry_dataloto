@@ -99,3 +99,7 @@ class PublicidadQuery:
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class FCMTokenUpdate(BaseModel):
+    user_id: int
+    fcm_token: str

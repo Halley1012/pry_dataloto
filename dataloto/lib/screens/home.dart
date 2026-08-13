@@ -60,7 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadUserAndData();
-    _setupFirebaseMessaging();
+    _setupFirebaseMessaging(); // 🔥 Activar notificaciones
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<NotificationProvider>().fetchNotifications();
@@ -1236,23 +1236,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _setupFirebaseMessaging() async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      final messaging = FirebaseMessaging.instance;
+      
+      // Esperar un momento para asegurar que el userId esté disponible en el storage
+      await Future.delayed(const Duration(seconds: 2));
+
+      // Obtener el token único del dispositivo
+      String? token = await messaging.getToken();
       if (token != null) {
-        debugPrint("🔥 FCM Token obtenido: $token");
-        await ApiService.updateFCMToken(token);
+        debugPrint("📱 FCM Token obtenido: $token");
+        // Enviar al backend para guardarlo en el perfil del usuario
+        final success = await ApiService.updateFCMToken(token);
+        if (success) {
+          debugPrint("✅ FCM Token registrado exitosamente en el servidor");
+        } else {
+          debugPrint("⚠️ No se pudo registrar el FCM Token en el servidor (Posiblemente sesión no iniciada)");
+        }
       }
 
+      // Escuchar cambios de token
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
         ApiService.updateFCMToken(newToken);
       });
 
+      // Escuchar mensajes cuando la app está en primer plano
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint("📩 Notificación Push recibida en primer plano: ${message.notification?.title}");
         if (mounted) {
+          // Refrescar contador de notificaciones en el provider
           context.read<NotificationProvider>().fetchNotifications();
 
           final title = message.notification?.title;
           final body = message.notification?.body;
+          
           if (title != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -1273,7 +1289,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 backgroundColor: const Color(0xFF1E2028),
-                duration: const Duration(seconds: 4),
+                duration: const Duration(seconds: 5),
                 behavior: SnackBarBehavior.floating,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -1282,8 +1298,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       });
     } catch (e) {
-      debugPrint("⚠️ Error al configurar FCM Token en HomeScreen: $e");
+      debugPrint("⚠️ Error en configuración FCM: $e");
     }
   }
-
 }

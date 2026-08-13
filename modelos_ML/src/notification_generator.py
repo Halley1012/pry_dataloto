@@ -200,7 +200,7 @@ class NotificationGenerator:
                     VALUES (:l_id, :fecha, :msj, :tipo)
                 """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje, "tipo": tipo})
                 conn.commit()
-                print(f"✅ Notificación guardada/actualizada ({tipo}): {mensaje}")
+                print(f"✅ Notificación guardada en DB ({tipo}): {mensaje}")
                 
                 # 🔥 Enviar Push Notification vía FCM
                 self.enviar_fcm_push(mensaje, tipo)
@@ -215,21 +215,24 @@ class NotificationGenerator:
             if not firebase_admin._apps:
                 cred_path = PROJECT_ROOT / "config" / "firebase_credentials.json"
                 if cred_path.exists():
+                    print(f"📦 Inicializando Firebase con credenciales: {cred_path}")
                     cred = credentials.Certificate(str(cred_path))
                     firebase_admin.initialize_app(cred)
                 else:
+                    print("⚠️ Archivo firebase_credentials.json no encontrado, intentando inicialización por defecto.")
                     try:
                         firebase_admin.initialize_app()
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        print(f"❌ Falló inicialización por defecto: {e}")
 
             if not firebase_admin._apps:
                 return
 
             with self.engine.connect() as conn:
-                res = conn.execute(text("SELECT fcm_token FROM usuarios WHERE fcm_token IS NOT NULL AND fcm_token != ''"))
+                res = conn.execute(text("SELECT fcm_token FROM users WHERE fcm_token IS NOT NULL AND fcm_token != ''"))
                 tokens = [r[0] for r in res.fetchall() if r[0]]
 
+            print(f"🔍 Buscando tokens activos... Encontrados: {len(tokens)}")
             if not tokens:
                 return
 

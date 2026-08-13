@@ -53,7 +53,7 @@ class AuthUseCases:
             }
         }
 
-    async def update_user_profile(self, user_id: int, name: Optional[str], email: Optional[str], pais_id: Optional[int], departamento_id: Optional[int]) -> Dict[str, Any]:
+    async def update_user_profile(self, user_id: int, name: Optional[str] = None, email: Optional[str] = None, pais_id: Optional[int] = None, departamento_id: Optional[int] = None, fcm_token: Optional[str] = None) -> Dict[str, Any]:
         user = await self.user_repo.find_by_id(user_id)
         if not user:
             raise ValueError("Usuario no encontrado")
@@ -74,6 +74,9 @@ class AuthUseCases:
 
         if departamento_id is not None:
             updates["departamento_id"] = departamento_id
+            
+        if fcm_token is not None:
+            updates["fcm_token"] = fcm_token
 
         if not updates:
             raise ValueError("No se enviaron campos para actualizar")
