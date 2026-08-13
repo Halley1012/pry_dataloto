@@ -45,15 +45,15 @@ Widget build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool 
   );
 }
 
-Widget buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A)}) {
+Widget buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), double size = 24}) {
   final bool isBright = baseColor == Colors.amber ||
       baseColor == Colors.greenAccent ||
       baseColor.computeLuminance() > 0.45;
   final Color textColor = isBright ? const Color(0xFF111827) : Colors.white;
 
   return Container(
-    width: 24,
-    height: 24,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: baseColor,
@@ -64,7 +64,7 @@ Widget buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A)}) {
         "$numero",
         textAlign: TextAlign.center,
         style: GoogleFonts.montserrat(
-          fontSize: 11,
+          fontSize: size * 0.45,
           fontWeight: FontWeight.bold,
           color: textColor,
           height: 1.0,

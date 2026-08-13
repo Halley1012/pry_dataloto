@@ -33,6 +33,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
   List<int> _top20List = [];
+  List<int> _predictionNumeros = [];
+  List<int> _predictionBalotaroja = [];
   List<int> _winningNums = [];
   int? _winningRed;
   bool _hasRevanchaData = false;
@@ -162,6 +164,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
 
       List<int> top20 = [];
+      List<int> predictionNumeros = [];
+      List<int> predictionBalotaroja = [];
 
       // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
       final cachedPred = await CacheService.getJson('${route}_prediccion');
@@ -169,10 +173,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         final String predFecha = _normalizarFechaISO(cachedPred["fecha"]?.toString() ?? "");
         if (targetDrawDate.isNotEmpty && predFecha == targetDrawDate) {
           final rawNums = cachedPred["numeros"];
+          final rawRoja = cachedPred["balotaroja"] ?? cachedPred["balota_roja"];
           if (rawNums is List) {
-            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
             final limit = _getTopLimitForLoteria(_selectedLoteria);
-            top20 = allNums.take(limit).toList();
+            top20 = predictionNumeros.take(limit).toList();
+          }
+          if (rawRoja is List) {
+            predictionBalotaroja = rawRoja.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
           }
         }
       }
@@ -187,6 +195,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         if (resPrediccion.statusCode == 200) {
           final body = jsonDecode(resPrediccion.body);
           final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
+          final rawRoja = body["balotaroja"] ?? body["balota_roja"] ?? body["balotas_rojas"];
           
           // Verificar si el backend nos devolvió la predicción del sorteo que pedimos
           final String resFecha = _normalizarFechaISO(body["fecha"]?.toString() ?? "");
@@ -194,10 +203,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             // El API ignoró la fecha y devolvió la predicción de un sorteo futuro.
             // No tenemos la predicción histórica para este sorteo.
             top20 = [];
-          } else if (rawNums is List) {
-            final allNums = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
-            final limit = _getTopLimitForLoteria(_selectedLoteria);
-            top20 = allNums.take(limit).toList();
+            predictionNumeros = [];
+            predictionBalotaroja = [];
+          } else {
+            if (rawNums is List) {
+              predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+              final limit = _getTopLimitForLoteria(_selectedLoteria);
+              top20 = predictionNumeros.take(limit).toList();
+            }
+            if (rawRoja is List) {
+              predictionBalotaroja = rawRoja.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            }
           }
         }
       }
@@ -205,6 +221,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final payload = {
         "sorteos": sorteosList,
         "top20": top20,
+        "predictionNumeros": predictionNumeros,
+        "predictionBalotaroja": predictionBalotaroja,
         "jugadas": userJugadas,
       };
 
@@ -230,6 +248,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       top20 = allNums.take(limit).toList();
     }
     _top20List = top20;
+
+    final rawPredNums = data["predictionNumeros"];
+    final rawPredRoja = data["predictionBalotaroja"];
+    if (rawPredNums is List) {
+      _predictionNumeros = rawPredNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
+    } else {
+      _predictionNumeros = [];
+    }
+    if (rawPredRoja is List) {
+      _predictionBalotaroja = rawPredRoja.map((e) => int.tryParse(e.toString()) ?? 0).toList();
+    } else {
+      _predictionBalotaroja = [];
+    }
+
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
     final bool tieneBalotaExtra = !_selectedLoteria.toLowerCase().contains("miloto") &&
@@ -668,8 +700,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 selectedLoteria: _selectedLoteria,
                 probablesCount: _probablesCount,
                 coberturaPorcentaje: _coberturaPorcentaje,
-                winningNums: _winningNums,
+                winningNums: _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
+                winningRed: _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
                 fechaSorteo: _fechaSorteo,
+                predictionNumeros: _predictionNumeros.isNotEmpty ? _predictionNumeros : _top20List,
+                predictionBalotaroja: _predictionBalotaroja,
               ),
               const SizedBox(height: 14),
 
