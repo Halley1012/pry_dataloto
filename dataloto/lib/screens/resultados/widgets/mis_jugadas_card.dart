@@ -46,12 +46,12 @@ class MisJugadasCard extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    selectedLoteria,
+                    "",
                     style: GoogleFonts.montserrat(fontSize: 12, color: Colors.amber, fontWeight: FontWeight.w600),
                   ),
                   Wrap(
