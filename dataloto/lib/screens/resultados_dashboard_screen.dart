@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math' as math;
 import 'package:dataloto/services/api_service.dart';
@@ -123,11 +122,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     return 20;
   }
 
-  Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName) async {
+  Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName, {String? fecha}) async {
     try {
       final route = _getRouteForLoteria(loteriaName);
       // Petición 100% genérica para cualquier lotería actual o futura
-      final raw = await ApiService.listarJugadasGenerica(route);
+      final raw = await ApiService.listarJugadasGenerica(route, fecha: fecha);
       return List<Map<String, dynamic>>.from(raw);
     } catch (e) {
       debugPrint("⚠️ Error obteniendo jugadas del usuario para $loteriaName: $e");
@@ -151,14 +150,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
 
     try {
-      // 2. HTTP en dos fases para consultar la predicción por la fecha exacta del sorteo
-      final responses = await Future.wait([
-        http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500)),
-        _obtenerJugadasUsuario(_selectedLoteria),
-      ]);
-
-      final resSorteos = responses[0] as http.Response;
-      final userJugadas = responses[1] as List<Map<String, dynamic>>;
+      // Phase 1: Fetch ultimos5 to determine target draw date
+      final resSorteos = await http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500));
 
       List<Map<String, dynamic>> sorteosList = [];
       if (resSorteos.statusCode == 200) {
@@ -181,12 +174,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         targetDrawDate = _normalizarFechaISO(firstSort["fecha"]?.toString() ?? "");
       }
 
+      // Phase 2: Fetch user plays for this specific draw date
+      final responses = await Future.wait([
+        _obtenerJugadasUsuario(_selectedLoteria, fecha: targetDrawDate),
+        CacheService.getJson('${route}_prediccion'),
+      ]);
+
+      final userJugadas = responses[0] as List<Map<String, dynamic>>;
+      final cachedPred = responses[1];
+
       List<int> top20 = [];
       List<int> predictionNumeros = [];
       List<int> predictionBalotaroja = [];
 
       // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
-      final cachedPred = await CacheService.getJson('${route}_prediccion');
       if (cachedPred != null && cachedPred["numeros"] != null) {
         final String predFecha = _normalizarFechaISO(cachedPred["fecha"]?.toString() ?? "");
         if (targetDrawDate.isNotEmpty && predFecha == targetDrawDate) {
@@ -383,7 +384,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     // 3. Procesar jugadas del usuario (Filtrando estrictamente por la fecha del sorteo)
     if (jugadasRaw.isNotEmpty) {
-      List<Map<String, dynamic>> jugadasFiltradas = jugadasRaw;
+      List<Map<String, dynamic>> jugadasFiltradas = [];
 
       if (drawDateISO.isNotEmpty) {
         final exactMatches = jugadasRaw.where((j) {
@@ -409,6 +410,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             }).toList();
           }
         }
+      } else {
+        jugadasFiltradas = jugadasRaw;
       }
 
       _misJugadas = jugadasFiltradas.map((j) {

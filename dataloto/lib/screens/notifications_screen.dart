@@ -73,7 +73,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
-        title: Text(l10n?.notificacionesIA ?? "Notificaciones IA", style: AppTextStyles.h2),
+        title: Text(l10n?.notificacionesIA ?? "Notificaciones", style: AppTextStyles.h2),
         backgroundColor: AppColors.black,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.yellow),
@@ -128,7 +128,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 const Icon(Icons.filter_alt_off_outlined, size: 60, color: Colors.white24),
                                 const SizedBox(height: 16),
                                 Text(
-                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones en esta categoría",
+                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones en para tu pais",
                                   style: AppTextStyles.mensajeSecundario,
                                 ),
                                 const SizedBox(height: 12),

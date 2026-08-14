@@ -370,8 +370,8 @@ class ApiService {
     }
   }
 
-  /// 📋 Listar jugadas SIN TOKEN
   static Future<List<dynamic>> listarJugadasMloto({
+    String? fecha,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -382,11 +382,13 @@ class ApiService {
       throw Exception("No se encontró user_id en el dispositivo");
     }
 
+    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http.get(
           Uri.parse(
-            "$baseUrl/jugadas_mloto?user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}",
+            "$baseUrl/jugadas_mloto?$queryParams",
           ),
           headers: {"Content-Type": "application/json"},
         );
@@ -470,8 +472,8 @@ class ApiService {
     );
   }
 
-  /// 📋 Listar jugadas BLOTO SIN TOKEN
   static Future<List<dynamic>> listarJugadasBloto({
+    String? fecha,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -482,11 +484,13 @@ class ApiService {
       throw Exception("No se encontró user_id en el dispositivo");
     }
 
+    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http.get(
           Uri.parse(
-            "$baseUrl/jugadas_bloto?user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}",
+            "$baseUrl/jugadas_bloto?$queryParams",
           ),
           headers: {"Content-Type": "application/json"},
         );
@@ -572,17 +576,18 @@ class ApiService {
     throw Exception("Error al crear jugada $loteriaName: ${response.statusCode}");
   }
 
-  /// 📋 Listar jugadas genéricas
-  static Future<List<dynamic>> listarJugadasGenerica(String loteriaName) async {
+  static Future<List<dynamic>> listarJugadasGenerica(String loteriaName, {String? fecha}) async {
     final storage = const FlutterSecureStorage();
     final userId = await storage.read(key: 'user_id');
 
     if (userId == null) return [];
 
+    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+
     try {
       final response = await http.get(
         Uri.parse(
-          "$baseUrl/jugadas_$loteriaName?user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}",
+          "$baseUrl/jugadas_$loteriaName?$queryParams",
         ),
         headers: {"Content-Type": "application/json"},
       );
