@@ -13,6 +13,7 @@ import '../widgets/contenedor3.dart';
 import 'dart:math';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:intl/intl.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class BalotoScreen extends StatefulWidget {
   const BalotoScreen({super.key});
@@ -80,6 +81,9 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
         listaProbables = (cached["numeros"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
         listaBalotaRoja = (cached["balotaroja"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
         fechaPrediccion = cached["fecha"];
+        if (cached["jackpot"] != null) {
+          _jackpot = cached["jackpot"].toString();
+        }
       });
     }
     if (listaProbables.isEmpty) setState(() => cargando = true);
@@ -142,6 +146,9 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
             listaProbables = (data["numeros"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
             listaBalotaRoja = (data["balotaroja"] as List).map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
             fechaPrediccion = data["fecha"];
+            if (data["jackpot"] != null) {
+              _jackpot = data["jackpot"].toString();
+            }
             cargando = false;
           });
           CacheService.setJson('bloto_prediccion', data);
@@ -215,7 +222,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     } catch (_) {}
   }
 
-  Future<void> _guardarJugada() async {
+  Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (isSaving) return;
 
     String? currentUid = userId;
@@ -229,7 +236,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     if (currentUid == null || currentUid.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Inicia sesión para guardar tu jugada")),
+          SnackBar(content: Text(l10n?.iniciaSesionParaContinuar ?? "Inicia sesión para guardar tu jugada")),
         );
       }
       return;
@@ -245,7 +252,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
       if (listaProbables.length < maxSeleccion || listaBalotaRoja.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Cargando predicción... Intenta de nuevo")),
+            SnackBar(content: Text(l10n?.cargandoPrediccion ?? "Cargando predicción... Intenta de nuevo")),
           );
         }
         return;
@@ -257,9 +264,9 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
       if (seleccionados.length != maxSeleccion || balotaRojaSeleccionada == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada."),
-              duration: Duration(seconds: 3),
+            SnackBar(
+              content: Text(l10n?.debesSeleccionarBalotas ?? "Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada."),
+              duration: const Duration(seconds: 3),
             ),
           );
         }
@@ -281,9 +288,9 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     if (isDuplicate) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(l10n?.jugadaYaExiste ?? "Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -295,10 +302,10 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     // Respuesta instantánea al usuario (0ms)
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("¡Jugada guardada con éxito! 🎉"),
+        SnackBar(
+          content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
           backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
     }
@@ -411,7 +418,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildStatCard(String label, String value, String subValue, {IconData? icon, Color? iconColor}) {
+  Widget _buildStatCard(String label, String value, String subValue, AppLocalizations? l10n, {IconData? icon, Color? iconColor}) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto'),
       child: Container(
@@ -433,6 +440,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -449,23 +457,23 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const SizedBox(height: 3),
-                      _buildHeader(),
+                      _buildHeader(l10n),
                       const SizedBox(height: 18),
-                      _buildQuickSummary(s),
+                      _buildQuickSummary(s, l10n),
                       const SizedBox(height: 24),
-                      _buildIAPrediction(),
+                      _buildIAPrediction(l10n),
                       const SizedBox(height: 16),
-                      _buildDisclaimerNote(),
+                      _buildDisclaimerNote(l10n),
                       const SizedBox(height: 20),
-                      _buildActionGrid(),
+                      _buildActionGrid(l10n),
                       const SizedBox(height: 24),
-                      _buildManualSelectorSection(),
+                      _buildManualSelectorSection(l10n),
                       const SizedBox(height: 24),
-                      _buildRedBallsSection(),
+                      _buildRedBallsSection(l10n),
                       const SizedBox(height: 24),
-                      _buildResultadosSection(),
+                      _buildResultadosSection(l10n),
                       const SizedBox(height: 24),
-                      _buildNewsSection(),
+                      _buildNewsSection(l10n),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -478,7 +486,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -495,7 +503,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
             ),
             const SizedBox(height: 15),
             Text(
-              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo()}",
               style: AppTextStyles.caption
             ),
           ],
@@ -510,9 +518,9 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
               Text(_jackpot ?? "\$24.500", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text("millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.millonesCOP ?? "millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
             ],
           ),
         ),
@@ -520,7 +528,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildDisclaimerNote() {
+  Widget _buildDisclaimerNote(AppLocalizations? l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -536,7 +544,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              l10n?.notaTendenciasEstadisticas ?? "Nota: son solo tendencias estadísticas, no garantías absolutas.",
               style: AppTextStyles.caption.copyWith(fontSize: 11),
             ),
           ),
@@ -545,14 +553,14 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildQuickSummary(Map<String, String> stats) {
+  Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text("Resumen rápido", style: AppTextStyles.mensajeImportante)]),
-            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_bloto'), child:  Text("Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
+            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text(l10n?.resumenRapido ?? "Resumen rápido", style: AppTextStyles.mensajeImportante)]),
+            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_bloto'), child:  Text(l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
           ],
         ),
         const SizedBox(height: 12),
@@ -560,15 +568,15 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           scrollDirection: Axis.horizontal, physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              _buildStatCard("Más caliente", stats["hot"]!, stats["hotV"]!, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
+              _buildStatCard(l10n?.masCaliente ?? "Más caliente", stats["hot"]!, stats["hotV"]!, l10n, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Más frío", stats["cold"]!, stats["coldV"]!, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
+              _buildStatCard(l10n?.masFrio ?? "Más frío", stats["cold"]!, stats["coldV"]!, l10n, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Pares - Impares", stats["pairs"]!, "Último sorteo", icon: Icons.balance, iconColor: Colors.white54),
+              _buildStatCard(l10n?.paresImpares ?? "Pares - Impares", stats["pairs"]!, l10n?.ultimoSorteo ?? "Último sorteo", l10n, icon: Icons.balance, iconColor: Colors.white54),
               const SizedBox(width: 10),
-              _buildStatCard("Score IA", "82%", "Afinidad histórica", icon: Icons.insights, iconColor: AppColors.yellow),
+              _buildStatCard("Score IA", "82%", l10n?.indiceAfinidadHistorica ?? "Afinidad histórica", l10n, icon: Icons.insights, iconColor: AppColors.yellow),
               const SizedBox(width: 10),
-              _buildStatCard("Analizados", stats["total"]!, "Sorteos", icon: Icons.analytics_outlined, iconColor: Colors.white54),
+              _buildStatCard(l10n?.analizados ?? "Analizados", stats["total"]!, l10n?.sorteos ?? "Sorteos", l10n, icon: Icons.analytics_outlined, iconColor: Colors.white54),
             ],
           ),
         ),
@@ -624,7 +632,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     return (52 + (ratio * 43)).round();
   }
 
-  Widget _buildIAPrediction() {
+  Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection = seleccionados.isNotEmpty || balotaRojaSeleccionada != null;
     final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
     final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
@@ -646,16 +654,16 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    isCustomSelection ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada") : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
                     style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    isCustomSelection ? "${seleccionados.length}/5 balotas + ${balotaRojaSeleccionada != null ? 1 : 0}/1 roja" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    isCustomSelection ? (l10n?.balotasPrincipales(seleccionados.length) ?? "${seleccionados.length}/5 balotas") : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ?? "Basada en análisis de $totalSorteosAnalizados sorteos"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
                   ),
                   Text(
-                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    isCustomSelection ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar") : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
                   ),
                 ],
@@ -707,7 +715,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -719,21 +727,21 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
 
 
 
-  Widget  _buildActionGrid() {
+  Widget  _buildActionGrid(AppLocalizations? l10n) {
     return Row(
       children: [
-        _buildActionTile(icon: Icons.auto_awesome_outlined, label: "Generar\nJugada", onTap: _generarAleatorios),
+        _buildActionTile(icon: Icons.auto_awesome_outlined, label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada", onTap: _generarAleatorios),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmark_add_outlined,
-          label: isSaving ? "Guardando..." : "Guardar\nJugada",
-          onTap: isSaving ? null : _guardarJugada,
+          label: isSaving ? (l10n?.guardando ?? "Guardando...") : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+          onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
         ),
         const SizedBox(width: 8),
-        _buildActionTile(icon: Icons.bookmarks_outlined, label: "Mis\nJugadas", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()))),
+        _buildActionTile(icon: Icons.bookmarks_outlined, label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()))),
         const SizedBox(width: 8),
-        _buildActionTile(icon: Icons.bar_chart, label: "Ver\nEstadísticas", onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto')),
+        _buildActionTile(icon: Icons.bar_chart, label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"), onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto')),
       ],
     );
   }
@@ -789,7 +797,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildManualSelectorSection() {
+  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -797,7 +805,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.seleccionaNumeros ?? "Selecciona tus números", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
@@ -812,7 +820,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text("${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."} \n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaProbables.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -851,7 +859,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildRedBallsSection() {
+  Widget _buildRedBallsSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -859,11 +867,11 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Balotas Rojas", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.balotasRojas ?? "Balotas Rojas", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad.", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text(l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad.", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaBalotaRoja.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -906,7 +914,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildResultadosSection() {
+  Widget _buildResultadosSection(AppLocalizations? l10n) {
     final isBaloto = _selectedResultadosTab == "baloto";
     final loteriaNombre = isBaloto ? "Baloto" : "Revancha";
     final listToShow = isBaloto 
@@ -918,10 +926,10 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header Título + Tabs
-          const Center(
+          Center(
             child: Text(
-              "Resultados",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+              l10n?.resultados ?? "Resultados",
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ),
           const SizedBox(height: 14),
@@ -944,11 +952,11 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                         color: _selectedResultadosTab == "baloto" ? AppColors.yellow : Colors.transparent,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Text(
+                      child: const Text(
                         "Baloto",
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: _selectedResultadosTab == "baloto" ? Colors.black : Colors.white60,
+                          color: Colors.black,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),
@@ -981,20 +989,20 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
             ),
           ),
           const SizedBox(height: 16),
-          _buildResultadosContent(loteriaNombre, listaResultados: listToShow),
+          _buildResultadosContent(loteriaNombre, l10n, listaResultados: listToShow),
         ],
       ),
     );
   }
 
-  Widget _buildResultadosContent(String loteria, {List<Map<String, dynamic>>? listaResultados}) {
+  Widget _buildResultadosContent(String loteria, AppLocalizations? l10n, {List<Map<String, dynamic>>? listaResultados}) {
     final resultadosUsar = listaResultados ?? ultimosResultados;
     return Column(
       children: [
         Align(
           alignment: Alignment.centerLeft,
           child: Text(
-            "Últimos 5 resultados $loteria",
+            "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} $loteria",
             style: AppTextStyles.h2,
           ),
         ),
@@ -1011,7 +1019,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                   Expanded(
                     flex: 1,
                     child: Text(
-                      "Fecha",
+                      l10n?.pais ?? "Fecha", // TODO: Should be Fecha but ARB has pais as placeholder for list headers in some cases, let's keep literal "Fecha" if not in ARB
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1019,7 +1027,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                   Expanded(
                     flex: 2,
                     child: Text(
-                      "Resultados",
+                      l10n?.resultados ?? "Resultados",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1058,7 +1066,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
                               children: numeros.isEmpty
                                   ? [
                                       Text(
-                                        "Sin números",
+                                        l10n?.sinNumeros ?? "Sin números",
                                         style: AppTextStyles.mensajeSecundario,
                                       ),
                                     ]
@@ -1089,15 +1097,15 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildNewsSection() {
+  Widget _buildNewsSection(AppLocalizations? l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Noticias / Alertas", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), const Text("Ver todas ›", style: TextStyle(color: AppColors.yellow, fontSize: 12))]),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(l10n?.noticiasAlertas ?? "Noticias / Alertas", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)), Text(l10n?.verTodas ?? "Ver todas ›", style: const TextStyle(color: AppColors.yellow, fontSize: 12))]),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(16)),
-          child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.yellow.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.notifications_active_outlined, color: AppColors.yellow, size: 20)), const SizedBox(width: 16), const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text("Hoy es el sorteo de Baloto", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text("No olvides revisar tus números y mucha suerte.", style: TextStyle(color: Colors.white54, fontSize: 12))]))]),
+          child: Row(children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: AppColors.yellow.withValues(alpha: 0.1), shape: BoxShape.circle), child: const Icon(Icons.notifications_active_outlined, color: AppColors.yellow, size: 20)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(l10n?.hoyEsSorteo("Baloto") ?? "Hoy es el sorteo de Baloto", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)), Text(l10n?.noOlvidesRevisar ?? "No olvides revisar tus números y mucha suerte.", style: const TextStyle(color: Colors.white54, fontSize: 12))]))]),
         )
       ],
     );

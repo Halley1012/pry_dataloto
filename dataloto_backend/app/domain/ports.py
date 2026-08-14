@@ -63,19 +63,23 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int]]]:
+    def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         pass
 
     @abstractmethod
-    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 
     @abstractmethod
-    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int]]]:
+    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        pass
+
+    @abstractmethod
+    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         pass
 
     @abstractmethod
@@ -87,11 +91,11 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 
     @abstractmethod
-    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 
 

@@ -49,7 +49,49 @@ class BalotoScraper:
                     return int(href.split("page=")[-1]) #[cite: 3]
                 except ValueError:
                     return 1
-        return 1
+        
+    def update_jackpot(self, engine, loteria, jackpot, fecha_str):
+        if not jackpot or not fecha_str:
+            return
+        # Parse date
+        fecha = None
+        try:
+            parts = fecha_str.strip().split(" de ")
+            if len(parts) == 2:
+                dia_part = parts[0].split()[-1]
+                mes_es = parts[1].strip()
+                mes_en = self.meses_es_en.get(mes_es.capitalize())
+                if mes_en:
+                    año = datetime.now().year
+                    if datetime.now().month == 12 and mes_es.lower() == 'enero':
+                        año += 1
+                    fecha = datetime.strptime(f"{dia_part} {mes_en} {año}", "%d %B %Y").date()
+        except Exception as ex:
+            print(f"Error parsing date {fecha_str} for {loteria}: {ex}")
+        
+        if not fecha:
+            return
+        
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
 
     def run(self):
         print("🚀 Iniciando Scraping de Baloto...")
@@ -175,9 +217,30 @@ class BalotoScraper:
             from sqlalchemy.types import Date
             engine = get_engine()
             df_final.to_sql('resultados_bloto', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
-            print(f"✅ ¡DataFrame de Baloto guardado exitosamente! Total filas: {len(df_final)}")
+            print(f"DataFrame de Baloto guardado exitosamente! Total filas: {len(df_final)}")
+            
+            # Scrape and save jackpot for Baloto & Revancha
+            print("Scraping jackpots for Baloto & Revancha from homepage...")
+            r_main = requests.get("https://baloto.com/", headers=self.headers, timeout=15)
+            if r_main.status_code == 200:
+                soup_main = BeautifulSoup(r_main.text, "html.parser")
+                baloto_home = soup_main.find(class_="accumulated-baloto-home")
+                if baloto_home:
+                    integers = baloto_home.find_all(class_="accum-integer")
+                    jackpot_baloto = integers[0].get_text(strip=True) + " millones" if len(integers) > 0 else None
+                    jackpot_revancha = integers[1].get_text(strip=True) + " millones" if len(integers) > 1 else None
+                    
+                    accum2 = baloto_home.find(class_="accumulated-2")
+                    fecha_str = accum2.find(class_="fs-5").get_text(strip=True) if accum2 and accum2.find(class_="fs-5") else None
+                    
+                    if jackpot_baloto and fecha_str:
+                        self.update_jackpot(engine, "baloto", jackpot_baloto, fecha_str)
+                    if jackpot_revancha and fecha_str:
+                        self.update_jackpot(engine, "revancha", jackpot_revancha, fecha_str)
+            else:
+                print(f"Warning: homepage returned status {r_main.status_code}")
         except Exception as e:
-            print(f"❌ Error al guardar datos en Neon PostgreSQL: {e}")
+            print(f"Error saving results or jackpots for Baloto/Revancha: {e}")
 
 if __name__ == "__main__":
     BalotoScraper().run()

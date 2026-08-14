@@ -217,7 +217,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get version => 'Version';
 
   @override
-  String get sinNotificacionesCategoria => 'No notifications in this category';
+  String get sinNotificacionesCategoria => 'No notifications for your country';
 
   @override
   String get verTodasNotificaciones => 'View all notifications';
@@ -271,7 +271,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'DataLoto uses artificial intelligence to analyze historical lottery patterns and provide informed predictions. Although our predictions are data-based, there is no absolute certainty that these numbers will win, as lottery is a game of chance. We do not guarantee prizes, we only help you choose with greater confidence. Use the app responsibly and only for entertainment purposes. The decision to use these predictions is under your own responsibility.';
 
   @override
-  String get notificacionesIA => 'AI Notifications';
+  String get notificacionesIA => 'Notifications';
 
   @override
   String get marcarTodoComoLeido => 'Mark all as read';

@@ -24,6 +24,31 @@ class MegaMillionsScraper:
         }
         self.draw_days = (1, 4) # Martes (1), Viernes (4)
 
+    def update_jackpot(self, engine, loteria, jackpot, fecha):
+        if not jackpot or not fecha:
+            return
+        
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
+
     def run(self, max_pages=None, page_size=100):
         print("🚀 Iniciando Scraping de Mega Millions...")
         resultados = []
@@ -122,9 +147,37 @@ class MegaMillionsScraper:
             from sqlalchemy.types import Date
             engine = get_engine()
             df_final.to_sql('resultados_megamillions', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
-            print(f"✅ ¡DataFrame de Mega Millions guardado exitosamente! Total filas: {len(df_final)}")
+            print(f"DataFrame de Mega Millions guardado exitosamente! Total filas: {len(df_final)}")
+            
+            # Scrape and save jackpot for Mega Millions
+            print("Scraping jackpot for Mega Millions via ASMX service...")
+            url_latest = "https://www.megamillions.com/cmspages/utilservice.asmx/GetLatestDrawData"
+            resp_latest = requests.post(url_latest, headers=self.headers, json={}, timeout=15)
+            if resp_latest.status_code == 200:
+                data_latest = resp_latest.json()
+                d_dict = json.loads(data_latest.get("d", "{}"))
+                jackpot_data = d_dict.get("Jackpot", {})
+                
+                next_prize = jackpot_data.get("NextPrizePool", 0)
+                if next_prize > 0:
+                    jackpot = f"${int(next_prize / 1000000)} Million"
+                    
+                    # Fetch next drawing date
+                    url_next = "https://www.megamillions.com/cmspages/utilservice.asmx/GetNextDrawingDate"
+                    resp_next = requests.post(url_next, headers=self.headers, json={}, timeout=15)
+                    if resp_next.status_code == 200:
+                        d_next = resp_next.json().get("d", "")
+                        import re
+                        match = re.search(r'\d+', d_next)
+                        if match:
+                            ts = int(match.group()) / 1000
+                            from datetime import timezone
+                            fecha_next = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+                            self.update_jackpot(engine, "megamillions", jackpot, fecha_next)
+            else:
+                print(f"Warning: GetLatestDrawData returned status {resp_latest.status_code}")
         except Exception as e:
-            print(f"❌ Error al guardar datos de Mega Millions en BD: {e}")
+            print(f"Error saving results or jackpot for Mega Millions: {e}")
 
 if __name__ == "__main__":
     MegaMillionsScraper().run()

@@ -15,6 +15,7 @@ import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
 import 'package:dataloto/widgets/jugadas_list_generico.dart';
 import 'package:dataloto/screens/estadisticas_lotto_america.dart';
 import 'dart:math';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class LottoAmericaScreen extends StatefulWidget {
   const LottoAmericaScreen({super.key});
@@ -277,12 +278,12 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     } catch (_) {}
   }
 
-  Future<void> _guardarJugada() async {
+  Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (!mounted) return;
 
     if (userId == null || userId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
+        SnackBar(content: Text(l10n?.iniciaSesionParaContinuar ?? "No se encontró el usuario. Inicia sesión.")),
       );
       return;
     }
@@ -301,7 +302,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     } else {
       if (seleccionados.length != 5 || balotaRojaSeleccionada == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Debes seleccionar 5 balotas principales y 1 Star Ball roja")),
+          SnackBar(content: Text(l10n?.debesSeleccionarBalotas ?? "Debes seleccionar 5 balotas principales y 1 Star Ball roja")),
         );
         return;
       }
@@ -325,9 +326,9 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     if (yaExiste) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(l10n?.jugadaYaExiste ?? "Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -354,17 +355,17 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("¡Jugada guardada con éxito! 🎉"),
+          SnackBar(
+            content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ Error al guardar: $e")),
+          SnackBar(content: Text("${l10n?.errorGuardarJugada ?? "⚠️ Error al guardar"}: $e")),
         );
       }
     } finally {
@@ -502,6 +503,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -517,23 +519,23 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(),
+                      _buildHeader(l10n),
                       const SizedBox(height: 18),
-                      _buildQuickSummary(s),
+                      _buildQuickSummary(s, l10n),
                       const SizedBox(height: 24),
-                      _buildIAPrediction(),
+                      _buildIAPrediction(l10n),
                       const SizedBox(height: 16),
-                      _buildDisclaimerNote(),
+                      _buildDisclaimerNote(l10n),
                       const SizedBox(height: 20),
-                      _buildActionGrid(),
+                      _buildActionGrid(l10n),
                       const SizedBox(height: 24),
-                      _buildManualSelectorSection(),
+                      _buildManualSelectorSection(l10n),
                       const SizedBox(height: 24),
-                      _buildRedBallsSection(),
+                      _buildRedBallsSection(l10n),
                       const SizedBox(height: 24),
-                      _buildResultadosSection(),
+                      _buildResultadosSection(l10n),
                       const SizedBox(height: 24),
-                      _buildNewsSection(),
+                      _buildNewsSection(l10n),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -546,7 +548,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -562,7 +564,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
             ),
             const SizedBox(height: 15),
             Text(
-              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo()}",
               style: AppTextStyles.caption,
             ),
           ],
@@ -577,9 +579,9 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
               Text(_jackpot ?? "\$3.5", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text("millones USD", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.millonesUSD ?? "millones USD", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
             ],
           ),
         ),

@@ -152,76 +152,93 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 row = cur.fetchone()
                 return row if row else None
 
-    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int]]]:
+    def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT jackpot
+                    FROM loterias_jackpots
+                    WHERE LOWER(loteria) = LOWER(%s)
+                    ORDER BY fecha DESC
+                    LIMIT 1;
+                """, (loteria,))
+                row = cur.fetchone()
+                return row[0] if row else None
+
+    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:              
-                cur.execute(f"""
-                    SELECT fecha, balota1, balota2, balota3, balota4, balota5
-                    FROM resultados_mloto
-                    where balota1 <> 0
-                    ORDER BY fecha DESC
+                cur.execute("""
+                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, j.jackpot
+                    FROM resultados_mloto r
+                    LEFT JOIN loterias_jackpots j ON j.loteria = 'miloto' AND j.fecha = r.fecha
+                    WHERE r.balota1 <> 0
+                    ORDER BY r.fecha DESC
                     LIMIT 5;
                 """)
                 rows = cur.fetchall()
-                # mapeamos a (fecha, [b1, b2, b3, b4, b5])
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]]) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
             
-    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 if sorteo:
                     cur.execute("""
-                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                        FROM resultados_bloto
-                        WHERE balota1 <> 0
-                        AND LOWER(sorteo) = LOWER(%s)
-                        ORDER BY fecha DESC
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                        FROM resultados_bloto r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        AND LOWER(r.sorteo) = LOWER(%s)
+                        ORDER BY r.fecha DESC
                         LIMIT 5;
                     """, (sorteo,))
                 else:
                     cur.execute("""
-                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                        FROM resultados_bloto
-                        WHERE balota1 <> 0
-                        ORDER BY fecha DESC
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                        FROM resultados_bloto r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC
                         LIMIT 10;
                     """)
                 rows = cur.fetchall()
-                # mapeamos a (fecha, [b1, b2, b3, b4, b5], [balotaroja], sorteo)
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 else "Baloto") for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
 
-    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 if sorteo:
                     cur.execute("""
-                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                        FROM resultados_bloto
-                        WHERE balota1 <> 0
-                        AND LOWER(sorteo) = LOWER(%s)
-                        ORDER BY fecha DESC;
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                        FROM resultados_bloto r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        AND LOWER(r.sorteo) = LOWER(%s)
+                        ORDER BY r.fecha DESC;
                     """, (sorteo,))
                 else:
                     cur.execute("""
-                        SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                        FROM resultados_bloto
-                        WHERE balota1 <> 0
-                        ORDER BY fecha DESC;
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                        FROM resultados_bloto r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC;
                     """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 else "Baloto") for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
 
-    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int]]]:
+    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT fecha, balota1, balota2, balota3, balota4, balota5
-                    FROM resultados_mloto
-                    WHERE balota1 <> 0
-                    ORDER BY fecha DESC;
+                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, j.jackpot
+                    FROM resultados_mloto r
+                    LEFT JOIN loterias_jackpots j ON j.loteria = 'miloto' AND j.fecha = r.fecha
+                    WHERE r.balota1 <> 0
+                    ORDER BY r.fecha DESC;
                 """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]]) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
 
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         with db_connection.get_connection() as conn:
@@ -258,28 +275,32 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 row = cur.fetchone()
                 return row if row else None
 
-    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
-                    SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                    FROM {tabla}
-                    WHERE balota1 <> 0
-                    ORDER BY fecha DESC
+                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                    FROM {tabla} r
+                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    WHERE r.balota1 <> 0
+                    ORDER BY r.fecha DESC
                     LIMIT 5;
                 """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
 
-    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str]]:
+    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute(f"""
-                    SELECT fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, sorteo
-                    FROM {tabla}
-                    WHERE balota1 <> 0
-                    ORDER BY fecha DESC;
+                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                    FROM {tabla} r
+                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    WHERE r.balota1 <> 0
+                    ORDER BY r.fecha DESC;
                 """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
 
