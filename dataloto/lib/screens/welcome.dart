@@ -23,7 +23,7 @@ class WelcomeScreen extends StatelessWidget {
                 fit: BoxFit.contain,
                 width: 400,
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 100),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a DataLoto!", style: AppTextStyles.h2),
               const SizedBox(height: 20),

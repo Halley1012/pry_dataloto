@@ -8,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shimmer/shimmer.dart';
 import '../utils/pais_helper.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class CrearPublicidadForm extends StatefulWidget {
   final Map<String, dynamic>? publicidad;
@@ -327,7 +328,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   // === RESTO DEL CÓDIGO SIN CAMBIOS (enviar, UI, etc.) ===
   // (Todo igual: _enviarFormulario, _buildTextField, etc.)
 
-  Future<void> _enviarFormulario() async {
+  Future<void> _enviarFormulario(AppLocalizations l10n) async {
     if (!_formKey.currentState!.validate()) return;
 
     if (paisSeleccionado == null ||
@@ -385,7 +386,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                _esEdicion ? "Anuncio actualizado" : "Anuncio creado",
+                _esEdicion ? l10n.anuncioActualizado : l10n.anuncioCreado,
               ),
               backgroundColor: Colors.green,
               duration: const Duration(seconds: 2),
@@ -398,7 +399,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           }
         }
       } else {
-        throw Exception(response["message"] ?? "Error al guardar");
+        throw Exception(response["message"] ?? l10n.errorGuardar);
       }
     } catch (e) {
       // Silencioso
@@ -447,17 +448,17 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      
       appBar: AppBar(
         backgroundColor: AppColors.blackfondo,
         elevation: 0,
-        scrolledUnderElevation: 0, // 👈 evita cambio de color
-        surfaceTintColor: Colors.transparent, // 👈 mantiene color estable
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         iconTheme: const IconThemeData(color: AppColors.yellow),
         title: Text(
-          _esEdicion ? "Editar Anuncio" : "Crear Publicidad",
+          _esEdicion ? l10n.editarAnuncio : l10n.crearPublicidad,
           style: AppTextStyles.h2,
         ),
         centerTitle: true,
@@ -472,31 +473,31 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
-                      _esEdicion ? "Editar anuncio" : "Crear nuevo anuncio",
+                      _esEdicion ? l10n.editarAnuncio.toLowerCase() : l10n.crearNuevoAnuncio,
                       style: AppTextStyles.h2,
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Promociona tu negocio con estilo",
+                      l10n.promocionaNegocioStyle,
                       textAlign: TextAlign.center,
                       style: AppTextStyles.mensajeSecundario.copyWith(
                         fontStyle: FontStyle.italic,
                       ),
                     ),
                     const SizedBox(height: 20),
-                    _buildTextField(tituloController, "Título", true),
+                    _buildTextField(tituloController, l10n.titulo, true, l10n),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: descripcionController,
                       style: AppTextStyles.mensajeSecundario,
-                      decoration: _inputStyle("Descripción").copyWith(
+                      decoration: _inputStyle(l10n.descripcion).copyWith(
                         counterText: "$descripcionLength / $descripcionMax",
                       ),
                       maxLength: descripcionMax,
                       maxLines: 4,
                       validator: (v) =>
-                          v?.isEmpty ?? true ? "Descripción obligatoria" : null,
+                          v?.isEmpty ?? true ? l10n.descripcionObligatoria : null,
                     ),
                     const SizedBox(height: 16),
                     FormField<String>(
@@ -505,11 +506,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                           RegExp(r'[^\d]'),
                           '',
                         );
-                        return n.length >= 7 ? null : "Teléfono obligatorio";
+                        return n.length >= 7 ? null : l10n.telefonoObligatorio;
                       },
                       builder: (field) => IntlPhoneField(
                         decoration: _inputStyle(
-                          "Teléfono",
+                          l10n.telefono,
                         ).copyWith(errorText: field.errorText),
                         style: AppTextStyles.mensajeSecundario,
                         initialCountryCode: _initialCountryCode,
@@ -523,11 +524,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(direccionController, "Dirección", true),
+                    _buildTextField(direccionController, l10n.direccion, true, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(imagenUrlController, "Imagen URL", true),
+                    _buildTextField(imagenUrlController, l10n.imagenUrl, true, l10n),
                     const SizedBox(height: 24),
-                    _buildDropdown("País", paisSeleccionado, _paises, (val) {
+                    _buildDropdown(l10n.pais, paisSeleccionado, _paises, (val) {
                       setState(() {
                         paisSeleccionado = val;
                         departamentoSeleccionado = null;
@@ -546,10 +547,10 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                             .toLowerCase();
                         _updatePhoneCodes(nombre);
                       }
-                    }),
+                    }, l10n),
                     const SizedBox(height: 16),
                     _buildDropdown(
-                      "Estado / Provincia",
+                      l10n.estadoProvincia,
                       departamentoSeleccionado,
                       _departamentos,
                       (val) {
@@ -561,32 +562,35 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         if (val != null && _mostrarCampoCiudad())
                           _cargarCiudades(val);
                       },
+                      l10n,
                     ),
                     const SizedBox(height: 16),
                     if (_mostrarCampoCiudad())
                       _buildDropdown(
-                        "Ciudad",
+                        l10n.ciudad,
                         ciudadSeleccionada,
                         _ciudades,
                         (val) => setState(() => ciudadSeleccionada = val),
+                        l10n,
                       ),
                     if (_mostrarCampoCiudad()) const SizedBox(height: 16),
                     _buildDropdown(
-                      "Categoría",
+                      l10n.categoria,
                       categoriaSeleccionada,
                       _categorias,
                       (val) => setState(() => categoriaSeleccionada = val),
+                      l10n,
                     ),
                     const SizedBox(height: 24),
-                    Text("Redes sociales", style: AppTextStyles.caption),
+                    Text(l10n.redesSociales, style: AppTextStyles.caption),
                     const SizedBox(height: 16),
-                    _buildTextField(facebookController, "Facebook", false),
+                    _buildTextField(facebookController, "Facebook", false, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(instagramController, "Instagram", false),
+                    _buildTextField(instagramController, "Instagram", false, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(tiktokController, "TikTok", false),
+                    _buildTextField(tiktokController, "TikTok", false, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(paginaController, "Página Web", false),
+                    _buildTextField(paginaController, l10n.paginaWeb, false, l10n),
                     const SizedBox(height: 16),
                     FormField<String>(
                       validator: (_) {
@@ -594,7 +598,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                           RegExp(r'[^\d]'),
                           '',
                         );
-                        return n.length >= 7 ? null : "WhatsApp obligatorio";
+                        return n.length >= 7 ? null : l10n.whatsappObligatorio;
                       },
                       builder: (field) => IntlPhoneField(
                         decoration: _inputStyle(
@@ -613,7 +617,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     ),
                     const SizedBox(height: 30),
                     ElevatedButton(
-                      onPressed: isSubmitting ? null : _enviarFormulario,
+                      onPressed: isSubmitting ? null : () => _enviarFormulario(l10n),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.yellow,
                         padding: const EdgeInsets.symmetric(vertical: 14),
@@ -632,8 +636,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                             )
                           : Text(
                               _esEdicion
-                                  ? "Guardar Cambios"
-                                  : "Crear Anuncio",
+                                  ? l10n.guardarCambios
+                                  : l10n.crearPublicidad,
                               style: AppTextStyles.button,
                             ),
                     ),
@@ -645,7 +649,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     );
   }
 
-  // Skeleton bonito
   Widget _buildSkeletonLoader() {
     return Shimmer.fromColors(
       baseColor: Colors.grey[800]!,
@@ -680,7 +683,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   Widget _buildTextField(
     TextEditingController controller,
     String label,
-    bool required, {
+    bool required,
+    AppLocalizations l10n, {
     int maxLines = 1,
   }) {
     return TextFormField(
@@ -689,7 +693,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       decoration: _inputStyle(label),
       maxLines: maxLines,
       validator: required
-          ? (v) => v?.isEmpty ?? true ? "$label requerido" : null
+          ? (v) => v?.isEmpty ?? true ? l10n.campoRequerido(label) : null
           : null,
     );
   }
@@ -699,6 +703,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     int? value,
     List<Map<String, dynamic>> items,
     Function(int?) onChanged,
+    AppLocalizations l10n,
   ) {
     return DropdownButtonFormField<int>(
       dropdownColor: AppColors.blackfondo,
@@ -717,7 +722,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           )
           .toList(),
       onChanged: onChanged,
-      validator: (v) => v == null ? "Selecciona $label" : null,
+      validator: (v) => v == null ? l10n.seleccionaCampo(label) : null,
     );
   }
 }

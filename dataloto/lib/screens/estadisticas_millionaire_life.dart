@@ -7,6 +7,7 @@ import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
 import '../widgets/fullscreen_chart_viewer.dart';
 import '../services/cache_service.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class EstadisticasMillionaireLifeScreen extends StatefulWidget {
   const EstadisticasMillionaireLifeScreen({super.key});

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import '../services/api_service.dart';
 import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
@@ -93,7 +94,7 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
       setState(() {
         _jugadasList.removeWhere((j) => j["id"] == tempId);
       });
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al agregar jugada: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(context)!.errorAgregarJugada}: $e')));
     }
   }
 
@@ -149,15 +150,15 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
                     children: [
                       const Icon(Icons.casino, color: Colors.amber, size: 20),
                       const SizedBox(width: 6),
-                      Text("Tus jugadas para hoy", style: AppTextStyles.mensajeImportante),
+                      Text(AppLocalizations.of(context)!.tusJugadasHoy, style: AppTextStyles.mensajeImportante),
                     ],
                   ),
-                  Text("Total: ${jugadas.length}", style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70, fontSize: 13)),
+                  Text("${AppLocalizations.of(context)!.totalLabel}: ${jugadas.length}", style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70, fontSize: 13)),
                 ],
               ),
               const SizedBox(height: 2),
               jugadas.isEmpty
-                  ? Text("Aún no has guardado jugadas", style: AppTextStyles.mensajeSecundario)
+                  ? Text(AppLocalizations.of(context)!.aunNoTienesJugadas, style: AppTextStyles.mensajeSecundario)
                   : ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -209,12 +210,12 @@ class JugadasListGenericoState extends State<JugadasListGenerico> with SingleTic
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text("Nro. ${index + 1}", style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70, fontSize: 13)),
+                              Text("${AppLocalizations.of(context)!.nro} ${index + 1}", style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70, fontSize: 13)),
                               Expanded(
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: numeros.isEmpty
-                                      ? [Text("Sin números", style: AppTextStyles.mensajeSecundario)]
+                                      ? [Text(AppLocalizations.of(context)!.sinNumeros, style: AppTextStyles.mensajeSecundario)]
                                       : numeros.asMap().entries.map((entry) {
                                           int ballIndex = entry.key;
                                           int numero = entry.value;

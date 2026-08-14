@@ -5,6 +5,7 @@ import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
 import '../widgets/contenedor3.dart';
 import '../widgets/custom_app_bar.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class LoteriasMisJugadasScreen extends StatefulWidget {
   final String loteria;
@@ -53,17 +54,18 @@ class _LoteriasMisJugadasScreenState extends State<LoteriasMisJugadasScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: AppColors.blackfondo,
-        title: Text("Mis Jugadas - ${widget.loteria}", style: AppTextStyles.h2),
+        title: Text(l10n?.misJugadasConLoteria(widget.loteria) ?? "Mis Jugadas - ${widget.loteria}", style: AppTextStyles.h2),
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.yellow), onPressed: () => Navigator.pop(context)),
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator(color: AppColors.amber))
           : _jugadasList.isEmpty
-              ? Center(child: Text("No tienes jugadas guardadas", style: AppTextStyles.mensajeSecundario))
+              ? Center(child: Text(l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas", style: AppTextStyles.mensajeSecundario))
               : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: _jugadasList.length,

@@ -8,7 +8,8 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/cardbussiness.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../utils/pais_helper.dart';
+import 'package:dataloto/utils/pais_helper.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class DirectorioLocalScreen extends StatefulWidget {
   const DirectorioLocalScreen({super.key});
@@ -165,12 +166,13 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: CustomScrollView(
         slivers: [
-          const CustomSliverAppBar(
-            title: titulo,
+          CustomSliverAppBar(
+            title: l10n.buscaloAqui,
             pinned: true,
             floating: true,
             snap: true,
@@ -185,7 +187,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "¡Anúnciate hoy y haz que todos te conozcan!",
+                        l10n.anunciateHoy,
                         style: AppTextStyles.mensajeSecundario.copyWith(
                           fontSize: 12,
                         ),
@@ -193,7 +195,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                       IconButton(
                         icon: const Icon(Icons.add, color: AppColors.yellow),
                         iconSize: 30,
-                        tooltip: "Crear nueva publicidad",
+                        tooltip: l10n.crearNuevaPublicidad,
                         onPressed: () async {
                           await Navigator.push(
                             context,
@@ -211,26 +213,26 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                     children: [
                       Row(
                         children: [
-                          Expanded(flex: 1, child: _buildPaisDropdown()),
+                          Expanded(flex: 1, child: _buildPaisDropdown(l10n)),
                           const SizedBox(width: 10),
                           Expanded(
                             flex: 1,
-                            child: _buildDepartamentoDropdown(),
+                            child: _buildDepartamentoDropdown(l10n),
                           ),
                         ],
                       ),
                       const SizedBox(height: 15),
                       Row(
                         children: [
-                          Expanded(flex: 1, child: _buildCategoriaDropdown()),
+                          Expanded(flex: 1, child: _buildCategoriaDropdown(l10n)),
                         ],
                       ),
                       TextField(
                         controller: tituloController,
                         decoration: InputDecoration(
-                          labelText: 'Buscar por título',
+                          labelText: l10n.buscarPorTitulo,
                           labelStyle: AppTextStyles.mensajeSecundario,
-                          prefixIcon: Icon(
+                          prefixIcon: const Icon(
                             Icons.search,
                             color: AppColors.yellow,
                           ),
@@ -255,7 +257,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                 padding: const EdgeInsets.all(20.0),
                 child: Center(
                   child: Text(
-                    "No hay anuncios disponibles \npara los filtros seleccionados.",
+                    l10n.noHayAnunciosFiltros,
                     style: AppTextStyles.mensajeSecundario.copyWith(
                       fontSize: 12,
                     ),
@@ -315,7 +317,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     );
   }
 
-  Widget _buildPaisDropdown() {
+  Widget _buildPaisDropdown(AppLocalizations l10n) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _paisesFuture,
       builder: (context, snapshot) {
@@ -325,18 +327,19 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           );
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Text(
-            'No hay países disponibles',
-            style: TextStyle(color: Colors.white70),
+          return Text(
+            l10n.noHayPaisesDisponibles,
+            style: const TextStyle(color: Colors.white70),
           );
         }
         final paisesData = snapshot.data!;
         final paises = paisesData.map((m) => m['nombre'].toString()).toList();
-        final paisesConTodas = ["Todos", ...paises];
+        final paisesConTodas = [l10n.todos, ...paises];
 
         String valorActual = paisController.text.trim();
+        if (valorActual == "Todos") valorActual = l10n.todos;
         if (valorActual.isEmpty || !paisesConTodas.contains(valorActual)) {
-          valorActual = "Todos";
+          valorActual = l10n.todos;
           paisController.text = valorActual;
         }
 
@@ -346,7 +349,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,
           decoration: InputDecoration(
-            labelText: "País",
+            labelText: l10n.pais,
             labelStyle: AppTextStyles.mensajeSecundario,
             filled: true,
             fillColor: Colors.black26,
@@ -368,11 +371,11 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           onChanged: (value) async {
             if (value == null) return;
             paisController.text = value;
-            if (value == "Todos") {
+            if (value == l10n.todos) {
               setState(() {
                 _paisSeleccionadoId = null;
                 _departamentoSeleccionadoId = null;
-                departamentoController.text = "Todos";
+                departamentoController.text = l10n.todos;
                 _departamentosFuture = Future.value(<Map<String, dynamic>>[]);
               });
             } else {
@@ -391,7 +394,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                       _departamentosFuture = ApiService.getDepartamentosPorPais(
                         nuevoId,
                       );
-                      departamentoController.text = "Todos";
+                      departamentoController.text = l10n.todos;
                     });
                   }
                 }
@@ -404,7 +407,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     );
   }
 
-  Widget _buildDepartamentoDropdown() {
+  Widget _buildDepartamentoDropdown(AppLocalizations l10n) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _departamentosFuture,
       builder: (context, snapshot) {
@@ -415,18 +418,19 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
           return Text(
-            'No hay departamentos disponibles',
+            l10n.noHayDepartamentosDisponibles,
             style: AppTextStyles.mensajeSecundario,
           );
         }
         final departamentosData = snapshot.data!;
         final departamentos =
             departamentosData.map((m) => m['nombre'].toString()).toList();
-        final depsConTodas = ["Todos", ...departamentos];
+        final depsConTodas = [l10n.todos, ...departamentos];
 
         String valorActual = departamentoController.text.trim();
+        if (valorActual == "Todos") valorActual = l10n.todos;
         if (valorActual.isEmpty || !depsConTodas.contains(valorActual)) {
-          valorActual = "Todos";
+          valorActual = l10n.todos;
           departamentoController.text = valorActual;
         }
 
@@ -436,7 +440,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,
           decoration: InputDecoration(
-            labelText: "Estado / Provincia",
+            labelText: l10n.estadoProvincia,
             labelStyle: AppTextStyles.mensajeSecundario,
             filled: true,
             fillColor: Colors.black26,
@@ -452,7 +456,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           onChanged: (value) async {
             if (value == null) return;
             departamentoController.text = value;
-            if (value == "Todos") {
+            if (value == l10n.todos) {
               setState(() => _departamentoSeleccionadoId = null);
             } else {
               try {
@@ -474,7 +478,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     );
   }
 
-  Widget _buildCategoriaDropdown() {
+  Widget _buildCategoriaDropdown(AppLocalizations l10n) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: _categoriasFuture,
       builder: (context, snapshot) {
@@ -484,19 +488,20 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           );
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Text(
-            'No hay categorías disponibles',
-            style: TextStyle(color: Colors.white70),
+          return Text(
+            l10n.noHayCategoriasDisponibles,
+            style: const TextStyle(color: Colors.white70),
           );
         }
         final categoriasData = snapshot.data!;
         final categorias =
             categoriasData.map((m) => m['nombre'].toString()).toList();
-        final catsConTodas = ["Todas las categorías", ...categorias];
+        final catsConTodas = [l10n.todasCategorias, ...categorias];
 
         String valorActual = categoriaController.text.trim();
+        if (valorActual == "Todas las categorías") valorActual = l10n.todasCategorias;
         if (valorActual.isEmpty || !catsConTodas.contains(valorActual)) {
-          valorActual = "Todas las categorías";
+          valorActual = l10n.todasCategorias;
           categoriaController.text = valorActual;
         }
 
@@ -506,7 +511,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,
           decoration: InputDecoration(
-            labelText: "Categoría",
+            labelText: l10n.categoria,
             labelStyle: AppTextStyles.mensajeSecundario,
             filled: true,
             fillColor: Colors.black26,
@@ -522,7 +527,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           onChanged: (value) async {
             if (value == null) return;
             categoriaController.text = value;
-            if (value == "Todas las categorías") {
+            if (value == l10n.todasCategorias) {
               setState(() => _categoriaSeleccionadaId = null);
             } else {
               try {

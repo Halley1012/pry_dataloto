@@ -93,13 +93,8 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
     if (_selectedIds.isEmpty) return;
 
     final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
 
-    final String confirmMsg = langCode == 'en'
-        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
-        : langCode == 'pt'
-            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
-            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+    final String confirmMsg = l10n?.confirmarEliminarVarios(_selectedIds.length) ?? "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -149,19 +144,20 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
   }
 
   void _compartirWhatsApp() async {
+    final l10n = AppLocalizations.of(context);
     final jugadasACompartir = _jugadasList
         .where((j) => _selectedIds.isEmpty || _selectedIds.contains(j["id"]))
         .toList();
 
     if (jugadasACompartir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas para compartir")),
+        SnackBar(content: Text(l10n?.noHayJugadasCompartir ?? "No hay jugadas para compartir")),
       );
       return;
     }
 
     final StringBuffer buffer = StringBuffer();
-    buffer.writeln("🎰 *Mis Jugadas de ${widget.loteriaNombre} - DataLoto* 🎰\n");
+    buffer.writeln("🎰 *${l10n?.misJugadasLoteria(widget.loteriaNombre) ?? "Mis Jugadas de ${widget.loteriaNombre} - DataLoto"}* 🎰\n");
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
@@ -172,14 +168,16 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
           : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
 
       final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+      final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
       if (redVal != null) {
-        buffer.writeln("📌 *Jugada #${i + 1}*: ${whites.join(', ')} | 🔴 *$redVal*");
+        final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
+        buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
       } else {
-        buffer.writeln("📌 *Jugada #${i + 1}*: ${nums.join(', ')}");
+        buffer.writeln("📌 *$jugadaLabel*: ${nums.join(', ')}");
       }
     }
 
-    buffer.writeln("\n🍀 _¡Buena suerte con DataLoto!_");
+    buffer.writeln("\n🍀 _${l10n?.buenaSuerteDataLoto ?? "¡Buena suerte con DataLoto!"}_");
 
     final text = buffer.toString();
     final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
@@ -196,13 +194,14 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
   }
 
   Future<void> _imprimirPDF() async {
+    final l10n = AppLocalizations.of(context);
     final jugadasAImprimir = _selectedIds.isNotEmpty
         ? _jugadasList.where((j) => _selectedIds.contains(j["id"])).toList()
         : _jugadasList;
 
     if (jugadasAImprimir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas seleccionadas para imprimir")),
+        SnackBar(content: Text(l10n?.noHayJugadasSeleccionadasImprimir ?? "No hay jugadas seleccionadas para imprimir")),
       );
       return;
     }
@@ -224,7 +223,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        "DATALOTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
+                        l10n?.tiqueteDataloto(widget.loteriaNombre.toUpperCase()) ?? "DATALOTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
                         style: pw.TextStyle(
                           fontSize: 22,
                           fontWeight: pw.FontWeight.bold,
@@ -240,12 +239,16 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                 ),
                 pw.SizedBox(height: 12),
                 pw.Text(
-                  "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                  l10n?.reporteJugadasGuardadas(jugadasAImprimir.length) ?? "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
                   style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 16),
                 pw.TableHelper.fromTextArray(
-                  headers: ["#", "Fecha Guardado", "Balotas ${widget.loteriaNombre}"],
+                  headers: [
+                    l10n?.nro ?? "#",
+                    l10n?.fechaGuardado ?? "Fecha Guardado",
+                    l10n?.balotasLoteria(widget.loteriaNombre) ?? "Balotas ${widget.loteriaNombre}"
+                  ],
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
@@ -256,7 +259,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                     final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
-                        ? "${whites.join(' - ')}  [Roja: $red]"
+                        ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
                         : nums.join(' - ');
 
                     return [
@@ -281,7 +284,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                 pw.Divider(),
                 pw.Center(
                   child: pw.Text(
-                    "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
+                    l10n?.muchosExitosJuego ?? "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
                     style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
                   ),
                 ),
@@ -294,7 +297,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => doc.save(),
-      name: "Tiquete_${widget.loteriaNombre}_DataLoto.pdf",
+      name: l10n?.nombreArchivoPDF(widget.loteriaNombre) ?? "Tiquete_${widget.loteriaNombre}_DataLoto.pdf",
     );
   }
 
@@ -362,14 +365,9 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
     final bool hasSelection = _selectedIds.isNotEmpty;
 
-    final String emptySubtext = langCode == 'en'
-        ? "Generate and save your plays from the ${widget.loteriaNombre} screen"
-        : langCode == 'pt'
-            ? "Gere e salve suas apostas na tela do ${widget.loteriaNombre}"
-            : "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}";
+    final String emptySubtext = l10n?.generaGuardaJugadas(widget.loteriaNombre) ?? "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}";
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -378,7 +376,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
         onRefresh: _cargarJugadas,
         child: CustomScrollView(
         slivers: [
-          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
+          CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -457,7 +455,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                   ),
                                 ),
                                 child: Text(
-                                  "WhatsApp",
+                                  l10n?.whatsapp ?? "WhatsApp",
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,

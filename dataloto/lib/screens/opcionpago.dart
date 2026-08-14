@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import '../styles/colores.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class OpcionPagoScreen extends StatefulWidget {
   const OpcionPagoScreen({super.key});
@@ -23,6 +24,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
   bool procesando = false;
 
   void _procesarPago() {
+    final l10n = AppLocalizations.of(context);
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
 
@@ -36,7 +38,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
           procesando = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("✅ Pago realizado con éxito")),
+          SnackBar(content: Text(l10n?.pagoExito ?? "✅ Pago realizado con éxito")),
         );
         Navigator.pop(context, true); // Devuelve "true" para indicar que pagó
       });
@@ -75,10 +77,11 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "Opción de Pago",
+          l10n?.opcionPago ?? "Opción de Pago",
           style: GoogleFonts.montserrat(color: const Color(0xFF121212)),
         ),
         backgroundColor: Colors.amber,
@@ -90,7 +93,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
           child: ListView(
             children: [
               Text(
-                "Completa tus datos de pago",
+                l10n?.completaDatosPago ?? "Completa tus datos de pago",
                 style: GoogleFonts.montserrat(
                   color: const Color(0xFF121212),
                   fontSize: 16,
@@ -101,26 +104,26 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
 
               // Nombre en la tarjeta
               TextFormField(
-                decoration: const InputDecoration(
-                  labelText: "Nombre en la tarjeta",
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n?.nombreTarjeta ?? "Nombre en la tarjeta",
+                  border: const OutlineInputBorder(),
                 ),
                 validator: (value) =>
-                    value!.isEmpty ? "Ingresa el nombre" : null,
+                    value!.isEmpty ? (l10n?.ingresaNombre ?? "Ingresa el nombre") : null,
                 onSaved: (value) => nombre = value,
               ),
               const SizedBox(height: 15),
 
               // Número de tarjeta
               TextFormField(
-                decoration: const InputDecoration(
-                  labelText: "Número de tarjeta",
-                  border: OutlineInputBorder(),
+                decoration: InputDecoration(
+                  labelText: l10n?.numeroTarjeta ?? "Número de tarjeta",
+                  border: const OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 maxLength: 16,
                 validator: (value) =>
-                    value!.length < 16 ? "Número de tarjeta inválido" : null,
+                    value!.length < 16 ? (l10n?.tarjetaInvalida ?? "Número de tarjeta inválido") : null,
                 onSaved: (value) => numeroTarjeta = value,
               ),
               const SizedBox(height: 15),
@@ -140,7 +143,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
                         ), // limita a 3 dígitos
                       ],
                       validator: (value) =>
-                          value!.isEmpty ? "Fecha inválida" : null,
+                          value!.isEmpty ? (l10n?.fechaInvalida ?? "Fecha inválida") : null,
                       onSaved: (value) => fechaExp = value,
                     ),
                   ),
@@ -158,7 +161,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
                         ), // limita a 3 dígitos
                       ],
                       validator: (value) =>
-                          value!.length < 3 ? "CVV inválido" : null,
+                          value!.length < 3 ? (l10n?.cvvInvalido ?? "CVV inválido") : null,
                       onSaved: (value) => cvv = value,
                     ),
                   ),
@@ -176,7 +179,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
                 label: procesando
                     ? const CircularProgressIndicator(color: AppColors.amber)
                     : Text(
-                        "Pagar",
+                        l10n?.pagar ?? "Pagar",
                         style: GoogleFonts.montserrat(
                           color: const Color(0xFF121212),
                           fontSize: 16,
@@ -186,7 +189,7 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
               ),
           ElevatedButton(
           onPressed: createTransaction,
-          child: Text('Pagar con ePayco'),
+          child: Text(l10n?.pagarEpayco ?? 'Pagar con ePayco'),
         ),
             ],
           ),
