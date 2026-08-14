@@ -36,15 +36,15 @@ class NotificationGenerator:
         if loteria in ["miloto", "all"]:
             self.procesar_miloto()
         if loteria in ["powerball", "all"]:
-            self.procesar_generico("powerball", "Powerball", "resultados_powerball", "predicciones_powerball", 3)
+            self.procesar_generico("powerball", "Powerball", "resultados_powerball", "predicciones_powerball", 5)
         if loteria in ["lotto_america", "all"]:
-            self.procesar_generico("lotto_america", "Lotto America", "resultados_lotto_america", "predicciones_lotto_america", 4)
+            self.procesar_generico("lotto_america", "Lotto America", "resultados_lotto_america", "predicciones_lotto_america", 15)
         if loteria in ["double_play", "all"]:
-            self.procesar_generico("double_play", "Double Play", "resultados_double_play", "predicciones_double_play", 5)
+            self.procesar_generico("double_play", "Double Play", "resultados_double_play", "predicciones_double_play", 13)
         if loteria in ["millionaire_life", "all"]:
-            self.procesar_generico("millionaire_life", "Millionaire for Life", "resultados_millionaire_life", "predicciones_millionaire_life", 6)
+            self.procesar_generico("millionaire_life", "Millionaire for Life", "resultados_millionaire_life", "predicciones_millionaire_life", 14)
         if loteria in ["megamillions", "all"]:
-            self.procesar_generico("megamillions", "Mega Millions", "resultados_megamillions", "predicciones_megamillions", 7)
+            self.procesar_generico("megamillions", "Mega Millions", "resultados_megamillions", "predicciones_megamillions", 12)
 
     def limpiar_notificaciones_antiguas(self):
         try:
@@ -207,12 +207,12 @@ class NotificationGenerator:
                 conn.commit()
                 print(f"✅ Notificación guardada en DB ({tipo}): {mensaje}")
                 
-                # 🔥 Enviar Push Notification vía FCM
-                self.enviar_fcm_push(mensaje, tipo)
+                # 🔥 Enviar Push Notification vía FCM segmentada por país
+                self.enviar_fcm_push(loteria_id, mensaje, tipo)
         except Exception as e:
             print(f"❌ Error al guardar notificación: {e}")
 
-    def enviar_fcm_push(self, mensaje, tipo):
+    def enviar_fcm_push(self, loteria_id, mensaje, tipo):
         try:
             import firebase_admin
             from firebase_admin import credentials, messaging
@@ -252,10 +252,19 @@ class NotificationGenerator:
                 return
 
             with self.engine.connect() as conn:
-                res = conn.execute(text("SELECT fcm_token FROM users WHERE fcm_token IS NOT NULL AND fcm_token != ''"))
+                # 1. Obtener el pais_id de la lotería
+                lot_res = conn.execute(text("SELECT pais_id FROM loterias WHERE id = :l_id"), {"l_id": loteria_id}).fetchone()
+                if not lot_res:
+                    print(f"⚠️ No se encontró el país para la lotería {loteria_id}")
+                    return
+                
+                target_pais_id = lot_res[0]
+                
+                # 2. Buscar tokens de usuarios en ese país
+                res = conn.execute(text("SELECT fcm_token FROM users WHERE pais_id = :p_id AND fcm_token IS NOT NULL AND fcm_token != ''"), {"p_id": target_pais_id})
                 tokens = [r[0] for r in res.fetchall() if r[0]]
 
-            print(f"🔍 Buscando tokens activos... Encontrados: {len(tokens)}")
+            print(f"🔍 Segmentación: País {target_pais_id}. Tokens encontrados: {len(tokens)}")
             if not tokens:
                 return
 

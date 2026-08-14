@@ -80,11 +80,29 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _getRouteForLoteria(String name) {
-    final clean = name.trim().toLowerCase();
-    if (clean == "baloto" || clean.contains("revancha")) return "bloto";
-    if (clean == "miloto") return "mloto";
-    // Generación dinámica de ruta para cualquier lotería nueva:
-    return clean.replaceAll(RegExp(r'[^a-z0-9_]'), '_').replaceAll(RegExp(r'_+'), '_');
+    String clean = name.trim().toLowerCase();
+    if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
+    if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
+    if (clean.contains("colorloto")) return "colorloto";
+    if (clean.contains("powerball")) return "powerball";
+    if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return "lotto_america";
+    if (clean.contains("double play") || clean.contains("double_play")) return "double_play";
+    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return "millionaire_life";
+
+    // Dynamic normalization for future lotteries
+    clean = clean
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'[ñ]'), 'n');
+
+    return clean
+        .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
+        .trim()
+        .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
   int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
