@@ -1,6 +1,7 @@
 class NotificationModel {
   final int id;
   final int? loteriaId;
+  final int? paisId;
   final DateTime? fechaSorteo;
   final String mensaje;
   final String tipo;
@@ -10,6 +11,7 @@ class NotificationModel {
   NotificationModel({
     required this.id,
     this.loteriaId,
+    this.paisId,
     this.fechaSorteo,
     required this.mensaje,
     required this.tipo,
@@ -21,6 +23,7 @@ class NotificationModel {
     return NotificationModel(
       id: json['id'],
       loteriaId: json['loteria_id'],
+      paisId: json['pais_id'],
       fechaSorteo: json['fecha_sorteo'] != null ? DateTime.parse(json['fecha_sorteo']) : null,
       mensaje: json['mensaje'],
       tipo: json['tipo'],
@@ -33,6 +36,7 @@ class NotificationModel {
     return {
       'id': id,
       'loteria_id': loteriaId,
+      'pais_id': paisId,
       'fecha_sorteo': fechaSorteo?.toIso8601String(),
       'mensaje': mensaje,
       'tipo': tipo,

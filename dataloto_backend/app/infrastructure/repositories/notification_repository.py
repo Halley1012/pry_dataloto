@@ -16,12 +16,29 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
     async def list_notifications(self, user_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            # Seleccionamos campos de notificaciones y el pais_id de la tabla loterias
+            base_query = """
+                SELECT n.*, l.pais_id 
+                FROM notificaciones n
+                LEFT JOIN loterias l ON l.id = n.loteria_id
+                WHERE (n.usuario_id = $1 OR n.usuario_id IS NULL)
+                AND n.created_at >= NOW() - INTERVAL '2 days'
+                ORDER BY n.created_at DESC LIMIT $2
+            """
+            
             if user_id:
-                query = "SELECT * FROM notificaciones WHERE (usuario_id = $1 OR usuario_id IS NULL) AND created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT $2"
-                rows = await conn.fetch(query, user_id, limit)
+                rows = await conn.fetch(base_query, user_id, limit)
             else:
-                query = "SELECT * FROM notificaciones WHERE usuario_id IS NULL AND created_at >= NOW() - INTERVAL '2 days' ORDER BY created_at DESC LIMIT $1"
-                rows = await conn.fetch(query, limit)
+                # Si no hay user_id, mostramos solo las globales (usuario_id is null)
+                query_no_user = """
+                    SELECT n.*, l.pais_id 
+                    FROM notificaciones n
+                    LEFT JOIN loterias l ON l.id = n.loteria_id
+                    WHERE n.usuario_id IS NULL 
+                    AND n.created_at >= NOW() - INTERVAL '2 days' 
+                    ORDER BY n.created_at DESC LIMIT $1
+                """
+                rows = await conn.fetch(query_no_user, limit)
             return [dict(r) for r in rows]
 
     async def mark_as_read(self, notification_id: int) -> bool:
