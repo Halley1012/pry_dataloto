@@ -19,11 +19,11 @@ class WelcomeScreen extends StatelessWidget {
             children: [
               // Logo
               Image.asset(
-                "assets/images/logo.png",
+                "assets/images/logo_letras_.png",
                 fit: BoxFit.contain,
-                width: 400,
+                height: 400,
               ),
-              const SizedBox(height: 100),
+              const SizedBox(height: 1),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a DataLoto!", style: AppTextStyles.h2),
               const SizedBox(height: 20),

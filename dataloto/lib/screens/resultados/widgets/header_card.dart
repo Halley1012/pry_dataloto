@@ -86,7 +86,7 @@ class HeaderCard extends StatelessWidget {
               border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
                   l10n.jackpotEstimado,
@@ -94,6 +94,7 @@ class HeaderCard extends StatelessWidget {
                     fontSize: 10,
                     color: Colors.white54,
                   ),
+                  textAlign: TextAlign.right,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -103,6 +104,7 @@ class HeaderCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                     color: Colors.amber,
                   ),
+                  textAlign: TextAlign.right,
                 ),
                 if (label.isNotEmpty)
                   Text(
@@ -111,6 +113,7 @@ class HeaderCard extends StatelessWidget {
                       fontSize: 9,
                       color: Colors.white54,
                     ),
+                    textAlign: TextAlign.right,
                   ),
               ],
             ),
