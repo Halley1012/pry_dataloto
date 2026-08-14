@@ -20,7 +20,6 @@ import 'resultados_selector_screen.dart';
 
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:dataloto/widgets/footer.dart';
 import '../services/api_service.dart';
 import '../models/post.dart';
 import '../screens/createpostscreen.dart';
@@ -30,7 +29,6 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 // HomeScreen
@@ -1098,7 +1096,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(height: 30),
-              Footer(),
               const SizedBox(height: 10),
             ],
           ),

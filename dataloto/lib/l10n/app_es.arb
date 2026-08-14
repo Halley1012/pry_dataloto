@@ -69,7 +69,7 @@
   "anunciosDestacados": "Anuncios destacados",
   "derechosReservados": "© 2025 DataLoto. Todos los derechos reservados.",
   "version": "Versión",
-  "sinNotificacionesCategoria": "Sin notificaciones en esta categoría",
+  "sinNotificacionesCategoria": "Sin notificaciones para tu país",
   "verTodasNotificaciones": "Ver todas las notificaciones",
   "explorarLoterias": "Explorar Loterías",
   "buscarLoteriaOPais": "Buscar lotería o país...",
@@ -86,7 +86,7 @@
   "cerrar": "Cerrar",
   "contenidoAvisoLegal": "Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.",
   "contenidoAcercaDe": "DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías y ofrecer predicciones informadas. Aunque nuestras predicciones se basan en datos, no hay certeza absoluta de que esos números sean los ganadores, ya que la lotería es un juego de azar. No garantizamos premios, solo te ayudamos a elegir con más confianza. Usa la app con responsabilidad y solo con fines de entretenimiento. La decisión de utilizar estas predicciones queda bajo tu propia responsabilidad.",
-  "notificacionesIA": "Notificaciones IA",
+  "notificacionesIA": "Notificaciones",
   "marcarTodoComoLeido": "Marcar todo como leído",
   "seleccionarTodo": "Seleccionar todo",
   "desmarcarTodo": "Desmarcar todo",
@@ -99,5 +99,101 @@
   "confirmarCerrarSesion": "¿Estás seguro de que deseas salir?",
   "idiomaSistema": "Idioma del Sistema",
   "seleccionarIdioma": "Seleccionar Idioma",
-  "cancelar": "Cancelar"
+  "cancelar": "Cancelar",
+  "jackpotEstimado": "Jackpot estimado",
+  "millonesCOP": "millones COP",
+  "millonesUSD": "millones USD",
+  "resumenRapido": "Resumen rápido",
+  "verEstadisticasCompletas": "Ver estadísticas completas ›",
+  "masCaliente": "Más caliente",
+  "masFrio": "Más frío",
+  "prediccionIAHoy": "Predicción IA para hoy",
+  "basadaEnAnalisisDe": "Basada en análisis de {count} sorteos",
+  "@basadaEnAnalisisDe": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "indiceAfinidadHistorica": "Índice de afinidad histórica",
+  "tuJugadaSeleccionada": "Tu Jugada Seleccionada",
+  "balotasPrincipales": "{count} balotas principales",
+  "@balotasPrincipales": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotaRoja": "1 balota roja",
+  "tocaNumerosModificar": "Toca los números abajo para modificar",
+  "numeroSuerteSugerido": "Número de la suerte sugerido por IA",
+  "jugadaPersonalizada": "Jugada personalizada",
+  "notaTendenciasEstadisticas": "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+  "generarJugada": "Generar Jugada",
+  "guardarJugada": "Guardar Jugada",
+  "guardando": "Guardando...",
+  "jugadaGuardadaExito": "¡Jugada guardada con éxito! 🎉",
+  "errorGuardarJugada": "Error al guardar la jugada",
+  "iniciaSesionGuardar": "Inicia sesión para guardar tu jugada",
+  "cargandoPrediccion": "Cargando predicción... Intenta de nuevo",
+  "debesSeleccionarBalotas": "Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada.",
+  "jugadaYaExiste": "Esta jugada ya se encuentra en tus jugadas guardadas",
+  "balotasRojas": "Balotas Rojas",
+  "numerosOrdenadosProbabilidad": "Números ordenados de mayor a menor probabilidad.",
+  "tocaNumeroSeleccionar": "Toca un número para seleccionarlo",
+  "ultimoSorteo": "Último sorteo",
+  "sinNumeros": "Sin números",
+  "noticiasAlertas": "Noticias / Alertas",
+  "hoyEsSorteo": "Hoy es el sorteo de {loteria}",
+  "@hoyEsSorteo": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noOlvidesRevisar": "No olvides revisar tus números y mucha suerte.",
+  "paresImpares": "Pares - Impares",
+  "analizados": "Analizados",
+  "veces": "veces",
+  "versiónApp": "Versión de la app",
+  "tocaParaVerMas": "Toca para ver más",
+  "filtrosAnalisis": "Filtros de Análisis",
+  "sorteos": "Sorteos",
+  "tipo": "Tipo",
+  "numerosCalientesFrios": "Números Calientes y Fríos 🔥❄️",
+  "masFrecuentes": "Más Frecuentes",
+  "menosFrecuentes": "Menos Frecuentes",
+  "ausenciaSorteosTitle": "Días / Sorteos Sin Salir (Ausencia)",
+  "balotasMayorTiempo": "Balotas con mayor tiempo sin aparecer:",
+  "apariciones": "apariciones",
+  "pareja": "Pareja",
+  "altaConsistenciaIA": "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
+  "comportamientoHistoricoVsIA": "Comportamiento Histórico vs IA ⚡",
+  "numerosMayorTendencia": "Números de mayor tendencia histórica:",
+  "prediccionActualIA": "Predicción actual del modelo IA:",
+  "coberturaIA": "Cobertura IA",
+  "verTodasNotificacionesButton": "Ver todas las notificaciones",
+  "sinNotificacionesAun": "No tienes notificaciones aún",
+  "miPaisFilter": "Mi País",
+  "internacionalesFilter": "Internacionales",
+  "todasFilter": "Todas",
+  "marcarLeido": "Marcar como leído",
+  "errorConexion": "Error de conexión",
+  "credencialesInvalidas": "Credenciales inválidas",
+  "errorObtenerTokens": "Error al obtener tokens",
+  "ingresaEmailContrasena": "⚠️ Ingresa email y contraseña",
+  "enviadoEnlace": "Se ha enviado un enlace a {email}",
+  "@enviadoEnlace": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "recuperarContrasena": "Recuperar Contraseña",
+  "cancelarButton": "Cancelar",
+  "enviarButton": "Enviar"
 }

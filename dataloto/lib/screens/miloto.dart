@@ -14,6 +14,7 @@ import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/miloto_mis_jugadas.dart';
 import 'package:dataloto/widgets/jugadas_list_mloto.dart';
 import 'dart:math';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class MilotoScreen extends StatefulWidget {
   const MilotoScreen({super.key});
@@ -91,6 +92,9 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
         setState(() {
           listaProbables = numeros.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e != 0).toList();
           fechaPrediccion = fecha;
+          if (cached["jackpot"] != null) {
+            _jackpot = cached["jackpot"].toString();
+          }
           cargando = false;
         });
       }
@@ -264,12 +268,12 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     } catch (_) {}
   }
 
-  Future<void> _guardarJugada() async {
+  Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (!mounted) return;
 
     if (userId == null || userId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
+        SnackBar(content: Text(l10n?.iniciaSesionParaContinuar ?? "No se encontró el usuario. Inicia sesión.")),
       );
       return;
     }
@@ -285,7 +289,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     } else {
       if (seleccionados.length != 5) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Debes seleccionar 5 números para guardar tu jugada personalizada.")),
+          SnackBar(content: Text(l10n?.debesSeleccionarBalotas ?? "Debes seleccionar 5 números para guardar tu jugada personalizada.")),
         );
         return;
       }
@@ -303,9 +307,9 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     if (yaExiste) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(l10n?.jugadaYaExiste ?? "Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -326,17 +330,17 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("¡Jugada guardada con éxito! 🎉"),
+          SnackBar(
+            content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ Error al guardar: $e")),
+          SnackBar(content: Text("${l10n?.errorGuardarJugada ?? "⚠️ Error al guardar"}: $e")),
         );
       }
     } finally {
@@ -454,6 +458,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -469,21 +474,21 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(),
+                      _buildHeader(l10n),
                       const SizedBox(height: 18),
-                      _buildQuickSummary(s),
+                      _buildQuickSummary(s, l10n),
                       const SizedBox(height: 24),
-                      _buildIAPrediction(),
+                      _buildIAPrediction(l10n),
                       const SizedBox(height: 16),
-                      _buildDisclaimerNote(),
+                      _buildDisclaimerNote(l10n),
                       const SizedBox(height: 20),
-                      _buildActionGrid(),
+                      _buildActionGrid(l10n),
                       const SizedBox(height: 24),
-                      _buildManualSelectorSection(),
+                      _buildManualSelectorSection(l10n),
                       const SizedBox(height: 24),
-                      _buildResultadosSection(),
+                      _buildResultadosSection(l10n),
                       const SizedBox(height: 24),
-                      _buildNewsSection(),
+                      _buildNewsSection(l10n),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -496,7 +501,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -512,7 +517,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
             ),
             const SizedBox(height: 15),
             Text(
-              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo()}",
               style: AppTextStyles.caption,
             ),
           ],
@@ -527,9 +532,9 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
               Text(_jackpot ?? "\$220", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text("millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.millonesCOP ?? "millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
             ],
           ),
         ),
@@ -627,7 +632,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildIAPrediction() {
+  Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection = seleccionados.isNotEmpty;
     final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
     final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
@@ -649,16 +654,16 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    isCustomSelection ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada") : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
                     style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    isCustomSelection ? "${seleccionados.length}/5 balotas" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    isCustomSelection ? (l10n?.balotasPrincipales(seleccionados.length) ?? "${seleccionados.length}/5 balotas") : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ?? "Basada en análisis de $totalSorteosAnalizados sorteos"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
                   ),
                   Text(
-                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    isCustomSelection ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar") : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
                   ),
                 ],
@@ -701,7 +706,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -711,7 +716,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildDisclaimerNote() {
+  Widget _buildDisclaimerNote(AppLocalizations? l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -727,7 +732,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              l10n?.notaTendenciasEstadisticas ?? "Nota: son solo tendencias estadísticas, no garantías absolutas.",
               style: AppTextStyles.caption.copyWith(fontSize: 11),
             ),
           ),
@@ -736,25 +741,25 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildActionGrid() {
+  Widget _buildActionGrid(AppLocalizations? l10n) {
     return Row(
       children: [
         _buildActionTile(
           icon: Icons.auto_awesome_outlined,
-          label: "Generar\nJugada",
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
           onTap: _generarAleatorios,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmark_add_outlined,
-          label: isSaving ? "Guardando..." : "Guardar\nJugada",
-          onTap: isSaving ? null : _guardarJugada,
+          label: isSaving ? (l10n?.guardando ?? "Guardando...") : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+          onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmarks_outlined,
-          label: "Mis\nJugadas",
+          label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
           onTap: () async {
             await Navigator.push(
               context,
@@ -766,7 +771,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bar_chart,
-          label: "Ver\nEstadísticas",
+          label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"),
           onTap: () => Navigator.pushNamed(context, '/estadisticas_mloto'),
         ),
       ],
@@ -824,7 +829,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildManualSelectorSection() {
+  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -832,7 +837,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.seleccionaNumeros ?? "Selecciona tus números", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
@@ -846,7 +851,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text("${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."} \n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 16),
           listaProbables.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -855,7 +860,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                   children: [
                     // --- Sección 1: Números más probables ---
                     Text(
-                      "Números mas probables",
+                      l10n?.populares ?? "Números mas probables",
                       style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12),
                     ),
                     const SizedBox(height: 8),
@@ -897,7 +902,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
 
                     // --- Sección 2: Poco probables, pero posibles ---
                     Text(
-                      "Poco probables, pero posibles.",
+                      l10n?.menosFrecuentes ?? "Poco probables, pero posibles.",
                       style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12),
                     ),
                     const SizedBox(height: 8),
@@ -941,14 +946,14 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildQuickSummary(Map<String, String> stats) {
+  Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text("Resumen rápido", style: AppTextStyles.mensajeImportante)]),
-            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_mloto'), child: Text("Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
+            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text(l10n?.resumenRapido ?? "Resumen rápido", style: AppTextStyles.mensajeImportante)]),
+            TextButton(onPressed: () => Navigator.pushNamed(context, '/estadisticas_mloto'), child: Text(l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber))),
           ],
         ),
         const SizedBox(height: 12),
@@ -957,15 +962,15 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              _buildStatCard("Más caliente", stats["hot"]!, stats["hotV"]!, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
+              _buildStatCard(l10n?.masCaliente ?? "Más caliente", stats["hot"]!, stats["hotV"]!, l10n, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Más frío", stats["cold"]!, stats["coldV"]!, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
+              _buildStatCard(l10n?.masFrio ?? "Más frío", stats["cold"]!, stats["coldV"]!, l10n, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Pares - Impares", stats["pairs"]!, "Último sorteo", icon: Icons.balance, iconColor: Colors.white54),
+              _buildStatCard(l10n?.paresImpares ?? "Pares - Impares", stats["pairs"]!, l10n?.ultimoSorteo ?? "Último sorteo", l10n, icon: Icons.balance, iconColor: Colors.white54),
               const SizedBox(width: 10),
-              _buildStatCard("Score IA", "82%", "Afinidad histórica", icon: Icons.insights, iconColor: AppColors.yellow),
+              _buildStatCard("Score IA", "82%", l10n?.indiceAfinidadHistorica ?? "Afinidad histórica", l10n, icon: Icons.insights, iconColor: AppColors.yellow),
               const SizedBox(width: 10),
-              _buildStatCard("Analizados", stats["total"]!, "Sorteos", icon: Icons.analytics_outlined, iconColor: Colors.white54),
+              _buildStatCard(l10n?.analizados ?? "Analizados", stats["total"]!, l10n?.sorteos ?? "Sorteos", l10n, icon: Icons.analytics_outlined, iconColor: Colors.white54),
             ],
           ),
         ),
@@ -973,7 +978,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildStatCard(String title, String val, String sub, {required IconData icon, required Color iconColor}) {
+  Widget _buildStatCard(String title, String val, String sub, AppLocalizations? l10n, {required IconData icon, required Color iconColor}) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/estadisticas_mloto'),
       child: Container(
@@ -1010,7 +1015,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildResultadosSection() {
+  Widget _buildResultadosSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1018,18 +1023,18 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "Últimos 5 resultados MiLoto",
+              "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} MiLoto",
               style: AppTextStyles.h2,
             ),
           ),
           const SizedBox(height: 16),
-          _buildResultadosContent(),
+          _buildResultadosContent(l10n),
         ],
       ),
     );
   }
 
-  Widget _buildResultadosContent() {
+  Widget _buildResultadosContent(AppLocalizations? l10n) {
     return Column(
       children: [
         if (ultimosResultados.isEmpty)
@@ -1043,7 +1048,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                   Expanded(
                     flex: 1,
                     child: Text(
-                      "Fecha",
+                      l10n?.pais ?? "Fecha",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1051,7 +1056,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                   Expanded(
                     flex: 2,
                     child: Text(
-                      "Resultados",
+                      l10n?.resultados ?? "Resultados",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1090,7 +1095,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
                               children: numeros.isEmpty
                                   ? [
                                       Text(
-                                        "Sin números",
+                                        l10n?.sinNumeros ?? "Sin números",
                                         style: AppTextStyles.mensajeSecundario,
                                       ),
                                     ]
@@ -1120,19 +1125,19 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
     );
   }
 
-  Widget _buildNewsSection() {
+  Widget _buildNewsSection(AppLocalizations? l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Anuncios destacados", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(l10n?.anunciosDestacados ?? "Anuncios destacados", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             TextButton(
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen()));
               },
-              child: Text("Ver más ›", style: TextStyle(color: AppColors.yellow, fontSize: 12)),
+              child: Text(l10n?.verTodas ?? "Ver más ›", style: const TextStyle(color: AppColors.yellow, fontSize: 12)),
             ),
           ],
         ),

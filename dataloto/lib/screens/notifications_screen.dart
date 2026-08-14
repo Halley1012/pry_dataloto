@@ -128,7 +128,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 const Icon(Icons.filter_alt_off_outlined, size: 60, color: Colors.white24),
                                 const SizedBox(height: 16),
                                 Text(
-                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones en para tu pais",
+                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones para tu país",
                                   style: AppTextStyles.mensajeSecundario,
                                 ),
                                 const SizedBox(height: 12),
