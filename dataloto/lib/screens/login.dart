@@ -8,6 +8,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:dataloto/l10n/generated/app_localizations.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:dataloto/screens/registro.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'resultados/widgets/resultados_shared.dart';
 
 class LoginPage extends StatefulWidget {
@@ -28,6 +31,73 @@ class _LoginPageState extends State<LoginPage> {
   // Guardar token en SecureStorage
   Future<void> saveToken(String token) async {
     await storage.write(key: 'token', value: token);
+  }
+
+  Future<void> loginWithGoogle() async {
+    final l10n = AppLocalizations.of(context)!;
+    setState(() => isLoading = true);
+
+    try {
+      final googleSignIn = GoogleSignIn(
+        scopes: ['email', 'profile'],
+      );
+      
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => isLoading = false);
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Error al obtener token de Google")),
+        );
+        return;
+      }
+
+      final response = await ApiService.socialLogin("google", idToken);
+
+      if (!mounted) return;
+      setState(() => isLoading = false);
+
+      if (response['success'] == true) {
+        final user = response['user'];
+        final int? userId = user?['id'];
+        final int? paisId = user?['pais_id'];
+        final int? departamentoId = user?['departamento_id'];
+
+        if (paisId == null || departamentoId == null) {
+          // Redirigir a Onboarding de Ubicación
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RegistroScreen(
+                user: user,
+                userId: userId,
+                isSocialOnboarding: true,
+              ),
+            ),
+          );
+        } else {
+          Navigator.pushReplacementNamed(context, "/home");
+        }
+      } else {
+        final errorMsg = response['error'] ?? "Error en inicio de sesión social";
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg.toString())),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${l10n.errorConexion}: $e")),
+      );
+    }
   }
 
   // Login usando ApiService
@@ -328,6 +398,48 @@ class _LoginPageState extends State<LoginPage> {
                     color: AppColors.yellow,
                     fontWeight: FontWeight.bold,
                     decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+              Row(
+                children: [
+                  const Expanded(child: Divider(color: Colors.white24)),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      "o",
+                      style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                    ),
+                  ),
+                  const Expanded(child: Divider(color: Colors.white24)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: isLoading ? null : loginWithGoogle,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black87,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 2,
+                  ),
+                  icon: const FaIcon(
+                    FontAwesomeIcons.google,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  label: const Text(
+                    "Continuar con Google",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),

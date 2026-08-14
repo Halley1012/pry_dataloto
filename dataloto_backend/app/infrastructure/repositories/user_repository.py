@@ -37,7 +37,7 @@ class PostgresUserRepository(UserRepositoryPort):
             """, email.strip().lower())
             return dict(row) if row else None
 
-    async def create(self, name: str, email: str, password_hashed: str, pais_id: int, departamento_id: int) -> Dict[str, Any]:
+    async def create(self, name: str, email: str, password_hashed: Optional[str], pais_id: Optional[int], departamento_id: Optional[int]) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             normalized_email = email.strip().lower()

@@ -301,6 +301,59 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
     );
   }
 
+  Widget _buildCircularActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback? onPressed,
+    bool isEnabled = true,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: isEnabled ? onPressed : null,
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 55,
+            height: 55,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isEnabled ? Colors.black : Colors.black.withOpacity(0.5),
+              border: Border.all(
+                color: isEnabled ? color.withOpacity(0.5) : Colors.white10,
+                width: 1.5,
+              ),
+              boxShadow: [
+                if (isEnabled)
+                  BoxShadow(
+                    color: color.withOpacity(0.2),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                  ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: isEnabled ? color : Colors.white24,
+              size: 26,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            fontSize: 10,
+            color: isEnabled ? Colors.white70 : Colors.white24,
+            fontWeight: FontWeight.w500,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
   String _formatFecha(dynamic rawDate) {
     if (rawDate == null) return "";
     try {
@@ -384,110 +437,40 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AppContainer3(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _toggleSelectAll,
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  hasSelection
-                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
-                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 13,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: hasSelection ? _eliminarSeleccionadas : null,
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: hasSelection
-                                      ? Colors.redAccent.shade700
-                                      : Colors.grey.shade800,
-                                  disabledBackgroundColor: Colors.grey.shade800,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  hasSelection
-                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
-                                      : (l10n?.eliminar ?? "Eliminar"),
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 13,
-                                    color: hasSelection ? Colors.white : Colors.white38,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _compartirWhatsApp,
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: hasSelection
-                                      ? const Color(0xFF25D366)
-                                      : AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  l10n?.whatsapp ?? "WhatsApp",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 13,
-                                    color: hasSelection ? Colors.white : Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ElevatedButton(
-                                onPressed: _imprimirPDF,
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(double.infinity, 40),
-                                  backgroundColor: AppColors.yellow,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ),
-                                child: Text(
-                                  l10n?.imprimirPDF ?? "Imprimir PDF",
-                                  textAlign: TextAlign.center,
-                                  style: AppTextStyles.button.copyWith(
-                                    fontSize: 13,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          _buildCircularActionButton(
+                            icon: hasSelection ? Icons.deselect : Icons.select_all,
+                            label: hasSelection
+                                ? (l10n?.desmarcarTodo ?? "Desmarcar")
+                                : (l10n?.seleccionarTodo ?? "Seleccionar"),
+                            color: AppColors.yellow,
+                            onPressed: _toggleSelectAll,
+                          ),
+                          _buildCircularActionButton(
+                            icon: Icons.share,
+                            label: l10n?.whatsapp ?? "WhatsApp",
+                            color: const Color(0xFF25D366),
+                            onPressed: _compartirWhatsApp,
+                          ),
+                          _buildCircularActionButton(
+                            icon: Icons.picture_as_pdf,
+                            label: l10n?.imprimirPDF ?? "PDF",
+                            color: Colors.purpleAccent,
+                            onPressed: _imprimirPDF,
+                          ),
+                          _buildCircularActionButton(
+                            icon: Icons.delete_outline,
+                            label: l10n?.eliminar ?? "Eliminar",
+                            color: Colors.redAccent,
+                            onPressed: hasSelection ? _eliminarSeleccionadas : null,
+                            isEnabled: hasSelection,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),

@@ -117,3 +117,51 @@ class AuthUseCases:
         except Exception as e:
             # En tareas de fondo es vital capturar errores para no tumbar el worker
             print(f"❌ Error en Background Task (email): {e}")
+
+    async def social_login(self, provider: str, token: str) -> Dict[str, Any]:
+        if provider.lower() != "google":
+            raise ValueError(f"Proveedor '{provider}' no soportado")
+
+        import httpx
+        # Call Google tokeninfo to verify the ID token
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+            if resp.status_code != 200:
+                raise ValueError("Token de Google inválido o expirado")
+            payload = resp.json()
+
+        email = payload.get("email")
+        name = payload.get("name") or email.split("@")[0]
+
+        if not email:
+            raise ValueError("El token de Google no contiene correo electrónico")
+
+        # Find user by email
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            # Register new user with Null values for location
+            user = await self.user_repo.create(
+                name=name,
+                email=email,
+                password_hashed=None,
+                pais_id=None,
+                departamento_id=None
+            )
+
+        # Generate JWT tokens
+        from app.core import security
+        access_token = security.create_access_token(data={"sub": str(user["id"])})
+        refresh_token = security.create_refresh_token(data={"sub": str(user["id"])})
+
+        return {
+            "success": True,
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "pais_id": user["pais_id"],
+                "departamento_id": user["departamento_id"]
+            }
+        }

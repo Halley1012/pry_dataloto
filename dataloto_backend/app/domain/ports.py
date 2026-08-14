@@ -13,7 +13,7 @@ class UserRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def create(self, name: str, email: str, password_hashed: str, pais_id: int, departamento_id: int) -> Dict[str, Any]:
+    async def create(self, name: str, email: str, password_hashed: Optional[str], pais_id: Optional[int], departamento_id: Optional[int]) -> Dict[str, Any]:
         pass
 
     @abstractmethod
