@@ -43,7 +43,7 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def list_jugadas(self, tipo: str, user_id: int) -> List[Dict[str, Any]]:
+    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
