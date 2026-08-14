@@ -186,6 +186,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       List<int> top20 = [];
       List<int> predictionNumeros = [];
       List<int> predictionBalotaroja = [];
+      String? jackpotVal;
+
+      if (cachedPred != null && cachedPred["jackpot"] != null) {
+        jackpotVal = cachedPred["jackpot"].toString();
+      }
 
       // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
       if (cachedPred != null && cachedPred["numeros"] != null) {
@@ -213,6 +218,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         final resPrediccion = await http.get(Uri.parse(predUrl)).catchError((_) => http.Response('{}', 500));
         if (resPrediccion.statusCode == 200) {
           final body = jsonDecode(resPrediccion.body);
+          if (body["jackpot"] != null) {
+            jackpotVal = body["jackpot"].toString();
+          }
           final rawNums = body["numeros"] ?? body["probables"] ?? body["top20"] ?? body["lista_probables"];
           final rawRoja = body["balotaroja"] ?? body["balota_roja"] ?? body["balotas_rojas"];
           
@@ -243,6 +251,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         "predictionNumeros": predictionNumeros,
         "predictionBalotaroja": predictionBalotaroja,
         "jugadas": userJugadas,
+        "jackpot": jackpotVal,
       };
 
       CacheService.setJson(cacheKey, payload);
@@ -341,8 +350,21 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         _winningNums = extractedNums;
       }
 
+      _jackpot = "";
       if (ultimoBaloto["jackpot"] != null && ultimoBaloto["jackpot"].toString().isNotEmpty) {
         _jackpot = ultimoBaloto["jackpot"].toString();
+      } else if (data["jackpot"] != null && data["jackpot"].toString().isNotEmpty) {
+        _jackpot = data["jackpot"].toString();
+      }
+
+      if (_jackpot.isEmpty) {
+        if (_selectedLoteria.toLowerCase().contains("miloto")) {
+          _jackpot = "\$220 millones";
+        } else if (_selectedLoteria.toLowerCase().contains("baloto")) {
+          _jackpot = "\$24.500 millones";
+        } else if (_selectedLoteria.toLowerCase().contains("colorloto")) {
+          _jackpot = "\$2.050 millones";
+        }
       }
 
       // Procesar Revancha (si existe)

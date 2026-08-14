@@ -81,7 +81,11 @@ class JugadaUseCases:
         if not row:
             return {"error": "No hay predicciones registradas"}
         fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        return {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
+        jackpot = self.jugada_repo.get_jackpot_reciente("baloto")
+        res = {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
+        if jackpot:
+            res["jackpot"] = jackpot
+        return res
     
     def obtener_prediccion_mloto(self, fecha: Optional[str] = None) -> Dict[str, Any]:
         row = self.jugada_repo.get_prediccion_reciente_mloto(fecha)
@@ -89,7 +93,11 @@ class JugadaUseCases:
             return {"error": "No hay predicciones registradas"}
             
         fecha_res, numeros = row[0], _normalize_numeros(row[1])
-        return {"fecha": _format_fecha(fecha_res), "numeros": numeros}
+        jackpot = self.jugada_repo.get_jackpot_reciente("miloto")
+        res = {"fecha": _format_fecha(fecha_res), "numeros": numeros}
+        if jackpot:
+            res["jackpot"] = jackpot
+        return res
        
 
     def obtener_ultimos5_mloto(self) -> Dict[str, Any]:
@@ -100,10 +108,14 @@ class JugadaUseCases:
         resultados = []
         for row in rows:
             fecha, numeros = row[0], row[1]
-            resultados.append({
+            jackpot = row[2] if len(row) > 2 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
     
 
@@ -118,11 +130,15 @@ class JugadaUseCases:
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
             sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
-            resultados.append({
+            jackpot = row[4] if len(row) > 4 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
                 "sorteo": sorteo_nombre
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
 
     def obtener_historico_completo_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
@@ -135,11 +151,15 @@ class JugadaUseCases:
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
             sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
-            resultados.append({
+            jackpot = row[4] if len(row) > 4 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
                 "sorteo": sorteo_nombre
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
 
     def obtener_historico_completo_mloto(self) -> Dict[str, Any]:
@@ -150,10 +170,14 @@ class JugadaUseCases:
         for row in rows:
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
-            resultados.append({
+            jackpot = row[2] if len(row) > 2 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
 
     def obtener_historico(self, tipo: str, limit: int) -> Dict[str, Any]:
@@ -167,7 +191,11 @@ class JugadaUseCases:
         if not row:
             return {"error": f"No hay predicciones registradas para {loteria_nombre}"}
         fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        return {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
+        jackpot = self.jugada_repo.get_jackpot_reciente(loteria_nombre)
+        res = {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
+        if jackpot:
+            res["jackpot"] = jackpot
+        return res
 
     def obtener_ultimos5_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
         tabla = f"resultados_{loteria_nombre}"
@@ -179,11 +207,15 @@ class JugadaUseCases:
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            resultados.append({
+            jackpot = row[4] if len(row) > 4 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
                 "sorteo": display_name
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
 
     def obtener_historico_completo_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
@@ -196,10 +228,14 @@ class JugadaUseCases:
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            resultados.append({
+            jackpot = row[4] if len(row) > 4 else None
+            item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
                 "sorteo": display_name
-            })
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
         return {"resultados": resultados}
 
