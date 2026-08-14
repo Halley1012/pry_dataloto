@@ -50,8 +50,8 @@ async def crear_jugada_mloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseC
     return await use_cases.guardar_jugada("mloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_mloto", response_model=List[schemas.JugadaOut])
-async def listar_jugadas_mloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-    return await use_cases.listar_jugadas("mloto", user_id)
+async def listar_jugadas_mloto(user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    return await use_cases.listar_jugadas("mloto", user_id, fecha)
 
 @router.delete("/jugadas_mloto/{jugada_id}")
 async def borrar_jugada_mloto(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -104,10 +104,10 @@ async def crear_jugada_bloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseC
     return await use_cases.guardar_jugada("bloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_bloto", response_model=List[schemas.JugadaOut])
-async def listar_jugadas_bloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def listar_jugadas_bloto(user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     # En la implementación original, esta ruta estaba duplicada. 
     # Mapearemos a listar jugadas de bloto para mantener la lógica.
-    return await use_cases.listar_jugadas("bloto", user_id)
+    return await use_cases.listar_jugadas("bloto", user_id, fecha)
 
 @router.delete("/jugadas_bloto/{jugada_id}")
 async def borrar_jugada_bloto(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -137,9 +137,9 @@ async def crear_jugada_cloto(jugada: schemas.JugadaCreate, use_cases: JugadaUseC
     return await use_cases.guardar_jugada("colorloto", int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
 @router.get("/jugadas_cloto", response_model=List[schemas.JugadaOut])
-async def listar_jugadas_cloto(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def listar_jugadas_cloto(user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     # Proveemos el endpoint correcto para cloto también
-    return await use_cases.listar_jugadas("colorloto", user_id)
+    return await use_cases.listar_jugadas("colorloto", user_id, fecha)
 
 @router.delete("/jugadas_cloto/{jugada_id}")
 async def borrar_jugada_cloto(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
@@ -198,8 +198,8 @@ for route_name, display_name in LOTERIAS_EEUU:
             return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
         @router.get(f"/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name=f"listar_jugadas_{r_name}")
-        async def listar_jugadas(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            return await use_cases.listar_jugadas(r_name, user_id)
+        async def listar_jugadas(user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+            return await use_cases.listar_jugadas(r_name, user_id, fecha)
 
         @router.delete(f"/jugadas_{r_name}/{{jugada_id}}", name=f"borrar_jugada_{r_name}")
         async def borrar_jugada(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):

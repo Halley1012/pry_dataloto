@@ -14,7 +14,7 @@ class MisJugadasCard extends StatelessWidget {
   final String nombreSorteoSecundario;
 
   const MisJugadasCard({
-    Key? key,
+    super.key,
     required this.selectedLoteria,
     required this.misJugadas,
     required this.winningNums,
@@ -24,7 +24,7 @@ class MisJugadasCard extends StatelessWidget {
     this.winningRedRevancha,
     required this.nombreSorteoPrincipal,
     required this.nombreSorteoSecundario,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +79,7 @@ class MisJugadasCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16.0),
               child: Center(
                 child: Text(
-                  "Aún no tienes jugadas guardadas para esta lotería.",
+                  "No realizaste jugadas para este sorteo.",
                   style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white38, fontStyle: FontStyle.italic),
                 ),
               ),

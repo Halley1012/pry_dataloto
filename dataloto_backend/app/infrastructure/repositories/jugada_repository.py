@@ -32,19 +32,39 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             """, user_id, numeros, fecha_guardado, expira)
             return dict(row)
 
-    async def list_jugadas(self, tipo: str, user_id: int) -> List[Dict[str, Any]]:
+    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         tabla = f"jugadas_{tipo}"
         async with pool.acquire() as conn:
             await self._ensure_table(conn, tabla)
-            rows = await conn.fetch(f"""
-                SELECT id, user_id, numeros, fecha_guardado, expira
-                FROM {tabla}
-                WHERE user_id = $1
-                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
-                ORDER BY fecha_guardado DESC
-            """, user_id)
+            if fecha:
+                try:
+                    clean_date = datetime.strptime(fecha.split('T')[0].strip(), "%Y-%m-%d").date()
+                    rows = await conn.fetch(f"""
+                        SELECT id, user_id, numeros, fecha_guardado, expira
+                        FROM {tabla}
+                        WHERE user_id = $1
+                          AND (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2
+                        ORDER BY fecha_guardado DESC
+                    """, user_id, clean_date)
+                except Exception:
+                    rows = await conn.fetch(f"""
+                        SELECT id, user_id, numeros, fecha_guardado, expira
+                        FROM {tabla}
+                        WHERE user_id = $1
+                          AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                          AND fecha_guardado >= NOW() - INTERVAL '7 days'
+                        ORDER BY fecha_guardado DESC
+                    """, user_id)
+            else:
+                rows = await conn.fetch(f"""
+                    SELECT id, user_id, numeros, fecha_guardado, expira
+                    FROM {tabla}
+                    WHERE user_id = $1
+                      AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                      AND fecha_guardado >= NOW() - INTERVAL '7 days'
+                    ORDER BY fecha_guardado DESC
+                """, user_id)
             return [dict(r) for r in rows]
 
     async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
