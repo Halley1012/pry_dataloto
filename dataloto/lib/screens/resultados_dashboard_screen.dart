@@ -12,6 +12,7 @@ import 'resultados/widgets/estadisticas_cards.dart';
 import 'resultados/widgets/resultados_tab_selector.dart';
 import 'resultados/widgets/ultimos_sorteos_table.dart';
 import 'resultados/widgets/header_card.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -63,12 +64,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     return _selectedLoteria;
   }
 
-  String get _nombreSorteoSecundario {
+  String _getNombreSorteoSecundario(BuildContext context) {
     final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
     if (parts.length > 1 && parts[1].isNotEmpty) {
       return parts[1];
     }
-    return "Revancha";
+    return AppLocalizations.of(context)!.revancha;
   }
 
   @override
@@ -501,31 +502,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     _mejorRachaCount = math.max(maxStreak, currentStreak);
 
     // 7. Insight IA dinámico con lista de números acertados (Baloto y Revancha)
-    if (_winningNums.isNotEmpty) {
-      if (top20.isEmpty) {
-         _insightIAText = "Las predicciones de la IA para este sorteo pasado no están disponibles en el historial.";
-      } else {
-        final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
-        final balotoHits = mainBaloto.where((n) => top20.contains(n)).toList();
-
-        if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
-          final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
-          final revanchaHits = mainRevancha.where((n) => top20.contains(n)).toList();
-
-          final String bText = balotoHits.isNotEmpty ? "${balotoHits.length} en Baloto (${balotoHits.join(', ')})" : "0 en Baloto";
-          final String rText = revanchaHits.isNotEmpty ? "${revanchaHits.length} en Revancha (${revanchaHits.join(', ')})" : "0 en Revancha";
-
-          _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron $bText y $rText.";
-        } else {
-          if (balotoHits.isNotEmpty) {
-            final numsStr = balotoHits.join(', ');
-            _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron ${balotoHits.length} números ($numsStr).";
-          } else {
-            _insightIAText = "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, no hubo coincidencias en este sorteo.";
-          }
-        }
-      }
-    }
+    _insightIAText = ""; // Se calculará en el build para usar l10n
   }
 
   List<int> _extraerNumerosDeMap(Map<String, dynamic> item) {
@@ -599,9 +576,44 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     return rawDate;
   }
 
+  String _buildInsightIAText(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    if (_winningNums.isEmpty) return "";
+
+    if (_top20List.isEmpty) {
+      return l10n.prediccionesNoDisponibles;
+    }
+
+    final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
+    final balotoHits = mainBaloto.where((n) => _top20List.contains(n)).toList();
+
+    if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
+      final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
+      final revanchaHits = mainRevancha.where((n) => _top20List.contains(n)).toList();
+
+      final String bText = balotoHits.isNotEmpty
+          ? l10n.nEnBaloto(balotoHits.length, balotoHits.join(', '))
+          : l10n.ceroEnBaloto;
+      final String rText = revanchaHits.isNotEmpty
+          ? l10n.nEnRevancha(revanchaHits.length, revanchaHits.join(', '))
+          : l10n.ceroEnRevancha;
+
+      return l10n.insightIACayeronDual(_probablesCount, _selectedLoteria, bText, rText);
+    } else {
+      if (balotoHits.isNotEmpty) {
+        final numsStr = balotoHits.join(', ');
+        return l10n.insightIACayeron(_probablesCount, _selectedLoteria, "${l10n.nNumeros(balotoHits.length)} ($numsStr)");
+      } else {
+        return l10n.insightIANoCoincidencias(_probablesCount, _selectedLoteria);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final canPop = Navigator.canPop(context);
+    final nombreSorteoSecundario = _getNombreSorteoSecundario(context);
 
     // Preparar listToRender para la tabla
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
@@ -646,7 +658,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           }).toList()
         : [
             {
-              "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : "Reciente",
+              "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : l10n.reciente,
               "nums": _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
               "red": _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
               "cobertura": _selectedResultadosTab == 1 ? "${(_coberturaPorcentajeRevancha * 100).round()}%" : "${(_coberturaPorcentaje * 100).round()}%",
@@ -656,8 +668,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           ];
 
     final String subTitulo = _hasRevanchaData
-        ? (_selectedResultadosTab == 1 ? "Últimos 5 resultados $_nombreSorteoSecundario" : "Últimos 5 resultados $_nombreSorteoPrincipal")
-        : "Últimos sorteos";
+        ? (_selectedResultadosTab == 1 ? l10n.ultimos5ResultadosNombre(nombreSorteoSecundario) : l10n.ultimos5ResultadosNombre(_nombreSorteoPrincipal))
+        : l10n.ultimosSorteos;
+
+    final insightText = _buildInsightIAText(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0D0E12),
@@ -696,7 +710,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     fechaSorteo: _fechaSorteo,
                     hasRevanchaData: _hasRevanchaData,
                     nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                    nombreSorteoSecundario: _nombreSorteoSecundario,
+                    nombreSorteoSecundario: nombreSorteoSecundario,
                     winningNums: _winningNums,
                     winningRed: _winningRed,
                     winningNumsRevancha: _winningNumsRevancha,
@@ -706,7 +720,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   final coberturaWidget = CoberturaGaugeCard(
                     hasRevanchaData: _hasRevanchaData,
                     nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                    nombreSorteoSecundario: _nombreSorteoSecundario,
+                    nombreSorteoSecundario: nombreSorteoSecundario,
                     coberturaPorcentaje: _coberturaPorcentaje,
                     coberturaPorcentajeRevancha: _coberturaPorcentajeRevancha,
                     topHitsCount: _topHitsCount,
@@ -739,7 +753,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
               // 2. Insights IA
               InsightIaCard(
-                insightIAText: _insightIAText,
+                insightIAText: insightText,
                 selectedLoteria: _selectedLoteria,
                 probablesCount: _probablesCount,
                 coberturaPorcentaje: _coberturaPorcentaje,
@@ -761,7 +775,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 winningNumsRevancha: _winningNumsRevancha,
                 winningRedRevancha: _winningRedRevancha,
                 nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                nombreSorteoSecundario: _nombreSorteoSecundario,
+                nombreSorteoSecundario: nombreSorteoSecundario,
               ),
               const SizedBox(height: 14),
 
@@ -783,7 +797,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   hasRevanchaData: _hasRevanchaData,
                   selectedResultadosTab: _selectedResultadosTab,
                   nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                  nombreSorteoSecundario: _nombreSorteoSecundario,
+                  nombreSorteoSecundario: nombreSorteoSecundario,
                   onTabChanged: (val) {
                     setState(() {
                       _selectedResultadosTab = val;

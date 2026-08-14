@@ -7,6 +7,7 @@ import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
 import '../widgets/fullscreen_chart_viewer.dart';
 import '../services/cache_service.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class EstadisticasBlotoScreen extends StatefulWidget {
   const EstadisticasBlotoScreen({super.key});
@@ -113,6 +114,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final resultadosFiltrados = _filtrarResultados();
 
     return Scaffold(
@@ -128,7 +130,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "Estadísticas Baloto / Revancha",
+          l10n?.estadisticas ?? "Estadísticas Baloto / Revancha",
           style: AppTextStyles.h2,
         ),
         actions: [
@@ -154,27 +156,27 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildFiltrosBarra(),
+                      _buildFiltrosBarra(l10n),
                       const SizedBox(height: 20),
-                      _buildCardResumenGeneral(resultadosFiltrados),
+                      _buildCardResumenGeneral(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardCalientesFrios(resultadosFiltrados),
+                      _buildCardCalientesFrios(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardGraficaFrecuencia(resultadosFiltrados),
+                      _buildCardGraficaFrecuencia(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardAusenciaSorteos(resultadosFiltrados),
+                      _buildCardAusenciaSorteos(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardParImpar(resultadosFiltrados),
+                      _buildCardParImpar(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardBajosAltos(resultadosFiltrados),
+                      _buildCardBajosAltos(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardSumaCombinaciones(resultadosFiltrados),
+                      _buildCardSumaCombinaciones(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardParejasYTrios(resultadosFiltrados),
+                      _buildCardParejasYTrios(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardScoreIA(resultadosFiltrados),
+                      _buildCardScoreIA(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardComparacionIA(resultadosFiltrados),
+                      _buildCardComparacionIA(resultadosFiltrados, l10n),
                       const SizedBox(height: 30),
                     ],
                   ),
@@ -182,23 +184,23 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildFiltrosBarra() {
+  Widget _buildFiltrosBarra(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Filtros de Análisis", style: AppTextStyles.h2),
+          Text(l10n?.filtrosAnalisis ?? "Filtros de Análisis", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           Row(
             children: [
-              Text("Sorteos: ", style: AppTextStyles.mensajeSecundario),
+              Text("${l10n?.sorteos ?? "Sorteos"}: ", style: AppTextStyles.mensajeSecundario),
               const SizedBox(width: 8),
               Expanded(
                 child: Wrap(
                   spacing: 8,
                   children: [20, 50, 100, 0].map((cant) {
                     final isSel = limiteFiltro == cant;
-                    final texto = cant == 0 ? "Todos" : "$cant";
+                    final texto = cant == 0 ? (l10n?.todas ?? "Todos") : "$cant";
                     return ChoiceChip(
                       label: Text(texto),
                       selected: isSel,
@@ -220,14 +222,16 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Text("Tipo: ", style: AppTextStyles.mensajeSecundario),
+              Text("${l10n?.tipo ?? "Tipo"}: ", style: AppTextStyles.mensajeSecundario),
               const SizedBox(width: 8),
               Wrap(
                 spacing: 8,
                 children: ['Todos', 'Baloto', 'Revancha'].map((tipo) {
                   final isSel = filtroSorteo == tipo;
+                  String displayTipo = tipo;
+                  if (tipo == 'Todos') displayTipo = l10n?.todas ?? "Todos";
                   return ChoiceChip(
-                    label: Text(tipo),
+                    label: Text(displayTipo),
                     selected: isSel,
                     selectedColor: AppColors.yellow,
                     backgroundColor: AppColors.darkGray,
@@ -248,12 +252,12 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     return AppContainer3(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildMetricStat("Sorteos Evaluados", "${resultados.length}"),
+          _buildMetricStat(l10n?.sorteosEvaluados ?? "Sorteos Evaluados", "${resultados.length}"),
           _buildMetricStat("Rango Balotas", "1 - 43"),
           _buildMetricStat("Superbalota", "1 - 16"),
         ],
@@ -272,7 +276,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
 
     final sortedEntries = frecs.entries.toList()
@@ -285,7 +289,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("2. Números Calientes y Fríos 🔥❄️", style: AppTextStyles.h2),
+          Text(l10n?.numerosCalientesFrios ?? "2. Números Calientes y Fríos 🔥❄️", style: AppTextStyles.h2),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -294,10 +298,10 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("🔥 Más Frecuentes",
+                    Text("🔥 ${l10n?.masFrecuentes ?? "Más Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber)),
                     const SizedBox(height: 8),
-                    ...calientes.map((e) => _buildBallBadge(e.key, "${e.value} veces", Colors.amber)),
+                    ...calientes.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.amber)),
                   ],
                 ),
               ),
@@ -306,10 +310,10 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("❄️ Menos Frecuentes",
+                    Text("❄️ ${l10n?.menosFrecuentes ?? "Menos Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.lightBlueAccent)),
                     const SizedBox(height: 8),
-                    ...frios.map((e) => _buildBallBadge(e.key, "${e.value} veces", Colors.lightBlueAccent)),
+                    ...frios.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.lightBlueAccent)),
                   ],
                 ),
               ),
@@ -352,11 +356,11 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
     final maxFrec = frecs.values.fold(1, (max, val) => val > max ? val : max);
-    const titleText = "1. Frecuencia Histórica (Balotas 1 - 43)";
-    const subtitleText = "Toca una barra para interactuar";
+    final String titleText = "1. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - 43)";
+    final String subtitleText = l10n?.tocaParaVerMas ?? "Toca una barra para interactuar";
 
     Widget buildBarChart({bool isFullScreen = false}) {
       return SizedBox(
@@ -476,7 +480,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardAusenciaSorteos(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardAusenciaSorteos(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final ausencias = _calcularAusencias(resultados);
     final sortedByAusencia = ausencias.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -487,9 +491,9 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("3. Días / Sorteos Sin Salir (Ausencia)", style: AppTextStyles.h2),
+          Text(l10n?.ausenciaSorteosTitle ?? "3. Días / Sorteos Sin Salir (Ausencia)", style: AppTextStyles.h2),
           const SizedBox(height: 8),
-          Text("Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
+          Text(l10n?.balotasMayorTiempo ?? "Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -509,7 +513,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text("${e.value} sorteos", style: AppTextStyles.caption2),
+                  Text("${e.value} ${l10n?.sorteos ?? "sorteos"}", style: AppTextStyles.caption2),
                 ],
               );
             }).toList(),
@@ -519,7 +523,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardParImpar(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardParImpar(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     int pares = 0;
     int impares = 0;
 
@@ -535,7 +539,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     final total = (pares + impares) == 0 ? 1 : (pares + impares);
     final pctPar = ((pares / total) * 100).toStringAsFixed(1);
     final pctImpar = ((impares / total) * 100).toStringAsFixed(1);
-    const titleText = "4. Distribución Par vs Impar";
+    final String titleText = "4. ${l10n?.parImpar ?? "Distribución Par vs Impar"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -573,9 +577,9 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLegendItem("Pares: $pares ($pctPar%)", Colors.amber),
+                _buildLegendItem("${l10n?.parImpar.split("vs").first.trim() ?? "Pares"}: $pares ($pctPar%)", Colors.amber),
                 const SizedBox(height: 12),
-                _buildLegendItem("Impares: $impares ($pctImpar%)", Colors.deepOrangeAccent),
+                _buildLegendItem("${l10n?.parImpar.split("vs").last.trim() ?? "Impares"}: $impares ($pctImpar%)", Colors.deepOrangeAccent),
               ],
             ),
           ),
@@ -617,7 +621,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardBajosAltos(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardBajosAltos(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     int bajos = 0; // 1 - 21
     int altos = 0; // 22 - 43
 
@@ -632,7 +636,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     final total = (bajos + altos) == 0 ? 1 : (bajos + altos);
     final pctBajos = ((bajos / total) * 100).toStringAsFixed(1);
     final pctAltos = ((altos / total) * 100).toStringAsFixed(1);
-    const titleText = "5. Bajos (1-21) vs Altos (22-43)";
+    final String titleText = "5. ${l10n?.bajosAltos ?? "Bajos (1-21) vs Altos (22-43)"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -670,9 +674,9 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLegendItem("Bajos (1-21): $bajos ($pctBajos%)", Colors.cyanAccent),
+                _buildLegendItem("${l10n?.bajosAltos.split("vs").first.trim() ?? "Bajos (1-21)"}: $bajos ($pctBajos%)", Colors.cyanAccent),
                 const SizedBox(height: 12),
-                _buildLegendItem("Altos (22-43): $altos ($pctAltos%)", Colors.purpleAccent),
+                _buildLegendItem("${l10n?.bajosAltos.split("vs").last.trim() ?? "Altos (22-43)"}: $altos ($pctAltos%)", Colors.purpleAccent),
               ],
             ),
           ),
@@ -724,7 +728,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardSumaCombinaciones(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardSumaCombinaciones(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final sumas = <double>[];
     for (var r in resultados.take(30)) {
       final nums = List<int>.from(r["numeros"] ?? []);
@@ -734,8 +738,8 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
 
     final reversedSumas = sumas.reversed.toList();
     final avgSuma = sumas.isEmpty ? 110 : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
-    const titleText = "6. Suma de la Combinación";
-    final subtitleText = "Promedio de suma histórica: $avgSuma";
+    final String titleText = "6. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
+    final String subtitleText = "Promedio de suma histórica: $avgSuma";
 
     double minY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
     double maxY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
@@ -876,7 +880,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardParejasYTrios(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardParejasYTrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final parejas = <String, int>{};
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []).take(5).toList()..sort();
@@ -895,7 +899,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("7. Parejas Más Frecuentes", style: AppTextStyles.h2),
+          Text("7. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           ...topParejas.take(5).map((e) {
             return Padding(
@@ -903,8 +907,8 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Pareja ( ${e.key} )", style: AppTextStyles.mensajeImportante),
-                  Text("${e.value} apariciones", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
+                  Text("${l10n?.pareja ?? "Pareja"} ( ${e.key} )", style: AppTextStyles.mensajeImportante),
+                  Text("${e.value} ${l10n?.apariciones ?? "apariciones"}", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
                 ],
               ),
             );
@@ -914,15 +918,15 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
     );
   }
 
-  Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final score = 88; // Score algorítmico / IA
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("8. Score de Probabilidad IA 🤖", style: AppTextStyles.h2),
+          Text("8. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2),
           const SizedBox(height: 8),
-          Text("Índice de afinidad estadística global:", style: AppTextStyles.caption),
+          Text(l10n?.indiceAfinidadHistorica ?? "Índice de afinidad estadística global:", style: AppTextStyles.caption),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -940,14 +944,14 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          Text("✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
+          Text(l10n?.altaConsistenciaIA ?? "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
               style: AppTextStyles.caption),
         ],
       ),
     );
   }
 
-  Widget _buildCardComparacionIA(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardComparacionIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final predNums = prediccionIA != null && prediccionIA!["numeros"] != null
         ? List<int>.from(prediccionIA!["numeros"])
         : [10, 18, 25, 33, 40, 8];
@@ -962,9 +966,9 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("10. Comportamiento Histórico vs IA ⚡", style: AppTextStyles.h2),
+          Text("10. ${l10n?.comparacionIA ?? "Comportamiento Histórico vs IA"} ⚡", style: AppTextStyles.h2),
           const SizedBox(height: 12),
-          Text("Números de mayor tendencia histórica:", style: AppTextStyles.caption),
+          Text(l10n?.numerosMayorTendencia ?? "Números de mayor tendencia histórica:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
           Row(
             children: top3Hist
@@ -979,7 +983,7 @@ class _EstadisticasBlotoScreenState extends State<EstadisticasBlotoScreen> {
                 .toList(),
           ),
           const SizedBox(height: 12),
-          Text("Predicción actual del modelo IA:", style: AppTextStyles.caption),
+          Text(l10n?.prediccionActualIA ?? "Predicción actual del modelo IA:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,

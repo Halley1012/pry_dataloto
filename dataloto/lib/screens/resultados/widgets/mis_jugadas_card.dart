@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
 
 class MisJugadasCard extends StatelessWidget {
@@ -28,6 +29,7 @@ class MisJugadasCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -39,7 +41,7 @@ class MisJugadasCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Comparación Mis Jugadas vs Resultado",
+                l10n.comparacionJugadas,
                 style: GoogleFonts.montserrat(
                   fontSize: 15,
                   fontWeight: FontWeight.bold,
@@ -57,9 +59,9 @@ class MisJugadasCard extends StatelessWidget {
                   Wrap(
                     spacing: 8,
                     children: [
-                      _buildDotLegend(Colors.greenAccent, "Aciertos"),
-                      _buildDotLegend(Colors.redAccent, "Balota"),
-                      _buildDotLegend(Colors.white38, "Sin acierto"),
+                      _buildDotLegend(Colors.greenAccent, l10n.aciertosLabel),
+                      _buildDotLegend(Colors.redAccent, l10n.balotaLabel),
+                      _buildDotLegend(Colors.white38, l10n.sinAciertoLabel),
                     ],
                   ),
                 ],
@@ -68,7 +70,7 @@ class MisJugadasCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            "Tus jugadas guardadas vs Números ganadores del sorteo",
+            l10n.tusJugadasVsGanadores,
             style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
           ),
           const SizedBox(height: 12),
@@ -79,7 +81,7 @@ class MisJugadasCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 16.0),
               child: Center(
                 child: Text(
-                  "No realizaste jugadas para este sorteo.",
+                  l10n.noRealizasteJugadas,
                   style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white38, fontStyle: FontStyle.italic),
                 ),
               ),
@@ -146,7 +148,7 @@ class MisJugadasCard extends StatelessWidget {
                             )
                           else
                             Text(
-                              "$hitsCountBaloto acierto(s)",
+                              l10n.cantidadAciertos(hitsCountBaloto),
                               style: GoogleFonts.montserrat(
                                 fontSize: 10,
                                 color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
@@ -155,6 +157,148 @@ class MisJugadasCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
+
+                      if (hasRevanchaData) ...[
+                        // Fila Baloto
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 65,
+                              child: Text(
+                                nombreSorteoPrincipal,
+                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNums.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Fila Revancha
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 65,
+                              child: Text(
+                                nombreSorteoSecundario,
+                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNumsRevancha.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitRev, isRed: true),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        // Fila estándar si no hay Revancha
+                        Row(
+                          children: [
+                            SizedBox(
+                              width: 65,
+                              child: Text(
+                                selectedLoteria,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  physics: const BouncingScrollPhysics(),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      ...nums.map((n) {
+                                        final isHit = winningNums.contains(n);
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                                          child: buildPlayBall(n, isHit: isHit),
+                                        );
+                                      }),
+                                      if (red != null) ...[
+                                        const SizedBox(width: 6),
+                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDotLegend(Color color, String text) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(text, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white60)),
+      ],
+    );
+  }
+}                      const SizedBox(height: 8),
 
                       if (hasRevanchaData) ...[
                         // Fila Baloto
