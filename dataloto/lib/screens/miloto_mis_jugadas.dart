@@ -80,21 +80,16 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
   Future<void> _eliminarSeleccionadas() async {
     if (_selectedIds.isEmpty) return;
 
-    final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
+    final l10n = AppLocalizations.of(context)!;
 
-    final String confirmMsg = langCode == 'en'
-        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
-        : langCode == 'pt'
-            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
-            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+    final String confirmMsg = l10n.confirmarEliminarVarios(_selectedIds.length);
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E2E),
         title: Text(
-          l10n?.eliminarJugadas ?? "Confirmar eliminación",
+          l10n.eliminarJugadas,
           style: const TextStyle(color: Colors.white),
         ),
         content: Text(
@@ -104,12 +99,12 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.grey)),
+            child: Text(l10n.cancelar, style: const TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.white)),
+            child: Text(l10n.eliminar, style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -130,11 +125,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
     }
 
     if (mounted) {
-      final String deletedMsg = langCode == 'en'
-          ? "Successfully deleted $eliminadas play(s)."
-          : langCode == 'pt'
-              ? "$eliminadas aposta(s) excluída(s) com sucesso."
-              : "Se eliminaron $eliminadas jugada(s) correctamente.";
+      final String deletedMsg = l10n.eliminadasExito(eliminadas);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(deletedMsg),
@@ -147,42 +138,44 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
   }
 
   void _compartirWhatsApp() {
+    final l10n = AppLocalizations.of(context)!;
     final jugadasACompartir = _selectedIds.isNotEmpty
         ? _jugadasList.where((j) => _selectedIds.contains(j["id"])).toList()
         : _jugadasList;
 
     if (jugadasACompartir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas para compartir")),
+        SnackBar(content: Text(l10n.noHayJugadasCompartir)),
       );
       return;
     }
 
     final StringBuffer buffer = StringBuffer();
-    buffer.writeln("🎰 *Mis Jugadas Guardadas - MiLoto* 🎰\n");
+    buffer.writeln("🎰 *${l10n.misJugadasLoteria('MiLoto')}* 🎰\n");
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final item = jugadasACompartir[i];
       final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
       final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
-      buffer.writeln("🔹 *Jugada #${i + 1}* ($fecha)");
+      buffer.writeln("🔹 *${l10n.jugadaShare(i + 1)}* ($fecha)");
       buffer.writeln("   Balotas: ${nums.join(' - ')}\n");
     }
 
-    buffer.writeln("Generado con *DataLoto App* 📲");
+    buffer.writeln("${l10n.buenaSuerteDataLoto} 📲");
 
     Share.share(buffer.toString());
   }
 
   Future<void> _imprimirPDF() async {
+    final l10n = AppLocalizations.of(context)!;
     final jugadasAImprimir = _selectedIds.isNotEmpty
         ? _jugadasList.where((j) => _selectedIds.contains(j["id"])).toList()
         : _jugadasList;
 
     if (jugadasAImprimir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas seleccionadas para imprimir")),
+        SnackBar(content: Text(l10n.noHayJugadasSeleccionadasImprimir)),
       );
       return;
     }
@@ -204,7 +197,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        "DATALOTO - TICKET MILOTO",
+                        l10n.tiqueteDataloto('MILOTO'),
                         style: pw.TextStyle(
                           fontSize: 22,
                           fontWeight: pw.FontWeight.bold,
@@ -220,12 +213,12 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                 ),
                 pw.SizedBox(height: 12),
                 pw.Text(
-                  "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                  l10n.reporteJugadasGuardadas(jugadasAImprimir.length),
                   style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 16),
                 pw.TableHelper.fromTextArray(
-                  headers: ["#", "Fecha Guardado", "Balotas MiLoto"],
+                  headers: ["#", l10n.fechaGuardado, l10n.balotasLoteria('MiLoto')],
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
@@ -254,7 +247,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                 pw.Divider(),
                 pw.Center(
                   child: pw.Text(
-                    "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
+                    l10n.muchosExitosJuego,
                     style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
                   ),
                 ),
@@ -267,7 +260,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => doc.save(),
-      name: "Tiquete_MiLoto_DataLoto.pdf",
+      name: l10n.nombreArchivoPDF('MiLoto'),
     );
   }
 
@@ -283,15 +276,10 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
+    final l10n = AppLocalizations.of(context)!;
     final bool hasSelection = _selectedIds.isNotEmpty;
 
-    final String emptySubtext = langCode == 'en'
-        ? "Generate and save your plays from the MiLoto main screen"
-        : langCode == 'pt'
-            ? "Gere e salve suas apostas na tela principal do MiLoto"
-            : "Genera y guarda tus jugadas desde la pantalla principal de MiLoto";
+    final String emptySubtext = l10n.generaGuardaJugadas('MiLoto');
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -300,7 +288,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
         onRefresh: _cargarDatos,
         child: CustomScrollView(
         slivers: [
-          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - MiLoto"),
+          CustomSliverAppBar(title: l10n.misJugadasConLoteria('MiLoto')),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -325,8 +313,8 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                 ),
                                 child: Text(
                                   hasSelection
-                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
-                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
+                                      ? l10n.desmarcarTodo
+                                      : l10n.seleccionarTodo,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -351,8 +339,8 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                 ),
                                 child: Text(
                                   hasSelection
-                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
-                                      : (l10n?.eliminar ?? "Eliminar"),
+                                      ? "${l10n.eliminar} (${_selectedIds.length})"
+                                      : l10n.eliminar,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -379,7 +367,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  "WhatsApp",
+                                  l10n.whatsapp,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -400,7 +388,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  l10n?.imprimirPDF ?? "Imprimir PDF",
+                                  l10n.imprimirPDF,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -419,13 +407,13 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                     child: Column(
                       children: [
                         Text(
-                          l10n?.historialJugadas ?? "Historial de Jugadas",
+                          l10n.historialJugadas,
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
+                          "${_jugadasList.length} ${l10n.guardadasCantidad}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -448,7 +436,7 @@ class _MilotoMisJugadasScreenState extends State<MilotoMisJugadasScreen> {
                                 child: Column(
                                   children: [
                                     Text(
-                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
+                                      l10n.noTienesJugadasGuardadas,
                                       style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
                                     const SizedBox(height: 6),

@@ -690,7 +690,7 @@ class _BalotoScreenState extends State<BalotoScreen>
               final screenWidth = MediaQuery.of(context).size.width;
               final isSmall = screenWidth < 360;
               final ballSize = isSmall ? 36.0 : 45.0;
-              final spacing = isSmall ? 4.0 : 6.0;
+              // final spacing = isSmall ? 4.0 : 6.0;
               final fontSize = isSmall ? 12.0 : 16.0;
 
               return Row(

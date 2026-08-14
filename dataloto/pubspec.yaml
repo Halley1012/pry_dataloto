@@ -80,8 +80,8 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/images/logo_icon_black.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#0xFF1E1E1E"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_background: "#1E1E1E"
+  adaptive_icon_foreground: "assets/images/logo_icon_black.png"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -100,12 +100,12 @@ flutter:
   assets:
      - assets/images/logo.png
      - assets/images/logo_letras.png
+     - assets/images/logo_letras_.png
      - assets/images/blue-ball.png
      - assets/images/yellow-ball.png
      - assets/images/red-ball.png
      - assets/images/green-ball.png
      - assets/images/clover.png
-     - assets/images/100usd.png
      - assets/countries/countries.json
 
   # An image asset can refer to one or more resolution-specific "variants", see

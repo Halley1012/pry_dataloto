@@ -239,19 +239,6 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   }
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
-    final langCode = Localizations.localeOf(context).languageCode;
-    final String emptyTitle = langCode == 'en'
-        ? "No results analysis yet"
-        : langCode == 'pt'
-            ? "Nenhum resultado analisado ainda"
-            : "Aún no tienes análisis de resultados";
-
-    final String emptySub = langCode == 'en'
-        ? "Save your favorite numbers from the Explore section to track predictions and results."
-        : langCode == 'pt'
-            ? "Salve seus números favoritos na seção Explorar para acompanhar previsões e resultados."
-            : "Empieza a guardar tus números favoritos desde la sección Explorar para ver tus análisis y resultados.";
-
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40.0),
@@ -261,13 +248,13 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             const Icon(Icons.analytics_outlined, color: Colors.white24, size: 80),
             const SizedBox(height: 20),
             Text(
-              emptyTitle,
+              l10n?.sinResultadosAnalisis ?? "Aún no tienes análisis de resultados",
               style: AppTextStyles.h2.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
-              emptySub,
+              l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar para ver tus análisis y resultados.",
               style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
               textAlign: TextAlign.center,
             ),

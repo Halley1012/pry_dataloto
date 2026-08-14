@@ -1,3 +1,4 @@
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -8,7 +9,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:dataloto/widgets/lottery_avatar_3d.dart';
+import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
@@ -557,7 +558,7 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
           children: [
             Row(
               children: [
-                const LotteryAvatar3D(nombre: "Millionaire Life", size: 32),
+                LotteryAvatar3D(nombre: "Millionaire Life", size: 32),
                 const SizedBox(width: 10),
                 Text("Millionaire Life", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18)),
               ],
@@ -576,14 +577,18 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
-              Text(_jackpot ?? "\$1.000", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text("USD / día", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
-            ],
-          ),
+          child: Builder(builder: (context) {
+            final parts = PaisHelper.getJackpotParts(_jackpot, fallbackValue: "\$1.000 USD / día");
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+                Text(parts["value"]!, style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
+                if (parts["label"]!.isNotEmpty)
+                  Text(parts["label"]!, style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              ],
+            );
+          }),
         ),
       ],
     );
@@ -700,7 +705,7 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
+                isCustomSelection ? (l10n?.jugada ?? "Jugada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -948,19 +953,19 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
     );
   }
 
-  Widget _buildQuickSummary(Map<String, String> stats) {
+  Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text("Resumen rápido", style: AppTextStyles.mensajeImportante)]),
+            Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text(l10n?.resumenRapido ?? "Resumen rápido", style: AppTextStyles.mensajeImportante)]),
             TextButton(
               onPressed: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const EstadisticasMillionaireLifeScreen()),
               ),
-              child: Text("Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber)),
+              child: Text(l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber)),
             ),
           ],
         ),
@@ -970,15 +975,15 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              _buildStatCard("Más caliente", stats["hot"]!, stats["hotV"]!, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
+              _buildStatCard(l10n?.masCaliente ?? "Más caliente", stats["hot"]!, stats["hotV"]!, l10n, icon: Icons.local_fire_department, iconColor: Colors.orangeAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Más frío", stats["cold"]!, stats["coldV"]!, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
+              _buildStatCard(l10n?.masFrio ?? "Más frío", stats["cold"]!, stats["coldV"]!, l10n, icon: Icons.ac_unit, iconColor: Colors.blueAccent),
               const SizedBox(width: 10),
-              _buildStatCard("Pares - Impares", stats["pairs"]!, "Último sorteo", icon: Icons.balance, iconColor: Colors.white54),
+              _buildStatCard(l10n?.paresImpares ?? "Pares - Impares", stats["pairs"]!, l10n?.ultimoSorteo ?? "Último sorteo", l10n, icon: Icons.balance, iconColor: Colors.white54),
               const SizedBox(width: 10),
-              _buildStatCard("Score IA", "82%", "Afinidad histórica", icon: Icons.insights, iconColor: AppColors.yellow),
+              _buildStatCard("Score IA", "82%", l10n?.indiceAfinidadHistorica ?? "Afinidad histórica", l10n, icon: Icons.insights, iconColor: AppColors.yellow),
               const SizedBox(width: 10),
-              _buildStatCard("Analizados", stats["total"]!, "Sorteos", icon: Icons.analytics_outlined, iconColor: Colors.white54),
+              _buildStatCard(l10n?.analizados ?? "Analizados", stats["total"]!, l10n?.sorteos ?? "Sorteos", l10n, icon: Icons.analytics_outlined, iconColor: Colors.white54),
             ],
           ),
         ),
@@ -986,7 +991,7 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
     );
   }
 
-  Widget _buildStatCard(String title, String val, String sub, {required IconData icon, required Color iconColor}) {
+  Widget _buildStatCard(String title, String val, String sub, AppLocalizations? l10n, {required IconData icon, required Color iconColor}) {
     return GestureDetector(
       onTap: () => Navigator.push(
         context,

@@ -20,7 +20,7 @@
   "numerosCalientes": "Números Calientes",
   "numerosFrios": "Números Fríos",
   "frecuenciaHistorica": "Frecuencia Histórica",
-  "ausenciaSorteos": "Días / Sorteos Sin Salir",
+  "ausenciaSorteos": "Días / Sorteios Sin Salir",
   "parImpar": "Distribución Par vs Impar",
   "bajosAltos": "Bajos vs Altos",
   "sumaCombinacion": "Suma de la Combinación",
@@ -129,14 +129,14 @@
   "balotaRoja": "1 balota roja",
   "tocaNumerosModificar": "Toca los números abajo para modificar",
   "numeroSuerteSugerido": "Número de la suerte sugerido por IA",
-  "jugadaPersonalizada": "Jugada personalizada",
+  "jugada": "Jugada",
   "notaTendenciasEstadisticas": "Nota: son solo tendencias estadísticas, no garantías absolutas.",
   "generarJugada": "Generar Jugada",
   "guardarJugada": "Guardar Jugada",
   "guardando": "Guardando...",
   "jugadaGuardadaExito": "¡Jugada guardada con éxito! 🎉",
   "errorGuardarJugada": "Error al guardar la jugada",
-  "iniciaSesionGuardar": "Inicia sesión para guardar tu jugada",
+  "iniciaSesionParaContinuar": "Inicia sesión para continuar",
   "cargandoPrediccion": "Cargando predicción... Intenta de nuevo",
   "debesSeleccionarBalotas": "Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada.",
   "jugadaYaExiste": "Esta jugada ya se encuentra en tus jugadas guardadas",
@@ -158,7 +158,7 @@
   "paresImpares": "Pares - Impares",
   "analizados": "Analizados",
   "veces": "veces",
-  "versiónApp": "Versión de la app",
+  "versionApp": "Versión de la app",
   "tocaParaVerMas": "Toca para ver más",
   "filtrosAnalisis": "Filtros de Análisis",
   "sorteos": "Sorteos",
@@ -255,7 +255,7 @@
   },
   "revancha": "Revancha",
   "ultimos5ResultadosNombre": "Últimos 5 resultados {nombre}",
-  "@ultimos5ResultadosNombre": {
+  "@thisLoteriaResultados": {
     "placeholders": {
       "nombre": {
         "type": "String"
@@ -368,5 +368,235 @@
         "type": "int"
       }
     }
-  }
+  },
+  "errorEnviarCorreo": "Error: No se pudo enviar el correo",
+  "usuarioRequerido": "Usuario requerido",
+  "correoInvalido": "Correo inválido",
+  "contrasenaMinima": "Mínimo 6 caracteres",
+  "seleccionaPais": "Selecciona un país",
+  "seleccionaDepartamento": "Selecciona un departamento",
+  "yaTienesCuenta": "¿Ya tienes cuenta? Inicia sesión",
+  "actualizaTusDatos": "Actualiza tus datos",
+  "registroUsuario": "Registro de usuario",
+  "modificaInformacion": "Modifica tu información",
+  "confirmarEliminarCuenta": "¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.",
+  "error": "Error",
+  "sinResultadosAnalisis": "Aún no tienes análisis de resultados",
+  "buscaloAqui": "Búscalo Aquí",
+  "anunciateHoy": "¡Anúnciate hoy y haz que todos te conozcan!",
+  "crearNuevaPublicidad": "Crear nueva publicidad",
+  "buscarPorTitulo": "Buscar por título",
+  "noHayAnunciosFiltros": "No hay anuncios disponibles \npara los filtros seleccionados.",
+  "todos": "Todos",
+  "todasCategorias": "Todas las categorías",
+  "noHayPaisesDisponibles": "No hay países disponibles",
+  "noHayDepartamentosDisponibles": "No hay departamentos disponibles",
+  "noHayCategoriasDisponibles": "No hay categorías disponibles",
+  "estadoProvincia": "Estado / Provincia",
+  "categoria": "Categoría",
+  "presionaOtraVezSalir": "Presiona otra vez para salir",
+  "tusJugadasHoy": "Tus jugadas para hoy",
+  "errorCargarJugadas": "Error al cargar jugadas",
+  "errorAgregarJugada": "Error al agregar jugada",
+  "nro": "Nro.",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "Mis Anuncios",
+  "noHasPublicadoAnuncios": "No has publicado ningún anuncio todavía.\n¡Crea el primero ahora!",
+  "eliminarAnuncio": "Eliminar anuncio",
+  "confirmarEliminarAnuncio": "¿Estás seguro de eliminar este anuncio?",
+  "editar": "Editar",
+  "eliminar": "Eliminar",
+  "crearPublicidad": "Crear Publicidad",
+  "editarAnuncio": "Editar Anuncio",
+  "crearNuevoAnuncio": "Crear nuevo anuncio",
+  "promocionaNegocioStyle": "Promociona tu negocio con estilo",
+  "titulo": "Título",
+  "descripcion": "Descripción",
+  "descripcionObligatoria": "Descripción obligatoria",
+  "telefono": "Teléfono",
+  "telefonoObligatorio": "Teléfono obligatorio",
+  "direccion": "Dirección",
+  "imagenUrl": "Imagen URL",
+  "ciudad": "Ciudad",
+  "redesSociales": "Redes sociales",
+  "paginaWeb": "Página Web",
+  "whatsappObligatorio": "WhatsApp obligatorio",
+  "anuncioActualizado": "Anuncio actualizado",
+  "anuncioCreado": "Anuncio creado",
+  "errorGuardar": "Error al guardar",
+  "campoRequerido": "{campo} requerido",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Selecciona {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "Mis Jugadas de {loteria} - DataLoto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "No hay jugadas para compartir",
+  "buenaSuerteDataLoto": "¡Buena suerte con DataLoto!",
+  "tiqueteDataloto": "DATALOTO - TICKET {loteria}",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Reporte de Jugadas Guardadas ({count} jugada(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Fecha Guardado",
+  "balotasLoteria": "Balotas {loteria}",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
+  "jugadaShare": "Jugada #{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "No hay jugadas seleccionadas para imprimir",
+  "generaGuardaJugadas": "Genera y guarda tus jugadas desde la pantalla principal de {loteria}",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "¿Seguro que deseas eliminar {count} jugada(s)?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "Se eliminaron {count} jugada(s) correctamente.",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Superbalota: {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "Mis Jugadas - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Tiquete_{loteria}_DataLoto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / día",
+  "postEliminado": "Post eliminado correctamente",
+  "errorEliminarPost": "Error al eliminar el post: {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Editar Post",
+  "crearPost": "Crear Post",
+  "todosCamposObligatorios": "Todos los campos son obligatorios",
+  "errorGuardarPost": "Error al guardar el post",
+  "contenido": "Contenido",
+  "publicar": "Publicar",
+  "escribeComentario": "Escribe un comentario",
+  "errorEnviarComentario": "Error al enviar comentario: {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Comentario eliminado",
+  "errorEliminarComentario": "Error al eliminar: {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioReportado": "Comentario de @{usuario} reportado.",
+  "@comentarioReportado": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "respondiendoA": "Respondiendo a @{usuario}",
+  "@respondiendoA": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "escribeRespuesta": "Escribe tu respuesta...",
+  "escribeComentarioHint": "Escribe un comentario...",
+  "noHayComentarios": "No hay comentarios aún. ¡Sé el primero en comentar!",
+  "opcionPago": "Opción de Pago",
+  "completaDatosPago": "Completa tus datos de pago",
+  "nombreTarjeta": "Nombre en la tarjeta",
+  "numeroTarjeta": "Número de tarjeta",
+  "ingresaNombre": "Ingresa el nombre",
+  "tarjetaInvalida": "Número de tarjeta inválido",
+  "fechaInvalida": "Fecha inválida",
+  "cvvInvalido": "CVV inválido",
+  "pagar": "Pagar",
+  "pagoExito": "✅ Pago realizado con éxito",
+  "pagarEpayco": "Pagar con ePayco",
+  "errorAnuncios": "Error al cargar los anuncios."
 }

@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from app.api import schemas, dependencies
 from app.application.auth_use_cases import AuthUseCases
 from app.core import security
@@ -90,14 +90,23 @@ async def refresh(
         raise HTTPException(status_code=401, detail=f"Error decodificando token: {str(e)}")
 
 @router.post("/auth/forgot-password")
-def forgot_password(request: schemas.ForgotPasswordRequest, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def forgot_password(
+    request: schemas.ForgotPasswordRequest, 
+    background_tasks: BackgroundTasks,
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
+):
     try:
-        res = use_cases.request_password_reset(request.email)
-        return res
+        # 1. Generar token y guardarlo en DB (Operación rápida)
+        token = await use_cases.request_password_reset(request.email)
+        
+        # 2. Programar envío de email en segundo plano (Operación lenta)
+        background_tasks.add_task(use_cases.send_password_reset_email_task, request.email, token)
+        
+        return {"success": True, "msg": f"Correo de recuperación enviado a {request.email}"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error enviando correo: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error al procesar solicitud: {str(e)}")
 
 @router.post("/users/fcm_token")
 async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):

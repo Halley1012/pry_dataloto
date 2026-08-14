@@ -85,14 +85,9 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
   Future<void> _eliminarSeleccionadas() async {
     if (_selectedIds.isEmpty) return;
 
-    final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
+    final l10n = AppLocalizations.of(context)!;
 
-    final String confirmMsg = langCode == 'en'
-        ? "Are you sure you want to delete ${_selectedIds.length} play(s)?"
-        : langCode == 'pt'
-            ? "Tem certeza de que deseja excluir ${_selectedIds.length} aposta(s)?"
-            : "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+    final String confirmMsg = l10n.confirmarEliminarVarios(_selectedIds.length);
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -104,7 +99,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
             const Icon(Icons.delete, color: Colors.redAccent, size: 24),
             const SizedBox(width: 10),
             Text(
-              l10n?.eliminarJugadas ?? "Eliminar jugadas",
+              l10n.eliminarJugadas,
               style: AppTextStyles.h2.copyWith(color: Colors.white, fontSize: 18),
             ),
           ],
@@ -116,11 +111,11 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.amber)),
+            child: Text(l10n.cancelar, style: const TextStyle(color: Colors.amber)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.redAccent)),
+            child: Text(l10n.eliminar, style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -144,19 +139,20 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
   }
 
   void _compartirWhatsApp() async {
+    final l10n = AppLocalizations.of(context)!;
     final jugadasACompartir = _jugadasList
         .where((j) => _selectedIds.isEmpty || _selectedIds.contains(j["id"]))
         .toList();
 
     if (jugadasACompartir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas para compartir")),
+        SnackBar(content: Text(l10n.noHayJugadasCompartir)),
       );
       return;
     }
 
     final StringBuffer buffer = StringBuffer();
-    buffer.writeln("🎰 *Mis Jugadas de Baloto - DataLoto* 🎰\n");
+    buffer.writeln("🎰 *${l10n.misJugadasLoteria('Baloto')}* 🎰\n");
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
@@ -164,11 +160,11 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
       if (nums.length >= 6) {
         final whites = nums.sublist(0, 5).join(", ");
         final red = nums[5];
-        buffer.writeln("📌 *Jugada #${i + 1}*: $whites | 🔴 *$red*");
+        buffer.writeln("📌 *${l10n.jugadaShare(i + 1)}*: $whites | 🔴 *$red*");
       }
     }
 
-    buffer.writeln("\n🍀 _¡Buena suerte con DataLoto!_");
+    buffer.writeln("\n🍀 _${l10n.buenaSuerteDataLoto}_");
 
     final text = buffer.toString();
     final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
@@ -185,13 +181,14 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
   }
 
   Future<void> _imprimirPDF() async {
+    final l10n = AppLocalizations.of(context)!;
     final jugadasAImprimir = _selectedIds.isNotEmpty
         ? _jugadasList.where((j) => _selectedIds.contains(j["id"])).toList()
         : _jugadasList;
 
     if (jugadasAImprimir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No hay jugadas seleccionadas para imprimir")),
+        SnackBar(content: Text(l10n.noHayJugadasSeleccionadasImprimir)),
       );
       return;
     }
@@ -213,7 +210,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
                       pw.Text(
-                        "DATALOTO - TICKET BALOTO",
+                        l10n.tiqueteDataloto('BALOTO'),
                         style: pw.TextStyle(
                           fontSize: 22,
                           fontWeight: pw.FontWeight.bold,
@@ -229,12 +226,12 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                 ),
                 pw.SizedBox(height: 12),
                 pw.Text(
-                  "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                  l10n.reporteJugadasGuardadas(jugadasAImprimir.length),
                   style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 16),
                 pw.TableHelper.fromTextArray(
-                  headers: ["#", "Fecha Guardado", "Balotas Baloto"],
+                  headers: ["#", l10n.fechaGuardado, l10n.balotasLoteria('Baloto')],
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
@@ -244,7 +241,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                     final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
-                        ? "${whites.join(' - ')}  [Superbalota: $red]"
+                        ? "${whites.join(' - ')}  ${l10n.superbalotaConValor(red)}"
                         : nums.join(' - ');
 
                     return [
@@ -269,7 +266,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                 pw.Divider(),
                 pw.Center(
                   child: pw.Text(
-                    "¡Muchos éxitos en tu juego! - Generado desde DataLoto App",
+                    l10n.muchosExitosJuego,
                     style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
                   ),
                 ),
@@ -282,7 +279,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
 
     await Printing.layoutPdf(
       onLayout: (PdfPageFormat format) async => doc.save(),
-      name: "Tiquete_Baloto_DataLoto.pdf",
+      name: l10n.nombreArchivoPDF('Baloto'),
     );
   }
 
@@ -298,15 +295,10 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
+    final l10n = AppLocalizations.of(context)!;
     final bool hasSelection = _selectedIds.isNotEmpty;
 
-    final String emptySubtext = langCode == 'en'
-        ? "Generate and save your plays from the Baloto main screen"
-        : langCode == 'pt'
-            ? "Gere e salve suas apostas na tela principal do Baloto"
-            : "Genera y guarda tus jugadas desde la pantalla principal de Baloto";
+    final String emptySubtext = l10n.generaGuardaJugadas('Baloto');
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -315,7 +307,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
         onRefresh: _cargarJugadas,
         child: CustomScrollView(
         slivers: [
-          CustomSliverAppBar(title: "${l10n?.misJugadas ?? 'Mis Jugadas'} - Baloto"),
+          CustomSliverAppBar(title: l10n.misJugadasConLoteria('Baloto')),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -340,8 +332,8 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                 ),
                                 child: Text(
                                   hasSelection
-                                      ? (l10n?.desmarcarTodo ?? "Desmarcar todo")
-                                      : (l10n?.seleccionarTodo ?? "Seleccionar todo"),
+                                      ? l10n.desmarcarTodo
+                                      : l10n.seleccionarTodo,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -366,8 +358,8 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                 ),
                                 child: Text(
                                   hasSelection
-                                      ? "${l10n?.eliminar ?? 'Eliminar'} (${_selectedIds.length})"
-                                      : (l10n?.eliminar ?? "Eliminar"),
+                                      ? "${l10n.eliminar} (${_selectedIds.length})"
+                                      : l10n.eliminar,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -394,7 +386,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  "WhatsApp",
+                                  l10n.whatsapp,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -415,7 +407,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                   ),
                                 ),
                                 child: Text(
-                                  l10n?.imprimirPDF ?? "Imprimir PDF",
+                                  l10n.imprimirPDF,
                                   textAlign: TextAlign.center,
                                   style: AppTextStyles.button.copyWith(
                                     fontSize: 13,
@@ -434,13 +426,13 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                     child: Column(
                       children: [
                         Text(
-                          l10n?.historialJugadas ?? "Historial de Jugadas",
+                          l10n.historialJugadas,
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
+                          "${_jugadasList.length} ${l10n.guardadasCantidad}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -463,7 +455,7 @@ class _BalotoMisJugadasScreenState extends State<BalotoMisJugadasScreen> {
                                 child: Column(
                                   children: [
                                     Text(
-                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
+                                      l10n.noTienesJugadasGuardadas,
                                       style: AppTextStyles.h2.copyWith(fontSize: 16),
                                     ),
                                     const SizedBox(height: 6),

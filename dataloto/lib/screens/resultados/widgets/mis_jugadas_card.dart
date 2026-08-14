@@ -114,32 +114,38 @@ class MisJugadasCard extends StatelessWidget {
                     children: [
                       // Encabezado de la Jugada
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(
-                            titulo,
-                            style: GoogleFonts.montserrat(
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber,
+                          Expanded(
+                            child: Text(
+                              titulo,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
+                          const SizedBox(width: 8),
                           if (hasRevanchaData)
-                            Row(
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 4,
+                              alignment: WrapAlignment.end,
                               children: [
                                 Text(
-                                  "$nombreSorteoPrincipal: $hitsCountBaloto",
+                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}",
                                   style: GoogleFonts.montserrat(
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.w600,
                                     color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 Text(
-                                  "$nombreSorteoSecundario: $hitsCountRev",
+                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}",
                                   style: GoogleFonts.montserrat(
-                                    fontSize: 10,
+                                    fontSize: 9,
                                     fontWeight: FontWeight.w600,
                                     color: hitsCountRev > 0 ? Colors.greenAccent : Colors.white38,
                                   ),
@@ -157,148 +163,6 @@ class MisJugadasCard extends StatelessWidget {
                         ],
                       ),
                       const SizedBox(height: 8),
-
-                      if (hasRevanchaData) ...[
-                        // Fila Baloto
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                nombreSorteoPrincipal,
-                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNums.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Fila Revancha
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                nombreSorteoSecundario,
-                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNumsRevancha.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitRev, isRed: true),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        // Fila estándar si no hay Revancha
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                selectedLoteria,
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNums.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDotLegend(Color color, String text) {
-    return Row(
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(text, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white60)),
-      ],
-    );
-  }
-}                      const SizedBox(height: 8),
 
                       if (hasRevanchaData) ...[
                         // Fila Baloto

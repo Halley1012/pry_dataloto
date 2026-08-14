@@ -4,7 +4,8 @@ import '../widgets/contenedor4.dart';
 import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
 import '../widgets/custom_app_bar.dart';
-import '../models/post.dart'; // Asegúrate de importar tu modelo Post
+import '../models/post.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final Post? post; // 🔹 Si es null → crear, si no → editar
@@ -40,9 +41,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
   // 🔹 Crear o editar post según corresponda
   Future<void> _submitPost() async {
+    final l10n = AppLocalizations.of(context);
     if (_titleController.text.isEmpty || _contentController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Todos los campos son obligatorios")),
+        SnackBar(content: Text(l10n?.todosCamposObligatorios ?? "Todos los campos son obligatorios")),
       );
       return;
     }
@@ -72,9 +74,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     } catch (e) {
       debugPrint("🚨 Error guardando post: $e");
       if (!mounted) return;
+      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Error al guardar el post")));
+      ).showSnackBar(SnackBar(content: Text(l10n?.errorGuardarPost ?? "Error al guardar el post")));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -83,6 +86,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isEditing = widget.post != null;
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -90,7 +94,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         child: CustomScrollView(
           slivers: [
             CustomSliverAppBar(
-              title: isEditing ? "Editar Post" : "Crear Post",
+              title: isEditing ? (l10n?.editarPost ?? "Editar Post") : (l10n?.crearPost ?? "Crear Post"),
               pinned: true,
               floating: true,
               snap: true,
@@ -105,11 +109,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 🔹 Campo de título
-                    _buildTextField(_titleController, "Título"),
+                    _buildTextField(_titleController, l10n?.titulo ?? "Título"),
                     const SizedBox(height: 10),
                     _buildTextField(
                       _contentController,
-                      "Contenido",
+                      l10n?.contenido ?? "Contenido",
                       maxLines: 8,
                     ),
                     const SizedBox(height: 20),
@@ -130,7 +134,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                 backgroundColor: AppColors.yellow,
                               ),
                               child: Text(
-                                isEditing ? "Guardar Cambios" : "Publicar",
+                                isEditing ? (l10n?.guardarCambios ?? "Guardar Cambios") : (l10n?.publicar ?? "Publicar"),
                                 style: AppTextStyles.h2.copyWith(
                                   color: Colors.black,
                                 ),
