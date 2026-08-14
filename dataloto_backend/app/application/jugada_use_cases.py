@@ -39,7 +39,7 @@ class JugadaUseCases:
         fecha_guardado = hoy
         if fecha_sorteo and isinstance(fecha_sorteo, str) and fecha_sorteo.strip():
             try:
-                clean_str = fecha_sorteo.strip().split("T")[0]
+                clean_str = fecha_sorteo.replace('"', '').replace("'", "").strip().split("T")[0]
                 parsed_date = datetime.strptime(clean_str, "%Y-%m-%d")
                 fecha_guardado = datetime(
                     parsed_date.year, parsed_date.month, parsed_date.day,

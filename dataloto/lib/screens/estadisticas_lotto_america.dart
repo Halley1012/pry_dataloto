@@ -7,6 +7,7 @@ import '../styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
 import '../widgets/fullscreen_chart_viewer.dart';
 import '../services/cache_service.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class EstadisticasLottoAmericaScreen extends StatefulWidget {
   const EstadisticasLottoAmericaScreen({super.key});
@@ -89,7 +90,8 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     } catch (e) {
       if (todosResultados.isEmpty && mounted) {
         setState(() {
-          errorMensaje = "No fue posible conectar con el servidor para obtener las estadísticas.";
+          errorMensaje = AppLocalizations.of(context)?.errorCargarEstadisticas ??
+              "No fue posible conectar con el servidor para obtener las estadísticas.";
         });
       }
     } finally {
@@ -103,6 +105,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     List<Map<String, dynamic>> resultadosFiltrados = todosResultados;
 
     if (limiteFiltro > 0 && todosResultados.length > limiteFiltro) {
@@ -120,7 +123,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "Estadísticas $loteriaNombre",
+          l10n?.estadisticasLoteria(loteriaNombre) ?? "Estadísticas $loteriaNombre",
           style: AppTextStyles.h2,
         ),
         actions: [
@@ -150,27 +153,27 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildFiltrosBarra(),
+                      _buildFiltrosBarra(l10n),
                       const SizedBox(height: 20),
-                      _buildCardResumenGeneral(resultadosFiltrados),
+                      _buildCardResumenGeneral(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardCalientesFrios(resultadosFiltrados),
+                      _buildCardCalientesFrios(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardGraficaFrecuencia(resultadosFiltrados),
+                      _buildCardGraficaFrecuencia(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardAusenciaSorteos(resultadosFiltrados),
+                      _buildCardAusenciaSorteos(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardParImpar(resultadosFiltrados),
+                      _buildCardParImpar(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardBajosAltos(resultadosFiltrados),
+                      _buildCardBajosAltos(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardSumaCombinaciones(resultadosFiltrados),
+                      _buildCardSumaCombinaciones(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardParejasYTrios(resultadosFiltrados),
+                      _buildCardParejasYTrios(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardScoreIA(resultadosFiltrados),
+                      _buildCardScoreIA(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
-                      _buildCardComparacionIA(resultadosFiltrados),
+                      _buildCardComparacionIA(resultadosFiltrados, l10n),
                       const SizedBox(height: 30),
                     ],
                   ),
@@ -178,23 +181,23 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildFiltrosBarra() {
+  Widget _buildFiltrosBarra(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("Filtros de Análisis", style: AppTextStyles.h2),
+          Text(l10n?.filtrosAnalisis ?? "Filtros de Análisis", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           Row(
             children: [
-              Text("Sorteos: ", style: AppTextStyles.mensajeSecundario),
+              Text("${l10n?.sorteos ?? "Sorteos"}: ", style: AppTextStyles.mensajeSecundario),
               const SizedBox(width: 8),
               Expanded(
                 child: Wrap(
                   spacing: 8,
                   children: [20, 50, 100, 0].map((cant) {
                     final isSel = limiteFiltro == cant;
-                    final texto = cant == 0 ? "Todos" : "$cant";
+                    final texto = cant == 0 ? (l10n?.todas ?? "Todos") : "$cant";
                     return ChoiceChip(
                       label: Text(texto),
                       selected: isSel,
@@ -218,14 +221,14 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     return AppContainer3(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildMetricStat("Sorteos Evaluados", "${resultados.length}"),
-          _buildMetricStat("Rango Balotas", "1 - $maxBalota"),
-          _buildMetricStat("Star Ball", "1 - $maxRoja"),
+          _buildMetricStat(l10n?.sorteosEvaluados ?? "Sorteos Evaluados", "${resultados.length}"),
+          _buildMetricStat(l10n?.rangoBalotas ?? "Rango Balotas", "1 - $maxBalota"),
+          _buildMetricStat(l10n?.starBall ?? "Star Ball", "1 - $maxRoja"),
         ],
       ),
     );
@@ -242,7 +245,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
 
     final sortedEntries = frecs.entries.toList()
@@ -255,7 +258,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("2. Números Calientes y Fríos 🔥❄️", style: AppTextStyles.h2),
+          Text(l10n?.numerosCalientesFrios ?? "2. Números Calientes y Fríos 🔥❄️", style: AppTextStyles.h2),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,10 +267,10 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("🔥 Más Frecuentes",
+                    Text("🔥 ${l10n?.masFrecuentes ?? "Más Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber)),
                     const SizedBox(height: 8),
-                    ...calientes.map((e) => _buildBallBadge(e.key, "${e.value} veces", Colors.amber)),
+                    ...calientes.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.amber)),
                   ],
                 ),
               ),
@@ -276,10 +279,10 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text("❄️ Menos Frecuentes",
+                    Text("❄️ ${l10n?.menosFrecuentes ?? "Menos Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.lightBlueAccent)),
                     const SizedBox(height: 8),
-                    ...frios.map((e) => _buildBallBadge(e.key, "${e.value} veces", Colors.lightBlueAccent)),
+                    ...frios.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.lightBlueAccent)),
                   ],
                 ),
               ),
@@ -322,11 +325,11 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
     final maxFrec = frecs.values.fold(1, (max, val) => val > max ? val : max);
-    final titleText = "1. Frecuencia Histórica (Balotas 1 - $maxBalota)";
-    const subtitleText = "Toca una barra para interactuar";
+    final titleText = "1. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
+    final subtitleText = l10n?.tocaParaVerMas ?? "Toca una barra para interactuar";
 
     Widget buildBarChart({bool isFullScreen = false}) {
       return SizedBox(
@@ -446,7 +449,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardAusenciaSorteos(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardAusenciaSorteos(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final ausencias = _calcularAusencias(resultados);
     final sortedByAusencia = ausencias.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
@@ -457,9 +460,9 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("3. Sorteos Sin Salir (Ausencia)", style: AppTextStyles.h2),
+          Text(l10n?.ausenciaSorteosTitle ?? "3. Sorteos Sin Salir (Ausencia)", style: AppTextStyles.h2),
           const SizedBox(height: 8),
-          Text("Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
+          Text(l10n?.balotasMayorTiempo ?? "Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -479,7 +482,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text("${e.value} sorteos", style: AppTextStyles.caption2),
+                  Text("${e.value} ${l10n?.sorteos ?? "sorteos"}", style: AppTextStyles.caption2),
                 ],
               );
             }).toList(),
@@ -489,7 +492,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardParImpar(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardParImpar(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     int pares = 0;
     int impares = 0;
 
@@ -505,7 +508,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     final total = (pares + impares) == 0 ? 1 : (pares + impares);
     final pctPar = ((pares / total) * 100).toStringAsFixed(1);
     final pctImpar = ((impares / total) * 100).toStringAsFixed(1);
-    const titleText = "4. Distribución Par vs Impar";
+    final titleText = "4. ${l10n?.parImpar ?? "Distribución Par vs Impar"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -543,9 +546,9 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLegendItem("Pares: $pares ($pctPar%)", Colors.amber),
+                _buildLegendItem("${l10n?.parImpar.split("vs").first.trim() ?? "Pares"}: $pares ($pctPar%)", Colors.amber),
                 const SizedBox(height: 12),
-                _buildLegendItem("Impares: $impares ($pctImpar%)", Colors.deepOrangeAccent),
+                _buildLegendItem("${l10n?.parImpar.split("vs").last.trim() ?? "Impares"}: $impares ($pctImpar%)", Colors.deepOrangeAccent),
               ],
             ),
           ),
@@ -587,7 +590,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardBajosAltos(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardBajosAltos(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final mitad = maxBalota ~/ 2;
     int bajos = 0;
     int altos = 0;
@@ -603,7 +606,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     final total = (bajos + altos) == 0 ? 1 : (bajos + altos);
     final pctBajos = ((bajos / total) * 100).toStringAsFixed(1);
     final pctAltos = ((altos / total) * 100).toStringAsFixed(1);
-    final titleText = "5. Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)";
+    final titleText = "5. ${l10n?.bajosAltos ?? "Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -641,9 +644,9 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildLegendItem("Bajos (1-$mitad): $bajos ($pctBajos%)", Colors.cyanAccent),
+                _buildLegendItem("${l10n?.bajosAltos.split("vs").first.trim() ?? "Bajos (1-$mitad)"}: $bajos ($pctBajos%)", Colors.cyanAccent),
                 const SizedBox(height: 12),
-                _buildLegendItem("Altos (${mitad + 1}-$maxBalota): $altos ($pctAltos%)", Colors.purpleAccent),
+                _buildLegendItem("${l10n?.bajosAltos.split("vs").last.trim() ?? "Altos (${mitad + 1}-$maxBalota)"}: $altos ($pctAltos%)", Colors.purpleAccent),
               ],
             ),
           ),
@@ -695,7 +698,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardSumaCombinaciones(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardSumaCombinaciones(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final sumas = <double>[];
     for (var r in resultados.take(30)) {
       final nums = List<int>.from(r["numeros"] ?? []);
@@ -705,8 +708,8 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
 
     final reversedSumas = sumas.reversed.toList();
     final avgSuma = sumas.isEmpty ? "130" : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
-    const titleText = "6. Suma de la Combinación";
-    final subtitleText = "Promedio de suma histórica: $avgSuma";
+    final titleText = "6. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
+    final subtitleText = l10n?.promedioSumaHistorica(avgSuma) ?? "Promedio de suma histórica: $avgSuma";
 
     double minY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
     double maxY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
@@ -847,7 +850,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardParejasYTrios(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardParejasYTrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final parejas = <String, int>{};
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []).take(5).toList()..sort();
@@ -866,7 +869,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("7. Parejas Más Frecuentes", style: AppTextStyles.h2),
+          Text("7. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           ...topParejas.take(5).map((e) {
             return Padding(
@@ -874,8 +877,8 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Pareja ( ${e.key} )", style: AppTextStyles.mensajeImportante),
-                  Text("${e.value} apariciones", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
+                  Text("${l10n?.pareja ?? "Pareja"} ( ${e.key} )", style: AppTextStyles.mensajeImportante),
+                  Text("${e.value} ${l10n?.apariciones ?? "apariciones"}", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
                 ],
               ),
             );
@@ -885,15 +888,15 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
     );
   }
 
-  Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final score = 90;
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("8. Score de Probabilidad IA 🤖", style: AppTextStyles.h2),
+          Text("8. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2),
           const SizedBox(height: 8),
-          Text("Índice de afinidad estadística global:", style: AppTextStyles.caption),
+          Text(l10n?.indiceAfinidadHistorica ?? "Índice de afinidad estadística global:", style: AppTextStyles.caption),
           const SizedBox(height: 16),
           Row(
             children: [
@@ -911,14 +914,14 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
             ],
           ),
           const SizedBox(height: 8),
-          Text("✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
+          Text(l10n?.altaConsistenciaIA ?? "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
               style: AppTextStyles.caption),
         ],
       ),
     );
   }
 
-  Widget _buildCardComparacionIA(List<Map<String, dynamic>> resultados) {
+  Widget _buildCardComparacionIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final predNums = prediccionIA != null && prediccionIA!["numeros"] != null
         ? List<int>.from(prediccionIA!["numeros"])
         : [4, 18, 26, 39, 48];
@@ -933,9 +936,9 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("10. Comportamiento Histórico vs IA ⚡", style: AppTextStyles.h2),
+          Text("10. ${l10n?.comparacionIA ?? "Comportamiento Histórico vs IA"} ⚡", style: AppTextStyles.h2),
           const SizedBox(height: 12),
-          Text("Números de mayor tendencia histórica:", style: AppTextStyles.caption),
+          Text(l10n?.numerosMayorTendencia ?? "Números de mayor tendencia histórica:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
           Row(
             children: top3Hist
@@ -950,7 +953,7 @@ class _EstadisticasLottoAmericaScreenState extends State<EstadisticasLottoAmeric
                 .toList(),
           ),
           const SizedBox(height: 12),
-          Text("Predicción actual del modelo IA:", style: AppTextStyles.caption),
+          Text(l10n?.prediccionActualIA ?? "Predicción actual del modelo IA:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
           Wrap(
             spacing: 6,

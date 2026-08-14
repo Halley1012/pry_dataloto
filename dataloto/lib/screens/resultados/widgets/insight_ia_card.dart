@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class InsightIaCard extends StatelessWidget {
   final String insightIAText;
@@ -69,10 +70,11 @@ class InsightIaCard extends StatelessWidget {
   }
 
   void _showProbablesDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: "Tendencias IA",
+      barrierLabel: l10n.tendenciasIA,
       barrierColor: Colors.black.withValues(alpha: 0.75),
       transitionDuration: const Duration(milliseconds: 250),
       pageBuilder: (context, anim1, anim2) {
@@ -128,7 +130,7 @@ class InsightIaCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              "Tendencias IA - $selectedLoteria",
+                              "${l10n.tendenciasIA} - $selectedLoteria",
                               style: GoogleFonts.montserrat(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
@@ -146,7 +148,7 @@ class InsightIaCard extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "Sorteo del $fechaSorteo",
+                            l10n.sorteoDel(fechaSorteo),
                             style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white38),
                           ),
                           Row(
@@ -161,7 +163,7 @@ class InsightIaCard extends StatelessWidget {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                "Acierto IA",
+                                l10n.aciertoIA,
                                 style: GoogleFonts.montserrat(
                                   fontSize: 10,
                                   color: Colors.amber,
@@ -177,7 +179,7 @@ class InsightIaCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            "Resultado real: ",
+                            "${l10n.resultadoReal}: ",
                             style: GoogleFonts.montserrat(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -215,7 +217,7 @@ class InsightIaCard extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                "Balotas Principales",
+                                l10n.balotasPrincipalesTitle,
                                 style: GoogleFonts.montserrat(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
@@ -224,7 +226,7 @@ class InsightIaCard extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                "Números ordenados de mayor a menor probabilidad.",
+                                l10n.numerosOrdenadosProbabilidad,
                                 style: GoogleFonts.montserrat(
                                   fontSize: 10,
                                   color: Colors.white38,
@@ -235,7 +237,7 @@ class InsightIaCard extends StatelessWidget {
                                   ? Padding(
                                       padding: const EdgeInsets.symmetric(vertical: 20.0),
                                       child: Text(
-                                        "No hay tendencias detalladas guardadas para este sorteo.",
+                                        l10n.noHayTendencias,
                                         style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
                                       ),
                                     )
@@ -264,7 +266,7 @@ class InsightIaCard extends StatelessWidget {
                               if (hasSpecial) ...[
                                 const SizedBox(height: 10),
                                 Text(
-                                  "Balotas Rojas / Especiales",
+                                  l10n.balotasRojasEspeciales,
                                   style: GoogleFonts.montserrat(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
@@ -273,7 +275,7 @@ class InsightIaCard extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  "Números ordenados de mayor a menor probabilidad.",
+                                  l10n.numerosOrdenadosProbabilidad,
                                   style: GoogleFonts.montserrat(
                                     fontSize: 10,
                                     color: Colors.white38,
@@ -319,10 +321,79 @@ class InsightIaCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final text = insightIAText.isNotEmpty
         ? insightIAText
-        : "De los $probablesCount números con mayor probabilidad generados por la IA para $selectedLoteria, cayeron ${(coberturaPorcentaje * winningNums.length).round()} números.";
+        : l10n.insightIACayeron(probablesCount, selectedLoteria, l10n.nNumeros((coberturaPorcentaje * winningNums.length).round()));
 
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              color: Color(0xFF064E3B),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.show_chart, color: Colors.greenAccent, size: 22),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text("💡", style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n.insightsIA,
+                      style: GoogleFonts.montserrat(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  text,
+                  style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white.withValues(alpha: 0.9), height: 1.3),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(fechaSorteo, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)),
+                    GestureDetector(
+                      onTap: () => _showProbablesDialog(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.info_outline,
+                          color: Colors.amber,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(

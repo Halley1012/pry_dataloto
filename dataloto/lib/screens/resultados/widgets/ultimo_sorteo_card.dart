@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
 
 class UltimoSorteoCard extends StatelessWidget {
@@ -28,6 +29,7 @@ class UltimoSorteoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final bool tieneBalotaExtra = !selectedLoteria.toLowerCase().contains("miloto") &&
         !selectedLoteria.toLowerCase().contains("colorloto");
 
@@ -43,7 +45,7 @@ class UltimoSorteoCard extends StatelessWidget {
               const Icon(Icons.emoji_events, color: Colors.amber, size: 20),
               const SizedBox(width: 8),
               Text(
-                "Resultados - $selectedLoteria",
+                l10n.resultadosLoteria(selectedLoteria),
                 style: GoogleFonts.montserrat(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -54,14 +56,14 @@ class UltimoSorteoCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            "Sorteo: $fechaSorteo",
+            l10n.sorteoFechaLabel(fechaSorteo),
             style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white54),
           ),
           const SizedBox(height: 14),
 
           // Fila Baloto Principal
           Text(
-            "Números ganadores",
+            l10n.numerosGanadores,
             style: GoogleFonts.montserrat(
               fontSize: 13,
               fontWeight: FontWeight.w600,

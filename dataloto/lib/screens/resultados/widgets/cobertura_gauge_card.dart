@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
 
 class CoberturaGaugeCard extends StatelessWidget {
@@ -28,6 +29,7 @@ class CoberturaGaugeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -37,7 +39,7 @@ class CoberturaGaugeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Cobertura del resultado",
+                l10n.coberturaResultado,
                 style: GoogleFonts.montserrat(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -55,6 +57,7 @@ class CoberturaGaugeCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: _buildSingleGauge(
+                    context,
                     nombreSorteoPrincipal,
                     coberturaPorcentaje,
                     topHitsCount,
@@ -68,6 +71,7 @@ class CoberturaGaugeCard extends StatelessWidget {
                 ),
                 Expanded(
                   child: _buildSingleGauge(
+                    context,
                     nombreSorteoSecundario,
                     coberturaPorcentajeRevancha,
                     topHitsCountRevancha,
@@ -78,7 +82,7 @@ class CoberturaGaugeCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              "Números en el Top $probablesCount de la IA",
+              l10n.numerosEnTopIA(probablesCount),
               textAlign: TextAlign.center,
               style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
             ),
@@ -115,7 +119,7 @@ class CoberturaGaugeCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              "$topHitsCount de $totalWinningCount números ganadores están en los $probablesCount más probables",
+              l10n.coberturaIndividualDetalle(topHitsCount, totalWinningCount, probablesCount),
               textAlign: TextAlign.center,
               style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white70),
             ),
@@ -128,7 +132,7 @@ class CoberturaGaugeCard extends StatelessWidget {
                 border: Border.all(color: Colors.amber.withOpacity(0.4)),
               ),
               child: Text(
-                coberturaPorcentaje >= 0.6 ? "¡Excelente resultado! 🎯" : "Buen desempeño 📊",
+                coberturaPorcentaje >= 0.6 ? l10n.excelenteResultado : l10n.buenDesempeno,
                 style: GoogleFonts.montserrat(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -142,7 +146,8 @@ class CoberturaGaugeCard extends StatelessWidget {
     );
   }
 
-  Widget _buildSingleGauge(String label, double val, int hits, Color color) {
+  Widget _buildSingleGauge(BuildContext context, String label, double val, int hits, Color color) {
+    final l10n = AppLocalizations.of(context)!;
     return Column(
       children: [
         Container(
@@ -193,7 +198,7 @@ class CoberturaGaugeCard extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          "$hits de 5 aciertos",
+          l10n.hitsDeAciertos(hits, 5),
           textAlign: TextAlign.center,
           style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
         ),

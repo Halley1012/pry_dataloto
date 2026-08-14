@@ -195,5 +195,178 @@
   },
   "recuperarContrasena": "Recuperar Contraseña",
   "cancelarButton": "Cancelar",
-  "enviarButton": "Enviar"
+  "enviarButton": "Enviar",
+  "noDisponible": "No disponible por el momento...",
+  "estadisticasLoteria": "Estadísticas {loteria}",
+  "@estadisticasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "rangoBalotas": "Rango Balotas",
+  "powerballRoja": "Powerball Roja",
+  "starBall": "Star Ball",
+  "megaBall": "Mega Ball",
+  "cashBall": "Cash Ball",
+  "errorCargarEstadisticas": "No fue posible conectar con el servidor para obtener las estadísticas.",
+  "promedioSumaHistorica": "Promedio de suma histórica: {valor}",
+  "@promedioSumaHistorica": {
+    "placeholders": {
+      "valor": {
+        "type": "String"
+      }
+    }
+  },
+  "coberturaResultado": "Cobertura del resultado",
+  "numerosEnTopIA": "Números en el Top {count} de la IA",
+  "@numerosEnTopIA": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hitsDeAciertos": "{hits} de {total} aciertos",
+  "@hitsDeAciertos": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "excelenteResultado": "¡Excelente resultado! 🎯",
+  "buenDesempeno": "Buen desempeño 📊",
+  "insightsIA": "Insights IA",
+  "resultadoReal": "Resultado real",
+  "tendenciasIA": "Tendencias IA",
+  "noHayTendencias": "No hay tendencias detalladas guardadas para este sorteo.",
+  "sorteoDel": "Sorteo del {fecha}",
+  "@sorteoDel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "revancha": "Revancha",
+  "ultimos5ResultadosNombre": "Últimos 5 resultados {nombre}",
+  "@ultimos5ResultadosNombre": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "ultimosSorteos": "Últimos sorteos",
+  "reciente": "Reciente",
+  "prediccionesNoDisponibles": "Las predicciones de la IA para este sorteo pasado no están disponibles en el historial.",
+  "insightIACayeron": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, cayeron {hits}.",
+  "@insightIACayeron": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIANoCoincidencias": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, no hubo coincidencias en este sorteo.",
+  "@insightIANoCoincidencias": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIACayeronDual": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, cayeron {bText} y {rText}.",
+  "@insightIACayeronDual": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "bText": {
+        "type": "String"
+      },
+      "rText": {
+        "type": "String"
+      }
+    }
+  },
+  "aciertoIA": "Acierto IA",
+  "balotasPrincipalesTitle": "Balotas Principales",
+  "balotasRojasEspeciales": "Balotas Rojas / Especiales",
+  "resultadosLoteria": "Resultados - {loteria}",
+  "@resultadosLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "sorteoFechaLabel": "Sorteo: {fecha}",
+  "@sorteoFechaLabel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "numerosGanadores": "Números ganadores",
+  "comparacionJugadas": "Comparación Mis Jugadas vs Resultado",
+  "aciertosLabel": "Aciertos",
+  "balotaLabel": "Balota",
+  "sinAciertoLabel": "Sin acierto",
+  "tusJugadasVsGanadores": "Tus jugadas guardadas vs Números ganadores del sorteo",
+  "noRealizasteJugadas": "No realizaste jugadas para este sorteo.",
+  "cantidadAciertos": "{count} acierto(s)",
+  "@cantidadAciertos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaLabel": "Fecha",
+  "aciertosSimple": "Aciertos",
+  "coberturaIndividualDetalle": "{hits} de {total} números ganadores están en los {top} más probables",
+  "@coberturaIndividualDetalle": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "top": {
+        "type": "int"
+      }
+    }
+  },
+  "nEnBaloto": "{count} en Baloto ({nums})",
+  "ceroEnBaloto": "0 en Baloto",
+  "nEnRevancha": "{count} en Revancha ({nums})",
+  "ceroEnRevancha": "0 en Revancha",
+  "nNumeros": "{count} números",
+  "@nNumeros": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
