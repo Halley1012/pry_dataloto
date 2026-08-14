@@ -26,7 +26,6 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _selectedFilterIndex = 0; // 0: Mi País, 1: Internacionales, 2: Todas
-  String? _userPaisNombre;
   String? _userPaisId;
   final _storage = const FlutterSecureStorage();
 
@@ -42,49 +41,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _loadUserCountry() async {
-    final pNom = await _storage.read(key: 'pais_nombre');
     final pId = await _storage.read(key: 'pais_id');
     if (mounted) {
       setState(() {
-        _userPaisNombre = pNom;
         _userPaisId = pId;
       });
     }
   }
 
   bool _isNational(dynamic notification) {
-    final msj = (notification.mensaje ?? "").toString().toLowerCase();
-    final pId = _userPaisId;
-    final pNom = (_userPaisNombre ?? "").toLowerCase();
-
-    final bool esUSA = pId == "21" || 
-        pNom.contains("estados unidos") || 
-        pNom.contains("united states") || 
-        pNom.contains("eeuu") || 
-        pNom.contains("usa");
-
-    if (esUSA) {
-      if (notification.loteriaId >= 3 && notification.loteriaId <= 7) return true;
-      return msj.contains("powerball") ||
-          msj.contains("lotto america") ||
-          msj.contains("double play") ||
-          msj.contains("millionaire") ||
-          msj.contains("mega millions") ||
-          msj.contains("megamillions");
-    }
-
-    final bool esColombia = pNom.contains("colombia") || pId == "1" || pId == "5";
-
-    if (esColombia) {
-      if (notification.loteriaId == 1 || notification.loteriaId == 2) return true;
-      return msj.contains("baloto") || msj.contains("miloto") || msj.contains("colorloto");
-    }
-
-    if (pNom.isNotEmpty && msj.contains(pNom)) return true;
-
-    // Si el país es nulo o por defecto, incluir la lotería según coincidencias
-    if (notification.loteriaId >= 3 && notification.loteriaId <= 7) return true;
-    return msj.contains("powerball") || msj.contains("lotto america") || msj.contains("double play") || msj.contains("millionaire") || msj.contains("mega millions");
+    if (notification.paisId == null) return false;
+    return notification.paisId.toString() == _userPaisId;
   }
 
   bool _isInternational(dynamic notification) {

@@ -708,31 +708,103 @@ class _EstadisticasDoublePlayScreenState extends State<EstadisticasDoublePlayScr
     const titleText = "6. Suma de la Combinación";
     final subtitleText = "Promedio de suma histórica: $avgSuma";
 
+    double minY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
+    double maxY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
+    for (final val in reversedSumas) {
+      if (val < minY) minY = val;
+      if (val > maxY) maxY = val;
+    }
+
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
         height: isFullScreen ? double.infinity : 180,
-        child: LineChart(
-          LineChartData(
-            gridData: FlGridData(show: isFullScreen),
-            titlesData: const FlTitlesData(
-              show: true,
-              topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            borderData: FlBorderData(show: false),
-            lineBarsData: [
-              LineChartBarData(
-                spots: List.generate(
-                  reversedSumas.length,
-                  (idx) => FlSpot(idx.toDouble(), reversedSumas[idx]),
+        child: Padding(
+          padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
+          child: LineChart(
+            LineChartData(
+              minY: minY,
+              maxY: maxY,
+              minX: 0,
+              maxX: reversedSumas.isNotEmpty ? (reversedSumas.length - 1).toDouble() : 0,
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                show: true,
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    getTitlesWidget: (value, meta) {
+                      final intVal = value.toInt();
+                      final isMin = intVal == minY.toInt();
+                      final isMax = intVal == maxY.toInt();
+                      final isStep = intVal % 50 == 0 && intVal > minY && intVal < maxY;
+                      if (isMin || isMax || isStep) {
+                        return Text(
+                          "$intVal",
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ),
-                isCurved: true,
-                color: AppColors.amber,
-                barWidth: isFullScreen ? 5 : 3,
-                isStrokeCapRound: true,
-                dotData: const FlDotData(show: true),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    interval: 1,
+                    getTitlesWidget: (value, meta) {
+                      final intVal = value.toInt();
+                      final isLast = intVal == reversedSumas.length - 1;
+                      if (intVal % 5 == 0 || isLast) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            "$intVal",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
               ),
-            ],
+              lineBarsData: [
+                LineChartBarData(
+                  spots: List.generate(
+                    reversedSumas.length,
+                    (idx) => FlSpot(idx.toDouble(), reversedSumas[idx]),
+                  ),
+                  isCurved: true,
+                  color: AppColors.amber,
+                  barWidth: isFullScreen ? 4 : 2.5,
+                  isStrokeCapRound: true,
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (spot, percent, barData, index) {
+                      return FlDotCirclePainter(
+                        radius: 3.5,
+                        color: AppColors.amber,
+                        strokeWidth: 0,
+                        strokeColor: Colors.transparent,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );

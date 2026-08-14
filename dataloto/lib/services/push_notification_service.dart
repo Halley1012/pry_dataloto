@@ -84,6 +84,7 @@ class PushNotificationService {
         final android = message.notification?.android;
 
         if (notification != null) {
+          // 1. Mostrar notificación de sistema (barra de estado)
           _localNotificationsPlugin.show(
             notification.hashCode,
             notification.title,
@@ -105,6 +106,9 @@ class PushNotificationService {
               ),
             ),
           );
+
+          // 2. Opcionalmente disparar un refresco de datos en la app
+          // Podemos usar un stream o un callback si fuera necesario
         }
       });
     } catch (e) {
