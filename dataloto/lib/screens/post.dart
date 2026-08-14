@@ -6,6 +6,7 @@ import '../widgets/custom_app_bar.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class PostScreen extends StatefulWidget {
   final int postId;
@@ -78,11 +79,12 @@ class _PostScreenState extends State<PostScreen> {
 
   // Añadir comentario o respuesta
   Future<void> _addComment() async {
+    final l10n = AppLocalizations.of(context);
     final text = _commentController.text.trim();
     if (text.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text("Escribe un comentario")));
+      ).showSnackBar(SnackBar(content: Text(l10n?.escribeComentario ?? "Escribe un comentario")));
       return;
     }
 
@@ -111,34 +113,36 @@ class _PostScreenState extends State<PostScreen> {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("Error al enviar comentario: $e")));
+      ).showSnackBar(SnackBar(content: Text(l10n?.errorEnviarComentario(e.toString()) ?? "Error al enviar comentario: $e")));
     }
   }
 
   // Eliminar comentario
   Future<void> _eliminarComentario(int id) async {
+    final l10n = AppLocalizations.of(context);
     try {
       await ApiService.deleteComment(id);
       if (mounted) {
         setState(() => comments.removeWhere((c) => c.id == id));
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text("Comentario eliminado")));
+        ).showSnackBar(SnackBar(content: Text(l10n?.comentarioEliminado ?? "Comentario eliminado")));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text("Error al eliminar: $e")));
+        ).showSnackBar(SnackBar(content: Text(l10n?.errorEliminarComentario(e.toString()) ?? "Error al eliminar: $e")));
       }
     }
   }
 
   // Denunciar comentario
   void _denunciarComentario(Comment comment) {
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Comentario de @${comment.userName} reportado."),
+        content: Text(l10n?.comentarioReportado(comment.userName) ?? "Comentario de @${comment.userName} reportado."),
         backgroundColor: Colors.amber.shade900,
         behavior: SnackBarBehavior.floating,
       ),
@@ -177,10 +181,8 @@ class _PostScreenState extends State<PostScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 📌 Separa comentarios raíz (no son respuestas)
-    final rootComments = comments.where((c) {
-      return c.parentId == null;
-    }).toList();
+    final l10n = AppLocalizations.of(context);
+    final rootComments = comments.where((c) => c.parentId == null).toList();
 
     return PopScope(
       canPop: false,
@@ -194,7 +196,6 @@ class _PostScreenState extends State<PostScreen> {
         resizeToAvoidBottomInset: true,
         body: Stack(
           children: [
-            // === CONTENIDO DESPLAZABLE ===
             CustomScrollView(
               slivers: [
                 CustomSliverAppBar(
@@ -202,200 +203,157 @@ class _PostScreenState extends State<PostScreen> {
                   pinned: true,
                   floating: true,
                   snap: true,
-                  onBackPressed: () {
-                    Navigator.of(context).pop(comments.length);
-                  },
+                  onBackPressed: () => Navigator.of(context).pop(comments.length),
                 ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 16),
-                      Text("Comentarios", style: AppTextStyles.h2),
-                      const SizedBox(height: 12),
-
-                      // Título del post original
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.grayBlue.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.amber.withOpacity(0.3),
-                            width: 0.8,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 16),
+                        Text(l10n?.comentarios ?? "Comentarios", style: AppTextStyles.h2),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.grayBlue.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amber.withOpacity(0.3), width: 0.8),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.forum_outlined, color: Colors.amber, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                "@${widget.postUserName} - ${widget.postTitle}",
-                                style: AppTextStyles.h2.copyWith(
-                                  fontSize: 15,
-                                  color: Colors.white,
+                          child: Row(
+                            children: [
+                              const Icon(Icons.forum_outlined, color: Colors.amber, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  "@${widget.postUserName} - ${widget.postTitle}",
+                                  style: AppTextStyles.h2.copyWith(fontSize: 15, color: Colors.white),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Lista de comentarios estilo YouTube
-                      AppContainer4(
-                        child: isLoading && comments.isEmpty
-                            ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                            : rootComments.isEmpty
-                                ? const Center(
-                                    child: Padding(
-                                      padding: EdgeInsets.all(20.0),
-                                      child: Text(
-                                        "No hay comentarios aún. ¡Sé el primero en comentar!",
-                                        style: TextStyle(color: AppColors.yellow),
+                        const SizedBox(height: 12),
+                        AppContainer4(
+                          child: isLoading && comments.isEmpty
+                              ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                              : rootComments.isEmpty
+                                  ? Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(20.0),
+                                        child: Text(
+                                          l10n?.noHayComentarios ?? "No hay comentarios aún. ¡Sé el primero en comentar!",
+                                          style: const TextStyle(color: AppColors.yellow),
+                                        ),
                                       ),
+                                    )
+                                  : ListView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      itemCount: rootComments.length,
+                                      itemBuilder: (context, index) {
+                                        final comment = rootComments[index];
+                                        final respuestas = _obtenerRespuestas(comment);
+                                        return _buildYouTubeCommentTile(
+                                          comment: comment,
+                                          respuestas: respuestas,
+                                          l10n: l10n,
+                                        );
+                                      },
                                     ),
-                                  )
-                                : ListView.builder(
-                                    shrinkWrap: true,
-                                    physics: const NeverScrollableScrollPhysics(),
-                                    itemCount: rootComments.length,
-                                    itemBuilder: (context, index) {
-                                      final comment = rootComments[index];
-                                      final respuestas = _obtenerRespuestas(comment);
-                                      return _buildYouTubeCommentTile(
-                                        comment: comment,
-                                        respuestas: respuestas,
-                                      );
-                                    },
-                                  ),
-                      ),
-
-                      // Espacio final para que el teclado/input no tape los últimos comentarios
-                      const SizedBox(height: 80),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // === INPUT FIJO EN LA PARTE INFERIOR (ESTILO YOUTUBE) ===
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Banner "Respondiendo a @usuario"
-                if (replyingToUser != null)
-                  Container(
-                    color: const Color(0xFF1E293B),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.reply, color: Colors.amber, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            "Respondiendo a @$replyingToUser",
-                            style: const TextStyle(
-                              color: Colors.amber,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white70, size: 18),
-                          onPressed: _cancelarRespuesta,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                // Campo de texto del comentario
-                Container(
-                  color: const Color(0xFF121212),
-                  padding: const EdgeInsets.only(
-                    left: 16,
-                    right: 16,
-                    top: 10,
-                    bottom: 12,
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _commentController,
-                            focusNode: _commentFocusNode,
-                            style: AppTextStyles.mensajeSecundario,
-                            decoration: InputDecoration(
-                              hintText: replyingToUser != null
-                                  ? "Escribe tu respuesta..."
-                                  : "Escribe un comentario...",
-                              hintStyle: const TextStyle(color: Colors.white38),
-                              filled: true,
-                              fillColor: AppColors.grayBlue.withOpacity(0.3),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(20),
-                                borderSide: BorderSide.none,
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16,
-                                vertical: 10,
-                              ),
-                            ),
-                            onChanged: (_) => setState(() {}),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          onPressed:
-                              _commentController.text.trim().isEmpty ? null : _addComment,
-                          icon: Icon(
-                            Icons.send_rounded,
-                            color: _commentController.text.trim().isEmpty
-                                ? Colors.grey
-                                : AppColors.yellow,
-                          ),
-                          iconSize: 26,
-                        ),
+                        const SizedBox(height: 80),
                       ],
                     ),
                   ),
                 ),
               ],
             ),
-          ),
-        ],
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (replyingToUser != null)
+                    Container(
+                      color: const Color(0xFF1E293B),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.reply, color: Colors.amber, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              l10n?.respondiendoA(replyingToUser!) ?? "Respondiendo a @$replyingToUser",
+                              style: const TextStyle(color: Colors.amber, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white70, size: 18),
+                            onPressed: _cancelarRespuesta,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Container(
+                    color: const Color(0xFF121212),
+                    padding: const EdgeInsets.only(left: 16, right: 16, top: 10, bottom: 12),
+                    child: SafeArea(
+                      top: false,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _commentController,
+                              focusNode: _commentFocusNode,
+                              style: AppTextStyles.mensajeSecundario,
+                              decoration: InputDecoration(
+                                hintText: replyingToUser != null
+                                    ? (l10n?.escribeRespuesta ?? "Escribe tu respuesta...")
+                                    : (l10n?.escribeComentarioHint ?? "Escribe un comentario..."),
+                                hintStyle: const TextStyle(color: Colors.white38),
+                                filled: true,
+                                fillColor: AppColors.grayBlue.withOpacity(0.3),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              ),
+                              onChanged: (_) => setState(() {}),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _commentController.text.trim().isEmpty ? null : _addComment,
+                            icon: Icon(Icons.send_rounded, color: _commentController.text.trim().isEmpty ? Colors.grey : AppColors.yellow),
+                            iconSize: 26,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-  // 📺 Widget individual de Comentario al estilo YouTube
   Widget _buildYouTubeCommentTile({
     required Comment comment,
     List<Comment> respuestas = const [],
     bool isReply = false,
+    AppLocalizations? l10n,
   }) {
-    final bool isOwner =
-        currentUserId != null && comment.userId.toString() == currentUserId;
+    final bool isOwner = currentUserId != null && comment.userId.toString() == currentUserId;
     final bool hasReplies = respuestas.isNotEmpty;
     final bool isExpanded = _expandedReplies.contains(comment.id);
-
-    final String initialLetter = comment.userName.isNotEmpty
-        ? comment.userName[0].toUpperCase()
-        : "?";
+    final String initialLetter = comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : "?";
 
     return Container(
       margin: EdgeInsets.only(top: isReply ? 2 : 4, bottom: 2),
@@ -403,46 +361,25 @@ class _PostScreenState extends State<PostScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 1. FILA DE ARRIBA: Avatar + @usuario • tiempo
           Row(
             children: [
               CircleAvatar(
                 radius: isReply ? 11 : 12,
                 backgroundColor: AppColors.getAvatarColor(comment.userName, userId: comment.userId),
-                child: Text(
-                  initialLetter,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: isReply ? 11 : 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                child: Text(initialLetter, style: TextStyle(color: Colors.white, fontSize: isReply ? 11 : 12, fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   "@${comment.userName}",
-                  style: AppTextStyles.mensajeSecundario.copyWith(
-                    fontWeight: FontWeight.w600,
-                    fontSize: isReply ? 13 : 14,
-                    color: Colors.white,
-                  ),
+                  style: AppTextStyles.mensajeSecundario.copyWith(fontWeight: FontWeight.w600, fontSize: isReply ? 13 : 14, color: Colors.white),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               const SizedBox(width: 6),
-              const Text(
-                "•",
-                style: TextStyle(color: Colors.white38, fontSize: 12),
-              ),
+              const Text("•", style: TextStyle(color: Colors.white38, fontSize: 12)),
               const SizedBox(width: 6),
-              Text(
-                comment.relativeTime,
-                style: AppTextStyles.caption.copyWith(
-                  fontSize: 11,
-                  color: Colors.white54,
-                ),
-              ),
+              Text(comment.relativeTime, style: AppTextStyles.caption.copyWith(fontSize: 11, color: Colors.white54)),
               const Spacer(),
               if (isOwner)
                 PopupMenuButton<String>(
@@ -450,18 +387,16 @@ class _PostScreenState extends State<PostScreen> {
                   color: const Color(0xFF1E1E2E),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   onSelected: (value) {
-                    if (value == 'delete') {
-                      _eliminarComentario(comment.id);
-                    }
+                    if (value == 'delete') _eliminarComentario(comment.id);
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'delete',
                       child: Row(
                         children: [
-                          Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
-                          SizedBox(width: 8),
-                          Text('Eliminar', style: TextStyle(color: Colors.redAccent, fontSize: 13)),
+                          const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                          const SizedBox(width: 8),
+                          Text(l10n?.eliminar ?? 'Eliminar', style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
                         ],
                       ),
                     ),
@@ -470,19 +405,8 @@ class _PostScreenState extends State<PostScreen> {
             ],
           ),
           const SizedBox(height: 6),
-
-          // 2. DEBAJO DE LA INICIAL: TEXTO DEL COMENTARIO
-          Text(
-            comment.content,
-            style: AppTextStyles.mensajeSecundario.copyWith(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: isReply ? 13 : 13.5,
-              height: 1.35,
-            ),
-          ),
+          Text(comment.content, style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white.withOpacity(0.9), fontSize: isReply ? 13 : 13.5, height: 1.35)),
           const SizedBox(height: 6),
-
-          // 3. FILA DE ACCIONES (RESPONDER Y RESPUESTAS)
           Row(
             children: [
               InkWell(
@@ -494,29 +418,18 @@ class _PostScreenState extends State<PostScreen> {
                     children: [
                       const Icon(Icons.reply_outlined, color: AppColors.yellow, size: 15),
                       const SizedBox(width: 4),
-                      Text(
-                        "Responder",
-                        style: AppTextStyles.caption.copyWith(
-                          color: Colors.white70,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
+                      Text(l10n?.responder ?? "Responder", style: AppTextStyles.caption.copyWith(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 ),
               ),
-
               if (hasReplies && !isReply) ...[
                 const SizedBox(width: 16),
                 InkWell(
                   onTap: () {
                     setState(() {
-                      if (isExpanded) {
-                        _expandedReplies.remove(comment.id);
-                      } else {
-                        _expandedReplies.add(comment.id);
-                      }
+                      if (isExpanded) _expandedReplies.remove(comment.id);
+                      else _expandedReplies.add(comment.id);
                     });
                   },
                   borderRadius: BorderRadius.circular(8),
@@ -524,19 +437,11 @@ class _PostScreenState extends State<PostScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                     child: Row(
                       children: [
-                        Icon(
-                          isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                          color: AppColors.yellow,
-                          size: 16,
-                        ),
+                        Icon(isExpanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down, color: AppColors.yellow, size: 16),
                         const SizedBox(width: 4),
                         Text(
-                          "${respuestas.length} ${respuestas.length == 1 ? 'respuesta' : 'respuestas'}",
-                          style: AppTextStyles.caption.copyWith(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          respuestas.length == 1 ? "1 ${l10n?.respuesta ?? 'respuesta'}" : "${respuestas.length} ${l10n?.respuestas ?? 'respuestas'}",
+                          style: AppTextStyles.caption.copyWith(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
                         ),
                       ],
                     ),
@@ -545,38 +450,18 @@ class _PostScreenState extends State<PostScreen> {
               ],
             ],
           ),
-
-          // 4. Lista de respuestas anidadas (desplegables)
           if (hasReplies && isExpanded && !isReply)
             Padding(
               padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
               child: Container(
-                decoration: BoxDecoration(
-                  border: Border(
-                    left: BorderSide(
-                      color: AppColors.grayBlue.withValues(alpha: 0.5),
-                      width: 1.2,
-                    ),
-                  ),
-                ),
+                decoration: BoxDecoration(border: Border(left: BorderSide(color: AppColors.grayBlue.withOpacity(0.5), width: 1.2))),
                 padding: const EdgeInsets.only(left: 10),
-                child: Column(
-                  children: respuestas
-                      .map((reply) => _buildYouTubeCommentTile(
-                            comment: reply,
-                            isReply: true,
-                          ))
-                      .toList(),
-                ),
+                child: Column(children: respuestas.map((reply) => _buildYouTubeCommentTile(comment: reply, isReply: true, l10n: l10n)).toList()),
               ),
             ),
-
           if (!isReply) ...[
             const SizedBox(height: 6),
-            const Divider(
-              color: AppColors.grayBlue,
-              thickness: 0.3,
-            ),
+            const Divider(color: AppColors.grayBlue, thickness: 0.3),
           ],
         ],
       ),

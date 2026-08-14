@@ -546,8 +546,9 @@ class _HomeScreenState extends State<HomeScreen> {
       debugPrint("❌ Error al buscar anuncios: $e");
       debugPrintStack(stackTrace: st);
       if (mounted) {
+        final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error al cargar los anuncios.')),
+          SnackBar(content: Text(l10n?.errorAnuncios ?? 'Error al cargar los anuncios.')),
         );
       }
     } finally {
@@ -732,18 +733,20 @@ class _HomeScreenState extends State<HomeScreen> {
           setState(() {
             posts.removeWhere((p) => p.id == post.id); // CORREGIDO: usa ID
           });
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Post eliminado correctamente"),
+            SnackBar(
+              content: Text(l10n?.postEliminado ?? "Post eliminado correctamente"),
               backgroundColor: Colors.green,
             ),
           );
         }
       } catch (e) {
         if (mounted) {
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text("Error al eliminar el post: $e"),
+              content: Text(l10n?.errorEliminarPost(e.toString()) ?? "Error al eliminar el post: $e"),
               backgroundColor: Colors.red,
             ),
           );
@@ -839,10 +842,11 @@ class _HomeScreenState extends State<HomeScreen> {
         final now = DateTime.now();
         if (_lastBackPressTime == null || now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
           _lastBackPressTime = now;
+          final l10n = AppLocalizations.of(context);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Presiona otra vez para salir"),
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: Text(l10n?.presionaOtraVezSalir ?? "Presiona otra vez para salir"),
+              duration: const Duration(seconds: 2),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1210,10 +1214,13 @@ class _HomeScreenState extends State<HomeScreen> {
           _eliminarPost(context, post);
         }
       },
-      itemBuilder: (ctx) => [
-        const PopupMenuItem(value: 'edit', child: Text("Editar")),
-        const PopupMenuItem(value: 'delete', child: Text("Eliminar", style: TextStyle(color: Colors.redAccent))),
-      ],
+      itemBuilder: (ctx) {
+        final l10n = AppLocalizations.of(ctx);
+        return [
+          PopupMenuItem(value: 'edit', child: Text(l10n?.editar ?? "Editar")),
+          PopupMenuItem(value: 'delete', child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.redAccent))),
+        ];
+      },
     );
   }
 

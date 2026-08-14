@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import '../services/api_service.dart';
 import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
@@ -49,7 +50,7 @@ class JugadasListBlotoState extends State<JugadasListBloto>
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error al cargar jugadas: $e')));
+      ).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(context)!.errorCargarJugadas}: $e')));
     }
   }
 
@@ -87,7 +88,7 @@ class JugadasListBlotoState extends State<JugadasListBloto>
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error al agregar jugada: $e')));
+      ).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(context)!.errorAgregarJugada}: $e')));
     }
   }
 
@@ -157,13 +158,13 @@ class JugadasListBlotoState extends State<JugadasListBloto>
                       const Icon(Icons.casino, color: Colors.amber, size: 20),
                       const SizedBox(width: 6),
                       Text(
-                        "Tus jugadas para hoy",
+                        AppLocalizations.of(context)!.tusJugadasHoy,
                         style: AppTextStyles.mensajeImportante,
                       ),
                     ],
                   ),
                   Text(
-                    "Total: ${jugadas.length}",
+                    "${AppLocalizations.of(context)!.totalLabel}: ${jugadas.length}",
                     style: AppTextStyles.mensajeSecundario.copyWith(
                       color: Colors.white70,
                       fontSize: 13,
@@ -171,10 +172,9 @@ class JugadasListBlotoState extends State<JugadasListBloto>
                   ),
                 ],
               ),
-              const SizedBox(height: 2),
-              jugadas.isEmpty
+                  jugadas.isEmpty
                   ? Text(
-                      "Aún no has guardado jugadas",
+                      AppLocalizations.of(context)!.aunNoTienesJugadas,
                       style: AppTextStyles.mensajeSecundario,
                     )
                   : ListView.builder(
@@ -230,7 +230,7 @@ class JugadasListBlotoState extends State<JugadasListBloto>
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                "Nro. ${index + 1}",
+                                "${AppLocalizations.of(context)!.nro} ${index + 1}",
                                 style: AppTextStyles.mensajeSecundario.copyWith(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -242,7 +242,7 @@ class JugadasListBlotoState extends State<JugadasListBloto>
                                   children: numeros.isEmpty
                                       ? [
                                           Text(
-                                            "Sin números",
+                                            AppLocalizations.of(context)!.sinNumeros,
                                             style:
                                                 AppTextStyles.mensajeSecundario,
                                           ),

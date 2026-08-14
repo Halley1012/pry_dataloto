@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 
+import 'package:dataloto/utils/pais_helper.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
+
 class HeaderCard extends StatelessWidget {
   final String selectedLoteria;
   final String fechaSorteo;
@@ -18,6 +21,23 @@ class HeaderCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final parts = PaisHelper.getJackpotParts(jackpot);
+    String label = parts["label"]!;
+    
+    // Aplicar localización a la etiqueta "millones" si existe
+    if (label.toLowerCase().contains("millon") || label.toLowerCase().contains("million")) {
+      if (selectedLoteria.toLowerCase().contains("powerball") || 
+          selectedLoteria.toLowerCase().contains("mega millions") ||
+          selectedLoteria.toLowerCase().contains("lotto america") ||
+          selectedLoteria.toLowerCase().contains("double play") ||
+          selectedLoteria.toLowerCase().contains("millionaire")) {
+        label = l10n.millonesUSD;
+      } else {
+        label = l10n.millonesCOP;
+      }
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0, top: 4.0),
       child: Row(
@@ -69,7 +89,7 @@ class HeaderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  "Jackpot estimado",
+                  l10n.jackpotEstimado,
                   style: GoogleFonts.montserrat(
                     fontSize: 10,
                     color: Colors.white54,
@@ -77,13 +97,21 @@ class HeaderCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  jackpot,
+                  parts["value"]!,
                   style: GoogleFonts.montserrat(
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: Colors.amber,
                   ),
                 ),
+                if (label.isNotEmpty)
+                  Text(
+                    label,
+                    style: GoogleFonts.montserrat(
+                      fontSize: 9,
+                      color: Colors.white54,
+                    ),
+                  ),
               ],
             ),
           ),

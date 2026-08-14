@@ -42,7 +42,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   late Animation<double> _bounceAnimation;
   late AnimationController _shineController;
   late AnimationController _jugadasController;
-  late Animation<double> _jugadasAnimation;
+  // late Animation<double> _jugadasAnimation;
 
   final GlobalKey<JugadasListBlotoState> _jugadasListKey = GlobalKey<JugadasListBlotoState>();
   String? userId;
@@ -75,10 +75,10 @@ class _BalotoScreenState extends State<BalotoScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _jugadasAnimation = CurvedAnimation(
+    /* _jugadasAnimation = CurvedAnimation(
       parent: _jugadasController,
       curve: Curves.easeInOut,
-    );
+    ); */
   }
 
   @override
@@ -124,12 +124,12 @@ class _BalotoScreenState extends State<BalotoScreen>
     }
   }
 
-  Future<void> _loadUserId() async {
+/*   Future<void> _loadUserId() async {
   final id = await storage.read(key: 'user_id');
   setState(() {
     userId = id;
   });
-}
+} */
 
   Future<void> buscarAnuncios([String titulo = ""]) async {
     if (!mounted) return;
@@ -142,10 +142,10 @@ class _BalotoScreenState extends State<BalotoScreen>
       final ciudadIdStr = await _storage.read(key: "ciudad_id");
 
       final paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
-      final departamentoId = departamentoIdStr != null
-          ? int.tryParse(departamentoIdStr)
-          : null;
-      final ciudadId = ciudadIdStr != null ? int.tryParse(ciudadIdStr) : null;
+      // final departamentoId = departamentoIdStr != null
+      //     ? int.tryParse(departamentoIdStr)
+      //     : null;
+      // final ciudadId = ciudadIdStr != null ? int.tryParse(ciudadIdStr) : null;
 
       // 🛰️ 2. Llamar al API con los filtros por defecto
       final data = await ApiService.getPublicidades(

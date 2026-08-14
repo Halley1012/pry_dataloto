@@ -96,32 +96,24 @@ class AuthUseCases:
             "deleted_user": deleted_info
         }
 
-    def request_password_reset(self, email: str) -> Dict[str, Any]:
-        # Este método corre de forma síncrona en la implementación original
-        # Para interactuar de forma síncrona con el puerto, usaremos un loop de evento o síncrono.
-        # En Python, para operaciones de base de datos síncronas que mantuvimos en el puerto, llamamos directamente.
-        import asyncio
-        # Como es síncrono, get_connection() es síncrono.
-        # Primero buscamos al usuario por email de forma síncrona o asíncrona.
-        # Dado que find_by_email es asíncrono, podemos ejecutarlo en un event loop temporal o hacer una llamada directa síncrona.
-        # Pero podemos ejecutar una consulta síncrona o correr el método asíncrono sincrónicamente si no hay loop corriendo:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        user = loop.run_until_complete(self.user_repo.find_by_email(email))
+    async def request_password_reset(self, email: str) -> str:
+        user = await self.user_repo.find_by_email(email)
         if not user:
             raise ValueError("Usuario no encontrado")
 
         token = secrets.token_urlsafe(32)
         expires = datetime.utcnow() + timedelta(hours=1)
 
-        self.user_repo.save_password_reset_token(user["id"], token, expires)
+        await self.user_repo.save_password_reset_token(user["id"], token, expires)
+        return token
 
+    async def send_password_reset_email_task(self, email: str, token: str) -> None:
+        if not self.email_sender:
+            return
+            
         reset_link = f"{config.FRONTEND_URL}/reset-password?token={token}"
-        if self.email_sender:
-            self.email_sender.send_reset_password_email(email, reset_link)
-
-        return {"msg": f"Correo de recuperación enviado a {email}"}
+        try:
+            await self.email_sender.send_reset_password_email(email, reset_link)
+        except Exception as e:
+            # En tareas de fondo es vital capturar errores para no tumbar el worker
+            print(f"❌ Error en Background Task (email): {e}")

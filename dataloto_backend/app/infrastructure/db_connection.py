@@ -34,7 +34,16 @@ async def init_pool():
     global pool
     if not config.DATABASE_URL:
         raise RuntimeError("DATABASE_URL no configurada en variables de entorno")
-    pool = await asyncpg.create_pool(dsn=config.DATABASE_URL)
+    
+    # Optimización del pool para entornos como Onrender
+    pool = await asyncpg.create_pool(
+        dsn=config.DATABASE_URL,
+        min_size=1,
+        max_size=10,
+        max_queries=50000,
+        max_inactive_connection_lifetime=300,
+        command_timeout=60
+    )
 
 async def close_pool():
     global pool

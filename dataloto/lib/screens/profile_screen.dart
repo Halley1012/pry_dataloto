@@ -61,16 +61,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLogoutDialog() {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(l10n?.cerrarSesion ?? "Cerrar sesión", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text(l10n?.confirmarCerrarSesion ?? "¿Estás seguro de que deseas salir?", style: AppTextStyles.mensajeSecundario),
+        title: Text(l10n.cerrarSesion, style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text(l10n.confirmarCerrarSesion, style: AppTextStyles.mensajeSecundario),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: AppColors.yellow))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancelar, style: const TextStyle(color: AppColors.yellow))),
           TextButton(
             onPressed: () async {
               await storage.deleteAll();
@@ -84,7 +84,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
             },
-            child: Text(l10n?.cerrarSesion ?? "Cerrar sesión", style: const TextStyle(color: Colors.redAccent)),
+            child: Text(l10n.cerrarSesion, style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -112,7 +112,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     if (isLoading) return const Center(child: CircularProgressIndicator(color: AppColors.yellow));
 
     return Scaffold(
@@ -122,7 +122,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 30),
           child: Column(
             children: [
-              Text(l10n?.perfil ?? "Mi Perfil", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24)),
+              Text(l10n.perfil, style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24)),
               const SizedBox(height: 30),
               
               // Header Perfil
@@ -143,11 +143,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Row(
                           children: [
-                            Flexible(child: Text(name ?? (l10n?.nombre ?? "Nombre"), style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
+                            Flexible(child: Text(name ?? l10n.nombre, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
                             IconButton(onPressed: _editProfile, icon: const Icon(Icons.edit, color: AppColors.yellow, size: 20)),
                           ],
                         ),
-                        Text(email ?? (l10n?.email ?? "Email"), style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                        Text(email ?? l10n.email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -160,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               const Icon(Icons.star, color: AppColors.yellow, size: 14),
                               const SizedBox(width: 4),
-                              Text(l10n?.usuarioPremium ?? "Usuario Premium", style: const TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold)),
+                              Text(l10n.usuarioPremium, style: const TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold)),
                             ],
                           ),
                         ),
@@ -173,14 +173,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Opciones
-              _buildOptionItem(Icons.ads_click, l10n?.misAnuncios ?? "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
-              _buildOptionItem(Icons.payment, l10n?.metodosPago ?? "Métodos de pago", () {}),
-              _buildOptionItem(Icons.settings_outlined, l10n?.configuracion ?? "Configuración", _showConfigMenu),
-              _buildOptionItem(Icons.help_outline, l10n?.ayudaSoporte ?? "Ayuda y soporte", _showHelpMenu),
-              _buildOptionItem(Icons.info_outline, "Versión de la app", () {}, trailingText: _appVersion),
+              _buildOptionItem(Icons.ads_click, l10n.misAnuncios, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
+              _buildOptionItem(Icons.payment, l10n.metodosPago, () {}),
+              _buildOptionItem(Icons.settings_outlined, l10n.configuracion, _showConfigMenu),
+              _buildOptionItem(Icons.help_outline, l10n.ayudaSoporte, _showHelpMenu),
+              _buildOptionItem(Icons.info_outline, l10n.versionApp, () {}, trailingText: _appVersion),
               
               const SizedBox(height: 20),
-              _buildOptionItem(Icons.logout, l10n?.cerrarSesion ?? "Cerrar sesión", _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),
+              _buildOptionItem(Icons.logout, l10n.cerrarSesion, _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),
               
               const SizedBox(height: 50),
             ],
@@ -191,7 +191,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showConfigMenu() {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
@@ -210,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-            title: Text(l10n?.eliminarCuenta ?? "Eliminar cuenta", style: const TextStyle(color: Colors.white)),
+            title: Text(l10n.eliminarCuenta, style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
               _eliminarCuenta(context);
@@ -223,14 +223,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLanguageDialog(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final locProvider = Provider.of<LocaleProvider>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(l10n?.seleccionarIdioma ?? "Seleccionar Idioma / Select Language", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(l10n.seleccionarIdioma, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -261,7 +261,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.settings_suggest, color: Colors.amber),
-              title: Text(l10n?.idiomaSistema ?? "Idioma del Sistema", style: const TextStyle(color: Colors.white70)),
+              title: Text(l10n.idiomaSistema, style: const TextStyle(color: Colors.white70)),
               onTap: () {
                 locProvider.clearLocale();
                 Navigator.pop(context);
@@ -274,6 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _eliminarCuenta(BuildContext context) async {
+    final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -284,18 +285,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             const Icon(Icons.delete_forever, color: Colors.redAccent, size: 24),
             const SizedBox(width: 10),
-            Text("Eliminar cuenta", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(l10n.eliminarCuenta, style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
           ],
         ),
-        content: Text("¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.", style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70)),
+        content: Text(l10n.confirmarEliminarCuenta, style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancelar", style: TextStyle(color: Colors.amber)),
+            child: Text(l10n.cancelar, style: const TextStyle(color: Colors.amber)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text("Eliminar", style: TextStyle(color: Colors.redAccent)),
+            child: Text(l10n.eliminar, style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -332,17 +333,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Cerrar loader si falló
-        _showJustifiedDialog("Error", "No se pudo eliminar la cuenta: $e");
+        _showJustifiedDialog(l10n.error, "No se pudo eliminar la cuenta: $e");
       }
     }
   }
 
   void _showHelpMenu() {
-    final l10n = AppLocalizations.of(context);
-    final avisoTitle = l10n?.avisoLegal ?? "Aviso legal";
-    final avisoBody = l10n?.contenidoAvisoLegal ?? "Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país.";
-    final acercaTitle = l10n?.acercaDe ?? "Acerca de";
-    final acercaBody = l10n?.contenidoAcercaDe ?? "DataLoto utiliza inteligencia artificial para analizar patrones históricos de loterías...";
+    final l10n = AppLocalizations.of(context)!;
+    final avisoTitle = l10n.avisoLegal;
+    final avisoBody = l10n.contenidoAvisoLegal;
+    final acercaTitle = l10n.acercaDe;
+    final acercaBody = l10n.contenidoAcercaDe;
 
     showModalBottomSheet(
       context: context,
@@ -375,7 +376,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showJustifiedDialog(String title, String content) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -386,7 +387,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           child: Text(content, textAlign: TextAlign.justify, style: AppTextStyles.mensajeSecundario),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n?.cerrar ?? "Cerrar", style: const TextStyle(color: AppColors.yellow))),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cerrar, style: const TextStyle(color: AppColors.yellow))),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
@@ -7,6 +8,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:dataloto/l10n/generated/app_localizations.dart';
+import 'resultados/widgets/resultados_shared.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -30,9 +32,10 @@ class _LoginPageState extends State<LoginPage> {
 
   // Login usando ApiService
   Future<void> loginUser() async {
+    final l10n = AppLocalizations.of(context)!;
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("⚠️ Ingresa email y contraseña")),
+        SnackBar(content: Text(l10n.ingresaEmailContrasena)),
       );
       return;
     }
@@ -64,52 +67,70 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacementNamed(context, "/home");
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("❌ Error al obtener tokens")),
+            SnackBar(content: Text(l10n.errorObtenerTokens)),
           );
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("❌ Credenciales inválidas")),
+          SnackBar(content: Text(l10n.credencialesInvalidas)),
         );
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() => isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text("🚨 Error en la conexión: $e")));
+      ).showSnackBar(SnackBar(content: Text("${l10n.errorConexion}: $e")));
     }
   }
 
   // Función para enviar correo de recuperación
   Future<void> _sendResetEmail(String email) async {
-    final url = Uri.parse(
-      'https://pry-dataloto.onrender.com/auth/forgot-password',
-    );
+    final l10n = AppLocalizations.of(context)!;
+    final url = Uri.parse('${ApiService.baseUrl}/auth/forgot-password');
+    
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'email': email}),
-      );
+      ).timeout(const Duration(seconds: 25));
 
       if (response.statusCode == 200) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Se ha enviado un enlace a $email")),
+          SnackBar(content: Text(l10n.enviadoEnlace(email))),
         );
       } else {
+        String errorMsg = l10n.errorEnviarCorreo;
+        try {
+          final body = jsonDecode(response.body);
+          if (body['detail'] != null) {
+            errorMsg = body['detail'].toString();
+          }
+        } catch (_) {}
+        
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error: No se pudo enviar el correo")),
+          SnackBar(content: Text(errorMsg)),
         );
       }
+    } on TimeoutException catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.errorConexion)), // O un mensaje de "Servidor lento"
+      );
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("🚨 Error de conexión: $e")));
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${l10n.errorConexion}: $e")),
+      );
     }
   }
 
   // Diálogo animado de "Olvidé mi contraseña"
   void _showFancyForgotPasswordDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final TextEditingController dialogEmailController = TextEditingController();
     bool dialogLoading = false;
 
@@ -118,50 +139,71 @@ class _LoginPageState extends State<LoginPage> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            return AlertDialog(
-              title: const Text("Recuperar Contraseña"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: dialogEmailController,
-                    decoration: const InputDecoration(
-                      labelText: "Correo electrónico",
-                      prefixIcon: Icon(Icons.email_outlined),
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: cardBoxDecoration(),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      l10n.recuperarContrasena,
+                      style: AppTextStyles.tituloPrincipal,
+                      textAlign: TextAlign.center,
                     ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: dialogLoading
-                      ? null
-                      : () => Navigator.pop(context),
-                  child: const Text("Cancelar"),
-                ),
-                ElevatedButton(
-                  onPressed: dialogLoading
-                      ? null
-                      : () async {
-                          setState(() => dialogLoading = true);
-                          await _sendResetEmail(
-                            dialogEmailController.text.trim(),
-                          );
-                          setState(() => dialogLoading = false);
-                          Navigator.pop(context);
-                        },
-                  child: dialogLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: dialogEmailController,
+                      style: AppTextStyles.mensajeSecundario,
+                      decoration: InputDecoration(
+                        labelText: l10n.email,
+                        labelStyle: AppTextStyles.mensajeSecundario,
+                        prefixIcon: const Icon(Icons.email_outlined, color: AppColors.yellow),
+                        filled: true,
+                        fillColor: Colors.white10,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(30),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                            onPressed: dialogLoading ? null : () => Navigator.pop(context),
+                            child: Text(
+                              l10n.cancelarButton,
+                              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                            ),
                           ),
-                        )
-                      : const Text("Enviar"),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: LoadingButton(
+                            isLoading: dialogLoading,
+                            text: l10n.enviarButton,
+                            onPressed: () async {
+                              if (dialogEmailController.text.trim().isEmpty) return;
+                              setState(() => dialogLoading = true);
+                              await _sendResetEmail(dialogEmailController.text.trim());
+                              setState(() => dialogLoading = false);
+                              if (context.mounted) Navigator.pop(context);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
             );
           },
         );
@@ -178,7 +220,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -198,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
             }
           },
         ),
-        title: Text(l10n?.iniciarSesion ?? "Iniciar Sesión", style: AppTextStyles.h2),
+        title: Text(l10n.iniciarSesion, style: AppTextStyles.h2),
         centerTitle: true,
       ),
       body: Center(
@@ -208,13 +250,13 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                l10n?.bienvenido ?? "Bienvenido a DataLoto",
+                l10n.bienvenido,
                 style: AppTextStyles.h2,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 10),
               Text(
-                l10n?.iniciaSesionParaContinuar ?? "Inicia sesión para continuar",
+                l10n.iniciaSesionParaContinuar,
                 style: AppTextStyles.mensajeSecundario,
                 textAlign: TextAlign.center,
               ),
@@ -230,7 +272,7 @@ class _LoginPageState extends State<LoginPage> {
                       keyboardType: TextInputType.emailAddress,
                       style: AppTextStyles.mensajeSecundario,
                       decoration: InputDecoration(
-                        labelText: l10n?.email ?? "Email",
+                        labelText: l10n.email,
                         labelStyle: AppTextStyles.mensajeSecundario,
                         filled: true,
                         fillColor: Colors.white10,
@@ -246,7 +288,7 @@ class _LoginPageState extends State<LoginPage> {
                           _obscureText, // Use state variable for visibility
                       style: AppTextStyles.mensajeSecundario,
                       decoration: InputDecoration(
-                        labelText: l10n?.contrasena ?? "Contraseña",
+                        labelText: l10n.contrasena,
                         labelStyle: AppTextStyles.mensajeSecundario,
                         filled: true,
                         fillColor: Colors.white10,
@@ -274,14 +316,14 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 30),
               LoadingButton(
                 isLoading: isLoading,
-                text: l10n?.ingresar ?? "Ingresar",
+                text: l10n.ingresar,
                 onPressed: loginUser,
               ),
               const SizedBox(height: 20),
               GestureDetector(
                 onTap: () => _showFancyForgotPasswordDialog(context),
                 child: Text(
-                  l10n?.olvidoContrasena ?? "¿Olvidó la contraseña?",
+                  l10n.olvidoContrasena,
                   style: AppTextStyles.mensajeSecundario.copyWith(
                     color: AppColors.yellow,
                     fontWeight: FontWeight.bold,

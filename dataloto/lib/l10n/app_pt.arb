@@ -8,7 +8,7 @@
   "prediccionesInteligentes": "Previsões Inteligentes",
   "ultimosResultados": "Últimos 5 resultados",
   "ultimosResultadosBaloto": "Últimos 5 resultados Baloto",
-  "thisLoteriaResultados": "Últimos 5 resultados Revancha",
+  "ultimosResultadosRevancha": "Últimos 5 resultados Baloto Revancha",
   "tusNumerosSuerte": "Seus números da sorte",
   "generar": "Gerar",
   "guardar": "Salvar",
@@ -67,7 +67,7 @@
   "respuestas": "respostas",
   "sinPosts": "Nenhum post ainda",
   "anunciosDestacados": "Anúncios em Destaque",
-  "derechosReservados": "© 2025 DataLoto. Todos los derechos reservados.",
+  "derechosReservados": "© 2025 DataLoto. Todos os direitos reservados.",
   "version": "Versão",
   "sinNotificacionesCategoria": "Sem notificações para o seu país",
   "verTodasNotificaciones": "Ver todas as notificações",
@@ -87,10 +87,10 @@
   "contenidoAvisoLegal": "Este aplicativo não é oficial nem associado a operadores de loteria ou órgãos reguladores de jogos de azar em nenhum país. Não é um jogo de loteria, mas uma ferramenta de análise estatística e inteligência artificial que gera previsões para que você escolha seus números com mais confiança. Os resultados não garantem prêmios e seu uso é exclusivamente para fins informativos e de entretenimento.",
   "contenidoAcercaDe": "O DataLoto usa inteligência artificial para analisar padrões históricos de loterias e fornecer previsões informadas. Embora nossas previsões sejam baseadas em dados, não há certeza absoluta de que esses números serão os vencedores, pois a loteria é um jogo de azar. Não garantimos prêmios, apenas ajudamos você a escolher com mais confiança. Use o aplicativo com responsabilidade e apenas para fins de entretenimento. A decisão de usar essas previsões é de sua inteira responsabilidade.",
   "notificacionesIA": "Notificações",
-  "marcarTodoComoLeido": "Marcar tudo como lido",
+  "marcarTodoComoLeido": "Mark all as read",
   "seleccionarTodo": "Selecionar tudo",
-  "desmarcarTodo": "Desmarcar tudo",
-  "eliminar": "Excluir",
+  "desmarcarTodo": "Unselect all",
+  "eliminar": "Delete",
   "imprimirPDF": "Imprimir PDF",
   "historialJugadas": "Histórico de Apostas",
   "guardadasCantidad": "salva(s)",
@@ -129,7 +129,7 @@
   "balotaRoja": "1 bola vermelha",
   "tocaNumerosModificar": "Toque nos números abaixo para modificar",
   "numeroSuerteSugerido": "Número da sorte sugerido pela IA",
-  "jugadaPersonalizada": "Aposta personalizada",
+  "jugada": "Aposta",
   "notaTendenciasEstadisticas": "Nota: são apenas tendências estatísticas, não garantias absolutas.",
   "generarJugada": "Gerar Aposta",
   "guardarJugada": "Salvar Aposta",
@@ -158,7 +158,7 @@
   "paresImpares": "Pares - Ímpares",
   "analizados": "Analisados",
   "veces": "vezes",
-  "versiónApp": "Versão do app",
+  "versionApp": "Versão do app",
   "tocaParaVerMas": "Toque para ver mais",
   "filtrosAnalisis": "Filtros de Análise",
   "sorteos": "Sorteios",
@@ -166,7 +166,7 @@
   "numerosCalientesFrios": "Números Quentes e Frios 🔥❄️",
   "masFrequentes": "Mais Frequentes",
   "menosFrequentes": "Menos Frequentes",
-  "ausenciaSorteosTitle": "Dias / Sorteios Sem Sair (Ausência)",
+  "ausenciaSorteosTitle": "Dias / Sorteios Sem Sair (Ausencia)",
   "balotasMayorTiempo": "Bolas com o maior tempo sem aparecer:",
   "apariciones": "aparições",
   "pareja": "Par",
@@ -252,5 +252,223 @@
         "type": "String"
       }
     }
-  }
+  },
+  "sinResultadosAnalisis": "Nenhum resultado analisado ainda",
+  "buscaloAqui": "Busque Aqui",
+  "anunciateHoy": "Anuncie hoje e deixe que todos te conheçam!",
+  "crearNuevaPublicidad": "Criar nova publicidade",
+  "buscarPorTitulo": "Buscar por título",
+  "noHayAnunciosFiltros": "Não há anúncios disponíveis \npara os filtros selecionados.",
+  "todos": "Todos",
+  "todasCategorias": "Todas as categorias",
+  "noHayPaisesDisponibles": "Não há países disponíveis",
+  "noHayDepartamentosDisponibles": "Não há departamentos disponíveis",
+  "noHayCategoriasDisponibles": "Não há categorias disponíveis",
+  "estadoProvincia": "Estado / Província",
+  "categoria": "Categoria",
+  "presionaOtraVezSalir": "Pressione novamente para sair",
+  "tusJugadasHoy": "Suas apostas para hoje",
+  "errorCargarJugadas": "Erro ao carregar apostas",
+  "errorAgregarJugada": "Erro ao adicionar aposta",
+  "nro": "Nro.",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "Meus Anúncios",
+  "noHasPublicadoAnuncios": "Você ainda não publicou nenhum anúncio.\nCrie o primeiro agora!",
+  "eliminarAnuncio": "Excluir anúncio",
+  "confirmarEliminarAnuncio": "Tem certeza que deseja excluir este anúncio?",
+  "editar": "Editar",
+  "eliminar": "Excluir",
+  "crearPublicidad": "Criar Publicidade",
+  "editarAnuncio": "Editar Anúncio",
+  "crearNuevoAnuncio": "Criar novo anúncio",
+  "promocionaNegocioStyle": "Promova seu negócio com estilo",
+  "titulo": "Título",
+  "descripcion": "Descrição",
+  "descripcionObligatoria": "Descrição obrigatória",
+  "telefono": "Telefone",
+  "telefonoObligatorio": "Telefone obrigatório",
+  "direccion": "Endereço",
+  "imagenUrl": "URL da Imagem",
+  "ciudad": "Cidade",
+  "redesSociales": "Redes sociais",
+  "paginaWeb": "Página Web",
+  "whatsappObligatorio": "WhatsApp obrigatório",
+  "anuncioActualizado": "Anúncio atualizado",
+  "anuncioCreado": "Anúncio criado",
+  "errorGuardar": "Erro ao salvar",
+  "campoRequerido": "{campo} obrigatório",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Selecione {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "Minhas Apostas de {loteria} - DataLoto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "Não há apostas para compartilhar",
+  "buenaSuerteDataLoto": "Boa sorte com o DataLoto!",
+  "tiqueteDataloto": "DATALOTO - BILHETE {loteria}",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Relatório de Apostas Salvas ({count} aposta(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Data de Salvamento",
+  "balotasLoteria": "Bolas {loteria}",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "Muito sucesso no seu jogo! - Gerado pelo DataLoto App",
+  "jugadaShare": "Aposta #{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "Não há apostas selecionadas para imprimir",
+  "generaGuardaJugadas": "Gere e salve suas apostas na tela principal do {loteria}",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "Tem certeza que deseja excluir {count} aposta(s)?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "{count} aposta(s) excluída(s) com sucesso.",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Bola especial: {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "Minhas Apostas - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Bilhete_{loteria}_DataLoto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / dia",
+  "postEliminado": "Post excluído com sucesso",
+  "errorEliminarPost": "Erro ao excluir o post: {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Editar Post",
+  "crearPost": "Criar Post",
+  "todosCamposObligatorios": "Todos os campos são obrigatórios",
+  "errorGuardarPost": "Erro ao salvar o post",
+  "contenido": "Conteúdo",
+  "publicar": "Publicar",
+  "escribeComentario": "Escreva um comentário",
+  "errorEnviarComentario": "Erro ao enviar comentário: {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Comentário excluído",
+  "errorEliminarComentario": "Erro ao excluir: {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioReportado": "Comentário de @{usuario} reportado.",
+  "@comentarioReportado": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "respondiendoA": "Respondendo a @{usuario}",
+  "@respondiendoA": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "escribeRespuesta": "Escreva sua resposta...",
+  "escribeComentarioHint": "Escreva um comentário...",
+  "noHayComentarios": "Nenhum comentário ainda. Seja o primeiro a comentar!",
+  "opcionPago": "Opção de Pagamento",
+  "completaDatosPago": "Complete seus dados de pagamento",
+  "nombreTarjeta": "Nome no cartão",
+  "numeroTarjeta": "Número do cartão",
+  "ingresaNombre": "Insira o nome",
+  "tarjetaInvalida": "Número do cartão inválido",
+  "fechaInvalida": "Data inválida",
+  "cvvInvalido": "CVV inválido",
+  "pagar": "Pagar",
+  "pagoExito": "✅ Pagamento realizado com sucesso",
+  "pagarEpayco": "Pagar com ePayco",
+  "errorAnuncios": "Erro ao carregar anúncios."
 }
