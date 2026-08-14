@@ -54,8 +54,8 @@ class JugadaUseCases:
         record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, fecha_guardado, expira)
         return record
 
-    async def listar_jugadas(self, tipo: str, user_id: int) -> List[Dict[str, Any]]:
-        rows = await self.jugada_repo.list_jugadas(tipo, user_id)
+    async def listar_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
+        rows = await self.jugada_repo.list_jugadas(tipo, user_id, fecha)
         jugadas = []
         for r in rows:
             jugada_dict = dict(r)
