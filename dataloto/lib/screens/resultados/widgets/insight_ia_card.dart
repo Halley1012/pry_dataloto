@@ -290,10 +290,9 @@ class InsightIaCard extends StatelessWidget {
                                     int index = entry.key;
                                     int num = entry.value;
                                     final isHit = winningRed == num;
-                                    
                                     Color baseColor = isHit
                                         ? Colors.amber
-                                        : (index < 8 ? Colors.redAccent : const Color(0xFF607D8B));
+                                        : Colors.redAccent;
                                     
                                     return _build3DBall(
                                       num,

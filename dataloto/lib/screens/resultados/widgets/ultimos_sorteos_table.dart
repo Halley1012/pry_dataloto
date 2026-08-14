@@ -44,8 +44,9 @@ class UltimosSorteosTable extends StatelessWidget {
             children: [
               Expanded(flex: 3, child: Text("Fecha", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
               Expanded(flex: 7, child: Center(child: Text("Números ganadores", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Center(child: Text("Cobertura", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Align(alignment: Alignment.centerRight, child: Text("Aciertos", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 3, child: Center(child: Text("Cobertura IA", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 3, child: Align(alignment: Alignment.center
+                  , child: Text("Aciertos", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
             ],
           ),
           const Divider(color: Colors.white12, height: 16),
@@ -60,6 +61,7 @@ class UltimosSorteosTable extends StatelessWidget {
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8.0),
                 child: Row(
+
                   children: [
                     Expanded(
                       flex: 3,
@@ -103,14 +105,14 @@ class UltimosSorteosTable extends StatelessWidget {
                     Expanded(
                       flex: 3,
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Text(
                             item["aciertos"].toString(),
                             style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 10),
+
                         ],
                       ),
                     ),

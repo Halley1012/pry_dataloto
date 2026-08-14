@@ -50,6 +50,7 @@ class NotificationProvider with ChangeNotifier {
         _notifications[index] = NotificationModel(
           id: old.id,
           loteriaId: old.loteriaId,
+          paisId: old.paisId,
           fechaSorteo: old.fechaSorteo,
           mensaje: old.mensaje,
           tipo: old.tipo,
@@ -74,6 +75,7 @@ class NotificationProvider with ChangeNotifier {
         _notifications[i] = NotificationModel(
           id: old.id,
           loteriaId: old.loteriaId,
+          paisId: old.paisId,
           fechaSorteo: old.fechaSorteo,
           mensaje: old.mensaje,
           tipo: old.tipo,
