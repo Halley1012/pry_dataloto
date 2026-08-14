@@ -617,7 +617,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     return (52 + (ratio * 43)).round();
   }
 
-  Widget _buildIAPrediction() {
+  Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection = seleccionados.isNotEmpty || balotaRojaSeleccionada != null;
     final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
     final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
@@ -639,16 +639,16 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    isCustomSelection ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada") : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
                     style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    isCustomSelection ? "${seleccionados.length}/5 balotas + ${balotaRojaSeleccionada != null ? 1 : 0}/1 roja" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    isCustomSelection ? (l10n?.balotasPrincipales(seleccionados.length) ?? "${seleccionados.length}/5 balotas") : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ?? "Basada en análisis de $totalSorteosAnalizados sorteos"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
                   ),
                   Text(
-                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    isCustomSelection ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar") : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
                   ),
                 ],
@@ -700,7 +700,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -710,7 +710,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildDisclaimerNote() {
+  Widget _buildDisclaimerNote(AppLocalizations? l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -726,7 +726,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              l10n?.notaTendenciasEstadisticas ?? "Nota: son solo tendencias estadísticas, no garantías absolutas.",
               style: AppTextStyles.caption.copyWith(fontSize: 11),
             ),
           ),
@@ -735,25 +735,25 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildActionGrid() {
+  Widget _buildActionGrid(AppLocalizations? l10n) {
     return Row(
       children: [
         _buildActionTile(
           icon: Icons.auto_awesome_outlined,
-          label: "Generar\nJugada",
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
           onTap: _generarAleatorios,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmark_add_outlined,
-          label: isSaving ? "Guardando..." : "Guardar\nJugada",
-          onTap: isSaving ? null : _guardarJugada,
+          label: isSaving ? (l10n?.guardando ?? "Guardando...") : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+          onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmarks_outlined,
-          label: "Mis\nJugadas",
+          label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
           onTap: () async {
             await Navigator.push(
               context,
@@ -770,7 +770,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bar_chart,
-          label: "Ver\nEstadísticas",
+          label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const EstadisticasLottoAmericaScreen()),
@@ -831,7 +831,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildManualSelectorSection() {
+  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -839,7 +839,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.seleccionaNumeros ?? "Selecciona tus números", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
@@ -854,7 +854,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text("${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."} \n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaProbables.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -893,7 +893,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildRedBallsSection() {
+  Widget _buildRedBallsSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -901,11 +901,11 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Star Ball Roja", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.balotasRojas ?? "Star Ball Roja", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad.", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text(l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad.", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaBalotaRoja.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -1026,7 +1026,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildResultadosSection() {
+  Widget _buildResultadosSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1034,18 +1034,18 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "Últimos 5 resultados Lotto America",
+              l10n?.resultados ?? "Resultados",
               style: AppTextStyles.h2,
             ),
           ),
           const SizedBox(height: 16),
-          _buildResultadosContent(),
+          _buildResultadosContent(l10n),
         ],
       ),
     );
   }
 
-  Widget _buildResultadosContent() {
+  Widget _buildResultadosContent(AppLocalizations? l10n) {
     return Column(
       children: [
         if (ultimosResultados.isEmpty)
@@ -1059,7 +1059,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
                   Expanded(
                     flex: 1,
                     child: Text(
-                      "Fecha",
+                      l10n?.pais ?? "Fecha",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1067,7 +1067,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
                   Expanded(
                     flex: 2,
                     child: Text(
-                      "Resultados",
+                      l10n?.resultados ?? "Resultados",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1106,7 +1106,7 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
                               children: numeros.isEmpty
                                   ? [
                                       Text(
-                                        "Sin números",
+                                        l10n?.sinNumeros ?? "Sin números",
                                         style: AppTextStyles.mensajeSecundario,
                                       ),
                                     ]
@@ -1137,19 +1137,19 @@ class _LottoAmericaScreenState extends State<LottoAmericaScreen> with TickerProv
     );
   }
 
-  Widget _buildNewsSection() {
+  Widget _buildNewsSection(AppLocalizations? l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Anuncios destacados", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(l10n?.noticiasAlertas ?? "Noticias / Alertas", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             TextButton(
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen()));
               },
-              child: Text("Ver más ›", style: TextStyle(color: AppColors.yellow, fontSize: 12)),
+              child: Text(l10n?.verTodas ?? "Ver más ›", style: const TextStyle(color: AppColors.yellow, fontSize: 12)),
             ),
           ],
         ),
