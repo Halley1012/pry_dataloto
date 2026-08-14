@@ -103,3 +103,7 @@ class RefreshTokenRequest(BaseModel):
 class FCMTokenUpdate(BaseModel):
     user_id: int
     fcm_token: str
+
+class SocialLoginRequest(BaseModel):
+    provider: str
+    token: str

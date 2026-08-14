@@ -110,6 +110,84 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> socialLogin(
+    String provider,
+    String token,
+  ) async {
+    try {
+      final response = await post("/auth/social-login", {
+        "provider": provider,
+        "token": token,
+      }, withAuth: false);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        final accessToken = data["access_token"];
+        final refreshToken = data["refresh_token"];
+        final user = data["user"];
+
+        final userId = user?["id"];
+        final userName = user?["name"];
+        final userEmail = user?["email"];
+        final paisId = user?["pais_id"];
+        final paisNombre = user?["pais_nombre"];
+        final departamentoId = user?["departamento_id"];
+        final departamentoNombre = user?["departamento_nombre"];
+
+        if (accessToken != null) {
+          await _storage.write(key: "auth_token", value: accessToken);
+          if (refreshToken != null) {
+            await _storage.write(key: "refresh_token", value: refreshToken);
+          }
+
+          if (userId != null) {
+            await _storage.write(key: "user_id", value: userId.toString());
+          }
+          if (userName != null) {
+            await _storage.write(key: "name", value: userName);
+          }
+          if (userEmail != null) {
+            await _storage.write(key: "email", value: userEmail);
+          }
+          if (paisId != null) {
+            await _storage.write(key: "pais_id", value: paisId.toString());
+          }
+          if (paisNombre != null) {
+            await _storage.write(key: "pais_nombre", value: paisNombre);
+          }
+          if (departamentoId != null) {
+            await _storage.write(
+              key: "departamento_id",
+              value: departamentoId.toString(),
+            );
+          }
+          if (departamentoNombre != null) {
+            await _storage.write(
+              key: "departamento_nombre",
+              value: departamentoNombre,
+            );
+          }
+
+          return {
+            'success': true,
+            'access_token': accessToken,
+            'refresh_token': refreshToken,
+            'user': user,
+          };
+        }
+        return {'success': false, 'error': 'No access_token in response'};
+      } else {
+        return {
+          'success': false,
+          'error': 'Social login failed with status ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
   /// 🔓 LOGOUT
   static Future<void> logout() async {
     await _storage.delete(key: "auth_token");

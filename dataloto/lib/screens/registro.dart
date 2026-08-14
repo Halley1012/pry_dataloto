@@ -12,10 +12,16 @@ import '../utils/pais_helper.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class RegistroScreen extends StatefulWidget {
-  final Map<String, dynamic>? user; // Para edición
+  final Map<String, dynamic>? user; // Para edición u onboarding
   final int? userId; // ID del usuario (para PUT)
+  final bool isSocialOnboarding;
 
-  const RegistroScreen({super.key, required this.user, required this.userId});
+  const RegistroScreen({
+    super.key,
+    this.user,
+    this.userId,
+    this.isSocialOnboarding = false,
+  });
 
   @override
   State<RegistroScreen> createState() => _RegistroPageState();
@@ -206,7 +212,11 @@ class _RegistroPageState extends State<RegistroScreen> {
       }
 
       if (!mounted) return;
-      Navigator.pop(context, true);
+      if (widget.isSocialOnboarding) {
+        Navigator.pushNamedAndRemoveUntil(context, "/home", (route) => false);
+      } else {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       if (!mounted) return;
       // Error silencioso

@@ -118,3 +118,13 @@ async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/auth/social-login")
+async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+    try:
+        res = await use_cases.social_login(request.provider, request.token)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error en inicio de sesión social: {str(e)}")
