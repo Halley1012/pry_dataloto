@@ -5,12 +5,10 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/screens/registro.dart';
 import 'package:dataloto/screens/login.dart';
 import 'package:dataloto/screens/misanuncios.dart';
-import 'package:dataloto/screens/notifications_screen.dart';
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/screens/welcome.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:dataloto/providers/locale_provider.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
@@ -29,12 +27,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? name;
   String? email;
   String? userId;
+  String _appVersion = "...";
   bool isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = info.version;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadUserData() async {
@@ -162,28 +173,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Opciones
-              _buildOptionItem(Icons.bookmark_outline, l10n?.misJugadas ?? "Mis jugadas", () {
-                if (widget.onTabChange != null) {
-                  widget.onTabChange!(2);
-                } else {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()));
-                }
-              }),
-              _buildOptionItem(Icons.notifications_none, l10n?.notificaciones ?? "Notificaciones", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
-              _buildOptionItem(Icons.bug_report_outlined, "Probar Notificación Push", () async {
-                final token = await FirebaseMessaging.instance.getToken();
-                if (token != null) {
-                  debugPrint("🚀 Token para prueba: $token");
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Token impreso en consola. Úsalo para probar."), backgroundColor: Colors.blue),
-                  );
-                }
-              }),
               _buildOptionItem(Icons.ads_click, l10n?.misAnuncios ?? "Mis anuncios", () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
               _buildOptionItem(Icons.payment, l10n?.metodosPago ?? "Métodos de pago", () {}),
-              _buildOptionItem(Icons.group_add_outlined, l10n?.invitarAmigos ?? "Invitar amigos", () {}, trailingText: l10n?.ganaBeneficios ?? "Gana beneficios"),
               _buildOptionItem(Icons.settings_outlined, l10n?.configuracion ?? "Configuración", _showConfigMenu),
               _buildOptionItem(Icons.help_outline, l10n?.ayudaSoporte ?? "Ayuda y soporte", _showHelpMenu),
+              _buildOptionItem(Icons.info_outline, "Versión de la app", () {}, trailingText: _appVersion),
               
               const SizedBox(height: 20),
               _buildOptionItem(Icons.logout, l10n?.cerrarSesion ?? "Cerrar sesión", _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),

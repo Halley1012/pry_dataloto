@@ -27,6 +27,40 @@ class PowerballScraper:
         # Sorteos: Lunes (0), Miércoles (2), Sábados (5)
         self.draw_days = (0, 2, 5)
 
+    def update_jackpot(self, engine, loteria, jackpot, fecha_str):
+        if not jackpot or not fecha_str:
+            return
+        # Parse date from "Sat, Aug 15, 2026"
+        fecha = None
+        try:
+            fecha = datetime.strptime(fecha_str.strip(), "%a, %b %d, %Y").date()
+        except Exception as ex:
+            print(f"Error parsing date {fecha_str} for {loteria}: {ex}")
+        
+        if not fecha:
+            return
+        
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
+
     def run(self, max_pages=None):
         print("🚀 Iniciando Scraping de Powerball...")
         df_final = pd.DataFrame()
@@ -122,9 +156,35 @@ class PowerballScraper:
             from sqlalchemy.types import Date
             engine = get_engine()
             df_final.to_sql('resultados_powerball', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
-            print(f"✅ ¡DataFrame de Powerball guardado exitosamente! Total filas: {len(df_final)}")
+            print(f"DataFrame de Powerball guardado exitosamente! Total filas: {len(df_final)}")
+            
+            # Scrape and save jackpot for Powerball
+            print("Scraping jackpot for Powerball from homepage...")
+            r_main = requests.get("https://www.powerball.com/", headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+            if r_main.status_code == 200:
+                soup_main = BeautifulSoup(r_main.text, "html.parser")
+                
+                # Find date
+                date_el = soup_main.find(class_="title-date")
+                fecha_str = date_el.get_text(strip=True) if date_el else None
+                
+                # Find jackpot
+                # Looking for game-jackpot-number next to Estimated Jackpot
+                jackpot = None
+                for group in soup_main.find_all(class_="game-detail-group"):
+                    title_el = group.find(class_="game-title")
+                    if title_el and "estimated jackpot" in title_el.get_text().lower():
+                        num_el = group.find(class_="game-jackpot-number")
+                        if num_el:
+                            jackpot = num_el.get_text(strip=True)
+                            break
+                            
+                if jackpot and fecha_str:
+                    self.update_jackpot(engine, "powerball", jackpot, fecha_str)
+            else:
+                print(f"Warning: Powerball homepage returned status {r_main.status_code}")
         except Exception as e:
-            print(f"❌ Error al guardar datos de Powerball en BD: {e}")
+            print(f"Error saving results or jackpot for Powerball: {e}")
 
 if __name__ == "__main__":
     PowerballScraper().run()

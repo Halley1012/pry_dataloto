@@ -517,7 +517,7 @@ abstract class AppLocalizations {
   /// No description provided for @sinNotificacionesCategoria.
   ///
   /// In es, this message translates to:
-  /// **'Sin notificaciones en esta categoría'**
+  /// **'Sin notificaciones para tu país'**
   String get sinNotificacionesCategoria;
 
   /// No description provided for @verTodasNotificaciones.
@@ -619,7 +619,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificacionesIA.
   ///
   /// In es, this message translates to:
-  /// **'Notificaciones IA'**
+  /// **'Notificaciones'**
   String get notificacionesIA;
 
   /// No description provided for @marcarTodoComoLeido.

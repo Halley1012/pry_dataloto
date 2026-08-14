@@ -15,6 +15,7 @@ import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
 import 'package:dataloto/widgets/jugadas_list_generico.dart';
 import 'package:dataloto/screens/estadisticas_megamillions.dart';
 import 'dart:math';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class MegaMillionsScreen extends StatefulWidget {
   const MegaMillionsScreen({super.key});
@@ -277,12 +278,12 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     } catch (_) {}
   }
 
-  Future<void> _guardarJugada() async {
+  Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (!mounted) return;
 
     if (userId == null || userId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("No se encontró el usuario. Inicia sesión.")),
+        SnackBar(content: Text(l10n?.iniciaSesionParaContinuar ?? "No se encontró el usuario. Inicia sesión.")),
       );
       return;
     }
@@ -301,7 +302,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     } else {
       if (seleccionados.length != 5 || balotaRojaSeleccionada == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Debes seleccionar 5 balotas principales y 1 Mega Ball roja")),
+          SnackBar(content: Text(l10n?.debesSeleccionarBalotas ?? "Debes seleccionar 5 balotas principales y 1 Mega Ball roja")),
         );
         return;
       }
@@ -325,9 +326,9 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     if (yaExiste) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Esta jugada ya se encuentra en tus jugadas guardadas"),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(l10n?.jugadaYaExiste ?? "Esta jugada ya se encuentra en tus jugadas guardadas"),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -354,17 +355,17 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("¡Jugada guardada con éxito! 🎉"),
+          SnackBar(
+            content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("⚠️ Error al guardar: $e")),
+          SnackBar(content: Text("${l10n?.errorGuardarJugada ?? "⚠️ Error al guardar"}: $e")),
         );
       }
     } finally {
@@ -502,6 +503,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -517,23 +519,23 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildHeader(),
+                      _buildHeader(l10n),
                       const SizedBox(height: 18),
-                      _buildQuickSummary(s),
+                      _buildQuickSummary(s, l10n),
                       const SizedBox(height: 24),
-                      _buildIAPrediction(),
+                      _buildIAPrediction(l10n),
                       const SizedBox(height: 16),
-                      _buildDisclaimerNote(),
+                      _buildDisclaimerNote(l10n),
                       const SizedBox(height: 20),
-                      _buildActionGrid(),
+                      _buildActionGrid(l10n),
                       const SizedBox(height: 24),
-                      _buildManualSelectorSection(),
+                      _buildManualSelectorSection(l10n),
                       const SizedBox(height: 24),
-                      _buildRedBallsSection(),
+                      _buildRedBallsSection(l10n),
                       const SizedBox(height: 24),
-                      _buildResultadosSection(),
+                      _buildResultadosSection(l10n),
                       const SizedBox(height: 24),
-                      _buildNewsSection(),
+                      _buildNewsSection(l10n),
                       const SizedBox(height: 40),
                     ],
                   ),
@@ -546,7 +548,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -562,7 +564,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
             ),
             const SizedBox(height: 15),
             Text(
-              "Próximo sorteo: ${_getFechaProximoSorteo()}",
+              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo()}",
               style: AppTextStyles.caption,
             ),
           ],
@@ -577,9 +579,9 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text("Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
               Text(_jackpot ?? "\$250", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text("millones USD", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              Text(l10n?.millonesUSD ?? "millones USD", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
             ],
           ),
         ),
@@ -615,7 +617,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     return (52 + (ratio * 43)).round();
   }
 
-  Widget _buildIAPrediction() {
+  Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection = seleccionados.isNotEmpty || balotaRojaSeleccionada != null;
     final listaUsar = todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
     final int totalSorteosAnalizados = listaUsar.isNotEmpty ? listaUsar.length : 663;
@@ -637,16 +639,16 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isCustomSelection ? "Tu Jugada Seleccionada" : "Predicción IA para hoy",
+                    isCustomSelection ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada") : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
                     style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    isCustomSelection ? "${seleccionados.length}/5 balotas + ${balotaRojaSeleccionada != null ? 1 : 0}/1 roja" : "Basada en análisis de $totalSorteosAnalizados sorteos",
+                    isCustomSelection ? (l10n?.balotasPrincipales(seleccionados.length) ?? "${seleccionados.length}/5 balotas") : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ?? "Basada en análisis de $totalSorteosAnalizados sorteos"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
                   ),
                   Text(
-                    isCustomSelection ? "Toca los números abajo para modificar" : "Índice de afinidad histórica",
+                    isCustomSelection ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar") : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
                   ),
                 ],
@@ -698,7 +700,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? "Jugada personalizada" : "Número de la suerte sugerido por IA",
+                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -708,7 +710,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildDisclaimerNote() {
+  Widget _buildDisclaimerNote(AppLocalizations? l10n) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -724,7 +726,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              l10n?.notaTendenciasEstadisticas ?? "Nota: son solo tendencias estadísticas, no garantías absolutas.",
               style: AppTextStyles.caption.copyWith(fontSize: 11),
             ),
           ),
@@ -733,25 +735,25 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildActionGrid() {
+  Widget _buildActionGrid(AppLocalizations? l10n) {
     return Row(
       children: [
         _buildActionTile(
           icon: Icons.auto_awesome_outlined,
-          label: "Generar\nJugada",
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
           onTap: _generarAleatorios,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmark_add_outlined,
-          label: isSaving ? "Guardando..." : "Guardar\nJugada",
-          onTap: isSaving ? null : _guardarJugada,
+          label: isSaving ? (l10n?.guardando ?? "Guardando...") : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+          onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
         ),
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bookmarks_outlined,
-          label: "Mis\nJugadas",
+          label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
           onTap: () async {
             await Navigator.push(
               context,
@@ -768,7 +770,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
         const SizedBox(width: 8),
         _buildActionTile(
           icon: Icons.bar_chart,
-          label: "Ver\nEstadísticas",
+          label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const EstadisticasMegaMillionsScreen()),
@@ -829,7 +831,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildManualSelectorSection() {
+  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -837,7 +839,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Selecciona tus números", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.seleccionaNumeros ?? "Selecciona tus números", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
@@ -852,7 +854,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad. \nToca un número para seleccionarlo", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text("${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."} \n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaProbables.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -891,7 +893,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildRedBallsSection() {
+  Widget _buildRedBallsSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -899,11 +901,11 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("Mega Ball Roja", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(l10n?.balotasRojas ?? "Mega Ball Roja", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             ],
           ),
           const SizedBox(height: 4),
-          const Text("Números ordenados de mayor a menor probabilidad.", style: TextStyle(color: Colors.white38, fontSize: 11)),
+          Text(l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad.", style: const TextStyle(color: Colors.white38, fontSize: 11)),
           const SizedBox(height: 20),
           listaBalotaRoja.isEmpty
               ? const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.yellow)))
@@ -1024,7 +1026,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildResultadosSection() {
+  Widget _buildResultadosSection(AppLocalizations? l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1032,18 +1034,18 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "Últimos 5 resultados Mega Millions",
+              l10n?.resultados ?? "Resultados",
               style: AppTextStyles.h2,
             ),
           ),
           const SizedBox(height: 16),
-          _buildResultadosContent(),
+          _buildResultadosContent(l10n),
         ],
       ),
     );
   }
 
-  Widget _buildResultadosContent() {
+  Widget _buildResultadosContent(AppLocalizations? l10n) {
     return Column(
       children: [
         if (ultimosResultados.isEmpty)
@@ -1057,7 +1059,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
                   Expanded(
                     flex: 1,
                     child: Text(
-                      "Fecha",
+                      l10n?.pais ?? "Fecha",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1065,7 +1067,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
                   Expanded(
                     flex: 2,
                     child: Text(
-                      "Resultados",
+                      l10n?.resultados ?? "Resultados",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1104,7 +1106,7 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
                               children: numeros.isEmpty
                                   ? [
                                       Text(
-                                        "Sin números",
+                                        l10n?.sinNumeros ?? "Sin números",
                                         style: AppTextStyles.mensajeSecundario,
                                       ),
                                     ]
@@ -1135,19 +1137,19 @@ class _MegaMillionsScreenState extends State<MegaMillionsScreen> with TickerProv
     );
   }
 
-  Widget _buildNewsSection() {
+  Widget _buildNewsSection(AppLocalizations? l10n) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("Anuncios destacados", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(l10n?.anunciosDestacados ?? "Anuncios destacados", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
             TextButton(
               onPressed: () {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen()));
               },
-              child: Text("Ver más ›", style: TextStyle(color: AppColors.yellow, fontSize: 12)),
+              child: Text(l10n?.verTodas ?? "Ver más ›", style: const TextStyle(color: AppColors.yellow, fontSize: 12)),
             ),
           ],
         ),
