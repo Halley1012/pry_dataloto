@@ -101,25 +101,24 @@ class PostgresUserRepository(UserRepositoryPort):
             await conn.execute("DELETE FROM users WHERE id = $1", user_id)
             return dict(existing)
 
-    def save_password_reset_token(self, user_id: int, token: str, expires: datetime) -> None:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute(
-                    "INSERT INTO password_reset_tokens(user_id, token, expires) VALUES (%s, %s, %s)",
-                    (user_id, token, expires)
-                )
-            conn.commit()
+    async def save_password_reset_token(self, user_id: int, token: str, expires: datetime) -> None:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO password_reset_tokens(user_id, token, expires) VALUES ($1, $2, $3)",
+                user_id, token, expires
+            )
 
-    def find_password_reset_token(self, token: str) -> Optional[Tuple[int, datetime]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT user_id, expires FROM password_reset_tokens WHERE token = %s", (token,))
-                row = cur.fetchone()
-                return row if row else None
+    async def find_password_reset_token(self, token: str) -> Optional[Tuple[int, datetime]]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT user_id, expires FROM password_reset_tokens WHERE token = $1", token)
+            return (row['user_id'], row['expires']) if row else None
 
-    def update_password(self, user_id: int, new_password_hashed: str) -> None:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("UPDATE users SET password = %s WHERE id = %s", (new_password_hashed, user_id))
-                cur.execute("DELETE FROM password_reset_tokens WHERE user_id = %s", (user_id,))
-            conn.commit()
+    async def update_password(self, user_id: int, new_password_hashed: str) -> None:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            # Usar una transacción para asegurar que ambas operaciones ocurran o ninguna
+            async with conn.transaction():
+                await conn.execute("UPDATE users SET password = $1 WHERE id = $2", new_password_hashed, user_id)
+                await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1", user_id)

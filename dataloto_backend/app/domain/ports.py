@@ -25,15 +25,15 @@ class UserRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def save_password_reset_token(self, user_id: int, token: str, expires: datetime) -> None:
+    async def save_password_reset_token(self, user_id: int, token: str, expires: datetime) -> None:
         pass
 
     @abstractmethod
-    def find_password_reset_token(self, token: str) -> Optional[Tuple[int, datetime]]:
+    async def find_password_reset_token(self, token: str) -> Optional[Tuple[int, datetime]]:
         pass
 
     @abstractmethod
-    def update_password(self, user_id: int, new_password_hashed: str) -> None:
+    async def update_password(self, user_id: int, new_password_hashed: str) -> None:
         pass
 
 
@@ -200,7 +200,7 @@ class TransactionRepositoryPort(ABC):
 
 class EmailSenderPort(ABC):
     @abstractmethod
-    def send_reset_password_email(self, email: str, reset_link: str) -> bool:
+    async def send_reset_password_email(self, email: str, reset_link: str) -> bool:
         pass
 
 

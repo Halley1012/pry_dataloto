@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import '../services/api_service.dart';
 import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
@@ -62,7 +63,7 @@ class JugadasListMlotoState extends State<JugadasListMloto>
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error al cargar jugadas: $e')));
+      ).showSnackBar(SnackBar(content: Text('${AppLocalizations.of(context)!.errorCargarJugadas}: $e')));
     }
   }
 
@@ -105,7 +106,7 @@ class JugadasListMlotoState extends State<JugadasListMloto>
 
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Error al agregar jugada')));
+      ).showSnackBar(SnackBar(content: Text(AppLocalizations.of(context)!.errorAgregarJugada)));
     }
   }
 
@@ -167,13 +168,13 @@ Future<void> deleteJugada(int jugadaId) async {
                       const Icon(Icons.bookmark, color: Colors.amber, size: 20),
                       const SizedBox(width: 6),
                       Text(
-                        "Tus jugadas para hoy",
+                        AppLocalizations.of(context)!.tusJugadasHoy,
                         style: AppTextStyles.mensajeImportante,
                       ),
                     ],
                   ),
                   Text(
-                    "Total: ${jugadas.length}",
+                    "${AppLocalizations.of(context)!.totalLabel}: ${jugadas.length}",
                     style: AppTextStyles.mensajeSecundario.copyWith(
                       color: Colors.white70,
                       fontSize: 13,
@@ -184,7 +185,7 @@ Future<void> deleteJugada(int jugadaId) async {
               const SizedBox(height: 4),
               jugadas.isEmpty
                   ? Text(
-                      "Aún no has guardado jugadas",
+                      AppLocalizations.of(context)!.aunNoTienesJugadas,
                       style: AppTextStyles.mensajeSecundario,
                     )
                   : ListView.builder(
@@ -244,7 +245,7 @@ Future<void> deleteJugada(int jugadaId) async {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                "Nro. ${index + 1}",
+                                "${AppLocalizations.of(context)!.nro} ${index + 1}",
                                 style: AppTextStyles.mensajeSecundario.copyWith(
                                   color: Colors.white70,
                                   fontSize: 13,
@@ -256,7 +257,7 @@ Future<void> deleteJugada(int jugadaId) async {
                                   children: numeros.isEmpty
                                       ? [
                                           Text(
-                                            "Sin números",
+                                            AppLocalizations.of(context)!.sinNumeros,
                                             style:
                                                 AppTextStyles.mensajeSecundario,
                                           ),

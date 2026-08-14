@@ -198,7 +198,7 @@ class CoberturaGaugeCard extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          l10n.hitsDeAciertos(hits, 5),
+          l10n.hitsDeAciertos(hits, totalWinningCount),
           textAlign: TextAlign.center,
           style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
         ),

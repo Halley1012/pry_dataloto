@@ -128,4 +128,30 @@ class PaisHelper {
       ],
     );
   }
+
+  /// Separa el Jackpot en [valor, etiqueta] (ej: ["$160", "millones COP"])
+  static Map<String, String> getJackpotParts(String? raw, {String fallbackValue = ""}) {
+    final String text = (raw == null || raw.isEmpty) ? fallbackValue : raw.trim();
+    if (text.isEmpty) return {"value": "", "label": ""};
+
+    // Intentar separar por espacio
+    final parts = text.split(RegExp(r'\s+'));
+    if (parts.length > 1) {
+      return {
+        "value": parts[0],
+        "label": parts.sublist(1).join(' '),
+      };
+    }
+
+    // Si no hay espacios, intentar separar número de letras (ej: "$160millones")
+    final match = RegExp(r'^([^\sA-Za-zÀ-ÿ]+)\s*(.*)$').firstMatch(text);
+    if (match != null) {
+      return {
+        "value": match.group(1) ?? text,
+        "label": match.group(2) ?? "",
+      };
+    }
+
+    return {"value": text, "label": ""};
+  }
 }

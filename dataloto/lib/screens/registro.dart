@@ -217,10 +217,10 @@ class _RegistroPageState extends State<RegistroScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final String titulo = _esEdicion 
-        ? (l10n?.editarPerfil ?? 'Editar Perfil') 
-        : (l10n?.registrarse ?? 'Registro');
+        ? l10n.editarPerfil 
+        : l10n.registrarse;
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -261,16 +261,16 @@ class _RegistroPageState extends State<RegistroScreen> {
               children: [
                 Text(
                   _esEdicion 
-                      ? (l10n?.editarPerfil ?? "Actualiza tus datos") 
-                      : (l10n?.bienvenido ?? "Bienvenido a DataLoto"),
+                      ? l10n.actualizaTusDatos 
+                      : l10n.bienvenido,
                   style: AppTextStyles.h2,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 10),
                 Text(
                   _esEdicion
-                      ? (l10n?.guardarCambios ?? "Modifica tu información")
-                      : (l10n?.registrarse ?? "Registro de usuario"),
+                      ? l10n.modificaInformacion
+                      : l10n.registroUsuario,
                   style: AppTextStyles.mensajeSecundario,
                   textAlign: TextAlign.center,
                 ),
@@ -284,22 +284,22 @@ class _RegistroPageState extends State<RegistroScreen> {
                       // 👤 Usuario → editable siempre
                       CustomTextFormField(
                         controller: _nameController,
-                        labelText: l10n?.nombre ?? "Usuario",
+                        labelText: l10n.nombre,
                         readOnly: false, // ✅ siempre editable
                         validator: (v) => v != null && v.isNotEmpty
                             ? null
-                            : "Usuario requerido",
+                            : l10n.usuarioRequerido,
                       ),
                       const SizedBox(height: 16),
 
                       // 📧 Correo electrónico → editable solo en registro
                       CustomTextFormField(
                         controller: _emailController,
-                        labelText: l10n?.email ?? "Correo electrónico",
+                        labelText: l10n.email,
                         readOnly: _esEdicion, // ✅ bloqueado en edición
                         validator: (v) => v != null && v.contains("@")
                             ? null
-                            : "Correo inválido",
+                            : l10n.correoInvalido,
                       ),
                       const SizedBox(height: 16),
 
@@ -307,11 +307,11 @@ class _RegistroPageState extends State<RegistroScreen> {
                       if (!_esEdicion) ...[
                         CustomTextFormField(
                           controller: _passwordController,
-                          labelText: l10n?.contrasena ?? "Contraseña",
+                          labelText: l10n.contrasena,
                           obscureText: _obscurePassword,
                           validator: (v) => v != null && v.length >= 6
                               ? null
-                              : "Mínimo 6 caracteres",
+                              : l10n.contrasenaMinima,
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword
@@ -343,7 +343,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                           : DropdownButtonFormField<int>(
                               dropdownColor: AppColors.blackfondo,
                               decoration: InputDecoration(
-                                labelText: l10n?.pais ?? "País",
+                                labelText: l10n.pais,
                                 labelStyle: AppTextStyles.mensajeSecundario,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
@@ -371,7 +371,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                 if (val != null) _cargarDepartamentos(val);
                               },
                               validator: (v) =>
-                                  v == null ? "Selecciona un país" : null,
+                                  v == null ? l10n.seleccionaPais : null,
                             ),
 
                       const SizedBox(height: 16),
@@ -389,7 +389,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                           : DropdownButtonFormField<int>(
                               dropdownColor: const Color(0xFF121212),
                               decoration: InputDecoration(
-                                labelText: "Departamento / Estado",
+                                labelText: l10n.departamentoEstado,
                                 labelStyle: AppTextStyles.mensajeSecundario,
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
@@ -412,7 +412,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                 () => _departamentoSeleccionado = val,
                               ),
                               validator: (v) => v == null
-                                  ? "Selecciona un departamento"
+                                  ? l10n.seleccionaDepartamento
                                   : null,
                             ),
                     ],
@@ -423,7 +423,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
                 LoadingButton(
                   isLoading: _isLoading,
-                  text: _esEdicion ? "Guardar Cambios" : "Registrarse",
+                  text: _esEdicion ? l10n.guardarCambios : l10n.registrarse,
                   onPressed: _esEdicion ? _updateUser : _registerUser,
                 ),
 
@@ -436,7 +436,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                       Navigator.pushReplacementNamed(context, '/login');
                     },
                     child: Text(
-                      "¿Ya tienes cuenta? Inicia sesión",
+                      l10n.yaTienesCuenta,
                       style: AppTextStyles.mensajeImportante,
                     ),
                   ),

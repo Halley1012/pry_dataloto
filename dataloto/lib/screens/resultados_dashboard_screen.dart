@@ -268,6 +268,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   void _procesarDatosCargados(Map<String, dynamic> data) {
+    // Se requiere context para l10n, pero esta función se llama desde initState y peticiones async.
+    // Usaremos un flag para recalcular strings dependientes de l10n en el build.
     final sorteosRaw = List<Map<String, dynamic>>.from(data["sorteos"] ?? []);
     final rawTop20 = data["top20"] ?? data["numeros"] ?? data["probables"];
     List<int> top20 = [];
@@ -446,11 +448,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           red = nums.removeLast();
         }
 
-        final String titulo = j["nombre"] ?? j["titulo"] ?? "Jugada #$originalIdx";
+        final String? titulo = j["nombre"] ?? j["titulo"];
 
         return {
           "id": j["id"],
           "titulo": titulo,
+          "index": originalIdx,
           "nums": nums,
           "red": red,
         };
@@ -768,7 +771,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               // 3. Comparación Mis Jugadas vs Resultado
               MisJugadasCard(
                 selectedLoteria: _selectedLoteria,
-                misJugadas: _misJugadas,
+                misJugadas: _misJugadas.map((j) {
+                  // Usar jugadaShare si existe para evitar "Jugada personalizada"
+                  final String displayTitle = j["titulo"] ?? l10n.jugadaShare(j["index"]);
+                  return {
+                    ...j,
+                    "titulo": displayTitle,
+                  };
+                }).toList(),
                 winningNums: _winningNums,
                 winningRed: _winningRed,
                 hasRevanchaData: _hasRevanchaData,

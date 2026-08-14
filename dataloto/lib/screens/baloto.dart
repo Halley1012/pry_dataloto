@@ -1,3 +1,4 @@
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/services/api_service.dart';
 import '../services/cache_service.dart';
@@ -11,7 +12,7 @@ import 'package:collection/collection.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import '../widgets/contenedor3.dart';
 import 'dart:math';
-import 'package:dataloto/widgets/lottery_avatar_3d.dart';
+import 'package:dataloto/utils/pais_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
@@ -495,7 +496,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           children: [
             Row(
               children: [
-                const LotteryAvatar3D(nombre: "Baloto", size: 32),
+                LotteryAvatar3D(nombre: "Baloto", size: 32),
                 const SizedBox(width: 10),
                 Text("Baloto / Revancha", style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18)),
 
@@ -515,14 +516,18 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
-              Text(_jackpot ?? "\$24.500", style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
-              Text(l10n?.millonesCOP ?? "millones COP", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
-            ],
-          ),
+          child: Builder(builder: (context) {
+            final parts = PaisHelper.getJackpotParts(_jackpot, fallbackValue: "\$24.500 millones");
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(l10n?.jackpotEstimado ?? "Jackpot estimado", style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+                Text(parts["value"]!, style: AppTextStyles.h2.copyWith(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 15)),
+                if (parts["label"]!.isNotEmpty)
+                  Text(parts["label"]!, style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9)),
+              ],
+            );
+          }),
         ),
       ],
     );
@@ -715,7 +720,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
               const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
               const SizedBox(width: 4),
               Text(
-                isCustomSelection ? (l10n?.jugadaPersonalizada ?? "Jugada personalizada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
+                isCustomSelection ? (l10n?.jugada ?? "Jugada") : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
