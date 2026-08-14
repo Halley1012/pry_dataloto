@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
 
 class UltimosSorteosTable extends StatelessWidget {
@@ -16,6 +17,7 @@ class UltimosSorteosTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -26,7 +28,7 @@ class UltimosSorteosTable extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "Resultados",
+                l10n.resultados,
                 style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
               ),
             ],
@@ -42,11 +44,11 @@ class UltimosSorteosTable extends StatelessWidget {
           // Header Tabla
           Row(
             children: [
-              Expanded(flex: 3, child: Text("Fecha", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
-              Expanded(flex: 7, child: Center(child: Text("Números ganadores", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Center(child: Text("Cobertura IA", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 3, child: Text(l10n.fechaLabel, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
+              Expanded(flex: 7, child: Center(child: Text(l10n.numerosGanadores, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 3, child: Center(child: Text(l10n.coberturaIA, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
               Expanded(flex: 3, child: Align(alignment: Alignment.center
-                  , child: Text("Aciertos", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+                  , child: Text(l10n.aciertosSimple, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
             ],
           ),
           const Divider(color: Colors.white12, height: 16),

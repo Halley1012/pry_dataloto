@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class ColorLotoScreen extends StatefulWidget {
   @override
@@ -42,16 +43,17 @@ class _ColorLotoScreenState extends State<ColorLotoScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
-      backgroundColor: Color(0xFF121212),
+      backgroundColor: const Color(0xFF121212),
       body: SafeArea(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                "No disponible por el momento...",
-                style: TextStyle(
+                l10n?.noDisponible ?? "No disponible por el momento...",
+                style: const TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFFFFD700),

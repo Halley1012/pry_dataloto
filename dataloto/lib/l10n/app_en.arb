@@ -109,9 +109,23 @@
   "masFrio": "Coldest",
   "prediccionIAHoy": "AI Prediction for today",
   "basadaEnAnalisisDe": "Based on analysis of {count} draws",
+  "@basadaEnAnalisisDe": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "indiceAfinidadHistorica": "Historical affinity index",
   "tuJugadaSeleccionada": "Your Selected Play",
   "balotasPrincipales": "{count} main balls",
+  "@balotasPrincipales": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "balotaRoja": "1 red ball",
   "tocaNumerosModificar": "Tap numbers below to modify",
   "numeroSuerteSugerido": "Lucky number suggested by AI",
@@ -133,6 +147,13 @@
   "sinNumeros": "No numbers",
   "noticiasAlertas": "News / Alerts",
   "hoyEsSorteo": "Today is the {loteria} draw",
+  "@hoyEsSorteo": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
   "noOlvidesRevisar": "Don't forget to check your numbers and good luck.",
   "paresImpares": "Even - Odd",
   "analizados": "Analyzed",
@@ -165,7 +186,71 @@
   "errorObtenerTokens": "Error obtaining tokens",
   "ingresaEmailContrasena": "⚠️ Enter email and password",
   "enviadoEnlace": "A link has been sent to {email}",
+  "@enviadoEnlace": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
   "recuperarContrasena": "Recover Password",
   "cancelarButton": "Cancel",
-  "enviarButton": "Send"
+  "enviarButton": "Send",
+  "noDisponible": "Not available at the moment...",
+  "estadisticasLoteria": "{loteria} Statistics",
+  "@estadisticasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "rangoBalotas": "Ball Range",
+  "powerballRoja": "Red Powerball",
+  "starBall": "Star Ball",
+  "megaBall": "Mega Ball",
+  "cashBall": "Cash Ball",
+  "errorCargarEstadisticas": "Could not connect to the server to get statistics.",
+  "promedioSumaHistorica": "Average historical sum: {valor}",
+  "@promedioSumaHistorica": {
+    "placeholders": {
+      "valor": {
+        "type": "String"
+      }
+    }
+  },
+  "coberturaResultado": "Result coverage",
+  "numerosEnTopIA": "Numbers in the AI Top {count}",
+  "@numerosEnTopIA": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hitsDeAciertos": "{hits} out of {total} hits",
+  "@hitsDeAciertos": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "excelenteResultado": "Excellent result! 🎯",
+  "buenDesempeno": "Good performance 📊",
+  "insightsIA": "AI Insights",
+  "resultadoReal": "Real result",
+  "tendenciasIA": "AI Trends",
+  "noHayTendencias": "No detailed trends saved for this draw.",
+  "sorteoDel": "Draw of {fecha}",
+  "@sorteoDel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  }
 }

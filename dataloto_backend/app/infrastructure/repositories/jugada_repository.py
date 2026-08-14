@@ -39,12 +39,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             await self._ensure_table(conn, tabla)
             if fecha:
                 try:
-                    clean_date = datetime.strptime(fecha.split('T')[0].strip(), "%Y-%m-%d").date()
+                    clean_str = fecha.replace('"', '').replace("'", "").strip().split('T')[0]
+                    clean_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
                     rows = await conn.fetch(f"""
                         SELECT id, user_id, numeros, fecha_guardado, expira
                         FROM {tabla}
                         WHERE user_id = $1
-                          AND (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2
+                          AND (fecha_guardado::date = $2 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2)
                         ORDER BY fecha_guardado DESC
                     """, user_id, clean_date)
                 except Exception:
