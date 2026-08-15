@@ -150,8 +150,8 @@ class AuthUseCases:
 
         # Generate JWT tokens
         from app.core import security
-        access_token = security.create_access_token(data={"sub": str(user["id"])})
-        refresh_token = security.create_refresh_token(data={"sub": str(user["id"])})
+        access_token = security.create_access_token(data={"sub": str(user["id"]), "email": user["email"]})
+        refresh_token = security.create_refresh_token(data={"sub": str(user["id"]), "email": user["email"]})
 
         return {
             "success": True,

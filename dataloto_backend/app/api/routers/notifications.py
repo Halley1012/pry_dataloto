@@ -17,6 +17,7 @@ async def list_notifications(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.patch("/{notification_id}/read")
+@router.post("/{notification_id}/read")
 async def mark_read(
     notification_id: int,
     use_cases: NotificationUseCases = Depends(dependencies.get_notification_use_cases)
