@@ -97,5 +97,5 @@ class PublicidadUseCases:
             # el repo ya se encarga de inyectar "Todas las ciudades" id:0 si no hay filtro.
         return {"success": True, "data": data}
 
-    def listar_loterias(self, pais_id: int) -> List[Dict[str, Any]]:
+    def listar_loterias(self, pais_id: Optional[int] = None) -> List[Dict[str, Any]]:
         return self.publicidad_repo.list_loterias_by_pais(pais_id)
