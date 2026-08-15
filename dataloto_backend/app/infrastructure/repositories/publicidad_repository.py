@@ -252,18 +252,26 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 return cur.fetchall()
 
     def list_loterias(self) -> List[Dict[str, Any]]:
-        pass
+        return self.list_loterias_by_pais(None)
 
-    def list_loterias_by_pais(self, pais_id: int) -> List[Dict[str, Any]]:
+    def list_loterias_by_pais(self, pais_id: Optional[int] = None) -> List[Dict[str, Any]]:
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT id, nombre, tipo, pais_id
-                    FROM loterias
-                    WHERE pais_id = %s
-                      AND activa = true
-                    ORDER BY nombre
-                """, (pais_id,))
+                if pais_id:
+                    cur.execute("""
+                        SELECT id, nombre, tipo, pais_id
+                        FROM loterias
+                        WHERE pais_id = %s
+                          AND activa = true
+                        ORDER BY nombre
+                    """, (pais_id,))
+                else:
+                    cur.execute("""
+                        SELECT id, nombre, tipo, pais_id
+                        FROM loterias
+                        WHERE activa = true
+                        ORDER BY nombre
+                    """)
                 loterias = cur.fetchall()
 
                 # Mapeo de nombres a tablas de resultados para obtener fechas reales
