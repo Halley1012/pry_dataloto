@@ -283,9 +283,23 @@ class NotificationGenerator:
             print(f"📲 FCM Push enviada: {response.success_count} exitosas, {response.failure_count} fallidas.")
             
             if response.failure_count > 0:
+                invalid_tokens = []
                 for idx, resp in enumerate(response.responses):
                     if not resp.success:
                         print(f"   ❌ Error en token {idx}: {resp.exception}")
+                        err_str = str(resp.exception)
+                        if "NotRegistered" in err_str or "invalid-registration-token" in err_str or "registration-token-not-registered" in err_str:
+                            invalid_tokens.append(tokens[idx])
+                
+                if invalid_tokens:
+                    with self.engine.connect() as conn:
+                        for bad_tok in invalid_tokens:
+                            conn.execute(
+                                text("UPDATE users SET fcm_token = NULL WHERE fcm_token = :tok"),
+                                {"tok": bad_tok}
+                            )
+                        conn.commit()
+                        print(f"🧹 Se limpiaron {len(invalid_tokens)} tokens FCM obsoletos de la base de datos.")
         except Exception as e:
             print(f"⚠️ FCM Error Crítico: {e}")
             import traceback

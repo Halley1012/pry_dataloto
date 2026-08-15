@@ -41,7 +41,7 @@ def listar_ciudades(departamento_id: Optional[int] = None, use_cases: Publicidad
         raise HTTPException(status_code=500, detail=f"Error al listar ciudades: {str(e)}")
 
 @router.get("/loterias", response_model=List[schemas.LoteriaOut])
-def listar_loterias(pais_id: int, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
     try:
         return use_cases.listar_loterias(pais_id)
     except Exception as e:
