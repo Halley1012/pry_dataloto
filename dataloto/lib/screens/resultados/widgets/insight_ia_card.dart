@@ -12,6 +12,11 @@ class InsightIaCard extends StatelessWidget {
   final String fechaSorteo;
   final List<int>? predictionNumeros;
   final List<int>? predictionBalotaroja;
+  final bool hasRevanchaData;
+  final List<int> winningNumsRevancha;
+  final int? winningRedRevancha;
+  final String nombreSorteoPrincipal;
+  final String nombreSorteoSecundario;
 
   const InsightIaCard({
     Key? key,
@@ -24,6 +29,11 @@ class InsightIaCard extends StatelessWidget {
     required this.fechaSorteo,
     this.predictionNumeros,
     this.predictionBalotaroja,
+    this.hasRevanchaData = false,
+    this.winningNumsRevancha = const [],
+    this.winningRedRevancha,
+    this.nombreSorteoPrincipal = "Baloto",
+    this.nombreSorteoSecundario = "Revancha",
   }) : super(key: key);
 
   int _getTopLimit() {
@@ -176,39 +186,119 @@ class InsightIaCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       // Mostrar los números que cayeron (Resultado real)
-                      Row(
-                        children: [
-                          Text(
-                            "${l10n.resultadoReal}: ",
-                            style: GoogleFonts.montserrat(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white70,
+                      if (hasRevanchaData)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 75,
+                                  child: Text(
+                                    "$nombreSorteoPrincipal: ",
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white70,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ...winningNums.map((num) {
+                                  final isHit = predictionNumeros?.contains(num) ?? false;
+                                  final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6.0),
+                                    child: _build3DBall(
+                                      num,
+                                      baseColor: baseColor,
+                                      size: 26,
+                                    ),
+                                  );
+                                }).toList(),
+                                if (winningRed != null) ...[
+                                  const SizedBox(width: 4),
+                                  _build3DBall(
+                                    winningRed,
+                                    baseColor: Colors.redAccent,
+                                    size: 26,
+                                  ),
+                                ],
+                              ],
                             ),
-                          ),
-                          const SizedBox(width: 16),
-                          ...winningNums.map((num) {
-                            final isHit = predictionNumeros?.contains(num) ?? false;
-                            final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 6.0),
-                              child: _build3DBall(
-                                num,
-                                baseColor: baseColor,
-                                size: 26,
-                              ),
-                            );
-                          }).toList(),
-                          if (winningRed != null) ...[
-                            const SizedBox(width: 4),
-                            _build3DBall(
-                              winningRed,
-                              baseColor: Colors.redAccent,
-                              size: 26,
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                SizedBox(
+                                  width: 75,
+                                  child: Text(
+                                    "$nombreSorteoSecundario: ",
+                                    style: GoogleFonts.montserrat(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFFD8B4FE),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ...winningNumsRevancha.map((num) {
+                                  final isHit = predictionNumeros?.contains(num) ?? false;
+                                  // Si es acierto de Revancha, pintamos de lavanda/púrpura claro, si no, púrpura oscuro
+                                  final baseColor = isHit ? const Color(0xFFD8B4FE) : const Color(0xFF4C1D95);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 6.0),
+                                    child: _build3DBall(
+                                      num,
+                                      baseColor: baseColor,
+                                      size: 26,
+                                    ),
+                                  );
+                                }).toList(),
+                                if (winningRedRevancha != null) ...[
+                                  const SizedBox(width: 4),
+                                  _build3DBall(
+                                    winningRedRevancha,
+                                    baseColor: Colors.redAccent,
+                                    size: 26,
+                                  ),
+                                ],
+                              ],
                             ),
                           ],
-                        ],
-                      ),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Text(
+                              "${l10n.resultadoReal}: ",
+                              style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white70),
+                            ),
+                            const SizedBox(width: 16),
+                            ...winningNums.map((num) {
+                              final isHit = predictionNumeros?.contains(num) ?? false;
+                              final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 6.0),
+                                child: _build3DBall(
+                                  num,
+                                  baseColor: baseColor,
+                                  size: 26,
+                                ),
+                              );
+                            }).toList(),
+                            if (winningRed != null) ...[
+                              const SizedBox(width: 4),
+                              _build3DBall(
+                                winningRed,
+                                baseColor: Colors.redAccent,
+                                size: 26,
+                              ),
+                            ],
+                          ],
+                        ),
                       const SizedBox(height: 20),
                       Flexible(
                         child: SingleChildScrollView(
@@ -250,11 +340,14 @@ class InsightIaCard extends StatelessWidget {
                                       children: predictionNumeros!.asMap().entries.map((entry) {
                                         int index = entry.key;
                                         int num = entry.value;
-                                        final isHit = winningNums.contains(num);
+                                        final isBalotoHit = winningNums.contains(num);
+                                        final isRevanchaHit = hasRevanchaData && winningNumsRevancha.contains(num);
                                         
-                                        Color baseColor = isHit
+                                        Color baseColor = isBalotoHit
                                             ? Colors.amber
-                                            : (index < limit ? Colors.redAccent : const Color(0xFF607D8B));
+                                            : (isRevanchaHit
+                                                ? const Color(0xFFD8B4FE)
+                                                : (index < limit ? Colors.redAccent : const Color(0xFF607D8B)));
                                         
                                         return _build3DBall(
                                           num,
@@ -291,10 +384,11 @@ class InsightIaCard extends StatelessWidget {
                                   children: predictionBalotaroja!.asMap().entries.map((entry) {
                                     int index = entry.key;
                                     int num = entry.value;
-                                    final isHit = winningRed == num;
-                                    Color baseColor = isHit
+                                    final isBalotoHit = winningRed == num;
+                                    final isRevanchaHit = hasRevanchaData && winningRedRevancha == num;
+                                    Color baseColor = isBalotoHit
                                         ? Colors.amber
-                                        : Colors.redAccent;
+                                        : (isRevanchaHit ? const Color(0xFFD8B4FE) : Colors.redAccent);
                                     
                                     return _build3DBall(
                                       num,

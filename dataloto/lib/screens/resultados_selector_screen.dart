@@ -91,32 +91,38 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias() async {
     final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
-    if (cachedMapeo != null) {
+    if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
       return List<Map<String, dynamic>>.from(cachedMapeo);
     }
 
-    final paisesRaw = await ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]);
-    _paises = paisesRaw.cast<Map<String, dynamic>>();
-    CacheService.setJson('paises_list_cache', _paises);
+    try {
+      final results = await Future.wait([
+        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getAllLoterias().catchError((e) {
+          debugPrint("⚠️ Error obteniendo todas las loterías: $e");
+          return <dynamic>[];
+        }),
+      ]);
 
-    final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) => <dynamic>[]));
-    final resultadosLoterias = await Future.wait(listadoFutures);
-
-    List<Map<String, dynamic>> todas = [];
-    for (int i = 0; i < _paises.length; i++) {
-      final pId = _paises[i]['id'].toString();
-      final list = resultadosLoterias[i];
-      for (var item in list) {
-        final mapItem = Map<String, dynamic>.from(item as Map);
-        mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-        todas.add(mapItem);
+      final paisesRaw = results[0] as List<Map<String, dynamic>>;
+      if (paisesRaw.isNotEmpty) {
+        _paises = paisesRaw;
+        CacheService.setJson('paises_list_cache', _paises);
       }
-    }
 
-    if (todas.isNotEmpty) {
-      CacheService.setJson('loterias_mapeadas_all', todas);
+      final loteriasRaw = results[1];
+      final List<Map<String, dynamic>> todas = loteriasRaw
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (todas.isNotEmpty) {
+        CacheService.setJson('loterias_mapeadas_all', todas);
+      }
+      return todas;
+    } catch (e) {
+      debugPrint("⚠️ Error en _obtenerTodasLasLoterias: $e");
+      return [];
     }
-    return todas;
   }
 
   String _getRouteFromName(String nombre) {

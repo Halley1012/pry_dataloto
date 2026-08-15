@@ -765,6 +765,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 fechaSorteo: _fechaSorteo,
                 predictionNumeros: _predictionNumeros.isNotEmpty ? _predictionNumeros : _top20List,
                 predictionBalotaroja: _predictionBalotaroja,
+                hasRevanchaData: _hasRevanchaData,
+                winningNumsRevancha: _winningNumsRevancha,
+                winningRedRevancha: _winningRedRevancha,
+                nombreSorteoPrincipal: _nombreSorteoPrincipal,
+                nombreSorteoSecundario: nombreSorteoSecundario,
               ),
               const SizedBox(height: 14),
 

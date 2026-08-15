@@ -1,10 +1,10 @@
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
+import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
 import 'package:dataloto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor2.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
-import 'package:dataloto/widgets/jugadas_list_bloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -47,7 +47,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   late AnimationController _shineController;
   late AnimationController _jugadasController;
 
-  final GlobalKey<JugadasListBlotoState> _jugadasListKey = GlobalKey<JugadasListBlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -576,9 +576,10 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                   ),
                   const SizedBox(height: 20),
                   AppContainer(
-                    child: JugadasListBloto(
+                    child: JugadasListWidget(
                       key: _jugadasListKey,
                       jugadasController: _jugadasController,
+                      loteriaRoute: "bloto",
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -886,7 +887,7 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                                   await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => const BalotoMisJugadasScreen(),
+                                      builder: (_) => const MisJugadasScreen(loteriaNombre: "Baloto", loteriaRoute: "bloto"),
                                     ),
                                   );
                                   await _jugadasListKey.currentState?.reload();

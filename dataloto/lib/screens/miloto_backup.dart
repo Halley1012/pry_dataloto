@@ -12,7 +12,7 @@ import 'package:http/http.dart' as storage;
 import '../widgets/contenedor.dart';
 import '../widgets/custom_app_bar.dart';
 import 'dart:math';
-import 'package:dataloto/widgets/jugadas_list_mloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'dart:async';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
@@ -42,8 +42,8 @@ class _MilotoScreenState extends State<MilotoScreen>
   late AnimationController _shineController;
   late AnimationController _jugadasController;
   late Animation<double> _jugadasAnimation;
-  final GlobalKey<JugadasListMlotoState> _jugadasListKey =
-      GlobalKey<JugadasListMlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey =
+      GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -462,9 +462,10 @@ class _MilotoScreenState extends State<MilotoScreen>
                   ),
                   const SizedBox(height: 20),
                   AppContainer(
-                    child: JugadasListMloto(
+                    child: JugadasListWidget(
                       key: _jugadasListKey,
                       jugadasController: _jugadasController,
+                      loteriaRoute: "mloto",
                     ),
                   ),
                   const SizedBox(height: 20),

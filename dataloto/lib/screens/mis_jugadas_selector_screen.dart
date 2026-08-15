@@ -4,9 +4,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
-import 'package:dataloto/screens/miloto_mis_jugadas.dart';
-import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
+import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 import 'package:dataloto/services/cache_service.dart';
@@ -42,22 +40,24 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     final cacheKey = 'mis_jugadas_selector_${uId ?? "anon"}';
     final uCountry = await _storage.read(key: 'pais_nombre');
 
-    // ⚡ 1. Mostrar caché al instante (0 ms) si existe
-    final cached = await CacheService.getJson(cacheKey);
-    final cachedPaises = await CacheService.getJson('paises_list_cache');
-    if (cached != null && mounted) {
-      setState(() {
-        _userCountry = uCountry;
-        _loterias = List<Map<String, dynamic>>.from(cached);
-        _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
-        if (cachedPaises != null) {
-          _paises = List<Map<String, dynamic>>.from(cachedPaises);
-        }
-        _isLoading = false;
-      });
+    // ⚡ 1. Mostrar caché al instante (0 ms) si existe y no es forceRefresh
+    if (!forceRefresh) {
+      final cached = await CacheService.getJson(cacheKey);
+      final cachedPaises = await CacheService.getJson('paises_list_cache');
+      if (cached != null && mounted) {
+        setState(() {
+          _userCountry = uCountry;
+          _loterias = List<Map<String, dynamic>>.from(cached);
+          _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
+          if (cachedPaises != null) {
+            _paises = List<Map<String, dynamic>>.from(cachedPaises);
+          }
+          _isLoading = false;
+        });
+      }
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (_loterias.isEmpty || forceRefresh) setState(() => _isLoading = true);
 
     try {
       // ⚡ 2. Cargar datos en PARALELO
@@ -66,16 +66,24 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           debugPrint("⚠️ Error obteniendo jugadas activas: $e");
           return <String>[];
         }),
-        _obtenerTodasLasLoterias(),
+        _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
       final List<String> activas = List<String>.from(resultados[0] as List);
       final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
 
-      final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
-        final route = _getRouteFromName(mapItem['nombre'] ?? "");
-        return activas.contains(route);
-      }).toList();
+      debugPrint("🔍 Depuración Mis Jugadas:");
+      debugPrint("   - Loterías activas (rutas): $activas");
+      debugPrint("   - Total loterías disponibles: ${todas.length}");
+
+      final List<Map<String, dynamic>> jugadasLoterias = activas.isNotEmpty
+          ? todas.where((mapItem) {
+              final route = _getRouteFromName(mapItem['nombre'] ?? "");
+              return activas.contains(route);
+            }).toList()
+          : todas;
+
+      debugPrint("   - Loterías mostradas: ${jugadasLoterias.map((e) => e['nombre']).toList()}");
 
       if (mounted) {
         setState(() {
@@ -84,7 +92,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _filteredLoterias = jugadasLoterias;
           _isLoading = false;
         });
-        CacheService.setJson(cacheKey, jugadasLoterias);
+        if (jugadasLoterias.isNotEmpty) {
+          CacheService.setJson(cacheKey, jugadasLoterias);
+        }
       }
     } catch (e) {
       debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
@@ -92,43 +102,52 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias() async {
-    final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
-    if (cachedMapeo != null) {
-      return List<Map<String, dynamic>>.from(cachedMapeo);
-    }
-
-    final paisesRaw = await ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]);
-    _paises = paisesRaw.cast<Map<String, dynamic>>();
-    CacheService.setJson('paises_list_cache', _paises);
-
-    final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) => <dynamic>[]));
-    final resultadosLoterias = await Future.wait(listadoFutures);
-
-    List<Map<String, dynamic>> todas = [];
-    for (int i = 0; i < _paises.length; i++) {
-      final pId = _paises[i]['id'].toString();
-      final list = resultadosLoterias[i];
-      for (var item in list) {
-        final mapItem = Map<String, dynamic>.from(item as Map);
-        mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-        todas.add(mapItem);
+  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
+    if (!force) {
+      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
+      if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
+        return List<Map<String, dynamic>>.from(cachedMapeo);
       }
     }
 
-    if (todas.isNotEmpty) {
-      CacheService.setJson('loterias_mapeadas_all', todas);
+    try {
+      // Cargar países y loterías en paralelo de manera ultra rápida
+      final results = await Future.wait([
+        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getAllLoterias().catchError((e) {
+          debugPrint("⚠️ Error obteniendo todas las loterías: $e");
+          return <dynamic>[];
+        }),
+      ]);
+
+      final paisesRaw = results[0] as List<Map<String, dynamic>>;
+      if (paisesRaw.isNotEmpty) {
+        _paises = paisesRaw;
+        CacheService.setJson('paises_list_cache', _paises);
+      }
+
+      final loteriasRaw = results[1];
+      final List<Map<String, dynamic>> todas = loteriasRaw
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+
+      if (todas.isNotEmpty) {
+        CacheService.setJson('loterias_mapeadas_all', todas);
+      }
+      return todas;
+    } catch (e) {
+      debugPrint("⚠️ Error en _obtenerTodasLasLoterias: $e");
+      return [];
     }
-    return todas;
   }
 
   String _getRouteFromName(String nombre) {
     final n = nombre.toLowerCase().trim();
-    if (n.contains("baloto")) return "bloto";
-    if (n.contains("miloto")) return "mloto";
+    if (n.contains("baloto") || n.contains("revancha")) return "bloto";
+    if (n.contains("miloto") || n.contains("mloto")) return "mloto";
     if (n.contains("colorloto")) return "colorloto";
     if (n.contains("powerball")) return "powerball";
-    if (n.contains("mega millions")) return "megamillions";
+    if (n.contains("mega millions") || n.contains("megamillions")) return "megamillions";
     if (n.contains("lotto america")) return "lotto_america";
     if (n.contains("double play")) return "double_play";
     if (n.contains("millionaire")) return "millionaire_life";
@@ -315,20 +334,16 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
   void _navigateToJugadas(String nombre) {
     final route = _getRouteFromName(nombre);
-    Widget screen;
     
-    if (route == "bloto") {
-      screen = const BalotoMisJugadasScreen();
-    } else if (route == "mloto") {
-      screen = const MilotoMisJugadasScreen();
-    } else {
-      screen = LoteriasMisJugadasGenericaScreen(
-        loteriaNombre: nombre,
-        loteriaRoute: route,
-      );
-    }
-
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen)).then((_) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MisJugadasScreen(
+          loteriaNombre: nombre,
+          loteriaRoute: route,
+        ),
+      ),
+    ).then((_) {
       cargarLoterias();
     });
   }
