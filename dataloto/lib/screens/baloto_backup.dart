@@ -2,7 +2,7 @@ import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor2.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
-import 'package:dataloto/widgets/jugadas_list_bloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -44,7 +44,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   late AnimationController _jugadasController;
   // late Animation<double> _jugadasAnimation;
 
-  final GlobalKey<JugadasListBlotoState> _jugadasListKey = GlobalKey<JugadasListBlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -138,8 +138,6 @@ class _BalotoScreenState extends State<BalotoScreen>
     try {
       // 🧠 1. Cargar los filtros guardados del usuario (por ID) usando FlutterSecureStorage
       final paisIdStr = await _storage.read(key: "pais_id");
-      final departamentoIdStr = await _storage.read(key: "departamento_id");
-      final ciudadIdStr = await _storage.read(key: "ciudad_id");
 
       final paisId = paisIdStr != null ? int.tryParse(paisIdStr) : null;
       // final departamentoId = departamentoIdStr != null
@@ -514,9 +512,10 @@ Future<void> deleteJugada(int jugadaId, String userId) async {
                   ),
                   const SizedBox(height: 20),
                   AppContainer(
-                    child: JugadasListBloto(
+                    child: JugadasListWidget(
                       key: _jugadasListKey,
                       jugadasController: _jugadasController,
+                      loteriaRoute: "bloto",
                     ),
                   ),
                   const SizedBox(height: 20),

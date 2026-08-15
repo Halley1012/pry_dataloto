@@ -2,42 +2,195 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
-import '../styles/colores.dart';
-import '../styles/app_text_styles.dart';
-import '../widgets/contenedor3.dart';
-import '../widgets/fullscreen_chart_viewer.dart';
-import '../services/cache_service.dart';
+import 'package:dataloto/styles/colores.dart';
+import 'package:dataloto/styles/app_text_styles.dart';
+import 'package:dataloto/widgets/contenedor3.dart';
+import 'package:dataloto/widgets/fullscreen_chart_viewer.dart';
+import 'package:dataloto/screens/estadisticas/widgets/metric_stat.dart';
+import 'package:dataloto/screens/estadisticas/widgets/ball_badge.dart';
+import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
-class EstadisticasMillionaireLifeScreen extends StatefulWidget {
-  const EstadisticasMillionaireLifeScreen({super.key});
+class EstadisticasDashboardScreen extends StatefulWidget {
+  final String loteriaNombreInicial;
+
+  const EstadisticasDashboardScreen({
+    super.key,
+    required this.loteriaNombreInicial,
+  });
 
   @override
-  State<EstadisticasMillionaireLifeScreen> createState() => _EstadisticasMillionaireLifeScreenState();
+  State<EstadisticasDashboardScreen> createState() => _EstadisticasDashboardScreenState();
 }
 
-class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMillionaireLifeScreen> {
-  static const String loteriaNombre = "Millionaire for Life";
-  static const String routeName = "millionaire_life";
-  static const int maxBalota = 58;
-  static const int maxRoja = 5;
-
+class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScreen> {
   bool cargando = true;
   String? errorMensaje;
   List<Map<String, dynamic>> todosResultados = [];
   Map<String, dynamic>? prediccionIA;
 
-  int limiteFiltro = 50;
-  String filtroSorteo = 'Todos';
+  int limiteFiltro = 50; // 20, 50, 100, 0 (todos)
+  String filtroSorteo = 'Todos'; // 'Todos', principal, secundario
 
   int touchedBarIndex = -1;
   int touchedPieIndexPar = -1;
   int touchedPieIndexBajos = -1;
 
+  late final String routeName;
+  late int maxBalota;
+  late int maxRoja;
+  late bool hasRevancha;
+  late String nombreSorteoPrincipal;
+  late String nombreSorteoSecundario;
+
   @override
   void initState() {
     super.initState();
+    routeName = _getRouteForLoteria(widget.loteriaNombreInicial);
+    maxBalota = _getMaxBalota(widget.loteriaNombreInicial);
+    maxRoja = _getMaxRoja(widget.loteriaNombreInicial);
+    hasRevancha = _getHasRevancha(widget.loteriaNombreInicial);
+    nombreSorteoPrincipal = _getNombreSorteoPrincipal(widget.loteriaNombreInicial);
+    nombreSorteoSecundario = _getNombreSorteoSecundario(widget.loteriaNombreInicial);
     _cargarDatos();
+  }
+
+  String _getRouteForLoteria(String name) {
+    String clean = name.trim().toLowerCase();
+    if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
+    if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
+    if (clean.contains("colorloto")) return "colorloto";
+    if (clean.contains("powerball")) return "powerball";
+    if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return "lotto_america";
+    if (clean.contains("double play") || clean.contains("double_play")) return "double_play";
+    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return "millionaire_life";
+    
+    // Normalización dinámica
+    clean = clean
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'[ñ]'), 'n');
+
+    return clean
+        .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
+        .trim()
+        .replaceAll(RegExp(r'[\s_]+'), '_');
+  }
+
+  int _getMaxBalota(String name) {
+    final clean = name.trim().toLowerCase();
+    if (clean.contains("powerball")) return 69;
+    if (clean.contains("mega millions") || clean.contains("megamillions")) return 70;
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 52;
+    if (clean.contains("double play") || clean.contains("double_play")) return 69;
+    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 50;
+    if (clean.contains("miloto") || clean.contains("mloto")) return 39;
+    if (clean.contains("colorloto")) return 21;
+    return 43; // Baloto
+  }
+
+  int _getMaxRoja(String name) {
+    final clean = name.trim().toLowerCase();
+    if (clean.contains("powerball")) return 26;
+    if (clean.contains("mega millions") || clean.contains("megamillions")) return 25;
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 10;
+    if (clean.contains("double play") || clean.contains("double_play")) return 26;
+    return 0; // standard no red ball
+  }
+
+  bool _getHasRevancha(String name) {
+    final clean = name.trim().toLowerCase();
+    return clean.contains("baloto") || clean.contains("revancha") || clean.contains("double play") || clean.contains("double_play");
+  }
+
+  String _getNombreSorteoPrincipal(String name) {
+    if (name.toLowerCase().contains("double play") || name.toLowerCase().contains("double_play")) return "Powerball";
+    return "Baloto";
+  }
+
+  String _getNombreSorteoSecundario(String name) {
+    if (name.toLowerCase().contains("double play") || name.toLowerCase().contains("double_play")) return "Double Play";
+    return "Revancha";
+  }
+
+  void _autoCalibrarParametros() {
+    // 1. Detección por modelo / predicción IA (Máxima precisión de rango)
+    if (prediccionIA != null) {
+      final predNums = prediccionIA!["numeros"];
+      if (predNums is List && predNums.isNotEmpty) {
+        int maxPred = 0;
+        for (var n in predNums) {
+          final intVal = int.tryParse(n.toString()) ?? 0;
+          if (intVal > maxPred) maxPred = intVal;
+        }
+        if (maxPred > 0) {
+          maxBalota = maxPred;
+        }
+      }
+
+      final predRojas = prediccionIA!["balotaroja"] ?? prediccionIA!["balota_roja"] ?? prediccionIA!["balotas_rojas"];
+      if (predRojas is List && predRojas.isNotEmpty) {
+        int maxRojaPred = 0;
+        for (var n in predRojas) {
+          final intVal = int.tryParse(n.toString()) ?? 0;
+          if (intVal > maxRojaPred) maxRojaPred = intVal;
+        }
+        if (maxRojaPred > 0) {
+          maxRoja = maxRojaPred;
+        }
+      }
+    }
+
+    if (todosResultados.isEmpty) return;
+
+    // 2. Detección automática por histórico (como respaldo o si la predicción aún no carga)
+    int maxEncontrado = 0;
+    for (var r in todosResultados) {
+      final nums = r["numeros"];
+      if (nums != null && nums is List) {
+        // Tomamos los primeros 5 números para evitar contar la superbalota
+        for (var n in nums.take(5)) {
+          if (n is num && n > maxEncontrado) {
+            maxEncontrado = n.toInt();
+          }
+        }
+      }
+    }
+    // Solo sobreescribimos si no se ha detectado del modelo, o si el histórico reporta algo mayor
+    if (maxEncontrado > maxBalota) {
+      maxBalota = maxEncontrado;
+    }
+
+    int maxRojaEncontrado = 0;
+    for (var r in todosResultados) {
+      final nums = r["numeros"];
+      if (nums != null && nums is List && nums.length > 5) {
+        final spec = nums[5];
+        if (spec is num && spec > maxRojaEncontrado) {
+          maxRojaEncontrado = spec.toInt();
+        }
+      }
+    }
+    if (maxRojaEncontrado > maxRoja) {
+      maxRoja = maxRojaEncontrado;
+    }
+
+    // 3. Detección automática de sorteos múltiples (ej: Baloto y Revancha)
+    final sorteosUnicos = todosResultados
+        .map((r) => r["sorteo"]?.toString().trim())
+        .where((s) => s != null && s.isNotEmpty)
+        .toSet();
+
+    if (sorteosUnicos.length > 1) {
+      hasRevancha = true;
+      final listaSorteos = sorteosUnicos.toList();
+      nombreSorteoPrincipal = listaSorteos[0]!;
+      nombreSorteoSecundario = listaSorteos[1]!;
+    }
   }
 
   Future<void> _cargarDatos() async {
@@ -48,6 +201,7 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
       setState(() {
         todosResultados = List<Map<String, dynamic>>.from(cachedHist["resultados"]);
         if (cachedPred != null) prediccionIA = cachedPred;
+        _autoCalibrarParametros();
         cargando = false;
       });
     }
@@ -69,61 +223,74 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
       );
 
       if (resHist.statusCode == 200) {
-        final dataHist = jsonDecode(resHist.body);
-        if (dataHist["resultados"] != null && mounted) {
+        final data = jsonDecode(resHist.body);
+        if (data["resultados"] != null && mounted) {
           setState(() {
-            todosResultados = List<Map<String, dynamic>>.from(dataHist["resultados"]);
+            todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
+            _autoCalibrarParametros();
           });
-          CacheService.setJson('${routeName}_historico_completo', dataHist);
+          CacheService.setJson('${routeName}_historico_completo', data);
         }
       }
 
       if (resPred.statusCode == 200) {
-        final dataPred = jsonDecode(resPred.body);
+        final dataP = jsonDecode(resPred.body);
         if (mounted) {
           setState(() {
-            prediccionIA = dataPred;
+            prediccionIA = dataP;
+            _autoCalibrarParametros();
           });
-          CacheService.setJson('${routeName}_prediccion', dataPred);
         }
+        CacheService.setJson('${routeName}_prediccion', dataP);
       }
     } catch (e) {
-      if (todosResultados.isEmpty && mounted) {
-        setState(() {
-          errorMensaje = AppLocalizations.of(context)?.errorCargarEstadisticas ??
-              "No fue posible conectar con el servidor para obtener las estadísticas.";
-        });
+      debugPrint("Error cargando estadísticas para $routeName: $e");
+      if (todosResultados.isEmpty) {
+        errorMensaje = "No se pudieron cargar los datos de estadísticas.";
       }
     } finally {
       if (mounted) {
-        setState(() {
-          cargando = false;
-        });
+        setState(() => cargando = false);
       }
     }
+  }
+
+  List<Map<String, dynamic>> _filtrarResultados() {
+    var lista = todosResultados;
+
+    if (hasRevancha && filtroSorteo != 'Todos') {
+      lista = lista.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == filtroSorteo.toLowerCase();
+      }).toList();
+    }
+
+    if (limiteFiltro > 0 && lista.length > limiteFiltro) {
+      lista = lista.take(limiteFiltro).toList();
+    }
+
+    return lista;
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    List<Map<String, dynamic>> resultadosFiltrados = todosResultados;
-
-    if (limiteFiltro > 0 && todosResultados.length > limiteFiltro) {
-      resultadosFiltrados = todosResultados.take(limiteFiltro).toList();
-    }
+    final resultadosFiltrados = _filtrarResultados();
 
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
         backgroundColor: AppColors.blackfondo,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, size: 24, color: AppColors.yellow),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          l10n?.estadisticasLoteria(loteriaNombre) ?? "Estadísticas $loteriaNombre",
+          "${l10n?.estadisticas ?? "Estadísticas"} ${widget.loteriaNombreInicial}",
           style: AppTextStyles.h2,
         ),
         actions: [
@@ -139,13 +306,9 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
             )
           : errorMensaje != null
               ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      errorMensaje!,
-                      style: AppTextStyles.mensajeImportante,
-                      textAlign: TextAlign.center,
-                    ),
+                  child: Text(
+                    errorMensaje!,
+                    style: AppTextStyles.mensajeImportante,
                   ),
                 )
               : SingleChildScrollView(
@@ -216,33 +379,63 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
               ),
             ],
           ),
+          if (hasRevancha) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Text("${l10n?.tipo ?? "Tipo"}: ", style: AppTextStyles.mensajeSecundario),
+                const SizedBox(width: 8),
+                Wrap(
+                  spacing: 8,
+                  children: ['Todos', nombreSorteoPrincipal, nombreSorteoSecundario].map((tipo) {
+                    final isSel = filtroSorteo == tipo;
+                    String displayTipo = tipo;
+                    if (tipo == 'Todos') displayTipo = l10n?.todas ?? "Todos";
+                    return ChoiceChip(
+                      label: Text(displayTipo),
+                      selected: isSel,
+                      selectedColor: AppColors.yellow,
+                      backgroundColor: AppColors.darkGray,
+                      labelStyle: TextStyle(
+                        color: isSel ? Colors.black : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      onSelected: (_) {
+                        setState(() => filtroSorteo = tipo);
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 
   Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
-    return AppContainer3(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _buildMetricStat(l10n?.sorteosEvaluados ?? "Sorteos Evaluados", "${resultados.length}"),
-          _buildMetricStat(l10n?.rangoBalotas ?? "Rango Balotas", "1 - $maxBalota"),
-          _buildMetricStat(l10n?.cashBall ?? "Cash Ball", "1 - $maxRoja"),
-        ],
-      ),
-    );
-  }
+    String label3 = l10n?.tipo ?? "Combinación";
+    String value3 = "5 Números";
 
-  Widget _buildMetricStat(String label, String value) {
-    return Column(
-      children: [
-        Text(value,
-            style: AppTextStyles.tituloPrincipal.copyWith(color: AppColors.yellow, fontSize: 24)),
-        const SizedBox(height: 4),
-        Text(label, style: AppTextStyles.caption),
-      ],
-    );
+    if (maxRoja > 0) {
+      label3 = "Superbalota";
+      value3 = "1 - $maxRoja";
+    } else if (routeName == "colorloto") {
+      label3 = l10n?.tipo ?? "Combinación";
+      value3 = "6 Números + Color";
+    }
+
+    return AppContainer3(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            MetricStat(label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados", value: "${resultados.length}"),
+            MetricStat(label: "Rango Balotas", value: "1 - $maxBalota"),
+            MetricStat(label: label3, value: value3),
+          ],
+        ),
+      );
   }
 
   Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
@@ -270,7 +463,7 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
                     Text("🔥 ${l10n?.masFrecuentes ?? "Más Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber)),
                     const SizedBox(height: 8),
-                    ...calientes.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.amber)),
+                    ...calientes.map((e) => BallBadge(num: e.key, sub: "${e.value} ${l10n?.veces ?? "veces"}", color: Colors.amber)),
                   ],
                 ),
               ),
@@ -282,7 +475,7 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
                     Text("❄️ ${l10n?.menosFrecuentes ?? "Menos Frecuentes"}",
                         style: AppTextStyles.mensajeImportante.copyWith(color: Colors.lightBlueAccent)),
                     const SizedBox(height: 8),
-                    ...frios.map((e) => _buildBallBadge(e.key, "${e.value} ${l10n?.veces ?? "veces"}", Colors.lightBlueAccent)),
+                    ...frios.map((e) => BallBadge(num: e.key, sub: "${e.value} ${l10n?.veces ?? "veces"}", color: Colors.lightBlueAccent)),
                   ],
                 ),
               ),
@@ -293,37 +486,8 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
     );
   }
 
-  Widget _buildBallBadge(int num, String sub, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color,
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.4),
-                  blurRadius: 4,
-                )
-              ],
-            ),
-            child: Center(
-              child: Text(
-                "$num",
-                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(sub, style: AppTextStyles.caption2),
-        ],
-      ),
-    );
-  }
+
+
 
   Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
@@ -889,7 +1053,7 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
   }
 
   Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
-    final score = 89;
+    final score = 92;
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -924,7 +1088,7 @@ class _EstadisticasMillionaireLifeScreenState extends State<EstadisticasMilliona
   Widget _buildCardComparacionIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final predNums = prediccionIA != null && prediccionIA!["numeros"] != null
         ? List<int>.from(prediccionIA!["numeros"])
-        : [7, 16, 29, 38, 51];
+        : [5, 12, 28, 45, 60];
 
     final frecs = _calcularFrecuencias(resultados);
     final top3Hist = (frecs.entries.toList()..sort((a, b) => b.value.compareTo(a.value)))

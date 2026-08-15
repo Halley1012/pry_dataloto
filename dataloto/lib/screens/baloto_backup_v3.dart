@@ -1,9 +1,9 @@
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
+import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
 import 'package:dataloto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
-import 'package:dataloto/widgets/jugadas_list_bloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -47,7 +47,7 @@ class _BalotoScreenState extends State<BalotoScreen>
   late AnimationController _shineController;
   late AnimationController _jugadasController;
 
-  final GlobalKey<JugadasListBlotoState> _jugadasListKey = GlobalKey<JugadasListBlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -690,7 +690,6 @@ class _BalotoScreenState extends State<BalotoScreen>
               final screenWidth = MediaQuery.of(context).size.width;
               final isSmall = screenWidth < 360;
               final ballSize = isSmall ? 36.0 : 45.0;
-              final spacing = isSmall ? 4.0 : 6.0;
               final fontSize = isSmall ? 12.0 : 16.0;
 
               return Row(
@@ -870,7 +869,7 @@ class _BalotoScreenState extends State<BalotoScreen>
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const BalotoMisJugadasScreen(),
+                        builder: (_) => const MisJugadasScreen(loteriaNombre: "Baloto", loteriaRoute: "bloto"),
                       ),
                     );
                     await _jugadasListKey.currentState?.reload();
@@ -1223,9 +1222,10 @@ class _BalotoScreenState extends State<BalotoScreen>
 
                     // 9. JUGADAS GUARDADAS EN DB DE USUARIO (`JugadasListBloto`)
                     AppContainer(
-                      child: JugadasListBloto(
+                      child: JugadasListWidget(
                         key: _jugadasListKey,
                         jugadasController: _jugadasController,
+                        loteriaRoute: "bloto",
                       ),
                     ),
                     const SizedBox(height: 18),

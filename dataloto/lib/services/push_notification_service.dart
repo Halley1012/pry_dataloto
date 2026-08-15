@@ -115,4 +115,17 @@ class PushNotificationService {
       debugPrint("⚠️ Error configurando PushNotificationService: $e");
     }
   }
+
+  /// 🔄 Sincronizar el token FCM actual con el backend para el usuario autenticado
+  static Future<void> syncToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        debugPrint("🔥 FCM Token obtenido en sync: $token");
+        await ApiService.updateFCMToken(token);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error sincronizando token FCM: $e");
+    }
+  }
 }

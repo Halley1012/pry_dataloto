@@ -74,7 +74,11 @@ class _HomeScreenState extends State<HomeScreen> {
         storage.read(key: 'pais_nombre'),
       ]);
 
-      final userIdStr = keys[0];
+      String? userIdStr = keys[0];
+      if (userIdStr == null || userIdStr.isEmpty) {
+        final uid = await ApiService.getUserId();
+        userIdStr = uid?.toString();
+      }
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
 

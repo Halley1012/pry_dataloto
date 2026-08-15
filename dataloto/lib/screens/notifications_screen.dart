@@ -13,7 +13,6 @@ import 'lotto_america.dart';
 import 'double_play.dart';
 import 'millionaire_life.dart';
 import 'megamillions.dart';
-import 'estadisticas_bloto.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -234,7 +233,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } else if (msj.contains("mega millions")) {
       Navigator.push(context, MaterialPageRoute(builder: (_) => const MegaMillionsScreen()));
     } else {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const EstadisticasBlotoScreen()));
+      Navigator.pushNamed(context, '/estadisticas_bloto');
     }
   }
 

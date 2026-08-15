@@ -1,3 +1,4 @@
+import 'jugadas/mis_jugadas_screen.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -12,8 +13,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
-import 'package:dataloto/screens/miloto_mis_jugadas.dart';
-import 'package:dataloto/widgets/jugadas_list_mloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'dart:math';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
@@ -41,7 +41,7 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
   late Animation<double> _bounceAnimation;
   late AnimationController _shineController;
   late AnimationController _jugadasController;
-  final GlobalKey<JugadasListMlotoState> _jugadasListKey = GlobalKey<JugadasListMlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -271,6 +271,13 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
 
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (!mounted) return;
+
+    if (userId == null || userId!.isEmpty) {
+      final uidInt = await ApiService.getUserId();
+      if (uidInt != null && mounted) {
+        setState(() => userId = uidInt.toString());
+      }
+    }
 
     if (userId == null || userId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -768,7 +775,12 @@ class _MilotoScreenState extends State<MilotoScreen> with TickerProviderStateMix
           onTap: () async {
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const MilotoMisJugadasScreen()),
+              MaterialPageRoute(
+                builder: (_) => const MisJugadasScreen(
+                  loteriaNombre: "MiLoto",
+                  loteriaRoute: "mloto",
+                ),
+              ),
             );
             await _jugadasListKey.currentState?.reload();
           },

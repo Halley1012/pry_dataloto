@@ -20,13 +20,7 @@ import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'providers/notification_provider.dart';
 import 'package:provider/provider.dart';
-import 'screens/estadisticas_bloto.dart';
-import 'screens/estadisticas_mloto.dart';
-import 'screens/estadisticas_powerball.dart';
-import 'screens/estadisticas_double_play.dart';
-import 'screens/estadisticas_lotto_america.dart';
-import 'screens/estadisticas_megamillions.dart';
-import 'screens/estadisticas_millionaire_life.dart';
+import 'screens/estadisticas_dashboard_screen.dart';
 import 'package:dataloto/services/push_notification_service.dart';
 
 // 🔑 Navigator key global y Provider de Idioma global
@@ -141,13 +135,13 @@ class DataLotoApp extends StatelessWidget {
             '/baloto': (context) => const BalotoScreen(),
             '/miloto': (context) => const MilotoScreen(),
             '/color_loto': (context) => ColorLotoScreen(),
-            '/estadisticas_bloto': (context) => const EstadisticasBlotoScreen(),
-            '/estadisticas_mloto': (context) => const EstadisticasMlotoScreen(),
-            '/estadisticas_powerball': (context) => const EstadisticasPowerballScreen(),
-            '/estadisticas_double_play': (context) => const EstadisticasDoublePlayScreen(),
-            '/estadisticas_lotto_america': (context) => const EstadisticasLottoAmericaScreen(),
-            '/estadisticas_megamillions': (context) => const EstadisticasMegaMillionsScreen(),
-            '/estadisticas_millionaire_life': (context) => const EstadisticasMillionaireLifeScreen(),
+            '/estadisticas_bloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Baloto"),
+            '/estadisticas_mloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Miloto"),
+            '/estadisticas_powerball': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Powerball"),
+            '/estadisticas_double_play': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Double Play"),
+            '/estadisticas_lotto_america': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Lotto America"),
+            '/estadisticas_megamillions': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Mega Millions"),
+            '/estadisticas_millionaire_life': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Millionaire Life"),
             '/home': (context) => HomeScreen(),
             '/notifications': (context) => const NotificationsScreen(),
             '/registro': (context) {

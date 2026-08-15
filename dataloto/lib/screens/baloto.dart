@@ -1,9 +1,9 @@
+import 'jugadas/mis_jugadas_screen.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
-import 'package:dataloto/screens/baloto_mis_jugadas.dart';
 import 'package:dataloto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
-import 'package:dataloto/widgets/jugadas_list_bloto.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -45,12 +45,10 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
   late AnimationController _shineController;
   late AnimationController _jugadasController;
 
-  final GlobalKey<JugadasListBlotoState> _jugadasListKey = GlobalKey<JugadasListBlotoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
-  final _storage = const FlutterSecureStorage();
   String? _jackpot = "\$24.500";
-  String _viewMode = 'Tabla';
   String _selectedResultadosTab = "baloto";
 
   @override
@@ -228,9 +226,10 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
 
     String? currentUid = userId;
     if (currentUid == null || currentUid.isEmpty) {
-      currentUid = await storage.read(key: 'user_id');
-      if (mounted && currentUid != null) {
-        setState(() => userId = currentUid);
+      final uidInt = await ApiService.getUserId();
+      if (uidInt != null) {
+        currentUid = uidInt.toString();
+        if (mounted) setState(() => userId = currentUid);
       }
     }
 
@@ -744,7 +743,7 @@ class _BalotoScreenState extends State<BalotoScreen> with TickerProviderStateMix
           isLoading: isSaving,
         ),
         const SizedBox(width: 8),
-        _buildActionTile(icon: Icons.bookmarks_outlined, label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoMisJugadasScreen()))),
+        _buildActionTile(icon: Icons.bookmarks_outlined, label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas", onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisJugadasScreen(loteriaNombre: "Baloto", loteriaRoute: "bloto")))),
         const SizedBox(width: 8),
         _buildActionTile(icon: Icons.bar_chart, label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"), onTap: () => Navigator.pushNamed(context, '/estadisticas_bloto')),
       ],

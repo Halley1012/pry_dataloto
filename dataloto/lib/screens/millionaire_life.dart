@@ -12,9 +12,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/screens/directorioLocal.dart';
-import 'package:dataloto/screens/loterias_mis_jugadas_generica.dart';
-import 'package:dataloto/widgets/jugadas_list_generico.dart';
-import 'package:dataloto/screens/estadisticas_millionaire_life.dart';
+import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'dart:math';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
@@ -46,7 +45,7 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
   late AnimationController _shineController;
   late AnimationController _jugadasController;
 
-  final GlobalKey<JugadasListGenericoState> _jugadasListKey = GlobalKey<JugadasListGenericoState>();
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey = GlobalKey<JugadasListWidgetState>();
   String? userId;
   bool isSaving = false;
   final _storage = const FlutterSecureStorage();
@@ -281,6 +280,13 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
 
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (!mounted) return;
+
+    if (userId == null || userId!.isEmpty) {
+      final uidInt = await ApiService.getUserId();
+      if (uidInt != null && mounted) {
+        setState(() => userId = uidInt.toString());
+      }
+    }
 
     if (userId == null || userId!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -763,7 +769,7 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
             await Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => const LoteriasMisJugadasGenericaScreen(
+                builder: (_) => MisJugadasScreen(
                   loteriaNombre: loteria,
                   loteriaRoute: backendRoute,
                 ),
@@ -776,9 +782,9 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
         _buildActionTile(
           icon: Icons.bar_chart,
           label: (l10n?.verTodas ?? "Ver").replaceAll(" ", "\n") + "\n" + (l10n?.estadisticas ?? "Estadísticas"),
-          onTap: () => Navigator.push(
+          onTap: () => Navigator.pushNamed(
             context,
-            MaterialPageRoute(builder: (_) => const EstadisticasMillionaireLifeScreen()),
+            '/estadisticas_millionaire_life',
           ),
         ),
       ],
@@ -961,9 +967,9 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
           children: [
             Row(children: [const Icon(Icons.bar_chart, color: Colors.amber, size: 20), const SizedBox(width: 8), Text(l10n?.resumenRapido ?? "Resumen rápido", style: AppTextStyles.mensajeImportante)]),
             TextButton(
-              onPressed: () => Navigator.push(
+              onPressed: () => Navigator.pushNamed(
                 context,
-                MaterialPageRoute(builder: (_) => const EstadisticasMillionaireLifeScreen()),
+                '/estadisticas_millionaire_life',
               ),
               child: Text(l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›", style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber)),
             ),
@@ -993,9 +999,9 @@ class _MillionaireLifeScreenState extends State<MillionaireLifeScreen> with Tick
 
   Widget _buildStatCard(String title, String val, String sub, AppLocalizations? l10n, {required IconData icon, required Color iconColor}) {
     return GestureDetector(
-      onTap: () => Navigator.push(
+      onTap: () => Navigator.pushNamed(
         context,
-        MaterialPageRoute(builder: (_) => const EstadisticasMillionaireLifeScreen()),
+        '/estadisticas_millionaire_life',
       ),
       child: Container(
         width: 125,
