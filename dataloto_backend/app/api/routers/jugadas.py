@@ -149,64 +149,70 @@ async def borrar_jugada_cloto(jugada_id: int, user_id: int, use_cases: JugadaUse
     return {"message": "Jugada de ColorLoto eliminada"}
 
 
-# --- Endpoints Genéricos para Loterías de EE.UU. ---
-LOTERIAS_EEUU = [
-    ("powerball", "Powerball"),
-    ("lotto_america", "Lotto America"),
-    ("double_play", "Double Play"),
-    ("millionaire_life", "Millionaire for Life"),
-    ("megamillions", "Mega Millions")
-]
+# --- Endpoints Genéricos Universales para Cualquier Lotería Actual o Futura ---
 
-for route_name, display_name in LOTERIAS_EEUU:
-    def _make_endpoints(r_name, d_name):
-        @router.get(f"/{r_name}", name=f"get_{r_name}_prediccion")
-        def get_prediccion(fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            cache_key = f"{r_name}:prediccion:{fecha or 'latest'}"
-            cached = memory_cache.get(cache_key)
-            if cached is not None:
-                return cached
-            res = use_cases.obtener_prediccion_generico(r_name, fecha)
-            if "error" not in res:
-                memory_cache.set(cache_key, res, ttl=300)
-            return res
+RESERVED_ROUTES = {
+    "login", "register", "auth", "refresh", "users", "loterias", 
+    "paises", "departamentos", "ciudades", "categorias", "publicidad", 
+    "posts", "comments", "notifications", "transacciones", "healthz", 
+    "docs", "openapi.json", "test", "mis_loterias_activas", "mloto", "bloto", "colorloto"
+}
 
-        @router.get(f"/{r_name}/ultimos5", name=f"get_{r_name}_ultimos5")
-        def get_ultimos5(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            cache_key = f"{r_name}:ultimos5"
-            cached = memory_cache.get(cache_key)
-            if cached is not None:
-                return cached
-            res = use_cases.obtener_ultimos5_generico(r_name, d_name)
-            if "error" not in res:
-                memory_cache.set(cache_key, res, ttl=300)
-            return res
+@router.get("/{r_name}/ultimos5", name="get_loteria_ultimos5_dinamico")
+def get_ultimos5_dinamico(r_name: str, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    cache_key = f"{clean_route}:ultimos5"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    display_name = clean_route.replace('_', ' ').title()
+    res = use_cases.obtener_ultimos5_generico(clean_route, display_name)
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
+    return res
 
-        @router.get(f"/{r_name}/historico_completo", name=f"get_{r_name}_historico_completo")
-        def get_historico_completo(use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            cache_key = f"{r_name}:historico_completo"
-            cached = memory_cache.get(cache_key)
-            if cached is not None:
-                return cached
-            res = use_cases.obtener_historico_completo_generico(r_name, d_name)
-            if "error" not in res:
-                memory_cache.set(cache_key, res, ttl=300)
-            return res
+@router.get("/{r_name}/historico_completo", name="get_loteria_historico_completo_dinamico")
+def get_historico_completo_dinamico(r_name: str, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    cache_key = f"{clean_route}:historico_completo"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    display_name = clean_route.replace('_', ' ').title()
+    res = use_cases.obtener_historico_completo_generico(clean_route, display_name)
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
+    return res
 
-        @router.post(f"/jugadas_{r_name}", response_model=schemas.JugadaOut, name=f"crear_jugada_{r_name}")
-        async def crear_jugada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            return await use_cases.guardar_jugada(r_name, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
+@router.post("/jugadas_{r_name}", response_model=schemas.JugadaOut, name="crear_jugada_dinamico")
+async def crear_jugada_dinamico(r_name: str, jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    return await use_cases.guardar_jugada(clean_route, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
 
-        @router.get(f"/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name=f"listar_jugadas_{r_name}")
-        async def listar_jugadas(user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            return await use_cases.listar_jugadas(r_name, user_id, fecha)
+@router.get("/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name="listar_jugadas_dinamico")
+async def listar_jugadas_dinamico(r_name: str, user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    return await use_cases.listar_jugadas(clean_route, user_id, fecha)
 
-        @router.delete(f"/jugadas_{r_name}/{{jugada_id}}", name=f"borrar_jugada_{r_name}")
-        async def borrar_jugada(jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
-            success = await use_cases.borrar_jugada(r_name, jugada_id, user_id)
-            if not success:
-                raise HTTPException(status_code=404, detail="Jugada no encontrada")
-            return {"message": "Jugada eliminada"}
+@router.delete("/jugadas_{r_name}/{jugada_id}", name="borrar_jugada_dinamico")
+async def borrar_jugada_dinamico(r_name: str, jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Jugada no encontrada")
+    return {"message": "Jugada eliminada"}
 
-    _make_endpoints(route_name, display_name)
+@router.get("/{r_name}", name="get_loteria_prediccion_dinamico")
+def get_prediccion_dinamico(r_name: str, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    if clean_route in RESERVED_ROUTES:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    cache_key = f"{clean_route}:prediccion:{fecha or 'latest'}"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    res = use_cases.obtener_prediccion_generico(clean_route, fecha)
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
+    return res
 

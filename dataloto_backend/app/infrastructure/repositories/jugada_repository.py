@@ -81,12 +81,22 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def list_active_lotteries(self, user_id: int) -> List[str]:
         pool = db_connection.get_pool()
-        tipos = [
+        tipos_default = [
             "mloto", "bloto", "colorloto", "powerball", 
             "lotto_america", "double_play", "millionaire_life", "megamillions"
         ]
         activas = []
         async with pool.acquire() as conn:
+            try:
+                db_routes = await conn.fetch("""
+                    SELECT DISTINCT route 
+                    FROM loterias 
+                    WHERE route IS NOT NULL AND route != '' AND activa = true
+                """)
+                tipos = list(set(tipos_default + [r['route'].lower() for r in db_routes]))
+            except Exception:
+                tipos = tipos_default
+
             for tipo in tipos:
                 tabla = f"jugadas_{tipo}"
                 # Verificamos si la tabla existe antes de consultar
