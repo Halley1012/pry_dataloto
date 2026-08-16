@@ -70,6 +70,25 @@ class _LoginPageState extends State<LoginPage> {
         final int? paisId = user?['pais_id'];
         final int? departamentoId = user?['departamento_id'];
 
+        if (userId != null) {
+          await storage.write(key: "user_id", value: userId.toString());
+        }
+        if (paisId != null) {
+          await storage.write(key: "pais_id", value: paisId.toString());
+        }
+        if (departamentoId != null) {
+          await storage.write(key: "departamento_id", value: departamentoId.toString());
+        }
+        if (user?['pais_nombre'] != null) {
+          await storage.write(key: "pais_nombre", value: user!['pais_nombre'].toString());
+        }
+        if (user?['name'] != null) {
+          await storage.write(key: "name", value: user!['name'].toString());
+        }
+        if (user?['email'] != null) {
+          await storage.write(key: "email", value: user!['email'].toString());
+        }
+
         if (paisId == null || departamentoId == null) {
           // Redirigir a Onboarding de Ubicación
           Navigator.pushReplacement(
@@ -129,8 +148,24 @@ class _LoginPageState extends State<LoginPage> {
         if (accessToken != null && refreshToken != null) {
           await storage.write(key: "auth_token", value: accessToken);
           await storage.write(key: "refresh_token", value: refreshToken);
+
+          final uId = response['user_id'];
+          if (uId != null) await storage.write(key: "user_id", value: uId.toString());
+          final pId = response['pais_id'];
+          if (pId != null) await storage.write(key: "pais_id", value: pId.toString());
+          final pNombre = response['pais_nombre'];
+          if (pNombre != null) await storage.write(key: "pais_nombre", value: pNombre.toString());
+          final dId = response['departamento_id'];
+          if (dId != null) await storage.write(key: "departamento_id", value: dId.toString());
+          final dNombre = response['departamento_nombre'];
+          if (dNombre != null) await storage.write(key: "departamento_nombre", value: dNombre.toString());
+          final name = response['name'];
+          if (name != null) await storage.write(key: "name", value: name.toString());
+          final email = response['email'];
+          if (email != null) await storage.write(key: "email", value: email.toString());
+
           debugPrint(
-            'Tokens saved: access_token=$accessToken, refresh_token=$refreshToken',
+            'Tokens saved: access_token=$accessToken, refresh_token=$refreshToken, user_id=$uId',
           );
 
           // Redirigir al Home

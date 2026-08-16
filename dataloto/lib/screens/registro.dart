@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:dataloto/screens/welcome.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dataloto/styles/colores.dart';
@@ -209,6 +210,9 @@ class _RegistroPageState extends State<RegistroScreen> {
           key: 'departamento_nombre',
           value: updatedUser['departamento_nombre'] ?? '',
         );
+
+        // 🔥 Sincronizar token FCM con el país/perfil actualizado
+        PushNotificationService.syncToken();
       }
 
       if (!mounted) return;

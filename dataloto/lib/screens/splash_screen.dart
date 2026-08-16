@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shimmer/shimmer.dart';
 import '../services/api_service.dart';
+import '../services/push_notification_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -53,6 +54,11 @@ class _SplashScreenState extends State<SplashScreen>
       final stayLoggedIn =
           hasSession || (accessToken != null || refreshToken != null);
 
+      if (stayLoggedIn) {
+        // 🔥 Sincronizar token FCM en segundo plano
+        PushNotificationService.syncToken();
+      }
+
       Navigator.pushReplacementNamed(
         context,
         stayLoggedIn ? '/home' : '/welcome',
@@ -65,6 +71,10 @@ class _SplashScreenState extends State<SplashScreen>
 
       final hasToken = (await storage.read(key: "auth_token")) != null ||
           (await storage.read(key: "refresh_token")) != null;
+
+      if (hasToken) {
+        PushNotificationService.syncToken();
+      }
 
       if (!mounted) return;
       Navigator.pushReplacementNamed(

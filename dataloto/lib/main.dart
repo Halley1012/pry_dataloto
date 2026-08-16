@@ -3,10 +3,8 @@ import 'package:dataloto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'screens/home.dart';
-import 'screens/baloto.dart';
-import 'screens/miloto.dart';
+import 'screens/loteria_screen.dart';
 import 'screens/login.dart';
-import 'screens/color_loto.dart';
 import 'screens/registro.dart';
 import 'screens/splash_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -20,13 +18,7 @@ import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'providers/notification_provider.dart';
 import 'package:provider/provider.dart';
-import 'screens/estadisticas_bloto.dart';
-import 'screens/estadisticas_mloto.dart';
-import 'screens/estadisticas_powerball.dart';
-import 'screens/estadisticas_double_play.dart';
-import 'screens/estadisticas_lotto_america.dart';
-import 'screens/estadisticas_megamillions.dart';
-import 'screens/estadisticas_millionaire_life.dart';
+import 'screens/estadisticas_dashboard_screen.dart';
 import 'package:dataloto/services/push_notification_service.dart';
 
 // 🔑 Navigator key global y Provider de Idioma global
@@ -52,7 +44,9 @@ void main() {
       runApp(const DataLotoApp());
     },
     (error, stack) {
-      if (error.toString().contains("invalid token")) {
+      debugPrint("❌ Error capturado en runZonedGuarded: $error");
+      if (error.toString().contains("401") ||
+          error.toString().contains("Token inválido")) {
         // Si el token está inválido → limpiar stack y mandar a Login
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/login',
@@ -138,16 +132,21 @@ class DataLotoApp extends StatelessWidget {
             '/splash': (context) => const SplashScreen(),
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginPage(),
-            '/baloto': (context) => const BalotoScreen(),
-            '/miloto': (context) => const MilotoScreen(),
-            '/color_loto': (context) => ColorLotoScreen(),
-            '/estadisticas_bloto': (context) => const EstadisticasBlotoScreen(),
-            '/estadisticas_mloto': (context) => const EstadisticasMlotoScreen(),
-            '/estadisticas_powerball': (context) => const EstadisticasPowerballScreen(),
-            '/estadisticas_double_play': (context) => const EstadisticasDoublePlayScreen(),
-            '/estadisticas_lotto_america': (context) => const EstadisticasLottoAmericaScreen(),
-            '/estadisticas_megamillions': (context) => const EstadisticasMegaMillionsScreen(),
-            '/estadisticas_millionaire_life': (context) => const EstadisticasMillionaireLifeScreen(),
+            '/baloto': (context) => const LoteriaScreen(loteriaNombre: "Baloto"),
+            '/miloto': (context) => const LoteriaScreen(loteriaNombre: "Miloto"),
+            '/color_loto': (context) => const LoteriaScreen(loteriaNombre: "ColorLoto"),
+            '/powerball': (context) => const LoteriaScreen(loteriaNombre: "Powerball"),
+            '/megamillions': (context) => const LoteriaScreen(loteriaNombre: "Mega Millions"),
+            '/double_play': (context) => const LoteriaScreen(loteriaNombre: "Double Play"),
+            '/lotto_america': (context) => const LoteriaScreen(loteriaNombre: "Lotto America"),
+            '/millionaire_life': (context) => const LoteriaScreen(loteriaNombre: "Millionaire Life"),
+            '/estadisticas_bloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Baloto"),
+            '/estadisticas_mloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Miloto"),
+            '/estadisticas_powerball': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Powerball"),
+            '/estadisticas_double_play': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Double Play"),
+            '/estadisticas_lotto_america': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Lotto America"),
+            '/estadisticas_megamillions': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Mega Millions"),
+            '/estadisticas_millionaire_life': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Millionaire Life"),
             '/home': (context) => HomeScreen(),
             '/notifications': (context) => const NotificationsScreen(),
             '/registro': (context) {

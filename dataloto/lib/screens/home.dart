@@ -6,14 +6,7 @@ import 'package:dataloto/screens/loteriasPais.dart';
 import 'package:dataloto/widgets/carrusel.dart';
 import 'package:dataloto/widgets/contenedor4.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
-import 'baloto.dart';
-import 'miloto.dart';
-import 'color_loto.dart';
-import 'powerball.dart';
-import 'lotto_america.dart';
-import 'double_play.dart';
-import 'millionaire_life.dart';
-import 'megamillions.dart';
+import 'loteria_screen.dart';
 import 'profile_screen.dart';
 import 'mis_jugadas_selector_screen.dart';
 import 'resultados_selector_screen.dart';
@@ -74,7 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
         storage.read(key: 'pais_nombre'),
       ]);
 
-      final userIdStr = keys[0];
+      String? userIdStr = keys[0];
+      if (userIdStr == null || userIdStr.isEmpty) {
+        final uid = await ApiService.getUserId();
+        userIdStr = uid?.toString();
+      }
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
 
@@ -346,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () {
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => _resolveScreen(loteria["nombre"])),
+            MaterialPageRoute(builder: (_) => _resolveScreen(loteria)),
           );
         },
         child: Padding(
@@ -441,7 +438,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (_) => _resolveScreen(rawNombre)),
+                    MaterialPageRoute(builder: (_) => _resolveScreen(loteria)),
                   );
                 },
                 title: Text(
@@ -1225,15 +1222,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-  Widget _resolveScreen(String? tipo) {
-    final t = (tipo ?? "").toLowerCase().trim();
-    if (t.contains("baloto")) return const BalotoScreen();
-    if (t.contains("miloto")) return const MilotoScreen();
-    if (t.contains("powerball")) return const PowerballScreen();
-    if (t.contains("lotto america")) return const LottoAmericaScreen();
-    if (t.contains("double play")) return const DoublePlayScreen();
-    if (t.contains("millionaire")) return const MillionaireLifeScreen();
-    if (t.contains("mega millions") || t.contains("megamillions")) return const MegaMillionsScreen();
-    return ColorLotoScreen();
+  Widget _resolveScreen(dynamic loteria) {
+    if (loteria is Map<String, dynamic>) {
+      return LoteriaScreen(
+        loteriaNombre: loteria["nombre"] ?? "Baloto",
+        loteriaRoute: loteria["route"]?.toString(),
+        loteriaData: loteria,
+      );
+    }
+    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Baloto");
   }
 }

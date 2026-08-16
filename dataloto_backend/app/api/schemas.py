@@ -77,6 +77,12 @@ class LoteriaOut(BaseModel):
     tipo: Optional[str] = None
     pais_id: int
     proximo_sorteo: Optional[str] = None
+    route: Optional[str] = None
+    max_seleccion: Optional[int] = 5
+    max_balotas_blancas: Optional[int] = 45
+    max_balotas_rojas: Optional[int] = 0
+    superbalota_nombre: Optional[str] = None
+    has_revancha: Optional[bool] = False
 
 class PublicidadQuery:
     def __init__(

@@ -1,11 +1,4 @@
-import 'package:dataloto/screens/baloto.dart';
-import 'package:dataloto/screens/color_loto.dart';
-import 'package:dataloto/screens/miloto.dart';
-import 'package:dataloto/screens/powerball.dart';
-import 'package:dataloto/screens/lotto_america.dart';
-import 'package:dataloto/screens/double_play.dart';
-import 'package:dataloto/screens/millionaire_life.dart';
-import 'package:dataloto/screens/megamillions.dart';
+import 'package:dataloto/screens/loteria_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/services/api_service.dart';
@@ -264,7 +257,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resolveScreen(nombre))),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resolveScreen(loteria))),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
@@ -352,15 +345,14 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     );
   }
 
-  Widget _resolveScreen(String? tipo) {
-    final t = (tipo ?? "").toLowerCase().trim();
-    if (t.contains("baloto")) return const BalotoScreen();
-    if (t.contains("miloto")) return const MilotoScreen();
-    if (t.contains("powerball")) return const PowerballScreen();
-    if (t.contains("lotto america")) return const LottoAmericaScreen();
-    if (t.contains("double play")) return const DoublePlayScreen();
-    if (t.contains("millionaire")) return const MillionaireLifeScreen();
-    if (t.contains("mega millions") || t.contains("megamillions")) return const MegaMillionsScreen();
-    return ColorLotoScreen();
+  Widget _resolveScreen(dynamic loteria) {
+    if (loteria is Map<String, dynamic>) {
+      return LoteriaScreen(
+        loteriaNombre: loteria["nombre"] ?? "Baloto",
+        loteriaRoute: loteria["route"]?.toString(),
+        loteriaData: loteria,
+      );
+    }
+    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Baloto");
   }
 }

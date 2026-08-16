@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,29 +8,28 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:dataloto/services/api_service.dart';
-import '../services/cache_service.dart';
+import '../../services/cache_service.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
-class LoteriasMisJugadasGenericaScreen extends StatefulWidget {
+class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
   final String loteriaRoute;
 
-  const LoteriasMisJugadasGenericaScreen({
+  const MisJugadasScreen({
     super.key,
     required this.loteriaNombre,
     required this.loteriaRoute,
   });
 
   @override
-  State<LoteriasMisJugadasGenericaScreen> createState() => _LoteriasMisJugadasGenericaScreenState();
+  State<MisJugadasScreen> createState() => _MisJugadasScreenState();
 }
 
-class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGenericaScreen> {
-  final _storage = const FlutterSecureStorage();
+class _MisJugadasScreenState extends State<MisJugadasScreen> {
   List<Map<String, dynamic>> _jugadasList = [];
   Set<int> _selectedIds = {};
   bool _cargando = true;
@@ -42,19 +41,25 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
     _cargarJugadas();
   }
 
-  Future<void> _cargarJugadas() async {
-    final uId = await _storage.read(key: 'user_id');
-    final cached = await CacheService.getJson('user_jugadas_${widget.loteriaRoute}_${uId ?? "anon"}');
-    if (cached != null && mounted) {
-      setState(() {
-        _userId = uId;
-        _jugadasList = List<Map<String, dynamic>>.from(cached);
-        _cargando = false;
-      });
+  Future<void> _cargarJugadas({bool force = false}) async {
+    final uId = await ApiService.getUserId();
+    final uIdStr = uId?.toString();
+    final cacheKeyUser = 'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
+    final cacheKeyGeneral = 'mis_jugadas_${widget.loteriaRoute}';
+
+    if (!force) {
+      final cached = await CacheService.getJson(cacheKeyUser) ?? await CacheService.getJson(cacheKeyGeneral);
+      if (cached != null && mounted) {
+        setState(() {
+          _userId = uIdStr;
+          _jugadasList = List<Map<String, dynamic>>.from(cached);
+          _cargando = false;
+        });
+      }
     }
 
     if (!mounted) return;
-    if (_jugadasList.isEmpty) setState(() => _cargando = true);
+    if (_jugadasList.isEmpty || force) setState(() => _cargando = true);
 
     try {
       final response = await ApiService.listarJugadasGenerica(widget.loteriaRoute);
@@ -62,12 +67,13 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
       if (mounted) {
         setState(() {
-          _userId = uId;
+          _userId = uIdStr;
           _jugadasList = data;
           _selectedIds.clear();
           _cargando = false;
         });
-        CacheService.setJson('user_jugadas_${widget.loteriaRoute}_${uId ?? "anon"}', data);
+        await CacheService.setJson(cacheKeyUser, data);
+        await CacheService.setJson(cacheKeyGeneral, data);
       }
     } catch (e) {
       if (mounted) {
@@ -130,9 +136,22 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
     if (confirm != true || _userId == null) return;
 
-    setState(() => _cargando = true);
+    final deletedIds = _selectedIds.toSet();
 
-    for (final id in _selectedIds.toList()) {
+    // 1. Eliminación optimista inmediata en UI
+    setState(() {
+      _jugadasList.removeWhere((j) => deletedIds.contains(j["id"]));
+      _selectedIds.clear();
+      _cargando = true;
+    });
+
+    // 2. Sincronizar cache de inmediato con la lista restante
+    final uIdStr = _userId ?? "anon";
+    await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', _jugadasList);
+    await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', _jugadasList);
+
+    // 3. Ejecutar eliminación en el backend
+    for (final id in deletedIds) {
       try {
         await ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!);
       } catch (e) {
@@ -140,7 +159,18 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
       }
     }
 
-    await _cargarJugadas();
+    // 4. Confirmar estado desde el servidor
+    await _cargarJugadas(force: true);
+  }
+
+  bool get _usaSuperbalota {
+    final r = widget.loteriaRoute.toLowerCase();
+    return r == "bloto" ||
+        r == "powerball" ||
+        r == "megamillions" ||
+        r == "lotto_america" ||
+        r == "double_play" ||
+        r == "millionaire_life";
   }
 
   void _compartirWhatsApp() async {
@@ -161,19 +191,19 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
-      final nums = (play["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
+      final nums = (play["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
       final bRoja = play["balota_roja"] ?? play["balotaroja"];
-      final int? redVal = nums.length >= 6
-          ? nums[5]
-          : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
+      final int? redVal = _usaSuperbalota
+          ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null))
+          : null;
 
-      final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+      final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
       final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
       if (redVal != null) {
         final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
         buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
       } else {
-        buffer.writeln("📌 *$jugadaLabel*: ${nums.join(', ')}");
+        buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')}");
       }
     }
 
@@ -252,15 +282,15 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
-                    final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
-                    final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+                    final nums = (item["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
                     final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                    final red = nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
+                    final red = _usaSuperbalota ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null)) : null;
+                    final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
                     final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
                         ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
-                        : nums.join(' - ');
+                        : whites.join(' - ');
 
                     return [
                       "$index",
@@ -301,56 +331,67 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
     );
   }
 
-  Widget _buildCircularActionButton({
-    required IconData icon,
-    required String label,
+  Widget _buildActionButton({
+    required dynamic icon,
     required Color color,
     required VoidCallback? onPressed,
     bool isEnabled = true,
   }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        InkWell(
-          onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(30),
-          child: Container(
-            width: 55,
-            height: 55,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isEnabled ? Colors.black : Colors.black.withOpacity(0.5),
-              border: Border.all(
-                color: isEnabled ? color.withOpacity(0.5) : Colors.white10,
-                width: 1.5,
+    return InkWell(
+      onTap: isEnabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(30),
+      child: Container(
+        width: 54,
+        height: 54,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: isEnabled 
+                ? [color.withOpacity(0.3), Colors.black] 
+                : [Colors.white10, Colors.black],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            if (isEnabled) ...[
+              BoxShadow(
+                color: color.withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(-2, -2),
+                spreadRadius: 1,
               ),
-              boxShadow: [
-                if (isEnabled)
-                  BoxShadow(
-                    color: color.withOpacity(0.2),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                  ),
-              ],
-            ),
-            child: Icon(
-              icon,
-              color: isEnabled ? color : Colors.white24,
-              size: 26,
-            ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.8),
+                blurRadius: 10,
+                offset: const Offset(4, 4),
+                spreadRadius: 1,
+              ),
+            ] else 
+              BoxShadow(
+                color: Colors.black.withOpacity(0.5),
+                blurRadius: 5,
+                offset: const Offset(2, 2),
+              ),
+          ],
+          border: Border.all(
+            color: isEnabled ? color.withOpacity(0.4) : Colors.white10,
+            width: 1.5,
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          label,
-          style: AppTextStyles.caption.copyWith(
-            fontSize: 10,
-            color: isEnabled ? Colors.white70 : Colors.white24,
-            fontWeight: FontWeight.w500,
-          ),
-          textAlign: TextAlign.center,
+        child: Center(
+          child: icon is IconData
+              ? Icon(
+                  icon,
+                  color: isEnabled ? color : Colors.white24,
+                  size: 22,
+                )
+              : FaIcon(
+                  icon,
+                  color: isEnabled ? color : Colors.white24,
+                  size: 22,
+                ),
         ),
-      ],
+      ),
     );
   }
 
@@ -426,7 +467,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
       backgroundColor: AppColors.blackfondo,
       body: RefreshIndicator(
         color: AppColors.yellow,
-        onRefresh: _cargarJugadas,
+        onRefresh: () => _cargarJugadas(force: true),
         child: CustomScrollView(
         slivers: [
           CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
@@ -437,40 +478,32 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   AppContainer3(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _buildCircularActionButton(
-                            icon: hasSelection ? Icons.deselect : Icons.select_all,
-                            label: hasSelection
-                                ? (l10n?.desmarcarTodo ?? "Desmarcar")
-                                : (l10n?.seleccionarTodo ?? "Seleccionar"),
-                            color: AppColors.yellow,
-                            onPressed: _toggleSelectAll,
-                          ),
-                          _buildCircularActionButton(
-                            icon: Icons.share,
-                            label: l10n?.whatsapp ?? "WhatsApp",
-                            color: const Color(0xFF25D366),
-                            onPressed: _compartirWhatsApp,
-                          ),
-                          _buildCircularActionButton(
-                            icon: Icons.picture_as_pdf,
-                            label: l10n?.imprimirPDF ?? "PDF",
-                            color: Colors.purpleAccent,
-                            onPressed: _imprimirPDF,
-                          ),
-                          _buildCircularActionButton(
-                            icon: Icons.delete_outline,
-                            label: l10n?.eliminar ?? "Eliminar",
-                            color: Colors.redAccent,
-                            onPressed: hasSelection ? _eliminarSeleccionadas : null,
-                            isEnabled: hasSelection,
-                          ),
-                        ],
-                      ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildActionButton(
+                          icon: hasSelection ? Icons.deselect : Icons.check_circle_outline,
+                          color: AppColors.yellow,
+                          onPressed: _toggleSelectAll,
+                        ),
+                        _buildActionButton(
+                          icon: FontAwesomeIcons.whatsapp,
+                          color: const Color(0xFF25D366),
+                          onPressed: _compartirWhatsApp,
+                          isEnabled: hasSelection,
+                        ),
+                        _buildActionButton(
+                          icon: Icons.picture_as_pdf,
+                          color: Colors.purpleAccent,
+                          onPressed: _imprimirPDF,
+                        ),
+                        _buildActionButton(
+                          icon: Icons.delete_outline,
+                          color: Colors.redAccent,
+                          onPressed: hasSelection ? _eliminarSeleccionadas : null,
+                          isEnabled: hasSelection,
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -529,10 +562,11 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                 final id = item["id"] as int? ?? 0;
                                 final isSelected = _selectedIds.contains(id);
                                 final fechaStr = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-                                final nums = (item["numeros"] as List<dynamic>?)?.cast<int>() ?? [];
-                                final whites = nums.length >= 5 ? nums.sublist(0, 5) : nums;
+                                final rawNums = (item["numeros"] as List<dynamic>? ?? []);
+                                final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList();
                                 final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                                final red = nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null);
+                                final red = _usaSuperbalota ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null)) : null;
+                                final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
 
                                 final Color color = [
                                   Colors.blueAccent,
@@ -598,7 +632,7 @@ class _LoteriasMisJugadasGenericaScreenState extends State<LoteriasMisJugadasGen
                                           },
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
+                                      const SizedBox(width: 6), 
 
                                       // 2. Solo el Número (Sin la palabra "Nro.")
                                       Text(

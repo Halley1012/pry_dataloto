@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/models/post.dart';
 import 'package:dataloto/models/comment.dart';
 import 'package:dataloto/services/cache_service.dart';
+import 'package:dataloto/services/push_notification_service.dart';
 
 class ApiService {
   static const String baseUrl = "https://pry-dataloto.onrender.com";
@@ -83,6 +84,9 @@ class ApiService {
               value: departamentoNombre,
             );
           }
+
+          // 🔥 Sincronizar token FCM con el usuario autenticado
+          PushNotificationService.syncToken();
 
           return {
             'success': true,
@@ -169,6 +173,9 @@ class ApiService {
             );
           }
 
+          // 🔥 Sincronizar token FCM con el usuario autenticado
+          PushNotificationService.syncToken();
+
           return {
             'success': true,
             'access_token': accessToken,
@@ -226,11 +233,22 @@ class ApiService {
           if (newRefreshToken != null) {
             await _storage.write(key: "refresh_token", value: newRefreshToken);
           }
+
+          // Extraer y persistir user_id
+          try {
+            final parts = (newAccessToken as String).split('.');
+            if (parts.length == 3) {
+              final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+              final pData = jsonDecode(payload);
+              final sub = pData['sub'];
+              if (sub != null) {
+                await _storage.write(key: "user_id", value: sub.toString());
+              }
+            }
+          } catch (_) {}
+
           return true;
         }
-        return false;
-      } else if (response.statusCode == 401 || response.statusCode == 403 || response.statusCode == 422) {
-        await logout();
         return false;
       } else {
         return false;
@@ -355,10 +373,34 @@ class ApiService {
     }
   }
 
-  /// 🔑 Obtener userId guardado
+  /// 🔑 Obtener userId guardado (con fallback robusto a JWT)
   static Future<int?> getUserId() async {
-    final userIdStr = await _storage.read(key: "user_id");
-    return userIdStr != null ? int.tryParse(userIdStr) : null;
+    try {
+      final userIdStr = await _storage.read(key: "user_id");
+      if (userIdStr != null && userIdStr.isNotEmpty && userIdStr != "null") {
+        final parsed = int.tryParse(userIdStr);
+        if (parsed != null && parsed > 0) return parsed;
+      }
+
+      // Fallback: Decodificar el token de autenticación
+      final token = await getToken();
+      if (token != null && token.isNotEmpty) {
+        final parts = token.split('.');
+        if (parts.length == 3) {
+          final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+          final data = jsonDecode(payload);
+          final sub = data['sub'] ?? data['user_id'] ?? data['id'];
+          if (sub != null) {
+            final parsed = int.tryParse(sub.toString());
+            if (parsed != null && parsed > 0) {
+              await _storage.write(key: "user_id", value: parsed.toString());
+              return parsed;
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   /// 📅 Calcular o normalizar la fecha del próximo sorteo para guardar jugadas
@@ -453,11 +495,10 @@ class ApiService {
     int retries = 3,
     int delayMs = 500,
   }) async {
-    final storage = const FlutterSecureStorage();
-    final userId = await storage.read(key: 'user_id');
+    final userId = await getUserId();
 
     if (userId == null) {
-      throw Exception("No se encontró user_id en el dispositivo");
+      return [];
     }
 
     final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
@@ -555,11 +596,10 @@ class ApiService {
     int retries = 3,
     int delayMs = 500,
   }) async {
-    final storage = const FlutterSecureStorage();
-    final userId = await storage.read(key: 'user_id');
+    final userId = await getUserId();
 
     if (userId == null) {
-      throw Exception("No se encontró user_id en el dispositivo");
+      return [];
     }
 
     final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
@@ -624,8 +664,17 @@ class ApiService {
       throw Exception("El userId enviado está vacío");
     }
 
+    String route = loteriaName.trim().toLowerCase();
+    if (route == "colorloto") {
+      route = "cloto";
+    }
+
+    final List<int> numerosParaGuardar = (balotaRoja != null && numeros.length == 5)
+        ? [...numeros, balotaRoja]
+        : numeros;
+
     final Map<String, dynamic> payload = {
-      "numeros": numeros,
+      "numeros": numerosParaGuardar,
       "user_id": userId,
     };
     if (balotaRoja != null) {
@@ -638,53 +687,80 @@ class ApiService {
     }
 
     final response = await http.post(
-      Uri.parse("$baseUrl/jugadas_$loteriaName"),
+      Uri.parse("$baseUrl/jugadas_$route"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode(payload),
-    );
+    ).timeout(const Duration(seconds: 15));
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      CacheService.registrarJugadaOptimista(loteriaName);
+      CacheService.registrarJugadaOptimista(route);
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
       }
       return {"status": "ok"};
     }
-    throw Exception("Error al crear jugada $loteriaName: ${response.statusCode}");
+    throw Exception("Error al crear jugada $route: ${response.statusCode}");
   }
 
-  static Future<List<dynamic>> listarJugadasGenerica(String loteriaName, {String? fecha}) async {
-    final storage = const FlutterSecureStorage();
-    final userId = await storage.read(key: 'user_id');
+  static Future<List<dynamic>> listarJugadasGenerica(
+    String loteriaName, {
+    String? fecha,
+    int retries = 3,
+    int delayMs = 500,
+  }) async {
+    final userId = await getUserId();
 
     if (userId == null) return [];
 
+    // Mapeo especial para ColorLoto
+    String route = loteriaName.trim().toLowerCase();
+    if (route == "colorloto") {
+      route = "cloto";
+    }
+
     final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
-    try {
-      final response = await http.get(
-        Uri.parse(
-          "$baseUrl/jugadas_$loteriaName?$queryParams",
-        ),
-        headers: {"Content-Type": "application/json"},
-      );
+    for (int attempt = 1; attempt <= retries; attempt++) {
+      try {
+        final response = await http.get(
+          Uri.parse("$baseUrl/jugadas_$route?$queryParams"),
+          headers: {"Content-Type": "application/json"},
+        ).timeout(const Duration(seconds: 12));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data is List) return data;
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data is List) return data;
+        } else {
+          debugPrint("⚠️ HTTP ${response.statusCode} al listar jugadas ($route): ${response.body}");
+        }
+      } catch (e) {
+        if (attempt == retries) {
+          debugPrint("❌ Error final al listar jugadas ($route): $e");
+        } else {
+          await Future.delayed(Duration(milliseconds: delayMs));
+        }
       }
-    } catch (_) {}
+    }
     return [];
   }
 
   /// 🗑️ Borrar jugada genérica
   static Future<bool> borrarJugadaGenerica(String loteriaName, int jugadaId, String userId) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/jugadas_$loteriaName/$jugadaId?user_id=$userId"),
-      headers: {"Content-Type": "application/json"},
-    );
-    return response.statusCode == 200;
+    String route = loteriaName.trim().toLowerCase();
+    if (route == "colorloto") {
+      route = "cloto";
+    }
+    try {
+      final response = await http.delete(
+        Uri.parse("$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"),
+        headers: {"Content-Type": "application/json"},
+      ).timeout(const Duration(seconds: 10));
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint("⚠️ Error al borrar jugada ($route/$jugadaId): $e");
+      return false;
+    }
   }
 
   /// 🔍 Obtener lista de loterías donde el usuario tiene jugadas
@@ -1240,21 +1316,87 @@ class ApiService {
 
 /////////////////////////// Loterias ////////////////////////////
 
-  /// 📋 Listar loterías disponibles
-static Future<List<dynamic>> getLoteriasPorPais(String paisId) async {
-  final response = await http.get(
-    Uri.parse("$baseUrl/loterias?pais_id=$paisId"),
-    headers: await _getHeaders(withAuth: false),
-  );
+  /// 📋 Listar loterías disponibles (por país o todas)
+  static Future<List<dynamic>> getLoteriasPorPais([String? paisId]) async {
+    final uri = (paisId != null && paisId.isNotEmpty)
+        ? Uri.parse("$baseUrl/loterias?pais_id=$paisId")
+        : Uri.parse("$baseUrl/loterias");
 
-  if (response.statusCode == 200) {
-    final data = jsonDecode(response.body);
-    if (data is List) return data;
-    throw Exception("Formato inválido de loterías");
-  } else {
-    throw Exception(
-      "Error al obtener loterías: ${response.statusCode}",
+    final response = await http.get(
+      uri,
+      headers: await _getHeaders(withAuth: false),
     );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data is List) return data;
+      throw Exception("Formato inválido de loterías");
+    } else {
+      throw Exception(
+        "Error al obtener loterías: ${response.statusCode}",
+      );
+    }
   }
-}
+
+  /// 🌐 Obtener todas las loterías de una sola petición
+  static Future<List<dynamic>> getAllLoterias() async {
+    return getLoteriasPorPais(null);
+  }
+
+  /// 🔮 Obtener predicción de IA, números probables y jackpot de una lotería
+  static Future<Map<String, dynamic>> getPrediccionLoteria(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      throw Exception("Formato inválido en predicción de $cleanRoute");
+    } else {
+      throw Exception("Error al obtener predicción ($cleanRoute): ${response.statusCode}");
+    }
+  }
+
+  /// 📊 Obtener últimos sorteos de una lotería
+  static Future<List<Map<String, dynamic>>> getUltimosResultados(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
+        return List<Map<String, dynamic>>.from(decoded["resultados"]);
+      }
+      return <Map<String, dynamic>>[];
+    } else {
+      throw Exception("Error al obtener últimos resultados ($cleanRoute): ${response.statusCode}");
+    }
+  }
+
+  /// 📜 Obtener histórico completo de resultados de una lotería
+  static Future<List<Map<String, dynamic>>> getHistoricoCompleto(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
+        return List<Map<String, dynamic>>.from(decoded["resultados"]);
+      }
+      return <Map<String, dynamic>>[];
+    } else {
+      throw Exception("Error al obtener histórico ($cleanRoute): ${response.statusCode}");
+    }
+  }
 }
