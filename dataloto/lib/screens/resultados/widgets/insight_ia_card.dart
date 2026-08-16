@@ -37,15 +37,7 @@ class InsightIaCard extends StatelessWidget {
   }) : super(key: key);
 
   int _getTopLimit() {
-    final lower = selectedLoteria.toLowerCase();
-    if (lower.contains("powerball")) return 34;
-    if (lower.contains("megamillions") || lower.contains("mega millions")) return 35;
-    if (lower.contains("double play") || lower.contains("double_play")) return 34;
-    if (lower.contains("lotto america") || lower.contains("lotto_america")) return 26;
-    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return 29;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto")) return 10;
-    return 21; // Default/Baloto
+    return probablesCount > 0 ? probablesCount : 20;
   }
 
   Widget _build3DBall(int? numero, {Color baseColor = const Color(0xFFF33A21), double size = 45}) {

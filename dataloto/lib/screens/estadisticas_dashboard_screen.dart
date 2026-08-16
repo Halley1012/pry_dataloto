@@ -1,6 +1,4 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
@@ -9,14 +7,19 @@ import 'package:dataloto/widgets/fullscreen_chart_viewer.dart';
 import 'package:dataloto/screens/estadisticas/widgets/metric_stat.dart';
 import 'package:dataloto/screens/estadisticas/widgets/ball_badge.dart';
 import 'package:dataloto/services/cache_service.dart';
+import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class EstadisticasDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
+  final String? loteriaRoute;
+  final Map<String, dynamic>? loteriaData;
 
   const EstadisticasDashboardScreen({
     super.key,
     required this.loteriaNombreInicial,
+    this.loteriaRoute,
+    this.loteriaData,
   });
 
   @override
@@ -47,28 +50,29 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   @override
   void initState() {
     super.initState();
-    routeName = _getRouteForLoteria(widget.loteriaNombreInicial);
-    maxBalota = _getKnownMaxBalota(widget.loteriaNombreInicial) ?? 50;
-    maxRoja = _getKnownMaxRoja(widget.loteriaNombreInicial) ?? 0;
-    maxSeleccion = _getKnownMaxSeleccion(widget.loteriaNombreInicial) ?? 5;
-    hasRevancha = _getHasRevancha(widget.loteriaNombreInicial);
-    nombreSorteoPrincipal = _getNombreSorteoPrincipal(widget.loteriaNombreInicial);
-    nombreSorteoSecundario = _getNombreSorteoSecundario(widget.loteriaNombreInicial);
+    routeName = widget.loteriaRoute ?? (widget.loteriaData?['route']?.toString()) ?? _getRouteForLoteria(widget.loteriaNombreInicial);
+    maxBalota = int.tryParse(widget.loteriaData?['max_balotas_blancas']?.toString() ?? '') ?? 45;
+    maxRoja = int.tryParse(widget.loteriaData?['max_balotas_rojas']?.toString() ?? '') ?? 0;
+    maxSeleccion = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? 5;
+    hasRevancha = widget.loteriaData?['has_revancha'] == true;
+    nombreSorteoPrincipal = widget.loteriaNombreInicial;
+    nombreSorteoSecundario = "Secundario";
     _cargarDatos();
   }
 
   String _getRouteForLoteria(String name) {
+    if (widget.loteriaRoute != null && widget.loteriaRoute!.isNotEmpty) {
+      return widget.loteriaRoute!.trim().toLowerCase();
+    }
+    if (widget.loteriaData != null && widget.loteriaData!['route'] != null) {
+      return widget.loteriaData!['route'].toString().trim().toLowerCase();
+    }
+
     String clean = name.trim().toLowerCase();
-    if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
-    if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
-    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return "colorloto";
-    if (clean.contains("powerball")) return "powerball";
-    if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return "lotto_america";
-    if (clean.contains("double play") || clean.contains("double_play")) return "double_play";
-    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return "millionaire_life";
-    
-    // Normalización dinámica
+    if (clean.contains("baloto") || clean == "bloto") return "bloto";
+    if (clean.contains("miloto") || clean == "mloto") return "mloto";
+    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return "cloto";
+
     clean = clean
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
@@ -83,66 +87,19 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
         .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
-  int? _getKnownMaxSeleccion(String name) {
-    final clean = name.trim().toLowerCase();
-    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return 6;
-    if (clean.contains("primitiva") || clean.contains("bonoloto")) return 6;
-    if (clean.contains("powerball") || clean.contains("mega") || clean.contains("baloto") || clean.contains("miloto") || clean.contains("lotto america") || clean.contains("millionaire")) return 5;
-    return null;
-  }
-
-  int? _getKnownMaxBalota(String name) {
-    final clean = name.trim().toLowerCase();
-    if (clean.contains("powerball")) return 69;
-    if (clean.contains("mega millions") || clean.contains("megamillions")) return 70;
-    if (clean.contains("double play") || clean.contains("double_play")) return 69;
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 52;
-    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 60;
-    if (clean.contains("miloto") || clean.contains("mloto")) return 39;
-    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return 25;
-    if (clean.contains("baloto") || clean.contains("revancha") || clean == "bloto") return 43;
-    if (clean.contains("euromillions")) return 50;
-    if (clean.contains("primitiva") || clean.contains("bonoloto")) return 49;
-    return null; // Lotería nueva / futura -> Se infiere de la data
-  }
-
-  int? _getKnownMaxRoja(String name) {
-    final clean = name.trim().toLowerCase();
-    if (clean.contains("powerball")) return 26;
-    if (clean.contains("mega millions") || clean.contains("megamillions")) return 25;
-    if (clean.contains("double play") || clean.contains("double_play")) return 26;
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 10;
-    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 4;
-    if (clean.contains("baloto") || clean.contains("revancha")) return 16;
-    if (clean.contains("euromillions")) return 12;
-    if (clean.contains("miloto") || clean.contains("colorloto")) return 0;
-    return null; // Se infiere de la data
-  }
-
-  bool _getHasRevancha(String name) {
-    final clean = name.trim().toLowerCase();
-    return clean.contains("baloto") || clean.contains("revancha") || clean.contains("double play") || clean.contains("double_play");
-  }
-
-  String _getNombreSorteoPrincipal(String name) {
-    if (name.toLowerCase().contains("double play") || name.toLowerCase().contains("double_play")) return "Powerball";
-    return "Baloto";
-  }
-
-  String _getNombreSorteoSecundario(String name) {
-    if (name.toLowerCase().contains("double play") || name.toLowerCase().contains("double_play")) return "Double Play";
-    return "Revancha";
-  }
-
   void _autoCalibrarParametros() {
-    // 1. Configuración conocida base
-    final knownMaxBalota = _getKnownMaxBalota(widget.loteriaNombreInicial);
-    final knownMaxRoja = _getKnownMaxRoja(widget.loteriaNombreInicial);
-    final knownMaxSeleccion = _getKnownMaxSeleccion(widget.loteriaNombreInicial);
-
-    if (knownMaxBalota != null) maxBalota = knownMaxBalota;
-    if (knownMaxRoja != null) maxRoja = knownMaxRoja;
-    if (knownMaxSeleccion != null) maxSeleccion = knownMaxSeleccion;
+    // 1. Extraer del Modelo IA y de la configuración base
+    if (widget.loteriaData != null) {
+      if (widget.loteriaData!['max_balotas_blancas'] != null) {
+        maxBalota = int.tryParse(widget.loteriaData!['max_balotas_blancas'].toString()) ?? maxBalota;
+      }
+      if (widget.loteriaData!['max_balotas_rojas'] != null) {
+        maxRoja = int.tryParse(widget.loteriaData!['max_balotas_rojas'].toString()) ?? maxRoja;
+      }
+      if (widget.loteriaData!['max_seleccion'] != null) {
+        maxSeleccion = int.tryParse(widget.loteriaData!['max_seleccion'].toString()) ?? maxSeleccion;
+      }
+    }
 
     // 2. Extraer del Modelo IA (el predictor evalúa el universo completo de balotas del juego)
     if (prediccionIA != null) {
@@ -177,7 +134,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     if (todosResultados.isEmpty) return;
 
     // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos
-    if (knownMaxSeleccion == null) {
+    if (widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) {
       final Map<int, int> lenCounts = {};
       for (var r in todosResultados) {
         final nums = r["numeros"];
@@ -227,34 +184,23 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     }
 
     try {
-      final resHist = await http.get(
-        Uri.parse("https://pry-dataloto.onrender.com/$routeName/historico_completo"),
-      );
-      final resPred = await http.get(
-        Uri.parse("https://pry-dataloto.onrender.com/$routeName"),
-      );
-
-      if (resHist.statusCode == 200) {
-        final data = jsonDecode(resHist.body);
-        if (data["resultados"] != null && mounted) {
-          setState(() {
-            todosResultados = List<Map<String, dynamic>>.from(data["resultados"]);
-            _autoCalibrarParametros();
-          });
-          CacheService.setJson('${routeName}_historico_completo', data);
-        }
+      final listResultados = await ApiService.getHistoricoCompleto(routeName);
+      if (listResultados.isNotEmpty && mounted) {
+        setState(() {
+          todosResultados = listResultados;
+          _autoCalibrarParametros();
+        });
+        CacheService.setJson('${routeName}_historico_completo', {"resultados": listResultados});
       }
 
-      if (resPred.statusCode == 200) {
-        final dataP = jsonDecode(resPred.body);
-        if (mounted) {
-          setState(() {
-            prediccionIA = dataP;
-            _autoCalibrarParametros();
-          });
-        }
-        CacheService.setJson('${routeName}_prediccion', dataP);
+      final dataP = await ApiService.getPrediccionLoteria(routeName);
+      if (mounted) {
+        setState(() {
+          prediccionIA = dataP;
+          _autoCalibrarParametros();
+        });
       }
+      CacheService.setJson('${routeName}_prediccion', dataP);
     } catch (e) {
       debugPrint("Error cargando estadísticas para $routeName: $e");
       if (todosResultados.isEmpty) {

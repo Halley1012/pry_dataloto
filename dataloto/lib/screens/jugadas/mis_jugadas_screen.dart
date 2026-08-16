@@ -164,13 +164,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   }
 
   bool get _usaSuperbalota {
-    final r = widget.loteriaRoute.toLowerCase();
-    return r == "bloto" ||
-        r == "powerball" ||
-        r == "megamillions" ||
-        r == "lotto_america" ||
-        r == "double_play" ||
-        r == "millionaire_life";
+    for (var j in _jugadasList) {
+      if (j['balota_roja'] != null || j['superbalota'] != null) return true;
+      final nums = j['numeros'];
+      if (nums is List && nums.length > 5) return true;
+    }
+    return false;
   }
 
   void _compartirWhatsApp() async {

@@ -317,14 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
       } else if (pId == "21") {
         rawPais = "Estados Unidos";
       } else {
-        final nombre = (loteria["nombre"] ?? "").toString().toLowerCase();
-        if (nombre.contains("powerball") || nombre.contains("mega millions") || nombre.contains("double play") || nombre.contains("lotto america") || nombre.contains("millionaire")) {
-          rawPais = "Estados Unidos";
-        } else if (nombre.contains("baloto") || nombre.contains("miloto") || nombre.contains("colorloto") || nombre.contains("boyacá") || nombre.contains("bogotá") || nombre.contains("cundinamarca") || nombre.contains("cauca") || nombre.contains("nariño")) {
-          rawPais = "Colombia";
-        } else {
-          rawPais = pais ?? "Internacional";
-        }
+        rawPais = pais ?? "Internacional";
       }
     }
     final langCode = Localizations.localeOf(context).languageCode;
@@ -1225,11 +1218,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _resolveScreen(dynamic loteria) {
     if (loteria is Map<String, dynamic>) {
       return LoteriaScreen(
-        loteriaNombre: loteria["nombre"] ?? "Baloto",
+        loteriaNombre: loteria["nombre"]?.toString() ?? "Lotería",
         loteriaRoute: loteria["route"]?.toString(),
         loteriaData: loteria,
       );
     }
-    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Baloto");
+    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Lotería");
   }
 }
