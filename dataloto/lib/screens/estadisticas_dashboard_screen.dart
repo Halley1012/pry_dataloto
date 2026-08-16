@@ -39,6 +39,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   late final String routeName;
   late int maxBalota;
   late int maxRoja;
+  late int maxSeleccion;
   late bool hasRevancha;
   late String nombreSorteoPrincipal;
   late String nombreSorteoSecundario;
@@ -47,8 +48,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   void initState() {
     super.initState();
     routeName = _getRouteForLoteria(widget.loteriaNombreInicial);
-    maxBalota = _getMaxBalota(widget.loteriaNombreInicial);
-    maxRoja = _getMaxRoja(widget.loteriaNombreInicial);
+    maxBalota = _getKnownMaxBalota(widget.loteriaNombreInicial) ?? 50;
+    maxRoja = _getKnownMaxRoja(widget.loteriaNombreInicial) ?? 0;
+    maxSeleccion = _getKnownMaxSeleccion(widget.loteriaNombreInicial) ?? 5;
     hasRevancha = _getHasRevancha(widget.loteriaNombreInicial);
     nombreSorteoPrincipal = _getNombreSorteoPrincipal(widget.loteriaNombreInicial);
     nombreSorteoSecundario = _getNombreSorteoSecundario(widget.loteriaNombreInicial);
@@ -59,7 +61,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     String clean = name.trim().toLowerCase();
     if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
     if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
-    if (clean.contains("colorloto")) return "colorloto";
+    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return "colorloto";
     if (clean.contains("powerball")) return "powerball";
     if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
     if (clean.contains("lotto america") || clean.contains("lotto_america")) return "lotto_america";
@@ -81,25 +83,40 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
         .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
-  int _getMaxBalota(String name) {
+  int? _getKnownMaxSeleccion(String name) {
+    final clean = name.trim().toLowerCase();
+    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return 6;
+    if (clean.contains("primitiva") || clean.contains("bonoloto")) return 6;
+    if (clean.contains("powerball") || clean.contains("mega") || clean.contains("baloto") || clean.contains("miloto") || clean.contains("lotto america") || clean.contains("millionaire")) return 5;
+    return null;
+  }
+
+  int? _getKnownMaxBalota(String name) {
     final clean = name.trim().toLowerCase();
     if (clean.contains("powerball")) return 69;
     if (clean.contains("mega millions") || clean.contains("megamillions")) return 70;
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 52;
     if (clean.contains("double play") || clean.contains("double_play")) return 69;
-    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 50;
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 52;
+    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 60;
     if (clean.contains("miloto") || clean.contains("mloto")) return 39;
-    if (clean.contains("colorloto")) return 21;
-    return 43; // Baloto
+    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return 25;
+    if (clean.contains("baloto") || clean.contains("revancha") || clean == "bloto") return 43;
+    if (clean.contains("euromillions")) return 50;
+    if (clean.contains("primitiva") || clean.contains("bonoloto")) return 49;
+    return null; // Lotería nueva / futura -> Se infiere de la data
   }
 
-  int _getMaxRoja(String name) {
+  int? _getKnownMaxRoja(String name) {
     final clean = name.trim().toLowerCase();
     if (clean.contains("powerball")) return 26;
     if (clean.contains("mega millions") || clean.contains("megamillions")) return 25;
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 10;
     if (clean.contains("double play") || clean.contains("double_play")) return 26;
-    return 0; // standard no red ball
+    if (clean.contains("lotto america") || clean.contains("lotto_america")) return 10;
+    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return 4;
+    if (clean.contains("baloto") || clean.contains("revancha")) return 16;
+    if (clean.contains("euromillions")) return 12;
+    if (clean.contains("miloto") || clean.contains("colorloto")) return 0;
+    return null; // Se infiere de la data
   }
 
   bool _getHasRevancha(String name) {
@@ -118,68 +135,63 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   }
 
   void _autoCalibrarParametros() {
-    // 1. Detección por modelo / predicción IA (Máxima precisión de rango)
+    // 1. Configuración conocida base
+    final knownMaxBalota = _getKnownMaxBalota(widget.loteriaNombreInicial);
+    final knownMaxRoja = _getKnownMaxRoja(widget.loteriaNombreInicial);
+    final knownMaxSeleccion = _getKnownMaxSeleccion(widget.loteriaNombreInicial);
+
+    if (knownMaxBalota != null) maxBalota = knownMaxBalota;
+    if (knownMaxRoja != null) maxRoja = knownMaxRoja;
+    if (knownMaxSeleccion != null) maxSeleccion = knownMaxSeleccion;
+
+    // 2. Extraer del Modelo IA (el predictor evalúa el universo completo de balotas del juego)
     if (prediccionIA != null) {
       final predNums = prediccionIA!["numeros"];
       if (predNums is List && predNums.isNotEmpty) {
-        int maxPred = 0;
+        int maxFromModel = 0;
         for (var n in predNums) {
-          final intVal = int.tryParse(n.toString()) ?? 0;
-          if (intVal > maxPred) maxPred = intVal;
+          final val = int.tryParse(n.toString()) ?? 0;
+          if (val > maxFromModel) maxFromModel = val;
         }
-        if (maxPred > 0) {
-          maxBalota = maxPred;
+        if (maxFromModel > 0) {
+          maxBalota = maxFromModel;
         }
       }
 
-      final predRojas = prediccionIA!["balotaroja"] ?? prediccionIA!["balota_roja"] ?? prediccionIA!["balotas_rojas"];
+      final predRojas = prediccionIA!["balotaroja"] ??
+          prediccionIA!["balota_roja"] ??
+          prediccionIA!["balotas_rojas"] ??
+          prediccionIA!["superbalota"];
       if (predRojas is List && predRojas.isNotEmpty) {
-        int maxRojaPred = 0;
+        int maxRojaFromModel = 0;
         for (var n in predRojas) {
-          final intVal = int.tryParse(n.toString()) ?? 0;
-          if (intVal > maxRojaPred) maxRojaPred = intVal;
+          final val = int.tryParse(n.toString()) ?? 0;
+          if (val > maxRojaFromModel) maxRojaFromModel = val;
         }
-        if (maxRojaPred > 0) {
-          maxRoja = maxRojaPred;
+        if (maxRojaFromModel > 0) {
+          maxRoja = maxRojaFromModel;
         }
       }
     }
 
     if (todosResultados.isEmpty) return;
 
-    // 2. Detección automática por histórico (como respaldo o si la predicción aún no carga)
-    int maxEncontrado = 0;
-    for (var r in todosResultados) {
-      final nums = r["numeros"];
-      if (nums != null && nums is List) {
-        // Tomamos los primeros 5 números para evitar contar la superbalota
-        for (var n in nums.take(5)) {
-          if (n is num && n > maxEncontrado) {
-            maxEncontrado = n.toInt();
-          }
+    // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos
+    if (knownMaxSeleccion == null) {
+      final Map<int, int> lenCounts = {};
+      for (var r in todosResultados) {
+        final nums = r["numeros"];
+        if (nums is List && nums.isNotEmpty) {
+          lenCounts[nums.length] = (lenCounts[nums.length] ?? 0) + 1;
         }
       }
-    }
-    // Solo sobreescribimos si no se ha detectado del modelo, o si el histórico reporta algo mayor
-    if (maxEncontrado > maxBalota) {
-      maxBalota = maxEncontrado;
-    }
-
-    int maxRojaEncontrado = 0;
-    for (var r in todosResultados) {
-      final nums = r["numeros"];
-      if (nums != null && nums is List && nums.length > 5) {
-        final spec = nums[5];
-        if (spec is num && spec > maxRojaEncontrado) {
-          maxRojaEncontrado = spec.toInt();
-        }
+      if (lenCounts.isNotEmpty) {
+        final mostCommonLen = lenCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+        maxSeleccion = maxRoja > 0 && mostCommonLen > 1 ? mostCommonLen - 1 : mostCommonLen;
       }
     }
-    if (maxRojaEncontrado > maxRoja) {
-      maxRoja = maxRojaEncontrado;
-    }
 
-    // 3. Detección automática de sorteos múltiples (ej: Baloto y Revancha)
+    // 4. Detección automática de sorteos múltiples (ej: Baloto y Revancha, Powerball y Double Play)
     final sorteosUnicos = todosResultados
         .map((r) => r["sorteo"]?.toString().trim())
         .where((s) => s != null && s.isNotEmpty)
@@ -631,6 +643,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: masAtrasados.map((e) {
+              final int sorteosSinSalir = e.value;
+              final String labelText = (sorteosSinSalir >= resultados.length && resultados.isNotEmpty)
+                  ? "+$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}"
+                  : "$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}";
+
               return Column(
                 children: [
                   Container(
@@ -646,7 +663,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text("${e.value} ${l10n?.sorteos ?? "sorteos"}", style: AppTextStyles.caption2),
+                  Text(labelText, style: AppTextStyles.caption2),
                 ],
               );
             }).toList(),
@@ -662,8 +679,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []);
-      final main5 = nums.take(5);
-      for (var n in main5) {
+      final mainNums = nums.take(maxSeleccion);
+      for (var n in mainNums) {
         if (n % 2 == 0) pares++;
         else impares++;
       }
@@ -761,7 +778,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []);
-      for (var n in nums.take(5)) {
+      for (var n in nums.take(maxSeleccion)) {
         if (n <= mitad) bajos++;
         else altos++;
       }
@@ -866,7 +883,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final sumas = <double>[];
     for (var r in resultados.take(30)) {
       final nums = List<int>.from(r["numeros"] ?? []);
-      final s = nums.take(5).fold(0, (acc, val) => acc + val);
+      final s = nums.take(maxSeleccion).fold(0, (acc, val) => acc + val);
       if (s > 0) sumas.add(s.toDouble());
     }
 
@@ -1017,7 +1034,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   Widget _buildCardParejasYTrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final parejas = <String, int>{};
     for (var r in resultados) {
-      final nums = List<int>.from(r["numeros"] ?? []).take(5).toList()..sort();
+      final nums = List<int>.from(r["numeros"] ?? []).take(maxSeleccion).toList()..sort();
       for (int i = 0; i < nums.length; i++) {
         for (int j = i + 1; j < nums.length; j++) {
           final pair = "${nums[i]} - ${nums[j]}";
@@ -1141,7 +1158,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []);
-      for (var n in nums.take(5)) {
+      for (var n in nums.take(maxSeleccion)) {
         if (n >= 1 && n <= maxBalota) {
           map[n] = (map[n] ?? 0) + 1;
         }
@@ -1152,14 +1169,15 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
   Map<int, int> _calcularAusencias(List<Map<String, dynamic>> resultados) {
     final ausencias = <int, int>{};
-    for (int i = 1; i <= maxBalota; i++) ausencias[i] = 999;
+    final int maxHist = resultados.isNotEmpty ? resultados.length : 1;
+    for (int i = 1; i <= maxBalota; i++) ausencias[i] = maxHist;
 
     for (int idx = 0; idx < resultados.length; idx++) {
       final r = resultados[idx];
       final nums = List<int>.from(r["numeros"] ?? []);
-      for (var n in nums.take(5)) {
+      for (var n in nums.take(maxSeleccion)) {
         if (n >= 1 && n <= maxBalota) {
-          if (ausencias[n] == 999) {
+          if (ausencias[n] == maxHist) {
             ausencias[n] = idx;
           }
         }

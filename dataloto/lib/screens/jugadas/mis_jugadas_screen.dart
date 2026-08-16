@@ -44,10 +44,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Future<void> _cargarJugadas({bool force = false}) async {
     final uId = await ApiService.getUserId();
     final uIdStr = uId?.toString();
-    final cacheKey = 'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
+    final cacheKeyUser = 'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
+    final cacheKeyGeneral = 'mis_jugadas_${widget.loteriaRoute}';
 
     if (!force) {
-      final cached = await CacheService.getJson(cacheKey);
+      final cached = await CacheService.getJson(cacheKeyUser) ?? await CacheService.getJson(cacheKeyGeneral);
       if (cached != null && mounted) {
         setState(() {
           _userId = uIdStr;
@@ -71,9 +72,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _selectedIds.clear();
           _cargando = false;
         });
-        if (data.isNotEmpty) {
-          CacheService.setJson(cacheKey, data);
-        }
+        await CacheService.setJson(cacheKeyUser, data);
+        await CacheService.setJson(cacheKeyGeneral, data);
       }
     } catch (e) {
       if (mounted) {
@@ -136,9 +136,22 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     if (confirm != true || _userId == null) return;
 
-    setState(() => _cargando = true);
+    final deletedIds = _selectedIds.toSet();
 
-    for (final id in _selectedIds.toList()) {
+    // 1. Eliminación optimista inmediata en UI
+    setState(() {
+      _jugadasList.removeWhere((j) => deletedIds.contains(j["id"]));
+      _selectedIds.clear();
+      _cargando = true;
+    });
+
+    // 2. Sincronizar cache de inmediato con la lista restante
+    final uIdStr = _userId ?? "anon";
+    await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', _jugadasList);
+    await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', _jugadasList);
+
+    // 3. Ejecutar eliminación en el backend
+    for (final id in deletedIds) {
       try {
         await ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!);
       } catch (e) {
@@ -146,7 +159,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       }
     }
 
-    await _cargarJugadas();
+    // 4. Confirmar estado desde el servidor
+    await _cargarJugadas(force: true);
   }
 
   bool get _usaSuperbalota {

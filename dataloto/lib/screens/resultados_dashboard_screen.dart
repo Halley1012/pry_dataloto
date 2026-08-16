@@ -361,12 +361,23 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
 
       if (_jackpot.isEmpty) {
-        if (_selectedLoteria.toLowerCase().contains("miloto")) {
+        final clean = _selectedLoteria.toLowerCase();
+        if (clean.contains("miloto")) {
           _jackpot = "\$220 millones";
-        } else if (_selectedLoteria.toLowerCase().contains("baloto")) {
+        } else if (clean.contains("baloto")) {
           _jackpot = "\$24.500 millones";
-        } else if (_selectedLoteria.toLowerCase().contains("colorloto")) {
+        } else if (clean.contains("colorloto") || clean.contains("color loto")) {
           _jackpot = "\$2.050 millones";
+        } else if (clean.contains("double play") || clean.contains("double_play")) {
+          _jackpot = "\$10 Million";
+        } else if (clean.contains("lotto america") || clean.contains("lotto_america")) {
+          _jackpot = "\$2 Million";
+        } else if (clean.contains("millionaire") || clean.contains("life")) {
+          _jackpot = "\$1.000 / día";
+        } else if (clean.contains("powerball")) {
+          _jackpot = "\$20 Million";
+        } else if (clean.contains("mega millions") || clean.contains("megamillions")) {
+          _jackpot = "\$20 Million";
         }
       }
 

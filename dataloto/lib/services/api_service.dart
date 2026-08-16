@@ -669,8 +669,12 @@ class ApiService {
       route = "cloto";
     }
 
+    final List<int> numerosParaGuardar = (balotaRoja != null && numeros.length == 5)
+        ? [...numeros, balotaRoja]
+        : numeros;
+
     final Map<String, dynamic> payload = {
-      "numeros": numeros,
+      "numeros": numerosParaGuardar,
       "user_id": userId,
     };
     if (balotaRoja != null) {
@@ -1337,5 +1341,62 @@ class ApiService {
   /// 🌐 Obtener todas las loterías de una sola petición
   static Future<List<dynamic>> getAllLoterias() async {
     return getLoteriasPorPais(null);
+  }
+
+  /// 🔮 Obtener predicción de IA, números probables y jackpot de una lotería
+  static Future<Map<String, dynamic>> getPrediccionLoteria(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+      throw Exception("Formato inválido en predicción de $cleanRoute");
+    } else {
+      throw Exception("Error al obtener predicción ($cleanRoute): ${response.statusCode}");
+    }
+  }
+
+  /// 📊 Obtener últimos sorteos de una lotería
+  static Future<List<Map<String, dynamic>>> getUltimosResultados(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 12));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
+        return List<Map<String, dynamic>>.from(decoded["resultados"]);
+      }
+      return <Map<String, dynamic>>[];
+    } else {
+      throw Exception("Error al obtener últimos resultados ($cleanRoute): ${response.statusCode}");
+    }
+  }
+
+  /// 📜 Obtener histórico completo de resultados de una lotería
+  static Future<List<Map<String, dynamic>>> getHistoricoCompleto(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
+    final response = await http
+        .get(uri, headers: await _getHeaders(withAuth: false))
+        .timeout(const Duration(seconds: 15));
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
+        return List<Map<String, dynamic>>.from(decoded["resultados"]);
+      }
+      return <Map<String, dynamic>>[];
+    } else {
+      throw Exception("Error al obtener histórico ($cleanRoute): ${response.statusCode}");
+    }
   }
 }

@@ -5,14 +5,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'package:intl/intl.dart';
-import 'baloto.dart';
-import 'miloto.dart';
-import 'color_loto.dart';
-import 'powerball.dart';
-import 'lotto_america.dart';
-import 'double_play.dart';
-import 'millionaire_life.dart';
-import 'megamillions.dart';
+import 'resultados_dashboard_screen.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -209,35 +202,41 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  void _onNotificationTap(BuildContext context, dynamic notification, dynamic provider) {
+  String _resolverLoteriaDeMensaje(String msj) {
+    final t = msj.toLowerCase();
+    if (t.contains("double play") || t.contains("double_play")) return "Double Play";
+    if (t.contains("lotto america") || t.contains("lotto_america")) return "Lotto America";
+    if (t.contains("millionaire") || t.contains("life")) return "Millionaire Life";
+    if (t.contains("mega millions") || t.contains("megamillions")) return "Mega Millions";
+    if (t.contains("powerball")) return "Powerball";
+    if (t.contains("baloto") || t.contains("revancha")) return "Baloto";
+    if (t.contains("miloto")) return "Miloto";
+    if (t.contains("colorloto") || t.contains("color loto")) return "ColorLoto";
+    return "Baloto";
+  }
+
+  void _onNotificationTap(BuildContext context, dynamic notification, NotificationProvider provider) {
     if (!notification.leido) {
       provider.markAsRead(notification.id);
     }
 
-    final msj = (notification.mensaje ?? "").toString().toLowerCase();
+    final msj = (notification.mensaje ?? "").toString();
+    final loteriaNombre = _resolverLoteriaDeMensaje(msj);
 
-    if (msj.contains("baloto")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const BalotoScreen()));
-    } else if (msj.contains("miloto")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const MilotoScreen()));
-    } else if (msj.contains("colorloto")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => ColorLotoScreen()));
-    } else if (msj.contains("powerball")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const PowerballScreen()));
-    } else if (msj.contains("lotto america")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const LottoAmericaScreen()));
-    } else if (msj.contains("double play")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const DoublePlayScreen()));
-    } else if (msj.contains("millionaire")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const MillionaireLifeScreen()));
-    } else if (msj.contains("mega millions")) {
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const MegaMillionsScreen()));
-    } else {
-      Navigator.pushNamed(context, '/estadisticas_bloto');
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultadosDashboardScreen(
+          loteriaNombreInicial: loteriaNombre,
+        ),
+      ),
+    );
   }
 
   Widget _buildNotificationCard(BuildContext context, notification, provider) {
+    final localeCode = Localizations.localeOf(context).languageCode;
+    final DateTime? fechaSorteoMostrar = notification.fechaSorteo ?? notification.createdAt;
+
     IconData icon;
     Color iconColor;
 
@@ -291,19 +290,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      _traducirMensajeNotificacion(notification.mensaje ?? "", Localizations.localeOf(context).languageCode),
+                      _traducirMensajeNotificacion(
+                        notification.mensaje ?? "",
+                        localeCode,
+                        fechaSorteoMostrar,
+                      ),
                       style: AppTextStyles.mensajeSecundario.copyWith(
                         color: Colors.white,
                         fontWeight: notification.leido ? FontWeight.normal : FontWeight.w600,
+                        height: 1.35,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          DateFormat('dd MMM, yyyy', Localizations.localeOf(context).languageCode).format(notification.createdAt),
-                          style: AppTextStyles.caption.copyWith(color: Colors.white54),
+                          DateFormat('dd MMM, yyyy', localeCode).format(notification.createdAt),
+                          style: AppTextStyles.caption.copyWith(color: Colors.white54, fontSize: 11),
                         ),
                         if (!notification.leido)
                           Container(
@@ -326,56 +330,130 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  String _traducirMensajeNotificacion(String msj, String langCode) {
+  String _traducirMensajeNotificacion(String msj, String langCode, DateTime? fechaSorteo) {
     if (msj.isEmpty) return msj;
+
+    String? fechaTexto;
+    if (fechaSorteo != null) {
+      if (langCode == 'en') {
+        fechaTexto = DateFormat('MMM d').format(fechaSorteo);
+      } else if (langCode == 'pt') {
+        fechaTexto = "${fechaSorteo.day} de ${DateFormat('MMMM', 'pt').format(fechaSorteo)}";
+      } else {
+        fechaTexto = "${fechaSorteo.day} de ${DateFormat('MMMM', 'es').format(fechaSorteo)}";
+      }
+    }
 
     if (langCode == 'en') {
       // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
       final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
       if (regCasi.hasMatch(msj)) {
-        return msj.replaceAllMapped(regCasi, (match) => "Almost! Out of the ${match[1]} most probable numbers generated by the AI for ${match[2]}, ${match[3]} numbers matched (${match[4]}).");
+        return msj.replaceAllMapped(regCasi, (match) {
+          final lot = match[2];
+          final prefix = fechaTexto != null ? "In the $fechaTexto $lot draw, out" : "Out";
+          return "Almost! $prefix of the ${match[1]} most probable numbers generated by the AI, ${match[3]} numbers matched (${match[4]}).";
+        });
       }
 
       // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
       final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
       if (reg1.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg1, (match) => "In the ${match[1]} draw, the ${match[2]} most probable numbers achieved ${match[3]}% accuracy (${match[4]} out of ${match[5]} hits).");
+        return msj.replaceAllMapped(reg1, (match) {
+          final lot = match[1];
+          final prefix = fechaTexto != null ? "In the $fechaTexto $lot draw" : "In the $lot draw";
+          return "$prefix, the ${match[2]} most probable numbers achieved ${match[3]}% accuracy (${match[4]} out of ${match[5]} hits).";
+        });
       }
 
       // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
-      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo de hoy de (.*?)!");
+      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
       if (reg2.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg2, (match) => "The AI matched the special ball in today's ${match[1]} draw!");
+        return msj.replaceAllMapped(reg2, (match) {
+          final lot = match[1];
+          final drawStr = fechaTexto != null ? "the $fechaTexto $lot draw" : "today's $lot draw";
+          return "The AI matched the special ball in $drawStr!";
+        });
       }
 
       // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
-      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo de hoy de (.*?)!");
+      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
       if (reg3.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg3, (match) => "The AI matched ${match[1]} numbers in today's ${match[2]} draw!");
+        return msj.replaceAllMapped(reg3, (match) {
+          final lot = match[2];
+          final drawStr = fechaTexto != null ? "the $fechaTexto $lot draw" : "today's $lot draw";
+          return "The AI matched ${match[1]} numbers in $drawStr!";
+        });
       }
     } else if (langCode == 'pt') {
       // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
       final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
       if (regCasi.hasMatch(msj)) {
-        return msj.replaceAllMapped(regCasi, (match) => "Quase! Dos ${match[1]} números com maior probabilidade gerados pela IA para ${match[2]}, saíram ${match[3]} números (${match[4]}).");
+        return msj.replaceAllMapped(regCasi, (match) {
+          final lot = match[2];
+          final prefix = fechaTexto != null ? "No sorteio de $fechaTexto do $lot, dos" : "Dos";
+          return "Quase! $prefix ${match[1]} números com maior probabilidade gerados pela IA, saíram ${match[3]} números (${match[4]}).";
+        });
       }
 
       // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
       final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
       if (reg1.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg1, (match) => "No sorteio do ${match[1]}, os ${match[2]} números mais prováveis tiveram uma eficácia de ${match[3]}% (${match[4]} de ${match[5]} acertos).");
+        return msj.replaceAllMapped(reg1, (match) {
+          final lot = match[1];
+          final prefix = fechaTexto != null ? "No sorteio de $fechaTexto do $lot" : "No sorteio do $lot";
+          return "$prefix, os ${match[2]} números mais prováveis tiveram uma eficácia de ${match[3]}% (${match[4]} de ${match[5]} acertos).";
+        });
       }
 
       // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
-      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo de hoy de (.*?)!");
+      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
       if (reg2.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg2, (match) => "A IA acertou a bola especial no sorteio de hoje do ${match[1]}!");
+        return msj.replaceAllMapped(reg2, (match) {
+          final lot = match[1];
+          final drawStr = fechaTexto != null ? "no sorteio de $fechaTexto do $lot" : "no sorteio de hoje do $lot";
+          return "A IA acertou a bola especial $drawStr!";
+        });
       }
 
       // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
-      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo de hoy de (.*?)!");
+      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
       if (reg3.hasMatch(msj)) {
-        return msj.replaceAllMapped(reg3, (match) => "A IA acertou ${match[1]} números no sorteio de hoje do ${match[2]}!");
+        return msj.replaceAllMapped(reg3, (match) {
+          final lot = match[2];
+          final drawStr = fechaTexto != null ? "no sorteio de $fechaTexto do $lot" : "no sorteio de hoje do $lot";
+          return "A IA acertou ${match[1]} números $drawStr!";
+        });
+      }
+    } else {
+      // Español
+      if (fechaTexto != null) {
+        // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
+        final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+        if (regCasi.hasMatch(msj)) {
+          return msj.replaceAllMapped(regCasi, (match) =>
+              "¡Casi! En el sorteo del $fechaTexto para ${match[2]}, de los ${match[1]} números con mayor probabilidad generados por la IA cayeron ${match[3]} números (${match[4]}).");
+        }
+
+        // 2. "En el sorteo de X, los N números más probables..."
+        final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+        if (reg1.hasMatch(msj)) {
+          return msj.replaceAllMapped(reg1, (match) =>
+              "En el sorteo del $fechaTexto para ${match[1]}, los ${match[2]} números más probables tuvieron una efectividad del ${match[3]}% (${match[4]} de ${match[5]} aciertos).");
+        }
+
+        // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
+        final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
+        if (reg2.hasMatch(msj)) {
+          return msj.replaceAllMapped(reg2, (match) =>
+              "¡La IA acertó la balota especial en el sorteo del $fechaTexto para ${match[1]}!");
+        }
+
+        // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
+        final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
+        if (reg3.hasMatch(msj)) {
+          return msj.replaceAllMapped(reg3, (match) =>
+              "¡La IA acertó ${match[1]} números en el sorteo del $fechaTexto para ${match[2]}!");
+        }
       }
     }
 
