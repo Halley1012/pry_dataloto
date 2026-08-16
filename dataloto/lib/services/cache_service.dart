@@ -45,15 +45,19 @@ class CacheService {
       List<Map<String, dynamic>> todas = cachedAll != null ? List<Map<String, dynamic>>.from(cachedAll) : [];
 
       final yaExiste = list.any((item) {
-        final r = _getRouteFromName((item['nombre'] ?? '').toString());
-        return r == route;
+        final r = (item['route']?.toString().isNotEmpty == true)
+            ? item['route'].toString().trim().toLowerCase()
+            : _getRouteFromName((item['nombre'] ?? '').toString());
+        return r == route.trim().toLowerCase();
       });
 
       if (!yaExiste && todas.isNotEmpty) {
         final loteriaEncontrada = todas.firstWhere(
           (item) {
-            final r = _getRouteFromName((item['nombre'] ?? '').toString());
-            return r == route;
+            final r = (item['route']?.toString().isNotEmpty == true)
+                ? item['route'].toString().trim().toLowerCase()
+                : _getRouteFromName((item['nombre'] ?? '').toString());
+            return r == route.trim().toLowerCase();
           },
           orElse: () => <String, dynamic>{},
         );
@@ -69,15 +73,22 @@ class CacheService {
   }
 
   static String _getRouteFromName(String nombre) {
-    final n = nombre.toLowerCase().trim();
-    if (n.contains("baloto")) return "bloto";
-    if (n.contains("miloto")) return "mloto";
-    if (n.contains("colorloto")) return "colorloto";
-    if (n.contains("powerball")) return "powerball";
-    if (n.contains("mega millions")) return "megamillions";
-    if (n.contains("lotto america")) return "lotto_america";
-    if (n.contains("double play")) return "double_play";
-    if (n.contains("millionaire")) return "millionaire_life";
-    return "unknown";
+    String clean = nombre.trim().toLowerCase();
+    if (clean.contains("baloto") || clean == "bloto") return "bloto";
+    if (clean.contains("miloto") || clean == "mloto") return "mloto";
+    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return "colorloto";
+
+    clean = clean
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'[ñ]'), 'n');
+
+    return clean
+        .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
+        .trim()
+        .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 }

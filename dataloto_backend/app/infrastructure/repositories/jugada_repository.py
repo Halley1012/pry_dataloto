@@ -81,10 +81,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def list_active_lotteries(self, user_id: int) -> List[str]:
         pool = db_connection.get_pool()
-        tipos_default = [
-            "mloto", "bloto", "colorloto", "powerball", 
-            "lotto_america", "double_play", "millionaire_life", "megamillions"
-        ]
         activas = []
         async with pool.acquire() as conn:
             try:
@@ -93,9 +89,9 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     FROM loterias 
                     WHERE route IS NOT NULL AND route != '' AND activa = true
                 """)
-                tipos = list(set(tipos_default + [r['route'].lower() for r in db_routes]))
+                tipos = [r['route'].lower() for r in db_routes]
             except Exception:
-                tipos = tipos_default
+                tipos = []
 
             for tipo in tipos:
                 tabla = f"jugadas_{tipo}"

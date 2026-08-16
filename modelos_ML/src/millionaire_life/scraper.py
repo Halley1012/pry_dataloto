@@ -26,6 +26,30 @@ class MillionaireLifeScraper:
         }
         self.draw_days = (0, 1, 2, 3, 4, 5, 6) # Diario
 
+    def update_jackpot(self, engine, loteria, jackpot, fecha):
+        if not jackpot or not fecha:
+            return
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
+
     def run(self, max_pages=None):
         print("🚀 Iniciando Scraping de Millionaire for Life...")
         df_final = pd.DataFrame()
@@ -118,6 +142,11 @@ class MillionaireLifeScraper:
             engine = get_engine()
             df_final.to_sql('resultados_millionaire_life', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"✅ ¡DataFrame de Millionaire for Life guardado exitosamente! Total filas: {len(df_final)}")
+
+            # Millionaire for Life tiene un premio mayor de $1,000 / Día ($1,000 / Day)
+            if 'cur_date' in locals() and cur_date:
+                fecha_guardar = cur_date.date() if hasattr(cur_date, 'date') else cur_date
+                self.update_jackpot(engine, "millionaire_life", "$1,000 / Day", fecha_guardar)
         except Exception as e:
             print(f"❌ Error al guardar datos de Millionaire for Life en BD: {e}")
 
