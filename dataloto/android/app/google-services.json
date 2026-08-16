@@ -12,7 +12,20 @@
           "package_name": "com.example.dataloto"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "705812334903-tteevg71nte1k93tbticfchdbv49pp8g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.dataloto",
+            "certificate_hash": "6399e8e350341c5eae74fa2a4f559e07c6b0df58"
+          }
+        },
+        {
+          "client_id": "705812334903-st0akd2g8mq0i7cqpvhm5ul0mkuhhj08.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAuLeTnojAjzWgoY8UkHE6NlPvgu_E3EOU"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "705812334903-st0akd2g8mq0i7cqpvhm5ul0mkuhhj08.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "705812334903-j3duh9vef2a1lfslp45pc1hj98geh9kf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.dataloto"
+              }
+            }
+          ]
         }
       }
     }

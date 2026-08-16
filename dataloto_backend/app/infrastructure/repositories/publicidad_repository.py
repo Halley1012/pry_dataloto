@@ -257,22 +257,55 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     def list_loterias_by_pais(self, pais_id: Optional[int] = None) -> List[Dict[str, Any]]:
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                if pais_id:
-                    cur.execute("""
-                        SELECT id, nombre, tipo, pais_id
-                        FROM loterias
-                        WHERE pais_id = %s
-                          AND activa = true
-                        ORDER BY nombre
-                    """, (pais_id,))
-                else:
-                    cur.execute("""
-                        SELECT id, nombre, tipo, pais_id
-                        FROM loterias
-                        WHERE activa = true
-                        ORDER BY nombre
-                    """)
-                loterias = cur.fetchall()
+                try:
+                    if pais_id:
+                        cur.execute("""
+                            SELECT id, nombre, tipo, pais_id,
+                                   COALESCE(route, '') AS route,
+                                   COALESCE(max_seleccion, 5) AS max_seleccion,
+                                   COALESCE(max_balotas_blancas, 45) AS max_balotas_blancas,
+                                   COALESCE(max_balotas_rojas, 0) AS max_balotas_rojas,
+                                   superbalota_nombre,
+                                   COALESCE(has_revancha, false) AS has_revancha
+                            FROM loterias
+                            WHERE pais_id = %s
+                              AND activa = true
+                            ORDER BY nombre
+                        """, (pais_id,))
+                    else:
+                        cur.execute("""
+                            SELECT id, nombre, tipo, pais_id,
+                                   COALESCE(route, '') AS route,
+                                   COALESCE(max_seleccion, 5) AS max_seleccion,
+                                   COALESCE(max_balotas_blancas, 45) AS max_balotas_blancas,
+                                   COALESCE(max_balotas_rojas, 0) AS max_balotas_rojas,
+                                   superbalota_nombre,
+                                   COALESCE(has_revancha, false) AS has_revancha
+                            FROM loterias
+                            WHERE activa = true
+                            ORDER BY nombre
+                        """)
+                    loterias = cur.fetchall()
+                except Exception as e:
+                    # Fallback si las nuevas columnas aún no se han creado en la BD
+                    logger.warning(f"Columnas nuevas de loterias no encontradas (ejecute la migración SQL): {e}")
+                    conn.rollback()
+                    if pais_id:
+                        cur.execute("""
+                            SELECT id, nombre, tipo, pais_id
+                            FROM loterias
+                            WHERE pais_id = %s
+                              AND activa = true
+                            ORDER BY nombre
+                        """, (pais_id,))
+                    else:
+                        cur.execute("""
+                            SELECT id, nombre, tipo, pais_id
+                            FROM loterias
+                            WHERE activa = true
+                            ORDER BY nombre
+                        """)
+                    loterias = cur.fetchall()
 
                 # Mapeo de nombres a tablas de resultados para obtener fechas reales
                 table_map = {
@@ -285,9 +318,21 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     "double play": "resultados_double_play",
                     "millionaire": "resultados_millionaire_life"
                 }
+                route_map = {
+                    "baloto": "bloto",
+                    "miloto": "mloto",
+                    "colorloto": "cloto",
+                    "powerball": "powerball",
+                    "mega millions": "megamillions",
+                    "lotto america": "lotto_america",
+                    "double play": "double_play",
+                    "millionaire": "millionaire_life"
+                }
 
                 for lot in loterias:
                     nombre_lower = lot['nombre'].lower()
+                    if not lot.get('route'):
+                        lot['route'] = next((v for k, v in route_map.items() if k in nombre_lower), nombre_lower.replace(' ', '_'))
                     tabla = next((v for k, v in table_map.items() if k in nombre_lower), None)
 
                     if tabla:

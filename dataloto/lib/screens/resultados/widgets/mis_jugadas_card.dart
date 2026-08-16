@@ -135,7 +135,7 @@ class MisJugadasCard extends StatelessWidget {
                               alignment: WrapAlignment.end,
                               children: [
                                 Text(
-                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}",
+                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
@@ -143,7 +143,7 @@ class MisJugadasCard extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}",
+                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}${_getHitsEmoji(hitsCountRev, redHitRev, red != null)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
@@ -154,7 +154,7 @@ class MisJugadasCard extends StatelessWidget {
                             )
                           else
                             Text(
-                              l10n.cantidadAciertos(hitsCountBaloto),
+                              "${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null)}",
                               style: GoogleFonts.montserrat(
                                 fontSize: 10,
                                 color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
@@ -281,6 +281,15 @@ class MisJugadasCard extends StatelessWidget {
                           ],
                         ),
                       ],
+                      if (hasRevanchaData) ...[
+                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal) != null)
+                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal)!,
+                        if (_buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario) != null)
+                          _buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario)!,
+                      ] else ...[
+                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria) != null)
+                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria)!,
+                      ],
                     ],
                   ),
                 );
@@ -302,6 +311,69 @@ class MisJugadasCard extends StatelessWidget {
         const SizedBox(width: 4),
         Text(text, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white60)),
       ],
+    );
+  }
+
+  String _getHitsEmoji(int hits, bool redHit, bool hasRedBall) {
+    final isJackpot = (hits == 5 && (!hasRedBall || redHit));
+    if (isJackpot) return " 🏆";
+    if (hits == 5) return " 🌟";
+    if (hits == 4) return " ✨";
+    if (hits == 3) return " 👍";
+    return "";
+  }
+
+  Widget? _buildFeedbackBanner(int hits, bool redHit, bool hasRedBall, String drawName) {
+    String? message;
+    IconData? icon;
+    Color? color;
+
+    final isJackpot = (hits == 5 && (!hasRedBall || redHit));
+
+    if (isJackpot) {
+      message = "¡Felicidades! Eres el ganador del Premio Mayor de $drawName 🏆🎉";
+      icon = Icons.emoji_events;
+      color = Colors.amber;
+    } else if (hits == 5) {
+      message = "¡Increíble! Acertaste 5 números en $drawName 🥳🌟";
+      icon = Icons.star;
+      color = Colors.amberAccent;
+    } else if (hits == 4) {
+      message = "¡Excelente! Acertaste 4 números en $drawName 👏✨";
+      icon = Icons.thumb_up;
+      color = Colors.greenAccent;
+    } else if (hits == 3) {
+      message = "¡Buen intento! Acertaste 3 números en $drawName. ¡Sigue así! 👍";
+      icon = Icons.sentiment_satisfied_alt;
+      color = Colors.blueAccent;
+    } else {
+      return null;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.montserrat(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
