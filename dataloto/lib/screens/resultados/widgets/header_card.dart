@@ -19,10 +19,25 @@ class HeaderCard extends StatelessWidget {
     this.canPop = true,
   }) : super(key: key);
 
+  static String getFallbackJackpot(String loteria) {
+    final l = loteria.toLowerCase();
+    if (l.contains("baloto")) return "\$24.500 millones";
+    if (l.contains("revancha")) return "\$1.200 millones";
+    if (l.contains("miloto")) return "\$220 millones";
+    if (l.contains("colorloto") || l.contains("color loto")) return "\$1.000 millones";
+    if (l.contains("double play") || l.contains("double_play")) return "\$10 Million";
+    if (l.contains("lotto america") || l.contains("lotto_america")) return "\$2 Million";
+    if (l.contains("millionaire") || l.contains("life")) return "\$1.000 / día";
+    if (l.contains("powerball")) return "\$20 Million";
+    if (l.contains("mega millions") || l.contains("megamillions")) return "\$20 Million";
+    return "";
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final parts = PaisHelper.getJackpotParts(jackpot);
+    final fallback = getFallbackJackpot(selectedLoteria);
+    final parts = PaisHelper.getJackpotParts(jackpot, fallbackValue: fallback);
     String label = parts["label"]!;
     
     // Aplicar localización a la etiqueta "millones" si existe

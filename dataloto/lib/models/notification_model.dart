@@ -24,11 +24,11 @@ class NotificationModel {
       id: json['id'],
       loteriaId: json['loteria_id'],
       paisId: json['pais_id'],
-      fechaSorteo: json['fecha_sorteo'] != null ? DateTime.parse(json['fecha_sorteo']) : null,
-      mensaje: json['mensaje'],
-      tipo: json['tipo'],
+      fechaSorteo: json['fecha_sorteo'] != null ? DateTime.tryParse(json['fecha_sorteo'].toString()) : null,
+      mensaje: json['mensaje'] ?? '',
+      tipo: json['tipo'] ?? '',
       leido: json['leido'] ?? false,
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: json['created_at'] != null ? (DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()) : DateTime.now(),
     );
   }
 

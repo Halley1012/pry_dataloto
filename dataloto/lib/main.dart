@@ -3,10 +3,8 @@ import 'package:dataloto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'screens/home.dart';
-import 'screens/baloto.dart';
-import 'screens/miloto.dart';
+import 'screens/loteria_screen.dart';
 import 'screens/login.dart';
-import 'screens/color_loto.dart';
 import 'screens/registro.dart';
 import 'screens/splash_screen.dart';
 import 'screens/notifications_screen.dart';
@@ -46,7 +44,9 @@ void main() {
       runApp(const DataLotoApp());
     },
     (error, stack) {
-      if (error.toString().contains("invalid token")) {
+      debugPrint("❌ Error capturado en runZonedGuarded: $error");
+      if (error.toString().contains("401") ||
+          error.toString().contains("Token inválido")) {
         // Si el token está inválido → limpiar stack y mandar a Login
         navigatorKey.currentState?.pushNamedAndRemoveUntil(
           '/login',
@@ -132,9 +132,14 @@ class DataLotoApp extends StatelessWidget {
             '/splash': (context) => const SplashScreen(),
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginPage(),
-            '/baloto': (context) => const BalotoScreen(),
-            '/miloto': (context) => const MilotoScreen(),
-            '/color_loto': (context) => ColorLotoScreen(),
+            '/baloto': (context) => const LoteriaScreen(loteriaNombre: "Baloto"),
+            '/miloto': (context) => const LoteriaScreen(loteriaNombre: "Miloto"),
+            '/color_loto': (context) => const LoteriaScreen(loteriaNombre: "ColorLoto"),
+            '/powerball': (context) => const LoteriaScreen(loteriaNombre: "Powerball"),
+            '/megamillions': (context) => const LoteriaScreen(loteriaNombre: "Mega Millions"),
+            '/double_play': (context) => const LoteriaScreen(loteriaNombre: "Double Play"),
+            '/lotto_america': (context) => const LoteriaScreen(loteriaNombre: "Lotto America"),
+            '/millionaire_life': (context) => const LoteriaScreen(loteriaNombre: "Millionaire Life"),
             '/estadisticas_bloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Baloto"),
             '/estadisticas_mloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Miloto"),
             '/estadisticas_powerball': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Powerball"),
