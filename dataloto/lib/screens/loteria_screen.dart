@@ -177,6 +177,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     super.initState();
     if (widget.loteriaData != null) {
       config = LoteriaConfig.fromJson(widget.loteriaData!, fallbackNombre: widget.loteriaNombre);
+      if (widget.loteriaData!['jackpot'] != null && widget.loteriaData!['jackpot'].toString().isNotEmpty) {
+        _jackpot = widget.loteriaData!['jackpot'].toString();
+      }
     } else {
       config = LoteriaConfig.fromNombre(widget.loteriaNombre, routeOverride: widget.loteriaRoute);
     }
