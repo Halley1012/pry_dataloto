@@ -17,6 +17,7 @@ import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 
 /// Configuración de reglas y límites de cada lotería
+/// Configuración de reglas y límites de cada lotería
 class LoteriaConfig {
   final String nombre;
   final String route;
@@ -58,120 +59,56 @@ class LoteriaConfig {
     );
   }
 
-  /// Construye o adapta dinámicamente la configuración a partir de un mapa (API/Cache)
+  /// Construye la configuración dinámicamente desde el mapa devuelto por el API / Base de Datos
   static LoteriaConfig fromJson(Map<String, dynamic> json, {String? fallbackNombre}) {
-    final rawNombre = json["nombre"]?.toString() ?? fallbackNombre ?? "Baloto";
-    final base = fromNombre(rawNombre, routeOverride: json["route"]?.toString());
+    final rawNombre = json["nombre"]?.toString() ?? fallbackNombre ?? "Lotería";
+    final rawRoute = (json["route"] != null && json["route"].toString().isNotEmpty)
+        ? json["route"].toString().trim().toLowerCase()
+        : _inferRouteFromName(rawNombre);
 
-    return base.copyWith(
-      maxSeleccion: json["max_seleccion"] != null
-          ? int.tryParse(json["max_seleccion"].toString())
-          : (json["maxSeleccion"] != null ? int.tryParse(json["maxSeleccion"].toString()) : null),
-      maxBalotasBlancas: json["max_balotas"] != null
-          ? int.tryParse(json["max_balotas"].toString())
-          : (json["maxBalotasBlancas"] != null
-              ? int.tryParse(json["maxBalotasBlancas"].toString())
-              : null),
-      maxBalotasRojas: json["max_balotas_rojas"] != null
-          ? int.tryParse(json["max_balotas_rojas"].toString())
-          : (json["maxBalotasRojas"] != null
-              ? int.tryParse(json["maxBalotasRojas"].toString())
-              : null),
-      superbalotaNombre:
-          json["superbalota_nombre"]?.toString() ?? json["superbalotaNombre"]?.toString(),
-      hasRevancha: json["has_revancha"] == true || json["hasRevancha"] == true,
+    final maxSel = json["max_seleccion"] != null
+        ? int.tryParse(json["max_seleccion"].toString())
+        : (json["maxSeleccion"] != null ? int.tryParse(json["maxSeleccion"].toString()) : null);
+
+    final maxBlancas = json["max_balotas_blancas"] != null
+        ? int.tryParse(json["max_balotas_blancas"].toString())
+        : (json["max_balotas"] != null
+            ? int.tryParse(json["max_balotas"].toString())
+            : (json["maxBalotasBlancas"] != null
+                ? int.tryParse(json["maxBalotasBlancas"].toString())
+                : null));
+
+    final maxRojas = json["max_balotas_rojas"] != null
+        ? int.tryParse(json["max_balotas_rojas"].toString())
+        : (json["maxBalotasRojas"] != null
+            ? int.tryParse(json["maxBalotasRojas"].toString())
+            : null);
+
+    final superNombre =
+        json["superbalota_nombre"]?.toString() ?? json["superbalotaNombre"]?.toString();
+
+    final revancha = json["has_revancha"] == true || json["hasRevancha"] == true;
+
+    return LoteriaConfig(
+      nombre: rawNombre,
+      route: rawRoute,
+      maxSeleccion: maxSel ?? 5,
+      maxBalotasBlancas: maxBlancas ?? 45,
+      maxBalotasRojas: maxRojas ?? 0,
+      superbalotaNombre: superNombre ?? "Superbalota",
+      hasRevancha: revancha,
     );
   }
 
+  /// Constructor fallback cuando solo se conoce el nombre o la ruta
   static LoteriaConfig fromNombre(String? nombreInput, {String? routeOverride}) {
-    final t = (nombreInput ?? "Baloto").toLowerCase().trim();
+    final t = (nombreInput ?? "Lotería").trim();
     final cleanRoute = (routeOverride != null && routeOverride.isNotEmpty)
         ? routeOverride.trim().toLowerCase()
         : _inferRouteFromName(t);
 
-    if (t.contains("miloto") || cleanRoute == "mloto") {
-      return LoteriaConfig(
-        nombre: "Miloto",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 39,
-        maxBalotasRojas: 0,
-      );
-    }
-    if (t.contains("powerball")) {
-      return LoteriaConfig(
-        nombre: "Powerball",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 69,
-        maxBalotasRojas: 26,
-        superbalotaNombre: "Powerball",
-      );
-    }
-    if (t.contains("mega millions") || t.contains("megamillions")) {
-      return LoteriaConfig(
-        nombre: "Mega Millions",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 70,
-        maxBalotasRojas: 25,
-        superbalotaNombre: "Mega Ball",
-      );
-    }
-    if (t.contains("double play") || t.contains("double_play")) {
-      return LoteriaConfig(
-        nombre: "Double Play",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 69,
-        maxBalotasRojas: 26,
-        superbalotaNombre: "Double Play Ball",
-      );
-    }
-    if (t.contains("lotto america") || t.contains("lotto_america")) {
-      return LoteriaConfig(
-        nombre: "Lotto America",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 52,
-        maxBalotasRojas: 10,
-        superbalotaNombre: "Star Ball",
-      );
-    }
-    if (t.contains("millionaire") || t.contains("millionaire_life")) {
-      return LoteriaConfig(
-        nombre: "Millionaire Life",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 60,
-        maxBalotasRojas: 4,
-        superbalotaNombre: "Cash Ball",
-      );
-    }
-    if (t.contains("colorloto") || t.contains("color_loto") || cleanRoute == "cloto") {
-      return LoteriaConfig(
-        nombre: "ColorLoto",
-        route: cleanRoute,
-        maxSeleccion: 6,
-        maxBalotasBlancas: 25,
-        maxBalotasRojas: 0,
-      );
-    }
-    if (t.contains("baloto") || cleanRoute == "bloto") {
-      return LoteriaConfig(
-        nombre: "Baloto",
-        route: cleanRoute,
-        maxSeleccion: 5,
-        maxBalotasBlancas: 43,
-        maxBalotasRojas: 16,
-        superbalotaNombre: "Superbalota",
-        hasRevancha: true,
-      );
-    }
-
-    // Configuración genérica inteligente para cualquier nueva lotería
-    final formattedName = (nombreInput != null && nombreInput.isNotEmpty)
-        ? nombreInput[0].toUpperCase() + nombreInput.substring(1)
+    final formattedName = t.isNotEmpty
+        ? t[0].toUpperCase() + t.substring(1)
         : "Lotería";
 
     return LoteriaConfig(
@@ -180,19 +117,13 @@ class LoteriaConfig {
       maxSeleccion: 5,
       maxBalotasBlancas: 45,
       maxBalotasRojas: 0,
+      superbalotaNombre: "Superbalota",
+      hasRevancha: false,
     );
   }
 
   static String _inferRouteFromName(String t) {
-    if (t.contains("miloto") || t == "mloto") return "mloto";
-    if (t.contains("baloto") || t == "bloto") return "bloto";
-    if (t.contains("colorloto") || t.contains("color_loto") || t == "cloto") return "cloto";
-    if (t.contains("powerball")) return "powerball";
-    if (t.contains("mega millions") || t.contains("megamillions")) return "megamillions";
-    if (t.contains("double play") || t.contains("double_play")) return "double_play";
-    if (t.contains("lotto america") || t.contains("lotto_america")) return "lotto_america";
-    if (t.contains("millionaire") || t.contains("millionaire_life")) return "millionaire_life";
-    return t.replaceAll(' ', '_');
+    return t.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
   }
 }
 
@@ -998,7 +929,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 context,
                 MaterialPageRoute(
                   builder: (_) =>
-                      EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+                      EstadisticasDashboardScreen(
+                        loteriaNombreInicial: config.nombre,
+                        loteriaRoute: config.route,
+                      ),
                 ),
               ),
               child: Text(
@@ -1078,7 +1012,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         context,
         MaterialPageRoute(
           builder: (_) =>
-              EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+              EstadisticasDashboardScreen(
+                loteriaNombreInicial: config.nombre,
+                loteriaRoute: config.route,
+              ),
         ),
       ),
       child: Container(
@@ -1391,7 +1328,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             context,
             MaterialPageRoute(
               builder: (_) =>
-                  EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+                  EstadisticasDashboardScreen(
+                    loteriaNombreInicial: config.nombre,
+                    loteriaRoute: config.route,
+                  ),
             ),
           ),
         ),
