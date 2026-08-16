@@ -334,4 +334,25 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     lot['proximo_sorteo'] = str(max_fecha)
                     except Exception:
                         pass
+
+                    try:
+                        # Buscar jackpot reciente para esta lotería
+                        cur.execute("""
+                            SELECT jackpot
+                            FROM loterias_jackpots
+                            WHERE LOWER(loteria) = %s 
+                               OR LOWER(loteria) = %s
+                               OR REPLACE(LOWER(loteria), '_', ' ') = %s
+                               OR REPLACE(LOWER(loteria), ' ', '_') = %s
+                               OR LOWER(loteria) LIKE %s
+                            ORDER BY fecha DESC
+                            LIMIT 1;
+                        """, (r, lot['nombre'].lower(), r.replace('_', ' '), lot['nombre'].lower().replace(' ', '_'), f"%{r}%"))
+                        row_j = cur.fetchone()
+                        if row_j:
+                            j_val = row_j['jackpot'] if isinstance(row_j, dict) else row_j[0]
+                            if j_val:
+                                lot['jackpot'] = str(j_val)
+                    except Exception:
+                        pass
                 return loterias
