@@ -160,15 +160,21 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 return row if row else None
 
     def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
+        clean = loteria.strip().lower()
+        clean_spaces = clean.replace('_', ' ')
+        clean_under = clean.replace(' ', '_')
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT jackpot
                     FROM loterias_jackpots
-                    WHERE LOWER(loteria) = LOWER(%s)
+                    WHERE LOWER(loteria) = %s 
+                       OR LOWER(loteria) = %s
+                       OR LOWER(loteria) = %s
+                       OR LOWER(loteria) LIKE %s
                     ORDER BY fecha DESC
                     LIMIT 1;
-                """, (loteria,))
+                """, (clean, clean_spaces, clean_under, f"%{clean}%"))
                 row = cur.fetchone()
                 return row[0] if row else None
 
