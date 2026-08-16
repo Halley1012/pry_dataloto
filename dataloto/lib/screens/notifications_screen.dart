@@ -202,32 +202,21 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  String _resolverLoteriaDeMensaje(String msj) {
-    final t = msj.toLowerCase();
-    if (t.contains("double play") || t.contains("double_play")) return "Double Play";
-    if (t.contains("lotto america") || t.contains("lotto_america")) return "Lotto America";
-    if (t.contains("millionaire") || t.contains("life")) return "Millionaire Life";
-    if (t.contains("mega millions") || t.contains("megamillions")) return "Mega Millions";
-    if (t.contains("powerball")) return "Powerball";
-    if (t.contains("baloto") || t.contains("revancha")) return "Baloto";
-    if (t.contains("miloto")) return "Miloto";
-    if (t.contains("colorloto") || t.contains("color loto")) return "ColorLoto";
-    return "Baloto";
-  }
-
   void _onNotificationTap(BuildContext context, dynamic notification, NotificationProvider provider) {
     if (!notification.leido) {
       provider.markAsRead(notification.id);
     }
 
-    final msj = (notification.mensaje ?? "").toString();
-    final loteriaNombre = _resolverLoteriaDeMensaje(msj);
+    final loteriaNombre = (notification.loteriaNombre != null && notification.loteriaNombre!.isNotEmpty)
+        ? notification.loteriaNombre!
+        : "Lotería";
 
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ResultadosDashboardScreen(
           loteriaNombreInicial: loteriaNombre,
+          loteriaRoute: notification.loteriaRoute,
         ),
       ),
     );

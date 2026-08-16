@@ -71,7 +71,10 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
       // Filtrar solo las loterías que el usuario HA JUGADO
       final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
-        final route = _getRouteFromName(mapItem['nombre'] ?? "");
+        final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
+        final route = (rawRoute != null && rawRoute.isNotEmpty)
+            ? rawRoute
+            : _getRouteFromName(mapItem['nombre'] ?? "");
         return activas.contains(route);
       }).toList();
 
@@ -127,16 +130,6 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   String _getRouteFromName(String nombre) {
     String clean = nombre.trim().toLowerCase();
-    if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
-    if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
-    if (clean.contains("colorloto")) return "colorloto";
-    if (clean.contains("powerball")) return "powerball";
-    if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
-    if (clean.contains("millionaire")) return "millionaire_life";
-    if (clean.contains("lotto america")) return "lotto_america";
-    if (clean.contains("double play")) return "double_play";
-
-    // Dynamic normalization for future lotteries
     clean = clean
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
@@ -335,7 +328,7 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        onTap: () => _navigateToEstadisticas(nombre),
+        onTap: () => _navigateToEstadisticas(loteria),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
@@ -347,11 +340,14 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
-  void _navigateToEstadisticas(String nombre) {
+  void _navigateToEstadisticas(Map<String, dynamic> loteria) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => ResultadosDashboardScreen(loteriaNombreInicial: nombre),
+        builder: (_) => ResultadosDashboardScreen(
+          loteriaNombreInicial: loteria["nombre"] ?? "Lotería",
+          loteriaData: loteria,
+        ),
       ),
     );
   }

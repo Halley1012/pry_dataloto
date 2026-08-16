@@ -3,61 +3,36 @@ import 'package:flutter/material.dart';
 class LotteryAvatar3D extends StatelessWidget {
   final String nombre;
   final double size;
+  final Color? customColor;
 
   const LotteryAvatar3D({
     super.key,
     required this.nombre,
     this.size = 46,
+    this.customColor,
   });
+
+  static const List<Color> _palette = [
+    Color(0xFFFFB300), // Amber Gold
+    Color(0xFF00E5FF), // Electric Cyan
+    Color(0xFFFF1744), // Crimson Red
+    Color(0xFFE91E63), // Magenta
+    Color(0xFF00E676), // Emerald Green
+    Color(0xFF7C4DFF), // Purple
+    Color(0xFFFF3D00), // Coral Orange
+    Color(0xFF3D5AFE), // Royal Blue
+    Color(0xFF00B0FF), // Light Blue
+    Color(0xFFFF9100), // Deep Orange
+  ];
 
   @override
   Widget build(BuildContext context) {
-    final initial = nombre.isNotEmpty ? nombre[0].toUpperCase() : "?";
-    final n = nombre.toLowerCase().trim();
+    final cleanName = nombre.trim();
+    final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : "?";
 
-    Color baseColor;
-    Color topColor;
-
-    if (n.contains("baloto")) {
-      baseColor = const Color(0xFFFFB300); // Amber Dorado 3D
-      topColor = const Color(0xFFFFF59D);
-    } else if (n.contains("colorloto")) {
-      baseColor = const Color(0xFFE91E63); // Neon Magenta 3D
-      topColor = const Color(0xFFF8BBD0);
-    } else if (n.contains("miloto")) {
-      baseColor = const Color(0xFF00E5FF); // Electric Cyan 3D
-      topColor = const Color(0xFFE0F7FA);
-    } else if (n.contains("powerball")) {
-      baseColor = const Color(0xFFFF1744); // Crimson Red 3D
-      topColor = const Color(0xFFFFCDD2);
-    } else if (n.contains("mega millions")) {
-      baseColor = const Color(0xFFFFC400); // Gold 3D
-      topColor = const Color(0xFFFFF9C4);
-    } else if (n.contains("lotto america")) {
-      baseColor = const Color(0xFF3D5AFE); // Royal Blue 3D
-      topColor = const Color(0xFFC5CAE9);
-    } else if (n.contains("double play")) {
-      baseColor = const Color(0xFFFF3D00); // Coral Orange 3D
-      topColor = const Color(0xFFFFCCBC);
-    } else if (n.contains("millionaire")) {
-      baseColor = const Color(0xFF00E676); // Emerald Green 3D
-      topColor = const Color(0xFFC8E6C9);
-    } else {
-      final colors = [
-        const Color(0xFFFF1744),
-        const Color(0xFF00E5FF),
-        const Color(0xFFFFB300),
-        const Color(0xFFE91E63),
-        const Color(0xFF7C4DFF),
-        const Color(0xFF00E676),
-        const Color(0xFFFF3D00),
-      ];
-      final index = initial.codeUnitAt(0) % colors.length;
-      baseColor = colors[index];
-      topColor = Colors.white;
-    }
-
-    final isLightText = !(n.contains("baloto") || n.contains("mega millions"));
+    final baseColor = customColor ?? _palette[cleanName.toLowerCase().hashCode.abs() % _palette.length];
+    final topColor = Color.lerp(baseColor, Colors.white, 0.65)!;
+    final isLightText = ThemeData.estimateBrightnessForColor(baseColor) == Brightness.dark;
 
     return Container(
       width: size,

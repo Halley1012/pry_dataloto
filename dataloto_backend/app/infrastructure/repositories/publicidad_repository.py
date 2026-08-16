@@ -307,46 +307,31 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         """)
                     loterias = cur.fetchall()
 
-                # Mapeo de nombres a tablas de resultados para obtener fechas reales
-                table_map = {
-                    "baloto": "resultados_bloto",
-                    "miloto": "resultados_mloto",
-                    "colorloto": "resultados_colorloto",
-                    "powerball": "resultados_powerball",
-                    "mega millions": "resultados_megamillions",
-                    "lotto america": "resultados_lotto_america",
-                    "double play": "resultados_double_play",
-                    "millionaire": "resultados_millionaire_life"
-                }
-                route_map = {
-                    "baloto": "bloto",
-                    "miloto": "mloto",
-                    "colorloto": "cloto",
-                    "powerball": "powerball",
-                    "mega millions": "megamillions",
-                    "lotto america": "lotto_america",
-                    "double play": "double_play",
-                    "millionaire": "millionaire_life"
-                }
-
                 for lot in loterias:
-                    nombre_lower = lot['nombre'].lower()
-                    if not lot.get('route'):
-                        lot['route'] = next((v for k, v in route_map.items() if k in nombre_lower), nombre_lower.replace(' ', '_'))
-                    tabla = next((v for k, v in table_map.items() if k in nombre_lower), None)
+                    r = (lot.get('route') or '').strip().lower()
+                    if not r:
+                        r = lot['nombre'].lower().strip().replace(' ', '_')
+                        lot['route'] = r
 
-                    if tabla:
-                        try:
-                            # Buscamos la fecha del próximo sorteo futura o de hoy (donde aún no hay resultados registrados)
-                            if tabla == "resultados_colorloto":
-                                cur.execute("SELECT MAX(fecha) AS max_fecha FROM resultados_colorloto2 WHERE fecha >= (CURRENT_DATE - INTERVAL '1 day')")
-                            else:
-                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                    tabla = f"resultados_{r}"
+                    try:
+                        # Verificar si existe la tabla antes de consultar la fecha de sorteo
+                        cur.execute("""
+                            SELECT EXISTS (
+                                SELECT FROM information_schema.tables 
+                                WHERE table_name = %s
+                            );
+                        """, (tabla,))
+                        exists = cur.fetchone()
+                        has_table = exists['exists'] if isinstance(exists, dict) else (exists[0] if exists else False)
+
+                        if has_table:
+                            cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
                             res = cur.fetchone()
                             if res:
                                 max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
                                 if max_fecha:
                                     lot['proximo_sorteo'] = str(max_fecha)
-                        except Exception as e:
-                            logger.error(f"Error obteniendo fecha del próximo sorteo para {tabla}: {e}")
+                    except Exception:
+                        pass
                 return loterias

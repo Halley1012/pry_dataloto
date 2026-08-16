@@ -78,7 +78,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
       final List<Map<String, dynamic>> jugadasLoterias = activas.isNotEmpty
           ? todas.where((mapItem) {
-              final route = _getRouteFromName(mapItem['nombre'] ?? "");
+              final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
+              final route = (rawRoute != null && rawRoute.isNotEmpty)
+                  ? rawRoute
+                  : _getRouteFromName(mapItem['nombre'] ?? "");
               return activas.contains(route);
             }).toList()
           : todas;
@@ -142,16 +145,19 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   String _getRouteFromName(String nombre) {
-    final n = nombre.toLowerCase().trim();
-    if (n.contains("baloto") || n.contains("revancha")) return "bloto";
-    if (n.contains("miloto") || n.contains("mloto")) return "mloto";
-    if (n.contains("colorloto")) return "colorloto";
-    if (n.contains("powerball")) return "powerball";
-    if (n.contains("mega millions") || n.contains("megamillions")) return "megamillions";
-    if (n.contains("lotto america")) return "lotto_america";
-    if (n.contains("double play")) return "double_play";
-    if (n.contains("millionaire")) return "millionaire_life";
-    return "unknown";
+    String clean = nombre.trim().toLowerCase();
+    clean = clean
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'[ñ]'), 'n');
+
+    return clean
+        .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
+        .trim()
+        .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
   void _onSearchChanged(String query) {
@@ -320,7 +326,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: ListTile(
-        onTap: () => _navigateToJugadas(nombre),
+        onTap: () => _navigateToJugadas(loteria),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 46),
         title: Text(
@@ -332,8 +338,12 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     );
   }
 
-  void _navigateToJugadas(String nombre) {
-    final route = _getRouteFromName(nombre);
+  void _navigateToJugadas(Map<String, dynamic> loteria) {
+    final nombre = (loteria['nombre'] ?? 'Lotería').toString();
+    final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+    final route = (rawRoute != null && rawRoute.isNotEmpty)
+        ? rawRoute
+        : _getRouteFromName(nombre);
     
     Navigator.push(
       context,

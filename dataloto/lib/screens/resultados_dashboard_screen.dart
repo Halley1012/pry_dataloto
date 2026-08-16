@@ -16,10 +16,14 @@ import 'package:dataloto/l10n/generated/app_localizations.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
+  final String? loteriaRoute;
+  final Map<String, dynamic>? loteriaData;
 
   const ResultadosDashboardScreen({
     super.key,
-    this.loteriaNombreInicial = "Miloto",
+    this.loteriaNombreInicial = "Lotería",
+    this.loteriaRoute,
+    this.loteriaData,
   });
 
   @override
@@ -38,6 +42,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int> _winningNums = [];
   int? _winningRed;
   bool _hasRevanchaData = false;
+  String _nombreSorteo1 = "Principal";
+  String _nombreSorteo2 = "Secundario";
   List<int> _winningNumsRevancha = [];
   int? _winningRedRevancha;
   double _coberturaPorcentajeRevancha = 0.0;
@@ -57,6 +63,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   int _selectedResultadosTab = 0; // 0 = Sorteo Principal, 1 = Sorteo Secundario
 
   String get _nombreSorteoPrincipal {
+    if (_hasRevanchaData && _nombreSorteo1.isNotEmpty) {
+      return _nombreSorteo1;
+    }
     final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
     if (parts.isNotEmpty && parts[0].isNotEmpty) {
       return parts[0];
@@ -65,6 +74,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _getNombreSorteoSecundario(BuildContext context) {
+    if (_hasRevanchaData && _nombreSorteo2.isNotEmpty) {
+      return _nombreSorteo2;
+    }
     final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
     if (parts.length > 1 && parts[1].isNotEmpty) {
       return parts[1];
@@ -80,17 +92,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _getRouteForLoteria(String name) {
-    String clean = name.trim().toLowerCase();
-    if (clean.contains("baloto") || clean.contains("revancha")) return "bloto";
-    if (clean.contains("miloto") || clean.contains("mloto")) return "mloto";
-    if (clean.contains("colorloto")) return "colorloto";
-    if (clean.contains("powerball")) return "powerball";
-    if (clean.contains("mega millions") || clean.contains("megamillions")) return "megamillions";
-    if (clean.contains("lotto america") || clean.contains("lotto_america")) return "lotto_america";
-    if (clean.contains("double play") || clean.contains("double_play")) return "double_play";
-    if (clean.contains("millionaire") || clean.contains("millionaire_life")) return "millionaire_life";
+    if (widget.loteriaRoute != null && widget.loteriaRoute!.isNotEmpty) {
+      return widget.loteriaRoute!.trim().toLowerCase();
+    }
+    if (widget.loteriaData != null && widget.loteriaData!['route'] != null) {
+      return widget.loteriaData!['route'].toString().trim().toLowerCase();
+    }
 
-    // Dynamic normalization for future lotteries
+    String clean = name.trim().toLowerCase();
     clean = clean
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
@@ -106,19 +115,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
-    final lower = name.toLowerCase();
-    if (lower.contains("powerball")) return 34;
-    if (lower.contains("megamillions") || lower.contains("mega millions")) return 35;
-    if (lower.contains("double play") || lower.contains("double_play")) return 34;
-    if (lower.contains("lotto america") || lower.contains("lotto_america")) return 26;
-    if (lower.contains("millionaire") || lower.contains("millionaire_life")) return 29;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto")) return 10;
-    if (lower.contains("baloto")) return 21;
-    
-    // Para cualquier lotería futura agregada sin configuración previa:
     if (totalPoolSize != null && totalPoolSize > 0) {
       return (totalPoolSize / 2).round();
+    }
+    if (widget.loteriaData != null && widget.loteriaData!['max_balotas_blancas'] != null) {
+      final m = int.tryParse(widget.loteriaData!['max_balotas_blancas'].toString()) ?? 40;
+      return (m / 2).round();
     }
     return 20;
   }
@@ -295,8 +297,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
-    final bool tieneBalotaExtra = !_selectedLoteria.toLowerCase().contains("miloto") &&
-        !_selectedLoteria.toLowerCase().contains("colorloto");
+    final bool tieneBalotaExtra = _predictionBalotaroja.isNotEmpty ||
+        (widget.loteriaData != null && (int.tryParse(widget.loteriaData!['max_balotas_rojas']?.toString() ?? '0') ?? 0) > 0);
 
     _hasRevanchaData = false;
     _winningNumsRevancha = [];
@@ -306,42 +308,43 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     String drawDateISO = "";
 
-    // 1. Extraer último sorteo real (Baloto y Revancha)
+    // 1. Extraer último sorteo real dinámicamente
     if (sorteosRaw.isNotEmpty) {
-      final isBalotoSession = _selectedLoteria.toLowerCase().contains("baloto");
+      final sorteosUnicos = sorteosRaw
+          .map((s) => s["sorteo"]?.toString().trim())
+          .where((s) => s != null && s.isNotEmpty)
+          .toSet()
+          .toList();
 
-      Map<String, dynamic>? ultimoBaloto;
-      Map<String, dynamic>? ultimoRevancha;
+      Map<String, dynamic>? ultimoPrincipal;
+      Map<String, dynamic>? ultimoSecundario;
 
-      if (isBalotoSession) {
-        final balotoMatches = sorteosRaw.where(
-          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("baloto") ||
-                 (s["sorteo"]?.toString() ?? "").trim().isEmpty,
+      if (sorteosUnicos.length > 1) {
+        _hasRevanchaData = true;
+        _nombreSorteo1 = sorteosUnicos[0]!;
+        _nombreSorteo2 = sorteosUnicos[1]!;
+
+        final matches1 = sorteosRaw.where(
+          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(_nombreSorteo1.toLowerCase()),
         ).toList();
+        ultimoPrincipal = matches1.isNotEmpty ? matches1.first : sorteosRaw.first;
 
-        if (balotoMatches.isNotEmpty) {
-          ultimoBaloto = balotoMatches.first;
-        } else {
-          ultimoBaloto = sorteosRaw.first;
-        }
-
-        final revanchaMatches = sorteosRaw.where(
-          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("revancha"),
+        final matches2 = sorteosRaw.where(
+          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(_nombreSorteo2.toLowerCase()),
         ).toList();
-
-        if (revanchaMatches.isNotEmpty) {
-          ultimoRevancha = revanchaMatches.first;
+        if (matches2.isNotEmpty) {
+          ultimoSecundario = matches2.first;
         }
       } else {
-        ultimoBaloto = sorteosRaw.first;
+        ultimoPrincipal = sorteosRaw.first;
       }
 
-      // Procesar Sorteo Principal / Baloto
-      _fechaSorteo = _formatearFecha(ultimoBaloto["fecha"]?.toString() ?? "");
-      drawDateISO = _normalizarFechaISO(ultimoBaloto["fecha"]?.toString() ?? "");
+      // Procesar Sorteo Principal
+      _fechaSorteo = _formatearFecha(ultimoPrincipal["fecha"]?.toString() ?? "");
+      drawDateISO = _normalizarFechaISO(ultimoPrincipal["fecha"]?.toString() ?? "");
 
-      List<int> extractedNums = _extraerNumerosDeMap(ultimoBaloto);
-      final redVal = int.tryParse(ultimoBaloto["superbalota"]?.toString() ?? ultimoBaloto["balota"]?.toString() ?? ultimoBaloto["red"]?.toString() ?? "");
+      List<int> extractedNums = _extraerNumerosDeMap(ultimoPrincipal);
+      final redVal = int.tryParse(ultimoPrincipal["superbalota"]?.toString() ?? ultimoPrincipal["balota"]?.toString() ?? ultimoPrincipal["red"]?.toString() ?? "");
 
       if (tieneBalotaExtra && redVal == null && extractedNums.length > 5) {
         _winningRed = extractedNums.removeLast();
@@ -354,46 +357,25 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
 
       _jackpot = "";
-      if (ultimoBaloto["jackpot"] != null && ultimoBaloto["jackpot"].toString().isNotEmpty) {
-        _jackpot = ultimoBaloto["jackpot"].toString();
+      if (ultimoPrincipal["jackpot"] != null && ultimoPrincipal["jackpot"].toString().isNotEmpty) {
+        _jackpot = ultimoPrincipal["jackpot"].toString();
       } else if (data["jackpot"] != null && data["jackpot"].toString().isNotEmpty) {
         _jackpot = data["jackpot"].toString();
       }
 
-      if (_jackpot.isEmpty) {
-        final clean = _selectedLoteria.toLowerCase();
-        if (clean.contains("miloto")) {
-          _jackpot = "\$220 millones";
-        } else if (clean.contains("baloto")) {
-          _jackpot = "\$24.500 millones";
-        } else if (clean.contains("colorloto") || clean.contains("color loto")) {
-          _jackpot = "\$2.050 millones";
-        } else if (clean.contains("double play") || clean.contains("double_play")) {
-          _jackpot = "\$10 Million";
-        } else if (clean.contains("lotto america") || clean.contains("lotto_america")) {
-          _jackpot = "\$2 Million";
-        } else if (clean.contains("millionaire") || clean.contains("life")) {
-          _jackpot = "\$1.000 / día";
-        } else if (clean.contains("powerball")) {
-          _jackpot = "\$20 Million";
-        } else if (clean.contains("mega millions") || clean.contains("megamillions")) {
-          _jackpot = "\$20 Million";
-        }
-      }
+      // Procesar Sorteo Secundario (si existe)
+      if (ultimoSecundario != null) {
+        List<int> extractedSecundario = _extraerNumerosDeMap(ultimoSecundario);
+        final redValRev = int.tryParse(ultimoSecundario["superbalota"]?.toString() ?? ultimoSecundario["balota"]?.toString() ?? ultimoSecundario["red"]?.toString() ?? "");
 
-      // Procesar Revancha (si existe)
-      if (ultimoRevancha != null) {
-        List<int> extractedRevancha = _extraerNumerosDeMap(ultimoRevancha);
-        final redValRev = int.tryParse(ultimoRevancha["superbalota"]?.toString() ?? ultimoRevancha["balota"]?.toString() ?? ultimoRevancha["red"]?.toString() ?? "");
-
-        if (tieneBalotaExtra && redValRev == null && extractedRevancha.length > 5) {
-          _winningRedRevancha = extractedRevancha.removeLast();
+        if (tieneBalotaExtra && redValRev == null && extractedSecundario.length > 5) {
+          _winningRedRevancha = extractedSecundario.removeLast();
         } else {
           _winningRedRevancha = redValRev;
         }
 
-        if (extractedRevancha.isNotEmpty) {
-          _winningNumsRevancha = extractedRevancha;
+        if (extractedSecundario.isNotEmpty) {
+          _winningNumsRevancha = extractedSecundario;
           _hasRevanchaData = true;
         }
       }
@@ -633,16 +615,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
 
     if (_hasRevanchaData) {
-      if (_selectedResultadosTab == 1) {
-        final revMatches = _ultimosSorteos.where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("revancha")).toList();
-        if (revMatches.isNotEmpty) {
-          rawSource = revMatches;
-        }
-      } else {
-        final balMatches = _ultimosSorteos.where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains("baloto") || (s["sorteo"]?.toString() ?? "").trim().isEmpty).toList();
-        if (balMatches.isNotEmpty) {
-          rawSource = balMatches;
-        }
+      final targetSorteo = _selectedResultadosTab == 1 ? _nombreSorteo2 : _nombreSorteo1;
+      final matches = _ultimosSorteos
+          .where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(targetSorteo.toLowerCase()))
+          .toList();
+      if (matches.isNotEmpty) {
+        rawSource = matches;
       }
     }
 

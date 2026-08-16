@@ -421,36 +421,7 @@ class ApiService {
       }
     }
 
-    final lower = loteriaName.toLowerCase();
-    DateTime next = baseDate.add(const Duration(days: 1));
-
-    // Baloto / Revancha: Wed (3), Sat (6)
-    if (lower.contains("bloto") || lower.contains("baloto")) {
-      while (next.weekday != DateTime.wednesday && next.weekday != DateTime.saturday) {
-        next = next.add(const Duration(days: 1));
-      }
-    }
-    // MiLoto: Mon (1), Tue (2), Thu (4), Fri (5)
-    else if (lower.contains("mloto") || lower.contains("miloto")) {
-      while (next.weekday != DateTime.monday && next.weekday != DateTime.tuesday && next.weekday != DateTime.thursday && next.weekday != DateTime.friday) {
-        next = next.add(const Duration(days: 1));
-      }
-    }
-    // Powerball & Lotto America: Mon (1), Wed (3), Sat (6)
-    else if (lower.contains("powerball") || lower.contains("lotto_america") || lower.contains("lotto america")) {
-      while (next.weekday != DateTime.monday && next.weekday != DateTime.wednesday && next.weekday != DateTime.saturday) {
-        next = next.add(const Duration(days: 1));
-      }
-    }
-    // Mega Millions: Tue (2), Fri (5)
-    else if (lower.contains("megamillions") || lower.contains("mega millions")) {
-      while (next.weekday != DateTime.tuesday && next.weekday != DateTime.friday) {
-        next = next.add(const Duration(days: 1));
-      }
-    } else {
-      next = baseDate.add(const Duration(days: 1));
-    }
-
+    final DateTime next = baseDate.add(const Duration(days: 1));
     return "${next.year}-${next.month.toString().padLeft(2, '0')}-${next.day.toString().padLeft(2, '0')}";
   }
 
