@@ -16,9 +16,9 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
     async def list_notifications(self, user_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            # Seleccionamos campos de notificaciones y el pais_id de la tabla loterias
+            # Seleccionamos campos de notificaciones y metadata de la tabla loterias
             base_query = """
-                SELECT n.*, l.pais_id 
+                SELECT n.*, l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route 
                 FROM notificaciones n
                 LEFT JOIN loterias l ON l.id = n.loteria_id
                 WHERE (n.usuario_id = $1 OR n.usuario_id IS NULL)
@@ -31,7 +31,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
             else:
                 # Si no hay user_id, mostramos solo las globales (usuario_id is null)
                 query_no_user = """
-                    SELECT n.*, l.pais_id 
+                    SELECT n.*, l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route 
                     FROM notificaciones n
                     LEFT JOIN loterias l ON l.id = n.loteria_id
                     WHERE n.usuario_id IS NULL 
