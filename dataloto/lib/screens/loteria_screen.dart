@@ -1,0 +1,1899 @@
+import 'dart:math';
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:intl/intl.dart';
+
+import 'package:dataloto/l10n/generated/app_localizations.dart';
+import 'package:dataloto/screens/estadisticas_dashboard_screen.dart';
+import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
+import 'package:dataloto/services/api_service.dart';
+import 'package:dataloto/services/cache_service.dart';
+import 'package:dataloto/styles/app_text_styles.dart';
+import 'package:dataloto/styles/colores.dart';
+import 'package:dataloto/utils/pais_helper.dart';
+import 'package:dataloto/widgets/contenedor3.dart';
+import 'package:dataloto/widgets/jugadas_list_widget.dart';
+import 'package:dataloto/widgets/lottery_avatar_3d.dart';
+
+/// Configuración de reglas y límites de cada lotería
+class LoteriaConfig {
+  final String nombre;
+  final String route;
+  final int maxSeleccion;
+  final int maxBalotasBlancas;
+  final int maxBalotasRojas;
+  final String superbalotaNombre;
+  final bool hasRevancha;
+
+  const LoteriaConfig({
+    required this.nombre,
+    required this.route,
+    this.maxSeleccion = 5,
+    this.maxBalotasBlancas = 45,
+    this.maxBalotasRojas = 0,
+    this.superbalotaNombre = "Superbalota",
+    this.hasRevancha = false,
+  });
+
+  bool get tieneBalotaRoja => maxBalotasRojas > 0;
+
+  LoteriaConfig copyWith({
+    String? nombre,
+    String? route,
+    int? maxSeleccion,
+    int? maxBalotasBlancas,
+    int? maxBalotasRojas,
+    String? superbalotaNombre,
+    bool? hasRevancha,
+  }) {
+    return LoteriaConfig(
+      nombre: nombre ?? this.nombre,
+      route: route ?? this.route,
+      maxSeleccion: maxSeleccion ?? this.maxSeleccion,
+      maxBalotasBlancas: maxBalotasBlancas ?? this.maxBalotasBlancas,
+      maxBalotasRojas: maxBalotasRojas ?? this.maxBalotasRojas,
+      superbalotaNombre: superbalotaNombre ?? this.superbalotaNombre,
+      hasRevancha: hasRevancha ?? this.hasRevancha,
+    );
+  }
+
+  /// Construye o adapta dinámicamente la configuración a partir de un mapa (API/Cache)
+  static LoteriaConfig fromJson(Map<String, dynamic> json, {String? fallbackNombre}) {
+    final rawNombre = json["nombre"]?.toString() ?? fallbackNombre ?? "Baloto";
+    final base = fromNombre(rawNombre, routeOverride: json["route"]?.toString());
+
+    return base.copyWith(
+      maxSeleccion: json["max_seleccion"] != null
+          ? int.tryParse(json["max_seleccion"].toString())
+          : (json["maxSeleccion"] != null ? int.tryParse(json["maxSeleccion"].toString()) : null),
+      maxBalotasBlancas: json["max_balotas"] != null
+          ? int.tryParse(json["max_balotas"].toString())
+          : (json["maxBalotasBlancas"] != null
+              ? int.tryParse(json["maxBalotasBlancas"].toString())
+              : null),
+      maxBalotasRojas: json["max_balotas_rojas"] != null
+          ? int.tryParse(json["max_balotas_rojas"].toString())
+          : (json["maxBalotasRojas"] != null
+              ? int.tryParse(json["maxBalotasRojas"].toString())
+              : null),
+      superbalotaNombre:
+          json["superbalota_nombre"]?.toString() ?? json["superbalotaNombre"]?.toString(),
+      hasRevancha: json["has_revancha"] == true || json["hasRevancha"] == true,
+    );
+  }
+
+  static LoteriaConfig fromNombre(String? nombreInput, {String? routeOverride}) {
+    final t = (nombreInput ?? "Baloto").toLowerCase().trim();
+    final cleanRoute = (routeOverride != null && routeOverride.isNotEmpty)
+        ? routeOverride.trim().toLowerCase()
+        : _inferRouteFromName(t);
+
+    if (t.contains("miloto") || cleanRoute == "mloto") {
+      return LoteriaConfig(
+        nombre: "Miloto",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 39,
+        maxBalotasRojas: 0,
+      );
+    }
+    if (t.contains("powerball")) {
+      return LoteriaConfig(
+        nombre: "Powerball",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 69,
+        maxBalotasRojas: 26,
+        superbalotaNombre: "Powerball",
+      );
+    }
+    if (t.contains("mega millions") || t.contains("megamillions")) {
+      return LoteriaConfig(
+        nombre: "Mega Millions",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 70,
+        maxBalotasRojas: 25,
+        superbalotaNombre: "Mega Ball",
+      );
+    }
+    if (t.contains("double play") || t.contains("double_play")) {
+      return LoteriaConfig(
+        nombre: "Double Play",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 69,
+        maxBalotasRojas: 26,
+        superbalotaNombre: "Double Play Ball",
+      );
+    }
+    if (t.contains("lotto america") || t.contains("lotto_america")) {
+      return LoteriaConfig(
+        nombre: "Lotto America",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 52,
+        maxBalotasRojas: 10,
+        superbalotaNombre: "Star Ball",
+      );
+    }
+    if (t.contains("millionaire") || t.contains("millionaire_life")) {
+      return LoteriaConfig(
+        nombre: "Millionaire Life",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 60,
+        maxBalotasRojas: 4,
+        superbalotaNombre: "Cash Ball",
+      );
+    }
+    if (t.contains("colorloto") || t.contains("color_loto") || cleanRoute == "cloto") {
+      return LoteriaConfig(
+        nombre: "ColorLoto",
+        route: cleanRoute,
+        maxSeleccion: 6,
+        maxBalotasBlancas: 25,
+        maxBalotasRojas: 0,
+      );
+    }
+    if (t.contains("baloto") || cleanRoute == "bloto") {
+      return LoteriaConfig(
+        nombre: "Baloto",
+        route: cleanRoute,
+        maxSeleccion: 5,
+        maxBalotasBlancas: 43,
+        maxBalotasRojas: 16,
+        superbalotaNombre: "Superbalota",
+        hasRevancha: true,
+      );
+    }
+
+    // Configuración genérica inteligente para cualquier nueva lotería
+    final formattedName = (nombreInput != null && nombreInput.isNotEmpty)
+        ? nombreInput[0].toUpperCase() + nombreInput.substring(1)
+        : "Lotería";
+
+    return LoteriaConfig(
+      nombre: formattedName,
+      route: cleanRoute,
+      maxSeleccion: 5,
+      maxBalotasBlancas: 45,
+      maxBalotasRojas: 0,
+    );
+  }
+
+  static String _inferRouteFromName(String t) {
+    if (t.contains("miloto") || t == "mloto") return "mloto";
+    if (t.contains("baloto") || t == "bloto") return "bloto";
+    if (t.contains("colorloto") || t.contains("color_loto") || t == "cloto") return "cloto";
+    if (t.contains("powerball")) return "powerball";
+    if (t.contains("mega millions") || t.contains("megamillions")) return "megamillions";
+    if (t.contains("double play") || t.contains("double_play")) return "double_play";
+    if (t.contains("lotto america") || t.contains("lotto_america")) return "lotto_america";
+    if (t.contains("millionaire") || t.contains("millionaire_life")) return "millionaire_life";
+    return t.replaceAll(' ', '_');
+  }
+}
+
+class LoteriaScreen extends StatefulWidget {
+  final String loteriaNombre;
+  final String? loteriaRoute;
+  final Map<String, dynamic>? loteriaData;
+
+  const LoteriaScreen({
+    super.key,
+    required this.loteriaNombre,
+    this.loteriaRoute,
+    this.loteriaData,
+  });
+
+  @override
+  State<LoteriaScreen> createState() => _LoteriaScreenState();
+}
+
+class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateMixin {
+  final _storage = const FlutterSecureStorage();
+  late LoteriaConfig config;
+
+  int? balotaRojaSeleccionada;
+  List<int> seleccionados = [];
+  List<int> listaProbables = [];
+  List<int> listaBalotaRoja = [];
+  List<Map<String, dynamic>> ultimosResultados = [];
+  List<Map<String, dynamic>> todosResultadosHistorico = [];
+  List<Map<String, dynamic>> _jugadasList = [];
+  List<Map<String, dynamic>> anuncios = [];
+  List<String> _sorteosDisponibles = [];
+
+  bool cargando = false;
+  bool isSaving = false;
+  String? fechaPrediccion;
+  String? userId;
+  String? _jackpot;
+  String _selectedResultadosTab = "";
+
+  late AnimationController _bounceController;
+  late Animation<double> _bounceAnimation;
+  late AnimationController _shineController;
+  late AnimationController _jugadasController;
+
+  final GlobalKey<JugadasListWidgetState> _jugadasListKey =
+      GlobalKey<JugadasListWidgetState>();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.loteriaData != null) {
+      config = LoteriaConfig.fromJson(widget.loteriaData!, fallbackNombre: widget.loteriaNombre);
+    } else {
+      config = LoteriaConfig.fromNombre(widget.loteriaNombre, routeOverride: widget.loteriaRoute);
+    }
+    _cargarDataOptimizado();
+
+    _bounceController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _bounceAnimation = CurvedAnimation(
+      parent: _bounceController,
+      curve: Curves.elasticOut,
+    );
+    _bounceController.forward();
+
+    _shineController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    )..repeat();
+
+    _jugadasController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+  }
+
+  @override
+  void dispose() {
+    _bounceController.dispose();
+    _shineController.dispose();
+    _jugadasController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _cargarDataOptimizado() async {
+    if (!mounted) return;
+
+    final cacheKeyPred = '${config.route}_prediccion';
+    final cached = await CacheService.getJson(cacheKeyPred);
+    if (cached != null && cached["numeros"] != null) {
+      final nums = (cached["numeros"] as List)
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .where((e) => e != 0)
+          .toList();
+      final redNums = cached["balotaroja"] != null
+          ? (cached["balotaroja"] as List)
+              .map((e) => int.tryParse(e.toString()) ?? 0)
+              .where((e) => e != 0)
+              .toList()
+          : <int>[];
+
+      setState(() {
+        listaProbables = nums;
+        listaBalotaRoja = redNums;
+        fechaPrediccion = cached["fecha"]?.toString();
+        if (cached["jackpot"] != null) {
+          _jackpot = cached["jackpot"].toString();
+        }
+      });
+    }
+
+    final cacheKeyUltimos = '${config.route}_ultimos5';
+    final cachedUltimos = await CacheService.getJson(cacheKeyUltimos);
+    if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
+      final list = List<Map<String, dynamic>>.from(cachedUltimos["resultados"]);
+      final sorteosUnicos = list
+          .map((r) => r["sorteo"]?.toString().trim())
+          .where((s) => s != null && s.isNotEmpty)
+          .cast<String>()
+          .toSet()
+          .toList();
+      setState(() {
+        ultimosResultados = list;
+        _sorteosDisponibles = sorteosUnicos;
+        if (_sorteosDisponibles.isNotEmpty &&
+            !_sorteosDisponibles.contains(_selectedResultadosTab)) {
+          _selectedResultadosTab = _sorteosDisponibles.first;
+        }
+      });
+    }
+
+    if (listaProbables.isEmpty) setState(() => cargando = true);
+
+    try {
+      final uId = await _storage.read(key: 'user_id');
+      if (mounted) setState(() => userId = uId);
+
+      await Future.wait([
+        _fetchNumeros(),
+        _fetchUltimosResultados(),
+        _fetchHistoricoCompleto(),
+        _loadJugadas(),
+        _loadAnuncios(),
+        _jugadasListKey.currentState?.reload() ?? Future.value(),
+      ]);
+
+      if (mounted) {
+        _jugadasController.reset();
+        _jugadasController.forward();
+      }
+    } catch (e) {
+      debugPrint("❌ Error cargando datos de ${config.nombre}: $e");
+    } finally {
+      if (mounted) setState(() => cargando = false);
+    }
+  }
+
+  Future<void> _fetchNumeros() async {
+    try {
+      final data = await ApiService.getPrediccionLoteria(config.route);
+      if (data["numeros"] != null && mounted) {
+        final nums = (data["numeros"] as List)
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((e) => e != 0)
+            .toList();
+
+        final redNums = data["balotaroja"] != null
+            ? (data["balotaroja"] as List)
+                .map((e) => int.tryParse(e.toString()) ?? 0)
+                .where((e) => e != 0)
+                .toList()
+            : <int>[];
+
+        int dynamicMaxBlancas = config.maxBalotasBlancas;
+        if (nums.isNotEmpty) {
+          final maxNum = nums.reduce(max);
+          if (maxNum > dynamicMaxBlancas) dynamicMaxBlancas = maxNum;
+        }
+        int dynamicMaxRojas = config.maxBalotasRojas;
+        if (redNums.isNotEmpty) {
+          final maxRed = redNums.reduce(max);
+          if (maxRed > dynamicMaxRojas) dynamicMaxRojas = maxRed;
+        }
+
+        setState(() {
+          listaProbables = nums;
+          listaBalotaRoja = redNums;
+          fechaPrediccion = data["fecha"]?.toString();
+          if (data["jackpot"] != null) {
+            _jackpot = data["jackpot"].toString();
+          }
+          config = config.copyWith(
+            maxBalotasBlancas: dynamicMaxBlancas,
+            maxBalotasRojas: dynamicMaxRojas,
+          );
+        });
+        CacheService.setJson('${config.route}_prediccion', data);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error obteniendo predicción (${config.route}): $e");
+    }
+  }
+
+  Future<void> _fetchUltimosResultados() async {
+    try {
+      final list = await ApiService.getUltimosResultados(config.route);
+      if (mounted && list.isNotEmpty) {
+        final sorteosUnicos = list
+            .map((r) => r["sorteo"]?.toString().trim())
+            .where((s) => s != null && s.isNotEmpty)
+            .cast<String>()
+            .toSet()
+            .toList();
+
+        setState(() {
+          ultimosResultados = list;
+          _sorteosDisponibles = sorteosUnicos;
+          if (_sorteosDisponibles.isNotEmpty &&
+              !_sorteosDisponibles.contains(_selectedResultadosTab)) {
+            _selectedResultadosTab = _sorteosDisponibles.first;
+          }
+        });
+        CacheService.setJson('${config.route}_ultimos5', {"resultados": list});
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error obteniendo últimos resultados (${config.route}): $e");
+    }
+  }
+
+  Future<void> _fetchHistoricoCompleto() async {
+    final cacheKey = '${config.route}_historico_completo';
+    final cached = await CacheService.getJson(cacheKey);
+    if (cached != null && cached["resultados"] != null && mounted) {
+      setState(() {
+        todosResultadosHistorico = List<Map<String, dynamic>>.from(cached["resultados"]);
+      });
+    }
+
+    try {
+      final list = await ApiService.getHistoricoCompleto(config.route);
+      if (mounted && list.isNotEmpty) {
+        setState(() {
+          todosResultadosHistorico = list;
+        });
+        CacheService.setJson(cacheKey, {"resultados": list});
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error obteniendo histórico (${config.route}): $e");
+    }
+  }
+
+  Future<void> _loadJugadas() async {
+    final uId = userId ?? (await ApiService.getUserId())?.toString() ?? "anon";
+    final cacheKeyUser = 'user_jugadas_${config.route}_$uId';
+    final cacheKeyGeneral = 'mis_jugadas_${config.route}';
+
+    final cached = await CacheService.getJson(cacheKeyUser) ??
+        await CacheService.getJson(cacheKeyGeneral);
+    if (cached is List && mounted) {
+      setState(() => _jugadasList = List<Map<String, dynamic>>.from(cached));
+    }
+
+    try {
+      final response = await ApiService.listarJugadasGenerica(config.route);
+      if (mounted) {
+        final list = List<Map<String, dynamic>>.from(response);
+        setState(() => _jugadasList = list);
+        await CacheService.setJson(cacheKeyUser, list);
+        await CacheService.setJson(cacheKeyGeneral, list);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _loadAnuncios() async {
+    try {
+      final data = await ApiService.getPublicidades();
+      if (mounted) setState(() => anuncios = data);
+    } catch (_) {}
+  }
+
+  void _generarAleatorios() {
+    setState(() {
+      final Random random = Random();
+      seleccionados = [];
+
+      final pool = listaProbables.isNotEmpty
+          ? listaProbables
+          : List.generate(config.maxBalotasBlancas, (i) => i + 1);
+
+      while (seleccionados.length < config.maxSeleccion) {
+        int n = pool[random.nextInt(pool.length)];
+        if (!seleccionados.contains(n)) seleccionados.add(n);
+      }
+
+      if (config.tieneBalotaRoja) {
+        final redPool = listaBalotaRoja.isNotEmpty
+            ? listaBalotaRoja
+            : List.generate(config.maxBalotasRojas, (i) => i + 1);
+        balotaRojaSeleccionada = redPool[random.nextInt(redPool.length)];
+      }
+
+      _bounceController.reset();
+      _bounceController.forward();
+    });
+  }
+
+  Future<void> _guardarJugada(AppLocalizations? l10n) async {
+    if (isSaving) return;
+
+    String? currentUid = userId;
+    if (currentUid == null || currentUid.isEmpty) {
+      final uidInt = await ApiService.getUserId();
+      if (uidInt != null) {
+        currentUid = uidInt.toString();
+        if (mounted) setState(() => userId = currentUid);
+      }
+    }
+
+    if (currentUid == null || currentUid.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n?.iniciaSesionParaContinuar ?? "Inicia sesión para guardar tu jugada",
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    List<int> whitesToSave = [];
+    int? redToSave;
+
+    if (seleccionados.isEmpty) {
+      if (listaProbables.length < config.maxSeleccion) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                "Cargando predicción, espera un momento...",
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      whitesToSave = listaProbables.take(config.maxSeleccion).toList();
+      if (config.tieneBalotaRoja && listaBalotaRoja.isNotEmpty) {
+        redToSave = listaBalotaRoja.first;
+      }
+    } else {
+      if (seleccionados.length != config.maxSeleccion ||
+          (config.tieneBalotaRoja && balotaRojaSeleccionada == null)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                config.tieneBalotaRoja
+                    ? (l10n?.debesSeleccionarBalotas ??
+                        "Debes seleccionar ${config.maxSeleccion} balotas y 1 ${config.superbalotaNombre}")
+                    : (l10n?.debesSeleccionarBalotas ??
+                        "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      whitesToSave = List<int>.from(seleccionados);
+      redToSave = balotaRojaSeleccionada;
+    }
+
+    final whites = List<int>.from(whitesToSave)..sort();
+    final jugadaCompleta = redToSave != null ? [...whites, redToSave] : whites;
+    final Set<int> whitesSet = whites.toSet();
+
+    if (_jugadasList.isEmpty) {
+      final cacheKey = 'mis_jugadas_${config.route}';
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached is List && cached.isNotEmpty) {
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+      } else {
+        try {
+          final res = await ApiService.listarJugadasGenerica(config.route);
+          if (res.isNotEmpty) {
+            _jugadasList = List<Map<String, dynamic>>.from(res);
+          }
+        } catch (_) {}
+      }
+    }
+
+    final bool isDuplicate = _jugadasList.any((j) {
+      final rawNums = (j["numeros"] as List<dynamic>?)
+              ?.map((n) => int.tryParse(n.toString()) ?? 0)
+              .where((n) => n > 0)
+              .toList() ??
+          [];
+      if (rawNums.isEmpty) return false;
+
+      final rawRed = j["balota_roja"] ?? j["balotaroja"];
+      final int? existingRed = rawRed != null
+          ? int.tryParse(rawRed.toString())
+          : (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion
+              ? rawNums.last
+              : null);
+
+      final List<int> existingWhites =
+          (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion)
+              ? (rawNums.sublist(0, config.maxSeleccion)..sort())
+              : (rawNums.take(config.maxSeleccion).toList()..sort());
+      final Set<int> existingWhitesSet = existingWhites.toSet();
+
+      final bool whiteMatch = whitesSet.length == existingWhitesSet.length &&
+          whitesSet.difference(existingWhitesSet).isEmpty;
+
+      if (whiteMatch) {
+        if (config.tieneBalotaRoja) {
+          if (redToSave == null || existingRed == null || redToSave == existingRed) {
+            return true;
+          }
+        } else {
+          return true;
+        }
+      }
+
+      if (const ListEquality().equals(rawNums, jugadaCompleta)) {
+        return true;
+      }
+
+      return false;
+    });
+
+    if (isDuplicate) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              l10n?.jugadaYaExiste ??
+                  "Esta jugada ya se encuentra en tus jugadas guardadas",
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => isSaving = true);
+
+    final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
+      config.route,
+      fechaPrediccion: fechaPrediccion,
+      ultimoSorteoFecha: ultimosResultados.isNotEmpty
+          ? ultimosResultados.first["fecha"]?.toString()
+          : null,
+    );
+
+    try {
+      await ApiService.crearJugadaGenerica(
+        config.route,
+        whites,
+        currentUid,
+        balotaRoja: redToSave,
+        fechaSorteo: targetFechaSorteo,
+      );
+
+      final nuevaJugada = {
+        "numeros": (redToSave != null && whites.length == config.maxSeleccion)
+            ? [...whites, redToSave]
+            : whites,
+        if (redToSave != null) "balota_roja": redToSave,
+        if (redToSave != null) "balotaroja": redToSave,
+        "fecha_sorteo": targetFechaSorteo,
+      };
+      _jugadasList.insert(0, nuevaJugada);
+      final uIdStr = currentUid;
+      await CacheService.setJson('user_jugadas_${config.route}_$uIdStr', _jugadasList);
+      await CacheService.setJson('mis_jugadas_${config.route}', _jugadasList);
+
+      await _loadJugadas();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("❌ Error al guardar jugada: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(l10n?.errorGuardarJugada ?? "Error al guardar la jugada"),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isSaving = false);
+    }
+  }
+
+  Map<String, String> _calcularStats() {
+    final listaUsar =
+        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty) {
+      return {
+        "hot": "--",
+        "hotV": "--",
+        "cold": "--",
+        "coldV": "--",
+        "pairs": "--",
+        "total": "0",
+      };
+    }
+
+    final Map<int, int> freq = {};
+    for (var r in listaUsar) {
+      final nums = List<int>.from(r["numeros"] ?? []);
+      for (var n in nums.take(config.maxSeleccion)) {
+        freq[n] = (freq[n] ?? 0) + 1;
+      }
+    }
+
+    int hotNum = 1, hotCount = -1;
+    int coldNum = 1, coldCount = 999999;
+
+    freq.forEach((k, v) {
+      if (v > hotCount) {
+        hotCount = v;
+        hotNum = k;
+      }
+      if (v < coldCount) {
+        coldCount = v;
+        coldNum = k;
+      }
+    });
+
+    String pairsRatio = "--";
+    if (listaUsar.isNotEmpty) {
+      final lastNums =
+          List<int>.from(listaUsar.first["numeros"] ?? []).take(config.maxSeleccion);
+      int evens = lastNums.where((n) => n % 2 == 0).length;
+      int odds = lastNums.length - evens;
+      pairsRatio = "$evens-$odds";
+    }
+
+    return {
+      "hot": hotCount > 0 ? hotNum.toString().padLeft(2, '0') : "--",
+      "hotV": hotCount > 0 ? "$hotCount veces" : "--",
+      "cold": coldCount < 999999 ? coldNum.toString().padLeft(2, '0') : "--",
+      "coldV": coldCount < 999999 ? "$coldCount veces" : "--",
+      "pairs": pairsRatio,
+      "total": "${listaUsar.length}",
+    };
+  }
+
+  String _formatearFecha(String fecha) {
+    try {
+      if (fecha.contains('T')) {
+        DateTime parsed = DateTime.parse(fecha);
+        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+      }
+      if (fecha.length >= 10 && fecha.contains('-')) {
+        DateTime parsed = DateTime.parse(fecha.substring(0, 10));
+        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+      }
+      if (fecha.contains('/')) {
+        final parts = fecha.split('/');
+        if (parts.length == 3) {
+          final day = int.parse(parts[0]);
+          final month = int.parse(parts[1]);
+          final year = int.parse(parts[2]);
+          final parsed = DateTime(year, month, day);
+          return DateFormat('dd MMM yyyy', 'es').format(parsed);
+        }
+      }
+      return fecha;
+    } catch (_) {
+      return fecha;
+    }
+  }
+
+  String _getFechaProximoSorteo(AppLocalizations? l10n) {
+    if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
+      return _formatearFecha(fechaPrediccion!);
+    }
+    if (ultimosResultados.isNotEmpty && ultimosResultados.first["fecha"] != null) {
+      return _formatearFecha(ultimosResultados.first["fecha"].toString());
+    }
+    return l10n?.proximoSorteo ?? "Por definir";
+  }
+
+  int _calcularAfinidadScore(List<int> nums, int maxBall) {
+    final listaUsar =
+        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (listaUsar.isEmpty || nums.isEmpty) return 0;
+
+    final Map<int, int> f = {};
+    for (int i = 1; i <= maxBall; i++) {
+      f[i] = 0;
+    }
+    for (var r in listaUsar) {
+      final nList = List<int>.from(r["numeros"] ?? []);
+      for (var n in nList.take(config.maxSeleccion)) {
+        if (n >= 1 && n <= maxBall) {
+          f[n] = (f[n] ?? 0) + 1;
+        }
+      }
+    }
+
+    final freqs = f.values.toList()..sort();
+    final int minSum = freqs.take(config.maxSeleccion).fold(0, (a, b) => a + b);
+    final int maxSum = freqs.reversed.take(config.maxSeleccion).fold(0, (a, b) => a + b);
+
+    int sumUser = 0;
+    for (var n in nums.take(config.maxSeleccion)) {
+      sumUser += f[n] ?? 0;
+    }
+
+    if (maxSum == minSum) return 50;
+    double ratio = (sumUser - minSum) / (maxSum - minSum);
+    ratio = ratio.clamp(0.0, 1.0);
+    return (50 + (ratio * 45)).round();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final s = _calcularStats();
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      body: SafeArea(
+        child: RefreshIndicator(
+          color: AppColors.yellow,
+          onRefresh: _cargarDataOptimizado,
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 3),
+                      _buildHeader(l10n),
+                      const SizedBox(height: 18),
+                      _buildQuickSummary(s, l10n),
+                      const SizedBox(height: 24),
+                      _buildIAPrediction(l10n),
+                      const SizedBox(height: 16),
+                      _buildDisclaimerNote(l10n),
+                      const SizedBox(height: 20),
+                      _buildActionGrid(l10n),
+                      const SizedBox(height: 24),
+                      _buildManualSelectorSection(l10n),
+                      if (config.tieneBalotaRoja) ...[
+                        const SizedBox(height: 24),
+                        _buildRedBallsSection(l10n),
+                      ],
+                      const SizedBox(height: 24),
+                      _buildResultadosSection(l10n),
+                      const SizedBox(height: 24),
+                      _buildNewsSection(l10n),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader(AppLocalizations? l10n) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                LotteryAvatar3D(nombre: config.nombre, size: 32),
+                const SizedBox(width: 10),
+                Text(
+                  config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
+                  style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+            Text(
+              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}",
+              style: AppTextStyles.caption,
+            ),
+          ],
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+          ),
+          child: Builder(
+            builder: (context) {
+              final parts = PaisHelper.getJackpotParts(
+                _jackpot,
+                fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty) ? _jackpot! : "--",
+              );
+              final displayVal = parts["value"]!.isNotEmpty ? parts["value"]! : "--";
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    l10n?.jackpotEstimado ?? "Jackpot estimado",
+                    style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9),
+                  ),
+                  Text(
+                    displayVal,
+                    style: AppTextStyles.h2.copyWith(
+                      color: AppColors.yellow,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                  if (parts["label"]!.isNotEmpty)
+                    Text(
+                      parts["label"]!,
+                      style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDisclaimerNote(AppLocalizations? l10n) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.1)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.lightbulb_outline, color: AppColors.yellow, size: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              l10n?.notaTendenciasEstadisticas ??
+                  "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+              style: AppTextStyles.caption.copyWith(fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
+    final int affinityScore = listaProbables.isNotEmpty
+        ? _calcularAfinidadScore(
+            listaProbables.take(config.maxSeleccion).toList(), config.maxBalotasBlancas)
+        : 0;
+
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.bar_chart, color: Colors.amber, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  l10n?.resumenRapido ?? "Resumen rápido",
+                  style: AppTextStyles.mensajeImportante,
+                ),
+              ],
+            ),
+            TextButton(
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+                ),
+              ),
+              child: Text(
+                l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›",
+                style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              _buildStatCard(
+                l10n?.masCaliente ?? "Más caliente",
+                stats["hot"]!,
+                stats["hotV"]!,
+                l10n,
+                icon: Icons.local_fire_department,
+                iconColor: Colors.orangeAccent,
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                l10n?.masFrio ?? "Más frío",
+                stats["cold"]!,
+                stats["coldV"]!,
+                l10n,
+                icon: Icons.ac_unit,
+                iconColor: Colors.blueAccent,
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                l10n?.paresImpares ?? "Pares - Impares",
+                stats["pairs"]!,
+                l10n?.ultimoSorteo ?? "Último sorteo",
+                l10n,
+                icon: Icons.balance,
+                iconColor: Colors.white54,
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                "Score IA",
+                affinityScore > 0 ? "$affinityScore%" : "--",
+                l10n?.indiceAfinidadHistorica ?? "Afinidad histórica",
+                l10n,
+                icon: Icons.insights,
+                iconColor: AppColors.yellow,
+              ),
+              const SizedBox(width: 10),
+              _buildStatCard(
+                l10n?.analizados ?? "Analizados",
+                stats["total"]!,
+                l10n?.sorteos ?? "Sorteos",
+                l10n,
+                icon: Icons.analytics_outlined,
+                iconColor: Colors.white54,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(
+    String label,
+    String value,
+    String subValue,
+    AppLocalizations? l10n, {
+    IconData? icon,
+    Color? iconColor,
+  }) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+        ),
+      ),
+      child: Container(
+        width: 105,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Column(
+          children: [
+            if (icon != null) Icon(icon, color: iconColor ?? AppColors.yellow, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white38, fontSize: 10),
+              textAlign: TextAlign.center,
+            ),
+            Text(
+              subValue,
+              style: const TextStyle(color: Colors.white54, fontSize: 9),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _build3DBallPrediction(
+    int? numero, {
+    Color baseColor = const Color(0xFF1A4594),
+    double size = 45,
+  }) {
+    return ScaleTransition(
+      scale: _bounceAnimation,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          RotationTransition(
+            turns: Tween(begin: 0.0, end: 1.0).animate(_shineController),
+            child: ShaderMask(
+              shaderCallback: (bounds) => LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.25),
+                  Colors.transparent,
+                  Colors.white.withValues(alpha: 0.25),
+                ],
+                stops: const [0.2, 0.5, 0.8],
+              ).createShader(bounds),
+              blendMode: BlendMode.srcATop,
+              child: Image.asset(
+                baseColor == const Color(0xFFD32F2F)
+                    ? "assets/images/red-ball.png"
+                    : "assets/images/yellow-ball.png",
+                width: size,
+                height: size,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => _build3DBall(
+                  numero,
+                  baseColor: baseColor,
+                  size: size,
+                ),
+              ),
+            ),
+          ),
+          Text(
+            numero?.toString() ?? "–",
+            style: TextStyle(
+              fontSize: size * 0.35,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              shadows: const [
+                Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _build3DBall(
+    int? numero, {
+    Color baseColor = const Color(0xFFF33A21),
+    double size = 45,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            baseColor.withValues(alpha: 0.95),
+            baseColor.withValues(alpha: 0.8),
+            baseColor.withValues(alpha: 0.6),
+          ],
+          center: Alignment.topLeft,
+          radius: 0.9,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            offset: const Offset(3, 3),
+            blurRadius: 6,
+          ),
+          BoxShadow(
+            color: baseColor.withValues(alpha: 0.4),
+            offset: const Offset(-2, -2),
+            blurRadius: 4,
+          ),
+        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
+      ),
+      child: Center(
+        child: Text(
+          numero?.toString() ?? "–",
+          style: TextStyle(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.bold,
+            color: numero != null ? Colors.white : Colors.white54,
+            shadows: numero != null
+                ? [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      offset: const Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIAPrediction(AppLocalizations? l10n) {
+    final bool isCustomSelection =
+        seleccionados.isNotEmpty || (config.tieneBalotaRoja && balotaRojaSeleccionada != null);
+    final listaUsar =
+        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    final int totalSorteosAnalizados = listaUsar.length;
+
+    final numsEvaluados = isCustomSelection
+        ? seleccionados
+        : (listaProbables.isNotEmpty
+            ? listaProbables.take(config.maxSeleccion).toList()
+            : <int>[]);
+
+    final int scoreAfinidad = numsEvaluados.isNotEmpty
+        ? _calcularAfinidadScore(numsEvaluados, config.maxBalotasBlancas)
+        : 0;
+    final double progressVal = (scoreAfinidad / 100.0).clamp(0.0, 1.0);
+
+    return AppContainer3(
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    isCustomSelection
+                        ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada")
+                        : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
+                    style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    isCustomSelection
+                        ? (l10n?.balotasPrincipales(seleccionados.length) ??
+                            "${seleccionados.length}/${config.maxSeleccion} balotas")
+                        : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ??
+                            "Basada en análisis de $totalSorteosAnalizados sorteos"),
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
+                  ),
+                  Text(
+                    isCustomSelection
+                        ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar")
+                        : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
+                    style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+                  ),
+                ],
+              ),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 60,
+                    height: 60,
+                    child: CircularProgressIndicator(
+                      value: progressVal,
+                      strokeWidth: 4,
+                      color: AppColors.yellow,
+                      backgroundColor: Colors.white10,
+                    ),
+                  ),
+                  Text(
+                    scoreAfinidad > 0 ? "$scoreAfinidad%" : "--",
+                    style: AppTextStyles.h2.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              ...List.generate(config.maxSeleccion, (index) {
+                int? val;
+                if (isCustomSelection) {
+                  val = index < seleccionados.length ? seleccionados[index] : null;
+                } else {
+                  val = index < listaProbables.length ? listaProbables[index] : null;
+                }
+                return _build3DBallPrediction(
+                  val,
+                  baseColor: const Color(0xFF1A4594),
+                  size: config.maxSeleccion > 5 ? 38 : 45,
+                );
+              }),
+              if (config.tieneBalotaRoja)
+                _build3DBallPrediction(
+                  isCustomSelection
+                      ? balotaRojaSeleccionada
+                      : (listaBalotaRoja.isNotEmpty ? listaBalotaRoja.first : null),
+                  baseColor: const Color(0xFFD32F2F),
+                  size: config.maxSeleccion > 5 ? 38 : 45,
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
+              const SizedBox(width: 4),
+              Text(
+                isCustomSelection
+                    ? (l10n?.jugada ?? "Jugada")
+                    : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
+                style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionGrid(AppLocalizations? l10n) {
+    return Row(
+      children: [
+        _buildActionTile(
+          icon: Icons.auto_awesome_outlined,
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
+          onTap: _generarAleatorios,
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bookmark_add_outlined,
+          label: isSaving
+              ? (l10n?.guardando ?? "Guardando...")
+              : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+          onTap: isSaving ? null : () => _guardarJugada(l10n),
+          isLoading: isSaving,
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bookmarks_outlined,
+          label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MisJugadasScreen(
+                  loteriaNombre: config.nombre,
+                  loteriaRoute: config.route,
+                ),
+              ),
+            );
+            if (mounted) {
+              await _loadJugadas();
+            }
+          },
+        ),
+        const SizedBox(width: 8),
+        _buildActionTile(
+          icon: Icons.bar_chart,
+          label: l10n?.estadisticas ?? "Estadísticas",
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+                  EstadisticasDashboardScreen(loteriaNombreInicial: config.nombre),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback? onTap,
+    bool isLoading = false,
+  }) {
+    final bool disabled = onTap == null || isLoading;
+    return Expanded(
+      child: GestureDetector(
+        onTap: disabled ? null : onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 200),
+          opacity: disabled ? 0.5 : 1.0,
+          child: Container(
+            height: 76,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05),
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (isLoading)
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.yellow,
+                    ),
+                  )
+                else
+                  Icon(icon, color: AppColors.yellow, size: 22),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    height: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                l10n?.seleccionaNumeros ?? "Selecciona tus números",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              InkWell(
+                onTap: () => setState(() {
+                  seleccionados.clear();
+                  balotaRojaSeleccionada = null;
+                }),
+                borderRadius: BorderRadius.circular(20),
+                child: const Padding(
+                  padding: EdgeInsets.all(4.0),
+                  child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            "${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."} \n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}",
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+          const SizedBox(height: 20),
+          listaProbables.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(color: AppColors.yellow),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isSmall = screenWidth < 360;
+                    final crossAxisCount = isSmall ? 6 : 8;
+                    final spacing = isSmall ? 6.0 : 10.0;
+
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      children: listaProbables.asMap().entries.map((entry) {
+                        int index = entry.key;
+                        int numero = entry.value;
+                        bool isSelected = seleccionados.contains(numero);
+                        Color baseColor = isSelected
+                            ? Colors.amber
+                            : (index < (config.maxBalotasBlancas / 2).ceil()
+                                ? Colors.redAccent
+                                : const Color(0xFF607D8B));
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (!mounted) return;
+                            setState(() {
+                              if (seleccionados.contains(numero)) {
+                                seleccionados.remove(numero);
+                              } else if (seleccionados.length < config.maxSeleccion) {
+                                seleccionados.add(numero);
+                                _bounceController.reset();
+                                _bounceController.forward();
+                              }
+                            });
+                          },
+                          child: _build3DBall(numero, baseColor: baseColor, size: 38),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRedBallsSection(AppLocalizations? l10n) {
+    if (!config.tieneBalotaRoja) return const SizedBox.shrink();
+
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                config.superbalotaNombre == "Balota Roja" ||
+                        config.superbalotaNombre == "Superbalota"
+                    ? (l10n?.balotasRojas ?? "Balotas Rojas")
+                    : config.superbalotaNombre,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              if (balotaRojaSeleccionada != null)
+                InkWell(
+                  onTap: () => setState(() => balotaRojaSeleccionada = null),
+                  borderRadius: BorderRadius.circular(20),
+                  child: const Padding(
+                    padding: EdgeInsets.all(4.0),
+                    child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l10n?.numerosOrdenadosProbabilidad ??
+                "Números ordenados de mayor a menor probabilidad.",
+            style: const TextStyle(color: Colors.white38, fontSize: 11),
+          ),
+          const SizedBox(height: 20),
+          listaBalotaRoja.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: CircularProgressIndicator(color: AppColors.yellow),
+                  ),
+                )
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = MediaQuery.of(context).size.width;
+                    final isSmall = screenWidth < 360;
+                    final crossAxisCount = isSmall ? 6 : 8;
+                    final spacing = isSmall ? 6.0 : 10.0;
+
+                    return GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: spacing,
+                      mainAxisSpacing: spacing,
+                      children: listaBalotaRoja.map((numero) {
+                        bool isSelected = balotaRojaSeleccionada == numero;
+                        return GestureDetector(
+                          onTap: () {
+                            if (!mounted) return;
+                            setState(() {
+                              if (balotaRojaSeleccionada == numero) {
+                                balotaRojaSeleccionada = null;
+                              } else {
+                                balotaRojaSeleccionada = numero;
+                                _bounceController.reset();
+                                _bounceController.forward();
+                              }
+                            });
+                          },
+                          child: _build3DBall(
+                            numero,
+                            baseColor: isSelected ? Colors.amber : Colors.redAccent,
+                            size: 38,
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultadosSection(AppLocalizations? l10n) {
+    if (_sorteosDisponibles.length > 1) {
+      final listToShow = ultimosResultados
+          .where((r) =>
+              (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
+              _selectedResultadosTab.trim().toLowerCase())
+          .take(5)
+          .toList();
+
+      return AppContainer3(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                l10n?.resultados ?? "Resultados",
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: _sorteosDisponibles.map((sorteo) {
+                final isSelected =
+                    _selectedResultadosTab.toLowerCase() == sorteo.toLowerCase();
+                return Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedResultadosTab = sorteo),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.yellow : const Color(0xFF2A2A2A),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          sorteo,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: isSelected ? Colors.black : Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            _buildResultadosContent(
+              _selectedResultadosTab,
+              l10n,
+              listaResultados: listToShow.isNotEmpty ? listToShow : ultimosResultados,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return AppContainer3(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} ${config.nombre}",
+              style: AppTextStyles.h2,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildResultadosContent(config.nombre, l10n),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResultadosContent(
+    String loteria,
+    AppLocalizations? l10n, {
+    List<Map<String, dynamic>>? listaResultados,
+  }) {
+    final resultadosUsar = listaResultados ?? ultimosResultados;
+    return Column(
+      children: [
+        if (resultadosUsar.isEmpty)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(color: AppColors.amber),
+            ),
+          )
+        else
+          Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      l10n?.pais ?? "Fecha",
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.fechasResultado,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Text(
+                      l10n?.resultados ?? "Resultados",
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.fechasResultado,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ...resultadosUsar.take(5).map((resultado) {
+                final fecha = resultado["fecha"] ?? "S/F";
+                final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
+                final numeros = rawNumeros
+                    .map((e) => int.tryParse(e.toString()) ?? 0)
+                    .where((e) => e > 0)
+                    .toList();
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final screenWidth = MediaQuery.of(context).size.width;
+                      final isSmall = screenWidth < 360;
+                      final ballSize = isSmall ? 25.0 : 31.0;
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: Text(
+                              fecha,
+                              textAlign: TextAlign.center,
+                              style: AppTextStyles.mensajeImportante,
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: numeros.isEmpty
+                                  ? [
+                                      Text(
+                                        l10n?.sinNumeros ?? "Sin números",
+                                        style: AppTextStyles.mensajeSecundario,
+                                      ),
+                                    ]
+                                  : List.generate(numeros.length, (index) {
+                                      final n = numeros[index];
+                                      final isLast = config.tieneBalotaRoja &&
+                                          index == numeros.length - 1;
+                                      return SizedBox(
+                                        width: ballSize,
+                                        height: ballSize,
+                                        child: _build3DBall(
+                                          n,
+                                          baseColor: isLast
+                                              ? Colors.redAccent
+                                              : Colors.amber,
+                                          size: ballSize,
+                                        ),
+                                      );
+                                    }),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildNewsSection(AppLocalizations? l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              l10n?.noticiasAlertas ?? "Noticias / Alertas",
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+            Text(
+              l10n?.verTodas ?? "Ver todas ›",
+              style: const TextStyle(color: AppColors.yellow, fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.yellow.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.notifications_active_outlined,
+                  color: AppColors.yellow,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      l10n?.hoyEsSorteo(config.nombre) ??
+                          "Hoy es el sorteo de ${config.nombre}",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                    Text(
+                      l10n?.noOlvidesRevisar ??
+                          "No olvides revisar tus números y mucha suerte.",
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
