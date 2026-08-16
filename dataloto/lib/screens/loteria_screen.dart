@@ -1682,7 +1682,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   Expanded(
                     flex: 1,
                     child: Text(
-                      l10n?.pais ?? "Fecha",
+                      l10n?.fechaLabel ?? "Fecha",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado,
                     ),
@@ -1766,7 +1766,29 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     );
   }
 
+  bool get _esHoySorteo {
+    final now = DateTime.now();
+    final todayStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+    if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
+      if (fechaPrediccion!.startsWith(todayStr)) return true;
+    }
+    final proxData = widget.loteriaData?['proximo_sorteo']?.toString();
+    if (proxData != null && proxData.isNotEmpty) {
+      if (proxData.startsWith(todayStr)) return true;
+    }
+    return false;
+  }
+
   Widget _buildNewsSection(AppLocalizations? l10n) {
+    final bool esHoy = _esHoySorteo;
+    final String tituloAlerta = esHoy
+        ? (l10n?.hoyEsSorteo(config.nombre) ?? "Hoy es el sorteo de ${config.nombre}")
+        : "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}";
+    final String subtituloAlerta = esHoy
+        ? (l10n?.noOlvidesRevisar ?? "No olvides revisar tus números y mucha suerte.")
+        : "Prepara tus jugadas con las predicciones de IA.";
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1799,12 +1821,12 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: AppColors.yellow.withValues(alpha: 0.1),
+                  color: (esHoy ? AppColors.yellow : Colors.white24).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.notifications_active_outlined,
-                  color: AppColors.yellow,
+                child: Icon(
+                  esHoy ? Icons.notifications_active_outlined : Icons.calendar_today_outlined,
+                  color: esHoy ? AppColors.yellow : Colors.white70,
                   size: 20,
                 ),
               ),
@@ -1814,8 +1836,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      l10n?.hoyEsSorteo(config.nombre) ??
-                          "Hoy es el sorteo de ${config.nombre}",
+                      tituloAlerta,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -1823,8 +1844,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                       ),
                     ),
                     Text(
-                      l10n?.noOlvidesRevisar ??
-                          "No olvides revisar tus números y mucha suerte.",
+                      subtituloAlerta,
                       style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                   ],

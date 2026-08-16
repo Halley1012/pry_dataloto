@@ -25,6 +25,29 @@ class DoublePlayScraper:
             "X-Requested-With": "XMLHttpRequest"
         }
         self.draw_days = (0, 2, 5) # Lunes, Miércoles, Sábados
+    def update_jackpot(self, engine, loteria, jackpot, fecha):
+        if not jackpot or not fecha:
+            return
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
 
     def run(self, max_pages=None):
         print("🚀 Iniciando Scraping de Double Play...")
@@ -121,6 +144,11 @@ class DoublePlayScraper:
             engine = get_engine()
             df_final.to_sql('resultados_double_play', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"✅ ¡DataFrame de Double Play guardado exitosamente! Total filas: {len(df_final)}")
+
+            # Double Play tiene un jackpot fijo de $10 Millones de dólares ($10 Million)
+            if 'cur_date' in locals() and cur_date:
+                fecha_guardar = cur_date.date() if hasattr(cur_date, 'date') else cur_date
+                self.update_jackpot(engine, "double_play", "$10 Million", fecha_guardar)
         except Exception as e:
             print(f"❌ Error al guardar datos de Double Play en BD: {e}")
 

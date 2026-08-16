@@ -109,7 +109,7 @@ class DoublePlayPredictor:
 
         model_roja = XGBClassifier(
             objective="multi:softprob",
-            num_class=16,
+            num_class=self.max_special_ball,
             eval_metric="mlogloss",
             #use_label_encoder=False,
             random_state=42

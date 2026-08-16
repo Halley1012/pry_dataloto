@@ -132,21 +132,6 @@ class DataLotoApp extends StatelessWidget {
             '/splash': (context) => const SplashScreen(),
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginPage(),
-            '/baloto': (context) => const LoteriaScreen(loteriaNombre: "Baloto"),
-            '/miloto': (context) => const LoteriaScreen(loteriaNombre: "Miloto"),
-            '/color_loto': (context) => const LoteriaScreen(loteriaNombre: "ColorLoto"),
-            '/powerball': (context) => const LoteriaScreen(loteriaNombre: "Powerball"),
-            '/megamillions': (context) => const LoteriaScreen(loteriaNombre: "Mega Millions"),
-            '/double_play': (context) => const LoteriaScreen(loteriaNombre: "Double Play"),
-            '/lotto_america': (context) => const LoteriaScreen(loteriaNombre: "Lotto America"),
-            '/millionaire_life': (context) => const LoteriaScreen(loteriaNombre: "Millionaire Life"),
-            '/estadisticas_bloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Baloto"),
-            '/estadisticas_mloto': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Miloto"),
-            '/estadisticas_powerball': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Powerball"),
-            '/estadisticas_double_play': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Double Play"),
-            '/estadisticas_lotto_america': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Lotto America"),
-            '/estadisticas_megamillions': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Mega Millions"),
-            '/estadisticas_millionaire_life': (context) => const EstadisticasDashboardScreen(loteriaNombreInicial: "Millionaire Life"),
             '/home': (context) => HomeScreen(),
             '/notifications': (context) => const NotificationsScreen(),
             '/registro': (context) {
@@ -162,6 +147,30 @@ class DataLotoApp extends StatelessWidget {
                 userId: args['userId'] as int?,
               );
             },
+          },
+          onGenerateRoute: (settings) {
+            final name = settings.name ?? '';
+            if (name.startsWith('/estadisticas_')) {
+              final loteriaKey = name.replaceFirst('/estadisticas_', '');
+              return MaterialPageRoute(
+                builder: (_) => EstadisticasDashboardScreen(
+                  loteriaNombreInicial: loteriaKey,
+                  loteriaRoute: loteriaKey,
+                ),
+              );
+            }
+            if (name.startsWith('/')) {
+              final cleanName = name.substring(1);
+              final args = settings.arguments;
+              return MaterialPageRoute(
+                builder: (_) => LoteriaScreen(
+                  loteriaNombre: cleanName,
+                  loteriaRoute: cleanName,
+                  loteriaData: args is Map<String, dynamic> ? args : null,
+                ),
+              );
+            }
+            return null;
           },
         );
       },
