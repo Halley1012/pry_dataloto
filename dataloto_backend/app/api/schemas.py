@@ -87,6 +87,7 @@ class LoteriaOut(BaseModel):
     max_balotas_rojas: Optional[int] = 0
     superbalota_nombre: Optional[str] = None
     has_revancha: Optional[bool] = False
+    jackpot: Optional[str] = None
 
 class PublicidadQuery:
     def __init__(

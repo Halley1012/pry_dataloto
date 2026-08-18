@@ -57,30 +57,25 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
-      // 1. Obtener todos los países
-      final paisesRaw = await ApiService.getPaises();
-      _paises = paisesRaw.cast<Map<String, dynamic>>();
-      CacheService.setJson('paises_list_cache', _paises);
-      
-      List<Map<String, dynamic>> todas = [];
-      
-      // 2. Cargar loterías de TODOS los países en paralelo
-      final listadoFutures = _paises.map((p) => ApiService.getLoteriasPorPais(p['id'].toString()).catchError((e) {
-        debugPrint("Error cargando loterías para país ${p['id']}: $e");
-        return [];
-      }));
+      // ⚡ Cargar países y todas las loterías de forma ultra rápida en 1 sola petición
+      final results = await Future.wait([
+        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getAllLoterias().catchError((e) {
+          debugPrint("Error cargando todas las loterías: $e");
+          return <dynamic>[];
+        }),
+      ]);
 
-      final resultadosLoterias = await Future.wait(listadoFutures);
-
-      for (int i = 0; i < _paises.length; i++) {
-        final pId = _paises[i]['id'].toString();
-        final list = resultadosLoterias[i];
-        for (var item in list) {
-          final mapItem = Map<String, dynamic>.from(item as Map);
-          mapItem['pais_id'] = mapItem['pais_id'] ?? pId;
-          todas.add(mapItem);
-        }
+      final paisesRaw = results[0] as List<Map<String, dynamic>>;
+      if (paisesRaw.isNotEmpty) {
+        _paises = paisesRaw;
+        CacheService.setJson('paises_list_cache', _paises);
       }
+
+      final loteriasRaw = results[1];
+      final List<Map<String, dynamic>> todas = loteriasRaw
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
 
       if (mounted) {
         setState(() {
@@ -89,7 +84,9 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           _filteredLoterias = todas;
           _isLoading = false;
         });
-        CacheService.setJson('explorar_loterias_mundial', todas);
+        if (todas.isNotEmpty) {
+          CacheService.setJson('explorar_loterias_mundial', todas);
+        }
       }
     } catch (e) {
       debugPrint("❌ Error crítico en Explorar Mundial: $e");
