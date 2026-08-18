@@ -31,8 +31,9 @@ class JugadaOut(BaseModel):
     id: int
     user_id: int
     numeros: List[int]
-    fecha_guardado: datetime
-    expira: datetime
+    fecha_sorteo: Optional[str] = None
+    fecha_guardado: Optional[datetime] = None
+    expira: Optional[datetime] = None
 
 class TransactionRequest(BaseModel):
     amount: float
