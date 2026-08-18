@@ -2,35 +2,49 @@ from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime, date
 from app.domain.ports import JugadaRepositoryPort
 from app.infrastructure import db_connection
+from app.core.cache import cached
 
 class PostgresJugadaRepository(JugadaRepositoryPort):
+    _table_ensured: bool = False
+
+    @classmethod
+    async def ensure_schema(cls, conn):
+        if cls._table_ensured:
+            return
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS jugadas (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    loteria_id INTEGER,
+                    loteria_route VARCHAR(50) NOT NULL,
+                    numeros INTEGER[] NOT NULL,
+                    fecha_sorteo DATE,
+                    fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    expira TIMESTAMP WITH TIME ZONE
+                );
+                CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_route);
+                CREATE INDEX IF NOT EXISTS idx_jugadas_loteria_id ON jugadas (loteria_id);
+                CREATE INDEX IF NOT EXISTS idx_jugadas_expira ON jugadas (expira);
+            """)
+            # Asegurar columnas si no existían
+            await conn.execute("""
+                ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
+                ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
+                ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_route VARCHAR(50);
+            """)
+            await conn.execute("""
+                DELETE FROM jugadas
+                WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
+                   OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
+            """)
+            cls._table_ensured = True
+        except Exception:
+            pass
+
     async def _ensure_table(self, conn):
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS jugadas (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL,
-                loteria_id INTEGER,
-                loteria_route VARCHAR(50) NOT NULL,
-                numeros INTEGER[] NOT NULL,
-                fecha_sorteo DATE,
-                fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                expira TIMESTAMP WITH TIME ZONE
-            );
-            CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_route);
-            CREATE INDEX IF NOT EXISTS idx_jugadas_loteria_id ON jugadas (loteria_id);
-            CREATE INDEX IF NOT EXISTS idx_jugadas_expira ON jugadas (expira);
-        """)
-        # Asegurar columnas si no existían
-        await conn.execute("""
-            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
-            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
-            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_route VARCHAR(50);
-        """)
-        await conn.execute("""
-            DELETE FROM jugadas
-            WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
-               OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
-        """)
+        if not PostgresJugadaRepository._table_ensured:
+            await PostgresJugadaRepository.ensure_schema(conn)
 
     async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pool = db_connection.get_pool()
@@ -137,15 +151,18 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             return [r['route'] for r in rows if r['route']]
 
 
+    @cached(ttl=300)
     def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
         row = self.get_prediccion_generico("predicciones_mloto", fecha)
         if row:
             return (row[0], row[1])
         return None
     
+    @cached(ttl=300)
     def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         return self.get_prediccion_generico("predicciones_bloto", fecha)
 
+    @cached(ttl=300)
     def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
         clean = loteria.strip().lower()
         clean_spaces = clean.replace('_', ' ')
@@ -165,6 +182,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 row = cur.fetchone()
                 return row[0] if row else None
 
+    @cached(ttl=300)
     def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:              
@@ -179,6 +197,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
             
+    @cached(ttl=300)
     def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
@@ -204,6 +223,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
 
+    @cached(ttl=600)
     def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
@@ -227,6 +247,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
 
+    @cached(ttl=600)
     def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
@@ -240,6 +261,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
 
+    @cached(ttl=300)
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         clean_tipo = tipo.strip().lower()
         with db_connection.get_connection() as conn:
@@ -272,6 +294,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 except Exception:
                     return []
 
+    @cached(ttl=300)
     def get_prediccion_generico(self, tabla: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         clean_tipo = tabla.replace("predicciones_", "").strip().lower()
         with db_connection.get_connection() as conn:
@@ -320,6 +343,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 except Exception:
                     return None
 
+    @cached(ttl=300)
     def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
@@ -335,6 +359,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
 
+    @cached(ttl=600)
     def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
