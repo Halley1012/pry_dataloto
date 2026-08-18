@@ -32,9 +32,9 @@ class EstadisticasCards extends StatelessWidget {
             children: [
               _buildDistribucionAciertosCard(),
               const SizedBox(height: 14),
-              _buildHistorialCoberturaCard(context),
-              const SizedBox(height: 14),
               _buildRachaActualCard(),
+              const SizedBox(height: 14),
+              _buildHistorialCoberturaCard(context),
             ],
           );
         } else {
@@ -43,9 +43,9 @@ class EstadisticasCards extends StatelessWidget {
             children: [
               Expanded(flex: 5, child: _buildDistribucionAciertosCard()),
               const SizedBox(width: 10),
-              Expanded(flex: 5, child: _buildHistorialCoberturaCard(context)),
-              const SizedBox(width: 10),
               Expanded(flex: 4, child: _buildRachaActualCard()),
+              const SizedBox(width: 10),
+              Expanded(flex: 5, child: _buildHistorialCoberturaCard(context)),
             ],
           );
         }
