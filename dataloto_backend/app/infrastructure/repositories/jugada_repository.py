@@ -138,46 +138,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
 
     def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                if fecha:
-                    cur.execute(f"""
-                        SELECT fecha, numeros
-                        FROM predicciones_mloto
-                        WHERE fecha <= %s
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """, (fecha,))
-                else:
-                    cur.execute(f"""
-                        SELECT fecha, numeros
-                        FROM predicciones_mloto
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """)
-                row = cur.fetchone()
-                return row if row else None
+        row = self.get_prediccion_generico("predicciones_mloto", fecha)
+        if row:
+            return (row[0], row[1])
+        return None
     
     def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                if fecha:
-                    cur.execute(f"""
-                        SELECT fecha, numeros, balotaroja
-                        FROM predicciones_bloto
-                        WHERE fecha <= %s
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """, (fecha,))
-                else:
-                    cur.execute(f"""
-                        SELECT fecha, numeros, balotaroja
-                        FROM predicciones_bloto
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """)
-                row = cur.fetchone()
-                return row if row else None
+        return self.get_prediccion_generico("predicciones_bloto", fecha)
 
     def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
         clean = loteria.strip().lower()
@@ -274,39 +241,84 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
 
     def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
+        clean_tipo = tipo.strip().lower()
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute(f"""
-                    SELECT fecha, numeros
-                    FROM predicciones_{tipo}
-                    WHERE fecha >= CURRENT_DATE - INTERVAL '7 days'
-                    ORDER BY fecha DESC
-                    LIMIT %s;
-                """, (limit,))
-                rows = cur.fetchall()
-                # para predicciones el formato numeros es str o similar en BD
-                return [(r[0], r[1]) for r in rows]
+                try:
+                    cur.execute("""
+                        SELECT fecha, numeros
+                        FROM predicciones
+                        WHERE LOWER(loteria_route) = %s
+                          AND fecha >= CURRENT_DATE - INTERVAL '15 days'
+                        ORDER BY fecha DESC
+                        LIMIT %s;
+                    """, (clean_tipo, limit))
+                    rows = cur.fetchall()
+                    if rows:
+                        return [(r[0], r[1]) for r in rows]
+                except Exception:
+                    pass
+
+                try:
+                    cur.execute(f"""
+                        SELECT fecha, numeros
+                        FROM predicciones_{clean_tipo}
+                        WHERE fecha >= CURRENT_DATE - INTERVAL '15 days'
+                        ORDER BY fecha DESC
+                        LIMIT %s;
+                    """, (limit,))
+                    rows = cur.fetchall()
+                    return [(r[0], r[1]) for r in rows]
+                except Exception:
+                    return []
 
     def get_prediccion_generico(self, tabla: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
+        clean_tipo = tabla.replace("predicciones_", "").strip().lower()
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                if fecha:
-                    cur.execute(f"""
-                        SELECT fecha, numeros, balotaroja
-                        FROM {tabla}
-                        WHERE fecha <= %s
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """, (fecha,))
-                else:
-                    cur.execute(f"""
-                        SELECT fecha, numeros, balotaroja
-                        FROM {tabla}
-                        ORDER BY fecha DESC
-                        LIMIT 1;
-                    """)
-                row = cur.fetchone()
-                return row if row else None
+                try:
+                    if fecha:
+                        cur.execute("""
+                            SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                            FROM predicciones
+                            WHERE LOWER(loteria_route) = %s AND fecha <= %s
+                            ORDER BY fecha DESC
+                            LIMIT 1;
+                        """, (clean_tipo, fecha))
+                    else:
+                        cur.execute("""
+                            SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                            FROM predicciones
+                            WHERE LOWER(loteria_route) = %s
+                            ORDER BY fecha DESC
+                            LIMIT 1;
+                        """, (clean_tipo,))
+                    row = cur.fetchone()
+                    if row:
+                        return row
+                except Exception:
+                    pass
+
+                try:
+                    if fecha:
+                        cur.execute(f"""
+                            SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                            FROM {tabla}
+                            WHERE fecha <= %s
+                            ORDER BY fecha DESC
+                            LIMIT 1;
+                        """, (fecha,))
+                    else:
+                        cur.execute(f"""
+                            SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                            FROM {tabla}
+                            ORDER BY fecha DESC
+                            LIMIT 1;
+                        """)
+                    row = cur.fetchone()
+                    return row if row else None
+                except Exception:
+                    return None
 
     def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
