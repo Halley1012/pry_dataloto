@@ -1,8 +1,11 @@
+import logging
 import psycopg2
 import psycopg2.extras
 from typing import List, Optional, Tuple, Dict, Any
 from app.domain.ports import PublicidadRepositoryPort
 from app.infrastructure import db_connection
+
+logger = logging.getLogger(__name__)
 
 class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def create_publicidad(self, user_id: int, imagen_url: str, link: str, categoria_id: int, ciudad_id: int, departamento_id: int) -> Dict[str, Any]:
@@ -307,6 +310,41 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         """)
                     loterias = cur.fetchall()
 
+                # ⚡ 1. Precargar todas las tablas de resultados existentes en 1 sola consulta
+                existing_tables = set()
+                try:
+                    cur.execute("""
+                        SELECT table_name 
+                        FROM information_schema.tables 
+                        WHERE table_schema = 'public' AND table_name LIKE 'resultados_%';
+                    """)
+                    for t_row in cur.fetchall():
+                        t_name = t_row['table_name'] if isinstance(t_row, dict) else t_row[0]
+                        if t_name:
+                            existing_tables.add(t_name.lower())
+                except Exception as et:
+                    logger.debug(f"Error precargando tablas de resultados: {et}")
+
+                # ⚡ 2. Precargar los jackpots más recientes en 1 sola consulta
+                jackpot_map = {}
+                try:
+                    cur.execute("""
+                        SELECT DISTINCT ON (LOWER(TRIM(loteria))) LOWER(TRIM(loteria)) AS lot, jackpot
+                        FROM loterias_jackpots
+                        ORDER BY LOWER(TRIM(loteria)), fecha DESC;
+                    """)
+                    for j_row in cur.fetchall():
+                        lot_k = j_row['lot'] if isinstance(j_row, dict) else j_row[0]
+                        j_val = j_row['jackpot'] if isinstance(j_row, dict) else j_row[1]
+                        if lot_k and j_val:
+                            s_val = str(j_val)
+                            jackpot_map[lot_k] = s_val
+                            jackpot_map[lot_k.replace('_', ' ')] = s_val
+                            jackpot_map[lot_k.replace(' ', '_')] = s_val
+                except Exception as ej:
+                    logger.debug(f"Error precargando jackpots: {ej}")
+
+                # ⚡ 3. Asignar próximo sorteo y jackpot sin consultas redundantes
                 for lot in loterias:
                     r = (lot.get('route') or '').strip().lower()
                     if not r:
@@ -314,45 +352,26 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         lot['route'] = r
 
                     tabla = f"resultados_{r}"
-                    try:
-                        # Verificar si existe la tabla antes de consultar la fecha de sorteo
-                        cur.execute("""
-                            SELECT EXISTS (
-                                SELECT FROM information_schema.tables 
-                                WHERE table_name = %s
-                            );
-                        """, (tabla,))
-                        exists = cur.fetchone()
-                        has_table = exists['exists'] if isinstance(exists, dict) else (exists[0] if exists else False)
-
-                        if has_table:
+                    if tabla in existing_tables:
+                        try:
                             cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
                             res = cur.fetchone()
                             if res:
                                 max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
                                 if max_fecha:
                                     lot['proximo_sorteo'] = str(max_fecha)
-                    except Exception:
-                        pass
+                        except Exception:
+                            pass
 
-                    try:
-                        # Buscar jackpot reciente para esta lotería
-                        cur.execute("""
-                            SELECT jackpot
-                            FROM loterias_jackpots
-                            WHERE LOWER(loteria) = %s 
-                               OR LOWER(loteria) = %s
-                               OR REPLACE(LOWER(loteria), '_', ' ') = %s
-                               OR REPLACE(LOWER(loteria), ' ', '_') = %s
-                               OR LOWER(loteria) LIKE %s
-                            ORDER BY fecha DESC
-                            LIMIT 1;
-                        """, (r, lot['nombre'].lower(), r.replace('_', ' '), lot['nombre'].lower().replace(' ', '_'), f"%{r}%"))
-                        row_j = cur.fetchone()
-                        if row_j:
-                            j_val = row_j['jackpot'] if isinstance(row_j, dict) else row_j[0]
-                            if j_val:
-                                lot['jackpot'] = str(j_val)
-                    except Exception:
-                        pass
+                    # Búsqueda instantánea en mapa de jackpots en memoria (0 ms)
+                    nombre_lower = lot['nombre'].lower().strip()
+                    j_val = (
+                        jackpot_map.get(r) or 
+                        jackpot_map.get(nombre_lower) or 
+                        jackpot_map.get(r.replace('_', ' ')) or
+                        jackpot_map.get(nombre_lower.replace(' ', '_'))
+                    )
+                    if j_val:
+                        lot['jackpot'] = j_val
+
                 return loterias

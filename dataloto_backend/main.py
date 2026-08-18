@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core import config
 from app.infrastructure import db_connection
+from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepository
 from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications
 
 app = FastAPI(title="Dataloto Backend")
@@ -18,6 +19,12 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup():
     await db_connection.init_pool()
+    try:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await PostgresJugadaRepository.ensure_schema(conn)
+    except Exception as e:
+        print(f"⚠️ Advertencia inicializando esquema en startup: {e}")
 
 @app.on_event("shutdown")
 async def shutdown():
