@@ -150,6 +150,7 @@ class EstadisticasCards extends StatelessWidget {
       minY = math.max(0.0, minY - 0.1);
       maxY = math.min(1.0, maxY + 0.1);
     }
+    final finalMaxY = (maxY * 1.20).toDouble();
 
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
@@ -158,8 +159,23 @@ class EstadisticasCards extends StatelessWidget {
           padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
           child: LineChart(
             LineChartData(
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                    return touchedSpots.map((LineBarSpot touchedSpot) {
+                      final int val = (touchedSpot.y * 100).round();
+                      return LineTooltipItem(
+                        "$val%",
+                        const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
               minY: minY,
-              maxY: maxY,
+              maxY: finalMaxY,
               minX: 0,
               maxX: historialCoberturasList.isNotEmpty ? (historialCoberturasList.length - 1).toDouble() : 0,
               gridData: const FlGridData(show: false),

@@ -323,6 +323,10 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         if t_name:
                             existing_tables.add(t_name.lower())
                 except Exception as et:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                     logger.debug(f"Error precargando tablas de resultados: {et}")
 
                 # ⚡ 2. Precargar los jackpots más recientes en 1 sola consulta
@@ -342,6 +346,10 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                             jackpot_map[lot_k.replace('_', ' ')] = s_val
                             jackpot_map[lot_k.replace(' ', '_')] = s_val
                 except Exception as ej:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                     logger.debug(f"Error precargando jackpots: {ej}")
 
                 # ⚡ 3. Asignar próximo sorteo y jackpot sin consultas redundantes
@@ -361,7 +369,10 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                 if max_fecha:
                                     lot['proximo_sorteo'] = str(max_fecha)
                         except Exception:
-                            pass
+                            try:
+                                conn.rollback()
+                            except Exception:
+                                pass
 
                     # Búsqueda instantánea en mapa de jackpots en memoria (0 ms)
                     nombre_lower = lot['nombre'].lower().strip()
