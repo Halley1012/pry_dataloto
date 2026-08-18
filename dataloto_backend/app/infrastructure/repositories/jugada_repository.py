@@ -9,6 +9,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             CREATE TABLE IF NOT EXISTS jugadas (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
+                loteria_id INTEGER,
                 loteria_route VARCHAR(50) NOT NULL,
                 numeros INTEGER[] NOT NULL,
                 fecha_sorteo DATE,
@@ -16,10 +17,12 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 expira TIMESTAMP WITH TIME ZONE
             );
             CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_route);
+            CREATE INDEX IF NOT EXISTS idx_jugadas_loteria_id ON jugadas (loteria_id);
             CREATE INDEX IF NOT EXISTS idx_jugadas_expira ON jugadas (expira);
         """)
-        # Asegurar columna fecha_sorteo y loteria_route si no existían
+        # Asegurar columnas si no existían
         await conn.execute("""
+            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
             ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
             ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_route VARCHAR(50);
         """)
@@ -34,11 +37,26 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         loteria_route = tipo.strip().lower()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
+            # Buscar el loteria_id numérico en la tabla loterias
+            lot_row = await conn.fetchrow("""
+                SELECT id, route 
+                FROM loterias 
+                WHERE LOWER(route) = $1 
+                   OR LOWER(nombre) = $1
+                   OR REPLACE(LOWER(route), '_', ' ') = $1
+                   OR REPLACE(LOWER(nombre), ' ', '_') = $1
+                LIMIT 1;
+            """, loteria_route)
+            
+            loteria_id = lot_row['id'] if lot_row else None
+            if lot_row and lot_row['route']:
+                loteria_route = lot_row['route'].lower()
+
             row = await conn.fetchrow("""
-                INSERT INTO jugadas (user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id, user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
+                INSERT INTO jugadas (user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
+            """, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
             d = dict(row)
             if d.get('fecha_sorteo'):
                 d['fecha_sorteo'] = str(d['fecha_sorteo'])
@@ -54,7 +72,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     clean_str = fecha.replace('"', '').replace("'", "").strip().split('T')[0]
                     clean_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
                     rows = await conn.fetch("""
-                        SELECT id, user_id, loteria_route, numeros, 
+                        SELECT id, user_id, loteria_id, loteria_route, numeros, 
                                COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                                fecha_guardado, expira
                         FROM jugadas
@@ -65,7 +83,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     """, user_id, loteria_route, clean_date)
                 except Exception:
                     rows = await conn.fetch("""
-                        SELECT id, user_id, loteria_route, numeros, 
+                        SELECT id, user_id, loteria_id, loteria_route, numeros, 
                                COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                                fecha_guardado, expira
                         FROM jugadas
@@ -76,7 +94,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     """, user_id, loteria_route)
             else:
                 rows = await conn.fetch("""
-                    SELECT id, user_id, loteria_route, numeros, 
+                    SELECT id, user_id, loteria_id, loteria_route, numeros, 
                            COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                            fecha_guardado, expira
                     FROM jugadas
