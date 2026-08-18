@@ -123,24 +123,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
       final rawPosts = resultados[0] as List<Post>;
 
-      final postsConConteo = await Future.wait(
-        rawPosts.map<Future<Post>>((p) async {
-          try {
-            final comments = await ApiService.getComments(p.id);
-            return Post(
-              id: p.id,
-              title: p.title,
-              content: p.content,
-              userId: p.userId,
-              userName: p.userName,
-              createdAt: p.createdAt,
-              commentsCount: comments.length,
-            );
-          } catch (_) {}
-          return p;
-        }),
-      );
-
       List<dynamic> loteriasRes = resultados[2];
       List<dynamic> globalRes = [];
       if (loteriasRes.isEmpty) {
@@ -159,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         currentUserId = userIdStr;
         pais = paisNombreStr ?? "Colombia";
-        posts = postsConConteo;
+        posts = rawPosts;
         anuncios = List<Map<String, dynamic>>.from(resultados[1]);
         _loterias = loteriasRes;
         _filteredLoterias = List<dynamic>.from(_loterias);

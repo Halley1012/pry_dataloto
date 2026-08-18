@@ -844,6 +844,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       if (val < minY) minY = val;
       if (val > maxY) maxY = val;
     }
+    final finalMaxY = (maxY * 1.25).toDouble();
 
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
@@ -852,8 +853,22 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
           child: LineChart(
             LineChartData(
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                    return touchedSpots.map((LineBarSpot touchedSpot) {
+                      return LineTooltipItem(
+                        touchedSpot.y.toInt().toString(),
+                        const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                      );
+                    }).toList();
+                  },
+                ),
+              ),
               minY: minY,
-              maxY: maxY,
+              maxY: finalMaxY,
               minX: 0,
               maxX: reversedSumas.isNotEmpty ? (reversedSumas.length - 1).toDouble() : 0,
               gridData: const FlGridData(show: false),

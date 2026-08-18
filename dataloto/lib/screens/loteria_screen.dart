@@ -13,7 +13,6 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
-import 'package:dataloto/widgets/jugadas_list_widget.dart';
 import 'package:dataloto/widgets/lottery_avatar_3d.dart';
 
 /// Configuración de reglas y límites de cada lotería
@@ -169,9 +168,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   late AnimationController _shineController;
   late AnimationController _jugadasController;
 
-  final GlobalKey<JugadasListWidgetState> _jugadasListKey =
-      GlobalKey<JugadasListWidgetState>();
-
   @override
   void initState() {
     super.initState();
@@ -273,7 +269,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         _fetchHistoricoCompleto(),
         _loadJugadas(),
         _loadAnuncios(),
-        _jugadasListKey.currentState?.reload() ?? Future.value(),
       ]);
 
       if (mounted) {

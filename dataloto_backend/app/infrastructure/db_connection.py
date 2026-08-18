@@ -18,7 +18,7 @@ def get_sync_pool() -> Optional[psycopg2.pool.ThreadedConnectionPool]:
             if dsn:
                 _sync_pool = psycopg2.pool.ThreadedConnectionPool(
                     minconn=1,
-                    maxconn=10,
+                    maxconn=25,
                     dsn=dsn,
                     sslmode="require"
                 )
@@ -31,7 +31,7 @@ def get_sync_pool() -> Optional[psycopg2.pool.ThreadedConnectionPool]:
                 if host and db and user and pwd:
                     _sync_pool = psycopg2.pool.ThreadedConnectionPool(
                         minconn=1,
-                        maxconn=10,
+                        maxconn=25,
                         host=host,
                         port=port,
                         dbname=db,
@@ -47,22 +47,24 @@ def get_sync_pool() -> Optional[psycopg2.pool.ThreadedConnectionPool]:
 @contextmanager
 def get_connection():
     """
-    Context manager de conexión síncrona optimizado.
+    Context manager de conexión síncrona optimizado y tolerante a fallos.
     Reutiliza conexiones existentes de ThreadedConnectionPool en ~1-2 ms.
+    Si el pool se agota por ráfagas masivas, hace fallback automático a conexión directa.
     """
     sync_p = get_sync_pool()
+    conn = None
+    from_pool = False
+
     if sync_p is not None:
-        conn = sync_p.getconn()
         try:
-            yield conn
-            conn.commit()
+            conn = sync_p.getconn()
+            from_pool = True
         except Exception:
-            conn.rollback()
-            raise
-        finally:
-            sync_p.putconn(conn)
-    else:
-        # Fallback de conexión directa
+            # Pool agotado o error al obtener conexión del pool
+            conn = None
+            from_pool = False
+
+    if conn is None:
         dsn = config.DATABASE_URL
         if dsn:
             conn = psycopg2.connect(dsn, sslmode="require")
@@ -76,14 +78,27 @@ def get_connection():
                 host=host, port=port, dbname=db, user=user, password=pwd,
                 sslmode="require"
             )
+
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
         try:
-            yield conn
-            conn.commit()
-        except Exception:
             conn.rollback()
-            raise
-        finally:
-            conn.close()
+        except Exception:
+            pass
+        raise
+    finally:
+        if from_pool and sync_p is not None:
+            try:
+                sync_p.putconn(conn)
+            except Exception:
+                pass
+        else:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 async def init_pool():
     global pool
