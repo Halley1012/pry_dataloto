@@ -1,5 +1,5 @@
 from typing import Optional, Tuple, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from app.domain.ports import JugadaRepositoryPort
 from app.infrastructure import db_connection
 
@@ -10,27 +10,35 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
                 numeros INTEGER[] NOT NULL,
+                fecha_sorteo DATE,
                 fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 expira TIMESTAMP WITH TIME ZONE
             );
         """)
+        # Agregar columna fecha_sorteo automáticamente si no existía
+        await conn.execute(f"""
+            ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
+        """)
         await conn.execute(f"""
             DELETE FROM {tabla}
             WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
-               OR fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days';
+               OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
         """)
 
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
+    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         tabla = f"jugadas_{tipo}"
         async with pool.acquire() as conn:
             await self._ensure_table(conn, tabla)
             row = await conn.fetchrow(f"""
-                INSERT INTO {tabla} (user_id, numeros, fecha_guardado, expira)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id, user_id, numeros, fecha_guardado, expira
-            """, user_id, numeros, fecha_guardado, expira)
-            return dict(row)
+                INSERT INTO {tabla} (user_id, numeros, fecha_sorteo, fecha_guardado, expira)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, user_id, numeros, fecha_sorteo, fecha_guardado, expira
+            """, user_id, numeros, fecha_sorteo, fecha_guardado, expira)
+            d = dict(row)
+            if d.get('fecha_sorteo'):
+                d['fecha_sorteo'] = str(d['fecha_sorteo'])
+            return d
 
     async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
@@ -42,31 +50,42 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     clean_str = fecha.replace('"', '').replace("'", "").strip().split('T')[0]
                     clean_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
                     rows = await conn.fetch(f"""
-                        SELECT id, user_id, numeros, fecha_guardado, expira
+                        SELECT id, user_id, numeros, 
+                               COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
+                               fecha_guardado, expira
                         FROM {tabla}
                         WHERE user_id = $1
-                          AND (fecha_guardado::date = $2 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2)
-                        ORDER BY fecha_guardado DESC
+                          AND (fecha_sorteo = $2 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $2 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2)))
+                        ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                     """, user_id, clean_date)
                 except Exception:
                     rows = await conn.fetch(f"""
-                        SELECT id, user_id, numeros, fecha_guardado, expira
+                        SELECT id, user_id, numeros, 
+                               COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
+                               fecha_guardado, expira
                         FROM {tabla}
                         WHERE user_id = $1
                           AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                          AND fecha_guardado >= NOW() - INTERVAL '7 days'
-                        ORDER BY fecha_guardado DESC
+                        ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                     """, user_id)
             else:
                 rows = await conn.fetch(f"""
-                    SELECT id, user_id, numeros, fecha_guardado, expira
+                    SELECT id, user_id, numeros, 
+                           COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
+                           fecha_guardado, expira
                     FROM {tabla}
                     WHERE user_id = $1
                       AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                      AND fecha_guardado >= NOW() - INTERVAL '7 days'
-                    ORDER BY fecha_guardado DESC
+                    ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                 """, user_id)
-            return [dict(r) for r in rows]
+            
+            res = []
+            for r in rows:
+                d = dict(r)
+                if d.get('fecha_sorteo'):
+                    d['fecha_sorteo'] = str(d['fecha_sorteo'])
+                res.append(d)
+            return res
 
     async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
