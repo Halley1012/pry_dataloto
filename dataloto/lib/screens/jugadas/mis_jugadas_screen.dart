@@ -285,7 +285,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                     final bRoja = item["balota_roja"] ?? item["balotaroja"];
                     final red = _usaSuperbalota ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null)) : null;
                     final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
-                    final fecha = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+                    final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
                         ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
@@ -396,11 +396,19 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
   String _formatFecha(dynamic rawDate) {
     if (rawDate == null) return "";
+    final str = rawDate.toString().trim();
+    if (str.isEmpty) return "";
     try {
-      final parsed = DateTime.parse(rawDate.toString()).toLocal();
+      if (str.length >= 10 && str[4] == '-' && str[7] == '-') {
+        final parts = str.substring(0, 10).split('-');
+        if (parts.length == 3) {
+          return "${parts[2]}/${parts[1]}/${parts[0]}";
+        }
+      }
+      final parsed = DateTime.parse(str).toLocal();
       return DateFormat('dd/MM/yyyy').format(parsed);
     } catch (_) {
-      return rawDate.toString();
+      return str;
     }
   }
 
@@ -560,7 +568,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 final item = _jugadasList[index];
                                 final id = item["id"] as int? ?? 0;
                                 final isSelected = _selectedIds.contains(id);
-                                final fechaStr = _formatFecha(item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+                                final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
                                 final rawNums = (item["numeros"] as List<dynamic>? ?? []);
                                 final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList();
                                 final bRoja = item["balota_roja"] ?? item["balotaroja"];

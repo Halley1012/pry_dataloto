@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Any, Optional
 
 from sqlalchemy import null
@@ -35,23 +35,26 @@ class JugadaUseCases:
     async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[str] = None) -> Dict[str, Any]:
         colombia_tz = timezone(timedelta(hours=-5))
         hoy = datetime.now(colombia_tz)
-
         fecha_guardado = hoy
+
+        sorteo_date: Optional[date] = None
         if fecha_sorteo and isinstance(fecha_sorteo, str) and fecha_sorteo.strip():
             try:
                 clean_str = fecha_sorteo.replace('"', '').replace("'", "").strip().split("T")[0]
-                parsed_date = datetime.strptime(clean_str, "%Y-%m-%d")
-                fecha_guardado = datetime(
-                    parsed_date.year, parsed_date.month, parsed_date.day,
-                    hoy.hour, hoy.minute, hoy.second, tzinfo=colombia_tz
-                )
+                sorteo_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
             except Exception:
-                fecha_guardado = hoy
+                sorteo_date = hoy.date()
+        else:
+            sorteo_date = hoy.date()
 
-        expira = fecha_guardado + timedelta(days=7)
+        # La jugada expira 7 días después del sorteo
+        expira = datetime(
+            sorteo_date.year, sorteo_date.month, sorteo_date.day,
+            23, 59, 59, tzinfo=colombia_tz
+        ) + timedelta(days=7)
 
         numeros_clean = [int(n) for n in numeros]
-        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, fecha_guardado, expira)
+        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, sorteo_date, fecha_guardado, expira)
         return record
 
     async def listar_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:

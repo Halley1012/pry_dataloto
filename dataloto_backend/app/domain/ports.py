@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
 from app.domain.models import User, Jugada, Post, Comment, Publicidad, Transaction
 
 class UserRepositoryPort(ABC):
@@ -39,7 +39,7 @@ class UserRepositoryPort(ABC):
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
+    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pass
 
     @abstractmethod
