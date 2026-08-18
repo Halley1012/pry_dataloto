@@ -105,29 +105,47 @@ class MilotoPredictor:
             conn = engine.connect()
             
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS predicciones_mloto (
+                CREATE TABLE IF NOT EXISTS predicciones (
                     id SERIAL PRIMARY KEY,
-                    fecha DATE UNIQUE NOT NULL,
-                    numeros INT[]
+                    loteria_id INTEGER REFERENCES loterias(id) ON DELETE CASCADE,
+                    loteria_route VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    numeros INT[] NOT NULL,
+                    balotaroja INT[],
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT uq_predicciones_loteria_fecha UNIQUE (loteria_route, fecha)
                 );
+                CREATE INDEX IF NOT EXISTS idx_predicciones_route_fecha ON predicciones (loteria_route, fecha DESC);
+                CREATE INDEX IF NOT EXISTS idx_predicciones_loteria_id ON predicciones (loteria_id);
+            """))
+            conn.commit()
+
+            # Limpieza segura: eliminar solo registros viejos (> 15 días) de ESTA lotería
+            conn.execute(text("""
+                DELETE FROM predicciones 
+                WHERE LOWER(loteria_route) = 'mloto' 
+                  AND fecha < CURRENT_DATE - INTERVAL '15 days';
             """))
             conn.commit()
 
             conn.execute(text("""
-                DELETE FROM predicciones_mloto 
-                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
-            """))
-            conn.commit()
-
-            conn.execute(text("""
-                INSERT INTO predicciones_mloto (fecha, numeros)
-                VALUES (:fecha, :numeros)
-                ON CONFLICT (fecha) DO UPDATE
-                SET numeros = EXCLUDED.numeros;
+                INSERT INTO predicciones (loteria_id, loteria_route, fecha, numeros, balotaroja)
+                VALUES (
+                    (SELECT id FROM loterias WHERE LOWER(route) = 'mloto' OR LOWER(nombre) = 'miloto' LIMIT 1),
+                    'mloto',
+                    :fecha,
+                    :numeros,
+                    NULL
+                )
+                ON CONFLICT (loteria_route, fecha) DO UPDATE
+                SET numeros = EXCLUDED.numeros,
+                    balotaroja = EXCLUDED.balotaroja,
+                    loteria_id = EXCLUDED.loteria_id,
+                    created_at = CURRENT_TIMESTAMP;
             """), {"fecha": fecha_ultimo_sorteo, "numeros": numeros_prediccion})
             conn.commit()
 
-            print(f"✅ Predicción con XGBoost guardada exitosamente en Neon DB para la fecha: {fecha_ultimo_sorteo}")
+            print(f"✅ Predicción con XGBoost guardada exitosamente en la tabla unificada para la fecha: {fecha_ultimo_sorteo}")
             print(f"Cantidad de números generados: {len(numeros_prediccion)}")
             
         except Exception as e:

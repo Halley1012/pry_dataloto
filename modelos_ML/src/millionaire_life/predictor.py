@@ -148,31 +148,47 @@ class MillionaireLifePredictor:
             conn = engine.connect()
 
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS predicciones_millionaire_life (
+                CREATE TABLE IF NOT EXISTS predicciones (
                     id SERIAL PRIMARY KEY,
-                    fecha DATE UNIQUE NOT NULL,
-                    numeros INT[],
-                    balotaroja INT[]
+                    loteria_id INTEGER REFERENCES loterias(id) ON DELETE CASCADE,
+                    loteria_route VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    numeros INT[] NOT NULL,
+                    balotaroja INT[],
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT uq_predicciones_loteria_fecha UNIQUE (loteria_route, fecha)
                 );
+                CREATE INDEX IF NOT EXISTS idx_predicciones_route_fecha ON predicciones (loteria_route, fecha DESC);
+                CREATE INDEX IF NOT EXISTS idx_predicciones_loteria_id ON predicciones (loteria_id);
+            """))
+            conn.commit()
+
+            # Limpieza segura: eliminar solo registros viejos (> 15 días) de ESTA lotería
+            conn.execute(text("""
+                DELETE FROM predicciones 
+                WHERE LOWER(loteria_route) = 'millionaire_life' 
+                  AND fecha < CURRENT_DATE - INTERVAL '15 days';
             """))
             conn.commit()
 
             conn.execute(text("""
-                DELETE FROM predicciones_millionaire_life 
-                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
-            """))
-            conn.commit()
-
-            conn.execute(text("""
-                INSERT INTO predicciones_millionaire_life (fecha, numeros, balotaroja)
-                VALUES (:fecha, :numeros, :balotaroja)
-                ON CONFLICT (fecha) DO UPDATE
+                INSERT INTO predicciones (loteria_id, loteria_route, fecha, numeros, balotaroja)
+                VALUES (
+                    (SELECT id FROM loterias WHERE LOWER(route) = 'millionaire_life' OR LOWER(nombre) LIKE '%millionaire%' LIMIT 1),
+                    'millionaire_life',
+                    :fecha,
+                    :numeros,
+                    :balotaroja
+                )
+                ON CONFLICT (loteria_route, fecha) DO UPDATE
                 SET numeros = EXCLUDED.numeros,
-                    balotaroja = EXCLUDED.balotaroja;
+                    balotaroja = EXCLUDED.balotaroja,
+                    loteria_id = EXCLUDED.loteria_id,
+                    created_at = CURRENT_TIMESTAMP;
             """), {"fecha": fecha_proximo_sorteo, "numeros": numeros_prediccion, "balotaroja": rojaprediccion})
             conn.commit()
 
-            print(f"✅ Predicción de Millionaire Life guardada exitosamente para la fecha: {fecha_proximo_sorteo}")
+            print(f"✅ Predicción de Millionaire Life guardada exitosamente en la tabla unificada para la fecha: {fecha_proximo_sorteo}")
             print(f"Top 20 números con mayor probabilidad: {numeros_prediccion[:20]}")
             print(f"Top Balota Especial propuesta: {rojaprediccion[:5]}")
 
