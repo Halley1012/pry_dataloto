@@ -184,6 +184,24 @@ def get_historico_completo_dinamico(r_name: str, use_cases: JugadaUseCases = Dep
         memory_cache.set(cache_key, res, ttl=300)
     return res
 
+@router.post("/jugadas", response_model=schemas.JugadaOut, name="crear_jugada_unificada")
+async def crear_jugada_unificada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = (jugada.loteria_route or "mloto").strip().lower()
+    return await use_cases.guardar_jugada(clean_route, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
+
+@router.get("/jugadas", response_model=List[schemas.JugadaOut], name="listar_jugadas_unificada")
+async def listar_jugadas_unificada(user_id: int, loteria: Optional[str] = None, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = (loteria or "").strip().lower()
+    return await use_cases.listar_jugadas(clean_route, user_id, fecha)
+
+@router.delete("/jugadas/{jugada_id}", name="borrar_jugada_unificada")
+async def borrar_jugada_unificada(jugada_id: int, user_id: int, loteria: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = (loteria or "").strip().lower()
+    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Jugada no encontrada")
+    return {"message": "Jugada eliminada"}
+
 @router.post("/jugadas_{r_name}", response_model=schemas.JugadaOut, name="crear_jugada_dinamico")
 async def crear_jugada_dinamico(r_name: str, jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()

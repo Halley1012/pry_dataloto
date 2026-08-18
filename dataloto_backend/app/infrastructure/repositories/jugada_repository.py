@@ -4,37 +4,41 @@ from app.domain.ports import JugadaRepositoryPort
 from app.infrastructure import db_connection
 
 class PostgresJugadaRepository(JugadaRepositoryPort):
-    async def _ensure_table(self, conn, tabla: str):
-        await conn.execute(f"""
-            CREATE TABLE IF NOT EXISTS {tabla} (
+    async def _ensure_table(self, conn):
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS jugadas (
                 id SERIAL PRIMARY KEY,
                 user_id INTEGER NOT NULL,
+                loteria_route VARCHAR(50) NOT NULL,
                 numeros INTEGER[] NOT NULL,
                 fecha_sorteo DATE,
                 fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 expira TIMESTAMP WITH TIME ZONE
             );
+            CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_route);
+            CREATE INDEX IF NOT EXISTS idx_jugadas_expira ON jugadas (expira);
         """)
-        # Agregar columna fecha_sorteo automáticamente si no existía
-        await conn.execute(f"""
-            ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
+        # Asegurar columna fecha_sorteo y loteria_route si no existían
+        await conn.execute("""
+            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
+            ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_route VARCHAR(50);
         """)
-        await conn.execute(f"""
-            DELETE FROM {tabla}
+        await conn.execute("""
+            DELETE FROM jugadas
             WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
                OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
         """)
 
     async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
         pool = db_connection.get_pool()
-        tabla = f"jugadas_{tipo}"
+        loteria_route = tipo.strip().lower()
         async with pool.acquire() as conn:
-            await self._ensure_table(conn, tabla)
-            row = await conn.fetchrow(f"""
-                INSERT INTO {tabla} (user_id, numeros, fecha_sorteo, fecha_guardado, expira)
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING id, user_id, numeros, fecha_sorteo, fecha_guardado, expira
-            """, user_id, numeros, fecha_sorteo, fecha_guardado, expira)
+            await self._ensure_table(conn)
+            row = await conn.fetchrow("""
+                INSERT INTO jugadas (user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING id, user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
+            """, user_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
             d = dict(row)
             if d.get('fecha_sorteo'):
                 d['fecha_sorteo'] = str(d['fecha_sorteo'])
@@ -42,42 +46,45 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
-        tabla = f"jugadas_{tipo}"
+        loteria_route = tipo.strip().lower()
         async with pool.acquire() as conn:
-            await self._ensure_table(conn, tabla)
+            await self._ensure_table(conn)
             if fecha:
                 try:
                     clean_str = fecha.replace('"', '').replace("'", "").strip().split('T')[0]
                     clean_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
-                    rows = await conn.fetch(f"""
-                        SELECT id, user_id, numeros, 
+                    rows = await conn.fetch("""
+                        SELECT id, user_id, loteria_route, numeros, 
                                COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                                fecha_guardado, expira
-                        FROM {tabla}
+                        FROM jugadas
                         WHERE user_id = $1
-                          AND (fecha_sorteo = $2 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $2 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $2)))
+                          AND ($2 = '' OR LOWER(loteria_route) = $2)
+                          AND (fecha_sorteo = $3 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $3 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $3)))
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                    """, user_id, clean_date)
+                    """, user_id, loteria_route, clean_date)
                 except Exception:
-                    rows = await conn.fetch(f"""
-                        SELECT id, user_id, numeros, 
+                    rows = await conn.fetch("""
+                        SELECT id, user_id, loteria_route, numeros, 
                                COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                                fecha_guardado, expira
-                        FROM {tabla}
+                        FROM jugadas
                         WHERE user_id = $1
+                          AND ($2 = '' OR LOWER(loteria_route) = $2)
                           AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                    """, user_id)
+                    """, user_id, loteria_route)
             else:
-                rows = await conn.fetch(f"""
-                    SELECT id, user_id, numeros, 
+                rows = await conn.fetch("""
+                    SELECT id, user_id, loteria_route, numeros, 
                            COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
                            fecha_guardado, expira
-                    FROM {tabla}
+                    FROM jugadas
                     WHERE user_id = $1
+                      AND ($2 = '' OR LOWER(loteria_route) = $2)
                       AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                     ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                """, user_id)
+                """, user_id, loteria_route)
             
             res = []
             for r in rows:
@@ -89,51 +96,27 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
-        tabla = f"jugadas_{tipo}"
+        loteria_route = tipo.strip().lower()
         async with pool.acquire() as conn:
-            await self._ensure_table(conn, tabla)
-            result = await conn.execute(f"""
-                DELETE FROM {tabla}
-                WHERE id = $1 AND user_id = $2
-            """, jugada_id, user_id)
+            await self._ensure_table(conn)
+            result = await conn.execute("""
+                DELETE FROM jugadas
+                WHERE id = $1 AND user_id = $2 AND ($3 = '' OR LOWER(loteria_route) = $3)
+            """, jugada_id, user_id, loteria_route)
             return result == "DELETE 1"
 
     async def list_active_lotteries(self, user_id: int) -> List[str]:
         pool = db_connection.get_pool()
-        activas = []
         async with pool.acquire() as conn:
-            try:
-                db_routes = await conn.fetch("""
-                    SELECT DISTINCT route 
-                    FROM loterias 
-                    WHERE route IS NOT NULL AND route != '' AND activa = true
-                """)
-                tipos = [r['route'].lower() for r in db_routes]
-            except Exception:
-                tipos = []
-
-            for tipo in tipos:
-                tabla = f"jugadas_{tipo}"
-                # Verificamos si la tabla existe antes de consultar
-                exists_table = await conn.fetchval("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_name = $1
-                    );
-                """, tabla)
-                
-                if exists_table:
-                    has_rows = await conn.fetchval(f"""
-                        SELECT EXISTS (
-                            SELECT 1 FROM {tabla} 
-                            WHERE user_id = $1 
-                              AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                              AND fecha_guardado >= NOW() - INTERVAL '7 days'
-                        )
-                    """, user_id)
-                    if has_rows:
-                        activas.append(tipo)
-        return activas
+            await self._ensure_table(conn)
+            rows = await conn.fetch("""
+                SELECT DISTINCT LOWER(loteria_route) AS route
+                FROM jugadas
+                WHERE user_id = $1
+                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
+            """, user_id)
+            return [r['route'] for r in rows if r['route']]
 
 
     def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
