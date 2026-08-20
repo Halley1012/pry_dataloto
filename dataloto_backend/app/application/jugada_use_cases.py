@@ -108,10 +108,13 @@ class JugadaUseCases:
         if not rows:
             return {"error": "No hay resultados registrados"}
         
+        jackpot_reciente = self.jugada_repo.get_jackpot_reciente("miloto")
         resultados = []
-        for row in rows:
+        for i, row in enumerate(rows):
             fecha, numeros = row[0], row[1]
             jackpot = row[2] if len(row) > 2 else None
+            if not jackpot and i == 0:
+                jackpot = jackpot_reciente
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros
@@ -127,13 +130,20 @@ class JugadaUseCases:
         if not rows:
             return {"error": "No hay resultados registrados"}
         
+        jackpot_baloto = self.jugada_repo.get_jackpot_reciente("baloto")
+        jackpot_revancha = self.jugada_repo.get_jackpot_reciente("revancha")
         resultados = []
-        for row in rows:
+        for i, row in enumerate(rows):
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
             sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
             jackpot = row[4] if len(row) > 4 else None
+            if not jackpot and i < 2:
+                if "revancha" in sorteo_nombre.lower():
+                    jackpot = jackpot_revancha
+                else:
+                    jackpot = jackpot_baloto
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
@@ -143,6 +153,7 @@ class JugadaUseCases:
                 item["jackpot"] = jackpot
             resultados.append(item)
         return {"resultados": resultados}
+
 
     def obtener_historico_completo_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
         rows = self.jugada_repo.get_historico_completo_bloto(sorteo=sorteo)
@@ -205,12 +216,16 @@ class JugadaUseCases:
         rows = self.jugada_repo.get_ultimos_resultados_generico(tabla, display_name)
         if not rows:
             return {"error": f"No hay resultados registrados para {loteria_nombre}"}
+        
+        jackpot_reciente = self.jugada_repo.get_jackpot_reciente(loteria_nombre)
         resultados = []
-        for row in rows:
+        for i, row in enumerate(rows):
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
             balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
             jackpot = row[4] if len(row) > 4 else None
+            if not jackpot and i == 0:
+                jackpot = jackpot_reciente
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,

@@ -46,17 +46,7 @@ class NotificationProvider with ChangeNotifier {
       await NotificationService.markAsRead(id);
       final index = _notifications.indexWhere((n) => n.id == id);
       if (index != -1) {
-        final old = _notifications[index];
-        _notifications[index] = NotificationModel(
-          id: old.id,
-          loteriaId: old.loteriaId,
-          paisId: old.paisId,
-          fechaSorteo: old.fechaSorteo,
-          mensaje: old.mensaje,
-          tipo: old.tipo,
-          leido: true,
-          createdAt: old.createdAt,
-        );
+        _notifications[index] = _notifications[index].copyWith(leido: true);
         notifyListeners();
         final rawList = _notifications.map((n) => n.toJson()).toList();
         CacheService.setJson('notifications_cache', rawList);
@@ -71,19 +61,10 @@ class NotificationProvider with ChangeNotifier {
     for (int i = 0; i < _notifications.length; i++) {
       if (!_notifications[i].leido) {
         changed = true;
-        final old = _notifications[i];
-        _notifications[i] = NotificationModel(
-          id: old.id,
-          loteriaId: old.loteriaId,
-          paisId: old.paisId,
-          fechaSorteo: old.fechaSorteo,
-          mensaje: old.mensaje,
-          tipo: old.tipo,
-          leido: true,
-          createdAt: old.createdAt,
-        );
-        NotificationService.markAsRead(old.id).catchError((e) {
-          debugPrint("Error marking notification $old.id as read: $e");
+        final notifId = _notifications[i].id;
+        _notifications[i] = _notifications[i].copyWith(leido: true);
+        NotificationService.markAsRead(notifId).catchError((e) {
+          debugPrint("Error marking notification $notifId as read: $e");
         });
       }
     }
@@ -93,4 +74,23 @@ class NotificationProvider with ChangeNotifier {
       CacheService.setJson('notifications_cache', rawList);
     }
   }
+
+  Future<void> deleteNotification(int id) async {
+    final index = _notifications.indexWhere((n) => n.id == id);
+    if (index != -1) {
+      _notifications.removeAt(index);
+      notifyListeners();
+
+      final rawList = _notifications.map((n) => n.toJson()).toList();
+      CacheService.setJson('notifications_cache', rawList);
+
+      try {
+        await NotificationService.deleteNotification(id);
+      } catch (e) {
+        debugPrint("Error deleting notification from server: $e");
+        // No reinsertamos para evitar parpadeos molestos en UI si fue eliminada localmente
+      }
+    }
+  }
 }
+

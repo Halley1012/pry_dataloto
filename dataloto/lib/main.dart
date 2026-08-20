@@ -18,6 +18,7 @@ import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'providers/locale_provider.dart';
 import 'providers/notification_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'screens/estadisticas_dashboard_screen.dart';
 import 'package:dataloto/services/push_notification_service.dart';
 
@@ -31,18 +32,19 @@ void main() {
       // Inicializar bindings y configuraciones dentro de la misma zona
       WidgetsFlutterBinding.ensureInitialized();
 
-      // 🔥 Inicializar Notificaciones Push y Firebase
-      await PushNotificationService.initialize();
-
       // Bloquear la app en vertical
       await SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.portraitDown,
       ]);
 
-      // Iniciar la aplicación
+      // Iniciar la aplicación inmediatamente (0 ms de pantalla negra)
       runApp(const DataLotoApp());
+
+      // Inicializar Notificaciones Push y Firebase en segundo plano
+      unawaited(PushNotificationService.initialize());
     },
+
     (error, stack) {
       debugPrint("❌ Error capturado en runZonedGuarded: $error");
       if (error.toString().contains("401") ||
@@ -103,6 +105,7 @@ class DataLotoApp extends StatelessWidget {
             return supportedLocales.first; // Default fallback: Español
           },
           theme: ThemeData.dark().copyWith(
+            textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
             primaryColor: Colors.deepPurple,
             scaffoldBackgroundColor: AppColors.blackfondo,
             canvasColor: AppColors.blackfondo,

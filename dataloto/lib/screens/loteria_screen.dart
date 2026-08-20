@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 
+import 'package:google_fonts/google_fonts.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 import 'package:dataloto/screens/estadisticas_dashboard_screen.dart';
 import 'package:dataloto/screens/jugadas/mis_jugadas_screen.dart';
@@ -222,8 +223,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           .toList();
       final redNums = cached["balotaroja"] != null
           ? (cached["balotaroja"] as List)
-              .map((e) => int.tryParse(e.toString()) ?? 0)
-              .where((e) => e != 0)
+              .map((e) => int.tryParse(e.toString()))
+              .where((e) => e != null && e >= 0)
+              .cast<int>()
               .toList()
           : <int>[];
 
@@ -293,8 +295,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
         final redNums = data["balotaroja"] != null
             ? (data["balotaroja"] as List)
-                .map((e) => int.tryParse(e.toString()) ?? 0)
-                .where((e) => e != 0)
+                .map((e) => int.tryParse(e.toString()))
+                .where((e) => e != null && e >= 0)
+                .cast<int>()
                 .toList()
             : <int>[];
 
@@ -420,9 +423,18 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       }
 
       if (config.tieneBalotaRoja) {
+        final bool includesZero = listaBalotaRoja.contains(0) ||
+            config.superbalotaNombre.toLowerCase().contains("reintegro") ||
+            config.superbalotaNombre.toLowerCase().contains("clave") ||
+            config.route.contains("bonoloto") ||
+            config.route.contains("primitiva") ||
+            config.route.contains("gordo");
+
         final redPool = listaBalotaRoja.isNotEmpty
             ? listaBalotaRoja
-            : List.generate(config.maxBalotasRojas, (i) => i + 1);
+            : (includesZero
+                ? List.generate(config.maxBalotasRojas, (i) => i)
+                : List.generate(config.maxBalotasRojas, (i) => i + 1));
         balotaRojaSeleccionada = redPool[random.nextInt(redPool.length)];
       }
 
@@ -1125,33 +1137,28 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           center: Alignment.topLeft,
           radius: 0.9,
         ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            offset: const Offset(3, 3),
-            blurRadius: 6,
-          ),
-          BoxShadow(
-            color: baseColor.withValues(alpha: 0.4),
-            offset: const Offset(-2, -2),
-            blurRadius: 4,
+            color: Colors.black38,
+            offset: Offset(1.5, 1.5),
+            blurRadius: 3,
           ),
         ],
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
+        border: Border.all(color: Colors.white24, width: 1.0),
       ),
       child: Center(
         child: Text(
           numero?.toString() ?? "–",
-          style: TextStyle(
-            fontSize: size * 0.4,
-            fontWeight: FontWeight.bold,
+          style: GoogleFonts.montserrat(
+            fontSize: size * 0.40,
+            fontWeight: FontWeight.w700,
             color: numero != null ? Colors.white : Colors.white54,
             shadows: numero != null
-                ? [
+                ? const [
                     Shadow(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      offset: const Offset(1, 1),
-                      blurRadius: 2,
+                      color: Colors.black87,
+                      offset: Offset(0.8, 0.8),
+                      blurRadius: 2.0,
                     ),
                   ]
                 : null,
@@ -1586,13 +1593,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(
+            Align(
+              alignment: Alignment.centerLeft,
               child: Text(
-                l10n?.resultados ?? "Resultados",
-                style: const TextStyle(
-                  color: Colors.white,
+                "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} ${config.nombre}",
+                style: AppTextStyles.h2.copyWith(
                   fontWeight: FontWeight.bold,
-                  fontSize: 18,
+                  color: Colors.white,
                 ),
               ),
             ),
@@ -1615,7 +1622,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                         child: Text(
                           sorteo,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
+                          style: GoogleFonts.montserrat(
                             color: isSelected ? Colors.black : Colors.white,
                             fontWeight: FontWeight.bold,
                             fontSize: 13,
@@ -1646,7 +1653,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             alignment: Alignment.centerLeft,
             child: Text(
               "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} ${config.nombre}",
-              style: AppTextStyles.h2,
+              style: AppTextStyles.h2.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ),
           const SizedBox(height: 16),

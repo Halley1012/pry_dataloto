@@ -115,14 +115,26 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
-    if (totalPoolSize != null && totalPoolSize > 0) {
-      return (totalPoolSize / 2).round();
-    }
+    final lower = name.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+    if (lower.contains("megamillions") || lower.contains("megamillion")) return 35;
+    if (lower.contains("powerball")) return 34;
+    if (lower.contains("doubleplay")) return 34;
+    if (lower.contains("millionaire") || lower.contains("millionairelife")) return 29;
+    if (lower.contains("lottoamerica")) return 26;
+    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
+    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
+    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
+
     if (widget.loteriaData != null && widget.loteriaData!['max_balotas_blancas'] != null) {
-      final m = int.tryParse(widget.loteriaData!['max_balotas_blancas'].toString()) ?? 40;
-      return (m / 2).round();
+      final m = int.tryParse(widget.loteriaData!['max_balotas_blancas'].toString());
+      if (m != null && m > 0) {
+        return (m ~/ 2);
+      }
     }
-    return 20;
+    if (totalPoolSize != null && totalPoolSize > 0) {
+      return (totalPoolSize ~/ 2);
+    }
+    return 21;
   }
 
   Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(String loteriaName, {String? fecha}) async {
@@ -140,7 +152,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Future<void> _cargarDatosReales() async {
     setState(() => _isLoading = true);
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_v4_$route';
+    final cacheKey = 'resultados_dashboard_cache_v6_$route';
 
     // 1. Caché inmediato
     final cached = await CacheService.getJson(cacheKey);
@@ -203,11 +215,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           final rawRoja = cachedPred["balotaroja"] ?? cachedPred["balota_roja"];
           if (rawNums is List) {
             predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
-            final limit = _getTopLimitForLoteria(_selectedLoteria);
+            final limit = _getTopLimitForLoteria(_selectedLoteria, predictionNumeros.length);
             top20 = predictionNumeros.take(limit).toList();
           }
           if (rawRoja is List) {
-            predictionBalotaroja = rawRoja.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            predictionBalotaroja = rawRoja
+                .map((e) => int.tryParse(e.toString()))
+                .where((n) => n != null && n >= 0)
+                .cast<int>()
+                .toList();
           }
         }
       }
@@ -238,11 +254,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           } else {
             if (rawNums is List) {
               predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
-              final limit = _getTopLimitForLoteria(_selectedLoteria);
+              final limit = _getTopLimitForLoteria(_selectedLoteria, predictionNumeros.length);
               top20 = predictionNumeros.take(limit).toList();
             }
             if (rawRoja is List) {
-              predictionBalotaroja = rawRoja.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+              predictionBalotaroja = rawRoja
+                  .map((e) => int.tryParse(e.toString()))
+                  .where((n) => n != null && n >= 0)
+                  .cast<int>()
+                  .toList();
             }
           }
         }
@@ -274,13 +294,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // Usaremos un flag para recalcular strings dependientes de l10n en el build.
     final sorteosRaw = List<Map<String, dynamic>>.from(data["sorteos"] ?? []);
     final rawTop20 = data["top20"] ?? data["numeros"] ?? data["probables"];
-    List<int> top20 = [];
-    if (rawTop20 is List) {
-      final allNums = rawTop20.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
-      final limit = _getTopLimitForLoteria(_selectedLoteria);
-      top20 = allNums.take(limit).toList();
-    }
-    _top20List = top20;
 
     final rawPredNums = data["predictionNumeros"];
     final rawPredRoja = data["predictionBalotaroja"];
@@ -294,6 +307,19 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     } else {
       _predictionBalotaroja = [];
     }
+
+    final poolSize = _predictionNumeros.isNotEmpty ? _predictionNumeros.length : null;
+    final limit = _getTopLimitForLoteria(_selectedLoteria, poolSize);
+
+    List<int> top20 = [];
+    if (_predictionNumeros.isNotEmpty) {
+      top20 = _predictionNumeros.take(limit).toList();
+    } else if (rawTop20 is List) {
+      final allNums = rawTop20.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+      top20 = allNums.take(limit).toList();
+    }
+    _top20List = top20;
+
 
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 

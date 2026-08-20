@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
+import 'package:dataloto/widgets/custom_dialogs.dart';
 import 'package:dataloto/screens/registro.dart';
 import 'package:dataloto/screens/login.dart';
 import 'package:dataloto/screens/misanuncios.dart';
@@ -16,7 +17,8 @@ import 'package:dataloto/l10n/generated/app_localizations.dart';
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
   final Function(int)? onTabChange;
-  const ProfileScreen({super.key, this.onLogout, this.onTabChange});
+  final VoidCallback? onProfileUpdated;
+  const ProfileScreen({super.key, this.onLogout, this.onTabChange, this.onProfileUpdated});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -107,7 +109,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     if (updated != null) {
       _loadUserData();
+      widget.onProfileUpdated?.call();
     }
+
   }
 
   @override
@@ -333,7 +337,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Cerrar loader si falló
-        _showJustifiedDialog(l10n.error, "No se pudo eliminar la cuenta: $e");
+        showJustifiedDialog(context, l10n.error, "No se pudo eliminar la cuenta: $e");
       }
     }
   }
@@ -343,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avisoTitle = l10n.avisoLegal;
     final avisoBody = l10n.contenidoAvisoLegal;
     final acercaTitle = l10n.acercaDe;
-    final acercaBody = l10n.contenidoAcercaDe;
+
 
     showModalBottomSheet(
       context: context,
@@ -358,7 +362,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: Text(avisoTitle, style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
-              _showJustifiedDialog(avisoTitle, avisoBody);
+              showJustifiedDialog(context, avisoTitle, avisoBody);
             },
           ),
           ListTile(
@@ -366,28 +370,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
             title: Text(acercaTitle, style: const TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
-              _showJustifiedDialog(acercaTitle, acercaBody);
+              showAcercaDeDialog(context);
             },
           ),
           const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
-
-  void _showJustifiedDialog(String title, String content) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: AppColors.blackfondo,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(title, style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: SingleChildScrollView(
-          child: Text(content, textAlign: TextAlign.justify, style: AppTextStyles.mensajeSecundario),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cerrar, style: const TextStyle(color: AppColors.yellow))),
         ],
       ),
     );

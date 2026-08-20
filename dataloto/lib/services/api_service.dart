@@ -790,6 +790,31 @@ class ApiService {
     return response;
   }
 
+  /// DELETE genérico con auto-retry si el token expiró
+  static Future<http.Response> delete(
+    String endpoint, {
+    bool withAuth = true,
+  }) async {
+    var headers = await _getHeaders(withAuth: withAuth);
+    var response = await http.delete(
+      Uri.parse("$baseUrl$endpoint"),
+      headers: headers,
+    );
+
+    if (withAuth && response.statusCode == 401) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        headers = await _getHeaders(withAuth: true);
+        response = await http.delete(
+          Uri.parse("$baseUrl$endpoint"),
+          headers: headers,
+        );
+      }
+    }
+
+    return response;
+  }
+
   //////////////////// SECCIÓN COMENTARIOS Y POSTS ////////////////////
 
   static Future<Post> createPost(String title, String content) async {

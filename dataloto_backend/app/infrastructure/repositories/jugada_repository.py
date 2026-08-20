@@ -348,6 +348,37 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                # 1. Intentar con balota1..balota6 + balotaroja + balotaroja2
+                try:
+                    cur.execute(f"""
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balota6, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
+                        FROM {tabla} r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC
+                        LIMIT 5;
+                    """)
+                    rows = cur.fetchall()
+                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5], r[6]] if x is not None and x > 0], [x for x in [r[7], r[8]] if x is not None and x >= 0], r[9] if len(r) > 9 and r[9] else sorteo_nombre, r[10]) for r in rows]
+                except Exception:
+                    conn.rollback()
+
+                # 2. Intentar con balota1..balota5 + balotaroja + balotaroja2
+                try:
+                    cur.execute(f"""
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
+                        FROM {tabla} r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC
+                        LIMIT 5;
+                    """)
+                    rows = cur.fetchall()
+                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5]] if x is not None and x > 0], [x for x in [r[6], r[7]] if x is not None and x >= 0], r[8] if len(r) > 8 and r[8] else sorteo_nombre, r[9]) for r in rows]
+                except Exception:
+                    conn.rollback()
+
+                # 3. Fallback estándar 5 balotas + 1 balota roja
                 cur.execute(f"""
                     SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
                     FROM {tabla} r
@@ -357,13 +388,42 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     LIMIT 5;
                 """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]] if r[6] is not None and r[6] >= 0 else [], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
 
     @cached(ttl=600)
     def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                # 1. Intentar con balota1..balota6 + balotaroja + balotaroja2
+                try:
+                    cur.execute(f"""
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balota6, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
+                        FROM {tabla} r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC;
+                    """)
+                    rows = cur.fetchall()
+                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5], r[6]] if x is not None and x > 0], [x for x in [r[7], r[8]] if x is not None and x >= 0], r[9] if len(r) > 9 and r[9] else sorteo_nombre, r[10]) for r in rows]
+                except Exception:
+                    conn.rollback()
+
+                # 2. Intentar con balota1..balota5 + balotaroja + balotaroja2
+                try:
+                    cur.execute(f"""
+                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
+                        FROM {tabla} r
+                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                        WHERE r.balota1 <> 0
+                        ORDER BY r.fecha DESC;
+                    """)
+                    rows = cur.fetchall()
+                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5]] if x is not None and x > 0], [x for x in [r[6], r[7]] if x is not None and x >= 0], r[8] if len(r) > 8 and r[8] else sorteo_nombre, r[9]) for r in rows]
+                except Exception:
+                    conn.rollback()
+
+                # 3. Fallback estándar
                 cur.execute(f"""
                     SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
                     FROM {tabla} r
@@ -372,5 +432,5 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     ORDER BY r.fecha DESC;
                 """)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
+                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]] if r[6] is not None and r[6] >= 0 else [], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
 

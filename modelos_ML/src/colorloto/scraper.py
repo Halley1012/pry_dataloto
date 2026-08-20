@@ -1,3 +1,5 @@
+import sys
+from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -5,6 +7,10 @@ import pandas as pd
 import time
 import unicodedata
 from datetime import datetime
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 from config.database import get_engine
 
 class ColorLotoScraper:
@@ -150,5 +156,70 @@ class ColorLotoScraper:
             engine = get_engine()
             df_final.to_sql('resultados_colorloto2', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"✅ ¡DataFrame de ColorLoto guardado exitosamente! Total filas: {len(df_final)}")
+            
+            # Scrape and save jackpot for ColorLoto from baloto.com homepage
+            print("Scraping jackpot for ColorLoto from homepage...")
+            r_main = requests.get("https://baloto.com/", headers=self.headers, timeout=15)
+            if r_main.status_code == 200:
+                soup_main = BeautifulSoup(r_main.text, "html.parser")
+                colorloto_home = soup_main.find(class_="accumulated-colorloto-home")
+                if colorloto_home:
+                    integer = colorloto_home.find(class_="accum-integer")
+                    jackpot_colorloto = integer.get_text(strip=True) + " millones" if integer else None
+                    
+                    accum2 = colorloto_home.find(class_="accumulated-2")
+                    fecha_str = accum2.find(class_="fs-5").get_text(strip=True) if accum2 and accum2.find(class_="fs-5") else None
+                    
+                    if jackpot_colorloto and fecha_str:
+                        self.update_jackpot(engine, "colorloto", jackpot_colorloto, fecha_str)
+            else:
+                print(f"Warning: homepage returned status {r_main.status_code}")
         except Exception as e:
             print(f"❌ Error al escribir en Neon PostgreSQL: {e}")
+
+    def update_jackpot(self, engine, loteria, jackpot, fecha_str):
+        if not jackpot or not fecha_str:
+            return
+        fecha = None
+        meses_es_en = {
+            'Enero': 'January', 'Febrero': 'February', 'Marzo': 'March', 'Abril': 'April',
+            'Mayo': 'May', 'Junio': 'June', 'Julio': 'July', 'Agosto': 'August',
+            'Septiembre': 'September', 'Octubre': 'October', 'Noviembre': 'November', 'Diciembre': 'December'
+        }
+        try:
+            parts = fecha_str.strip().split(" de ")
+            if len(parts) == 2:
+                dia_part = parts[0].split()[-1]
+                mes_es = parts[1].strip()
+                mes_en = meses_es_en.get(mes_es.capitalize())
+                if mes_en:
+                    año = datetime.now().year
+                    if datetime.now().month == 12 and mes_es.lower() == 'enero':
+                        año += 1
+                    fecha = datetime.strptime(f"{dia_part} {mes_en} {año}", "%d %B %Y").date()
+        except Exception as ex:
+            print(f"Error parsing date {fecha_str} for {loteria}: {ex}")
+        
+        if not fecha:
+            return
+        
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
+
