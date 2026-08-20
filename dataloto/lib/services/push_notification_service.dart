@@ -24,21 +24,10 @@ class PushNotificationService {
 
   static Future<void> initialize() async {
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp().timeout(const Duration(seconds: 4));
 
       // Configurar handler en segundo plano
       FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-      // Solicitar permisos de notificación (Android 13+ / iOS)
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-        provisional: false,
-      );
-
-      debugPrint("🔔 Permiso de Notificaciones: ${settings.authorizationStatus}");
 
       // Configurar canal de notificaciones locales en Android
       const initializationSettingsAndroid =
@@ -63,19 +52,6 @@ class PushNotificationService {
               AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
 
-      // Obtener y enviar el token FCM al backend
-      final token = await messaging.getToken();
-      if (token != null) {
-        debugPrint("🔥 FCM Token obtenido: $token");
-        await ApiService.updateFCMToken(token);
-      }
-
-      // Escuchar renovación de token
-      messaging.onTokenRefresh.listen((newToken) {
-        debugPrint("🔄 FCM Token renovado: $newToken");
-        ApiService.updateFCMToken(newToken);
-      });
-
       // Escuchar notificaciones en primer plano (App abierta)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint("📩 Notificación Push en primer plano recibida: ${message.notification?.title}");
@@ -84,7 +60,6 @@ class PushNotificationService {
         final android = message.notification?.android;
 
         if (notification != null) {
-          // 1. Mostrar notificación de sistema (barra de estado)
           _localNotificationsPlugin.show(
             notification.hashCode,
             notification.title,
@@ -106,26 +81,57 @@ class PushNotificationService {
               ),
             ),
           );
-
-          // 2. Opcionalmente disparar un refresco de datos en la app
-          // Podemos usar un stream o un callback si fuera necesario
         }
       });
+
+      // Escuchar renovación de token
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
+        debugPrint("🔄 FCM Token renovado: $newToken");
+        ApiService.updateFCMToken(newToken);
+      });
+
+      // Solicitar permisos y obtener token en segundo plano (sin bloquear el arranque)
+      _setupPermissionsAndToken();
     } catch (e) {
       debugPrint("⚠️ Error configurando PushNotificationService: $e");
     }
   }
 
+  static void _setupPermissionsAndToken() {
+    Future.microtask(() async {
+      try {
+        final messaging = FirebaseMessaging.instance;
+        final settings = await messaging.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        ).timeout(const Duration(seconds: 5));
+
+        debugPrint("🔔 Permiso de Notificaciones: ${settings.authorizationStatus}");
+
+        final token = await messaging.getToken().timeout(const Duration(seconds: 6));
+        if (token != null) {
+          debugPrint("🔥 FCM Token obtenido: $token");
+          await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 8));
+        }
+      } catch (e) {
+        debugPrint("⚠️ Error en segundo plano de token/permisos FCM: $e");
+      }
+    });
+  }
+
   /// 🔄 Sincronizar el token FCM actual con el backend para el usuario autenticado
   static Future<void> syncToken() async {
     try {
-      final token = await FirebaseMessaging.instance.getToken();
+      final token = await FirebaseMessaging.instance.getToken().timeout(const Duration(seconds: 5));
       if (token != null && token.isNotEmpty) {
         debugPrint("🔥 FCM Token obtenido en sync: $token");
-        await ApiService.updateFCMToken(token);
+        await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 6));
       }
     } catch (e) {
       debugPrint("⚠️ Error sincronizando token FCM: $e");
     }
   }
 }
+

@@ -381,15 +381,16 @@ class _PostScreenState extends State<PostScreen> {
               const SizedBox(width: 6),
               Text(comment.relativeTime, style: AppTextStyles.caption.copyWith(fontSize: 11, color: Colors.white54)),
               const Spacer(),
-              if (isOwner)
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: Colors.white54, size: 16),
-                  color: const Color(0xFF1E1E2E),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  onSelected: (value) {
-                    if (value == 'delete') _eliminarComentario(comment.id);
-                  },
-                  itemBuilder: (context) => [
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.white54, size: 16),
+                color: const Color(0xFF1E1E2E),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                onSelected: (value) {
+                  if (value == 'delete') _eliminarComentario(comment.id);
+                  if (value == 'report') _denunciarComentario(comment);
+                },
+                itemBuilder: (context) => [
+                  if (isOwner)
                     PopupMenuItem(
                       value: 'delete',
                       child: Row(
@@ -399,11 +400,29 @@ class _PostScreenState extends State<PostScreen> {
                           Text(l10n?.eliminar ?? 'Eliminar', style: const TextStyle(color: Colors.redAccent, fontSize: 13)),
                         ],
                       ),
+                    )
+                  else
+                    PopupMenuItem(
+                      value: 'report',
+                      child: Row(
+                        children: [
+                          const Icon(Icons.flag_outlined, color: Colors.amber, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            Localizations.localeOf(context).languageCode == 'en'
+                                ? 'Report'
+                                : (Localizations.localeOf(context).languageCode == 'pt' ? 'Denunciar' : 'Reportar'),
+                            style: const TextStyle(color: Colors.white70, fontSize: 13),
+                          ),
+                        ],
+                      ),
                     ),
-                  ],
-                ),
+
+                ],
+              ),
             ],
           ),
+
           const SizedBox(height: 6),
           Text(comment.content, style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white.withOpacity(0.9), fontSize: isReply ? 13 : 13.5, height: 1.35)),
           const SizedBox(height: 6),

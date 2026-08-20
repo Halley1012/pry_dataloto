@@ -13,7 +13,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
             """, user_id, loteria_id, fecha_sorteo, mensaje, tipo)
             return {"success": True, "message": "Notificación creada"}
 
-    async def list_notifications(self, user_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    async def list_notifications(self, user_id: Optional[int] = None, limit: int = 50) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             # Seleccionamos campos de notificaciones y metadata de la tabla loterias
@@ -22,7 +22,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 FROM notificaciones n
                 LEFT JOIN loterias l ON l.id = n.loteria_id
                 WHERE (n.usuario_id = $1 OR n.usuario_id IS NULL)
-                AND n.created_at >= NOW() - INTERVAL '2 days'
+                AND n.created_at >= NOW() - INTERVAL '3 days'
                 ORDER BY n.created_at DESC LIMIT $2
             """
             
@@ -35,7 +35,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                     FROM notificaciones n
                     LEFT JOIN loterias l ON l.id = n.loteria_id
                     WHERE n.usuario_id IS NULL 
-                    AND n.created_at >= NOW() - INTERVAL '2 days' 
+                    AND n.created_at >= NOW() - INTERVAL '3 days' 
                     ORDER BY n.created_at DESC LIMIT $1
                 """
                 rows = await conn.fetch(query_no_user, limit)
@@ -46,3 +46,15 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
         async with pool.acquire() as conn:
             result = await conn.execute("UPDATE notificaciones SET leido = TRUE WHERE id = $1", notification_id)
             return result == "UPDATE 1"
+
+    async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            if user_id:
+                result = await conn.execute(
+                    "DELETE FROM notificaciones WHERE id = $1 AND (usuario_id = $2 OR usuario_id IS NULL)",
+                    notification_id, user_id
+                )
+            else:
+                result = await conn.execute("DELETE FROM notificaciones WHERE id = $1", notification_id)
+            return result == "DELETE 1"

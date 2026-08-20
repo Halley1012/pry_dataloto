@@ -28,7 +28,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final provider = context.read<NotificationProvider>();
       await provider.fetchNotifications();
-      await provider.markAllAsRead();
     });
   }
 
@@ -247,7 +246,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         iconColor = AppColors.yellow;
     }
 
-    return Card(
+    final card = Card(
       color: notification.leido ? const Color(0xFF1E1E1E) : const Color(0xFF252A34),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
@@ -317,7 +316,87 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       ),
     );
+
+    return Dismissible(
+      key: Key('notif_${notification.id}'),
+      direction: DismissDirection.horizontal,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.teal.shade800,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: const Row(
+          children: [
+            Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 26),
+            SizedBox(width: 8),
+            Text(
+              "Leído",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+      ),
+      secondaryBackground: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.redAccent.shade700,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              "Eliminar",
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            SizedBox(width: 8),
+            Icon(Icons.delete_outline, color: Colors.white, size: 26),
+          ],
+        ),
+      ),
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          // Deslizar a la derecha: Marcar como leído
+          if (!notification.leido) {
+            await provider.markAsRead(notification.id);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).clearSnackBars();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Notificación marcada como leída"),
+                  duration: Duration(milliseconds: 1200),
+                  backgroundColor: Color(0xFF1E1E1E),
+                ),
+              );
+            }
+          }
+          return false; // Mantiene la tarjeta en la lista
+        } else if (direction == DismissDirection.endToStart) {
+          // Deslizar a la izquierda: Eliminar notificación
+          await provider.deleteNotification(notification.id);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).clearSnackBars();
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Notificación eliminada"),
+                duration: Duration(milliseconds: 1200),
+                backgroundColor: Color(0xFF1E1E1E),
+              ),
+            );
+          }
+          return true; // Elimina la tarjeta de la lista
+        }
+        return false;
+      },
+      child: card,
+    );
   }
+
 
   String _traducirMensajeNotificacion(String msj, String langCode, DateTime? fechaSorteo) {
     if (msj.isEmpty) return msj;

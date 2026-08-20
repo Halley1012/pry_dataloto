@@ -157,24 +157,25 @@ class LottoAmericaScraper:
             df_final.to_sql('resultados_lotto_america', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"✅ ¡DataFrame de Lotto America guardado exitosamente! Total filas: {len(df_final)}")
 
-            # Scrape and save jackpot for Lotto America from powerball.com
-            r_main = requests.get("https://www.powerball.com/", headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+            # Scrape and save jackpot for Lotto America from powerball.com/lotto-america
+            print("💰 Scrapeando jackpot para Lotto America...")
+            r_main = requests.get("https://www.powerball.com/lotto-america", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=15)
             if r_main.status_code == 200:
                 soup_main = BeautifulSoup(r_main.text, "html.parser")
                 date_el = soup_main.find(class_="title-date")
                 fecha_str = date_el.get_text(strip=True) if date_el else None
-                jackpot = None
-                for group in soup_main.find_all(class_="game-detail-group"):
-                    title_el = group.find(class_="game-title")
-                    if title_el and "lotto america" in title_el.get_text().lower():
-                        num_el = group.find(class_="game-jackpot-number")
-                        if num_el:
-                            jackpot = num_el.get_text(strip=True)
-                            break
+                jackpot_el = soup_main.find(class_="game-jackpot-number")
+                jackpot = jackpot_el.get_text(strip=True) if jackpot_el else None
+                
                 if jackpot and fecha_str:
                     self.update_jackpot(engine, "lotto_america", jackpot, fecha_str)
+                else:
+                    print("⚠️ No se encontró jackpot o fecha en powerball.com/lotto-america")
+            else:
+                print(f"⚠️ Error consultando powerball.com/lotto-america: Status {r_main.status_code}")
         except Exception as e:
             print(f"❌ Error al guardar datos o jackpot de Lotto America en BD: {e}")
+
 
 if __name__ == "__main__":
     LottoAmericaScraper().run()
