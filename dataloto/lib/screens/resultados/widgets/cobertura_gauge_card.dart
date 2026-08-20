@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
+import 'package:dataloto/widgets/custom_dialogs.dart';
 import 'resultados_shared.dart';
 
 class CoberturaGaugeCard extends StatelessWidget {
@@ -46,7 +47,21 @@ class CoberturaGaugeCard extends StatelessWidget {
                   color: Colors.white70,
                 ),
               ),
-              const Icon(Icons.info_outline, color: Colors.white38, size: 16),
+              GestureDetector(
+                onTap: () => showAcercaDeDialog(context),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.info_outline,
+                    color: Colors.amber,
+                    size: 16,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -127,9 +142,9 @@ class CoberturaGaugeCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.1),
+                color: Colors.amber.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.amber.withOpacity(0.4)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
               ),
               child: Text(
                 coberturaPorcentaje >= 0.6 ? l10n.excelenteResultado : l10n.buenDesempeno,
@@ -153,9 +168,9 @@ class CoberturaGaugeCard extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.15),
+            color: color.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withOpacity(0.4), width: 1),
+            border: Border.all(color: color.withValues(alpha: 0.4), width: 1),
           ),
           child: Text(
             label,

@@ -9,14 +9,16 @@ import 'package:dataloto/utils/pais_helper.dart';
 import 'package:dataloto/screens/resultados_dashboard_screen.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
 
+
+
 class ResultadosSelectorScreen extends StatefulWidget {
   const ResultadosSelectorScreen({super.key});
 
   @override
-  State<ResultadosSelectorScreen> createState() => _ResultadosSelectorScreenState();
+  State<ResultadosSelectorScreen> createState() => ResultadosSelectorScreenState();
 }
 
-class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
+class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
@@ -28,33 +30,36 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarLoterias();
+    cargarLoterias();
   }
 
-  Future<void> _cargarLoterias() async {
+  Future<void> cargarLoterias({bool forceRefresh = false}) async {
     if (!mounted) return;
 
     final uId = await _storage.read(key: 'user_id');
-    final cacheKey = 'resultados_selector_${uId ?? "anon"}';
-    final uCountry = await _storage.read(key: 'pais_nombre');
+    final uPaisId = await _storage.read(key: 'pais_id') ?? "5";
+    final uCountry = await _storage.read(key: 'pais_nombre') ?? "Colombia";
+    final cacheKey = 'resultados_selector_${uId ?? "anon"}_$uPaisId';
 
-    // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
-    final cached = await CacheService.getJson(cacheKey);
-    final cachedPaises = await CacheService.getJson('paises_list_cache');
+    if (!forceRefresh) {
+      // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
+      final cached = await CacheService.getJson(cacheKey);
+      final cachedPaises = await CacheService.getJson('paises_list_cache');
 
-    if (cached != null && mounted) {
-      setState(() {
-        _userCountry = uCountry;
-        _loterias = List<Map<String, dynamic>>.from(cached);
-        _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
-        if (cachedPaises != null) {
-          _paises = List<Map<String, dynamic>>.from(cachedPaises);
-        }
-        _isLoading = false;
-      });
+      if (cached != null && (cached as List).isNotEmpty && mounted) {
+        setState(() {
+          _userCountry = uCountry;
+          _loterias = List<Map<String, dynamic>>.from(cached);
+          _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
+          if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
+            _paises = List<Map<String, dynamic>>.from(cachedPaises);
+          }
+          _isLoading = false;
+        });
+      }
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (_loterias.isEmpty || forceRefresh) setState(() => _isLoading = true);
 
     try {
       // ⚡ 2. Obtener jugadas activas y todas las loterías en paralelo
@@ -63,39 +68,80 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           debugPrint("⚠️ Error obteniendo jugadas activas: $e");
           return <String>[];
         }),
-        _obtenerTodasLasLoterias(),
+        _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
       final List<String> activas = List<String>.from(resultados[0] as List);
       final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
 
-      // Filtrar solo las loterías que el usuario HA JUGADO
-      final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
+      // Identificar el ID del país del usuario
+      String targetPaisId = uPaisId;
+      if (_paises.isNotEmpty && uCountry.isNotEmpty) {
+        try {
+          final pMatch = _paises.firstWhere(
+            (p) => p["nombre"].toString().toLowerCase() == uCountry.toLowerCase(),
+          );
+          if (pMatch["id"] != null) {
+            targetPaisId = pMatch["id"].toString();
+          }
+        } catch (_) {}
+      }
+
+      // Filtrado inteligente: Loterías de MI PAÍS + Loterías con JUGADAS ACTIVAS
+      List<Map<String, dynamic>> finalLoterias = todas.where((mapItem) {
         final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
         final route = (rawRoute != null && rawRoute.isNotEmpty)
             ? rawRoute
             : _getRouteFromName(mapItem['nombre'] ?? "");
-        return activas.contains(route);
+        
+        final mapPaisId = mapItem['pais_id']?.toString();
+        final isFromMyCountry = (mapPaisId != null && mapPaisId == targetPaisId);
+        final hasJugadas = activas.contains(route);
+
+        return isFromMyCountry || hasJugadas;
       }).toList();
+
+      // Si por alguna razón la lista quedó vacía, intentar traer directamente las del país
+      if (finalLoterias.isEmpty) {
+        try {
+          final countryLoterias = await ApiService.getLoteriasPorPais(targetPaisId);
+          finalLoterias = countryLoterias
+              .map((e) => Map<String, dynamic>.from(e as Map))
+              .toList();
+        } catch (e) {
+          debugPrint("⚠️ Error al obtener loterías de respaldo por país: $e");
+        }
+      }
 
       if (mounted) {
         setState(() {
           _userCountry = uCountry;
-          _loterias = jugadasLoterias;
-          _filteredLoterias = jugadasLoterias;
+          _loterias = finalLoterias;
+          _filteredLoterias = finalLoterias;
           _isLoading = false;
         });
-        CacheService.setJson(cacheKey, jugadasLoterias);
+        if (finalLoterias.isNotEmpty) {
+          CacheService.setJson(cacheKey, finalLoterias);
+        }
       }
     } catch (e) {
+      debugPrint("❌ Error en cargarLoterias (Resultados): $e");
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias() async {
-    final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
-    if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
-      return List<Map<String, dynamic>>.from(cachedMapeo);
+
+
+  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
+    if (!force) {
+      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
+      final cachedPaises = await CacheService.getJson('paises_list_cache');
+      if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
+        _paises = List<Map<String, dynamic>>.from(cachedPaises);
+      }
+      if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
+        return List<Map<String, dynamic>>.from(cachedMapeo);
+      }
     }
 
     try {
@@ -160,13 +206,16 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   }
 
   String _getPaisNombre(dynamic id) {
-    if (_paises.isEmpty) return "Cargando...";
+    if (_paises.isEmpty) {
+      return _userCountry ?? "Internacional";
+    }
     final p = _paises.firstWhere(
       (p) => p["id"].toString() == id.toString(), 
-      orElse: () => {"nombre": "Internacional"}
+      orElse: () => {"nombre": _userCountry ?? "Internacional"}
     );
-    return p["nombre"];
+    return p["nombre"] ?? (_userCountry ?? "Internacional");
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -176,7 +225,7 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.yellow,
-          onRefresh: _cargarLoterias,
+          onRefresh: () => cargarLoterias(forceRefresh: true),
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -200,8 +249,7 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                   ),
                 )
               else if (_filteredLoterias.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
+                SliverToBoxAdapter(
                   child: _buildEmptyState(l10n),
                 )
               else
@@ -238,32 +286,98 @@ class _ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   }
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(40.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.analytics_outlined, color: Colors.white24, size: 80),
-            const SizedBox(height: 20),
-            Text(
-              l10n?.sinResultadosAnalisis ?? "Aún no tienes análisis de resultados",
-              style: AppTextStyles.h2.copyWith(color: Colors.white),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 10),
-            Text(
-              l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar para ver tus análisis y resultados.",
-              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-              textAlign: TextAlign.center,
-            ),
-          ],
+    final langCode = Localizations.localeOf(context).languageCode;
+    final isSearching = _searchController.text.trim().isNotEmpty;
+    final countryName = PaisHelper.getNombreTraducido(_userCountry ?? "Colombia", langCode);
+
+    if (isSearching) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.search_off_outlined, color: Colors.white24, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                langCode == 'en' ? "No lotteries found" : (langCode == 'pt' ? "Nenhuma loteria encontrada" : "No se encontraron loterías"),
+                style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                langCode == 'en' ? "Try another search term." : (langCode == 'pt' ? "Tente outro termo de busca." : "Intenta con otro término de búsqueda."),
+                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54, fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
+      );
+    }
+
+    final String titleText = langCode == 'en'
+        ? "No lotteries registered for $countryName"
+        : langCode == 'pt'
+            ? "Não há loterias registradas para $countryName"
+            : "No hay loterías registradas para $countryName";
+
+    final String bodyText = langCode == 'en'
+        ? "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!"
+        : langCode == 'pt'
+            ? "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!"
+            : "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!";
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10, width: 1),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.yellow.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.public_outlined,
+              color: AppColors.yellow,
+              size: 38,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            titleText,
+            style: AppTextStyles.h2.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            bodyText,
+            style: AppTextStyles.mensajeSecundario.copyWith(
+              color: Colors.white54,
+              fontSize: 13,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildSliverLotteryList(AppLocalizations? l10n) {
+
+
     final grouped = <String, List<Map<String, dynamic>>>{};
     final langCode = Localizations.localeOf(context).languageCode;
 

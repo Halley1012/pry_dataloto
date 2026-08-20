@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:dataloto/screens/welcome.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dataloto/styles/colores.dart';
-import '../widgets/custom_app_bar.dart';
 import '../utils/pais_helper.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
+
 
 class RegistroScreen extends StatefulWidget {
   final Map<String, dynamic>? user; // Para edición u onboarding
@@ -83,13 +82,14 @@ class _RegistroPageState extends State<RegistroScreen> {
       if (!mounted) return;
 
       setState(() {
-        _paises = results[0] as List<dynamic>;
+        _paises = results[0];
         if (_paisSeleccionado != null) {
-          _departamentos = results[1] as List<dynamic>;
+          _departamentos = results[1];
         }
         _cargandoPaises = false;
         _cargandoDepartamentos = false;
       });
+
     } catch (e) {
       if (!mounted) return;
       setState(() {

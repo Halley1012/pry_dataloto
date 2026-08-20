@@ -20,4 +20,12 @@ class NotificationService {
       throw Exception("Error al marcar como leída");
     }
   }
+
+  static Future<void> deleteNotification(int id) async {
+    final response = await ApiService.delete("/notifications/$id");
+    if (response.statusCode != 200) {
+      throw Exception("Error al eliminar notificación");
+    }
+  }
 }
+

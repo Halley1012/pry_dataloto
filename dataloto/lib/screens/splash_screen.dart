@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shimmer/shimmer.dart';
@@ -44,8 +45,11 @@ class _SplashScreenState extends State<SplashScreen>
         return;
       }
 
-      // Validar o refrescar la sesión si hay conexión
-      final hasSession = await ApiService.ensureValidSession();
+      // Validar o refrescar la sesión si hay conexión (con timeout estricto para evitar bloqueos)
+      final hasSession = await ApiService.ensureValidSession().timeout(
+        const Duration(milliseconds: 2500),
+        onTimeout: () => (accessToken != null || refreshToken != null),
+      );
 
       await splashDelay;
       if (!mounted) return;
@@ -56,13 +60,14 @@ class _SplashScreenState extends State<SplashScreen>
 
       if (stayLoggedIn) {
         // 🔥 Sincronizar token FCM en segundo plano
-        PushNotificationService.syncToken();
+        unawaited(PushNotificationService.syncToken());
       }
 
       Navigator.pushReplacementNamed(
         context,
         stayLoggedIn ? '/home' : '/welcome',
       );
+
     } catch (e) {
       debugPrint(
         '💥 Error en auth check (red/splash): $e. Manteniendo sesión local si existen tokens.',

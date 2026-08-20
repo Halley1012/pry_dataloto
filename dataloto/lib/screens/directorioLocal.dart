@@ -19,8 +19,8 @@ class DirectorioLocalScreen extends StatefulWidget {
 }
 
 class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
-  static const String titulo = 'Búscalo Aquí';
   bool cargando = false;
+
 
   final tituloController = TextEditingController();
   final categoriaController = TextEditingController();
