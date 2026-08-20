@@ -216,3 +216,7 @@ class NotificationRepositoryPort(ABC):
     @abstractmethod
     async def mark_as_read(self, notification_id: int) -> bool:
         pass
+
+    @abstractmethod
+    async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+        pass

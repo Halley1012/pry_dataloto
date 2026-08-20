@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -15,6 +16,7 @@ from app.application.transaction_use_cases import TransactionUseCases
 from app.application.notification_use_cases import NotificationUseCases
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/login", auto_error=False)
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     try:
@@ -34,6 +36,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
             detail=f"Token inválido o expirado: {str(e)}",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+async def get_optional_current_user(token: Optional[str] = Depends(oauth2_scheme_optional)) -> Optional[dict]:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
+        user_id: str = payload.get("sub")
+        email: str = payload.get("email")
+        if user_id is None or email is None:
+            return None
+        return {"user_id": user_id, "email": email}
+    except JWTError:
+        return None
 
 # Inyección de dependencias para Casos de Uso
 def get_auth_use_cases() -> AuthUseCases:

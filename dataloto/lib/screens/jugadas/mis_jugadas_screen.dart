@@ -193,10 +193,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       final nums = (play["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
       final bRoja = play["balota_roja"] ?? play["balotaroja"];
       final int? redVal = _usaSuperbalota
-          ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null))
+          ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null))
           : null;
 
-      final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
+      final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
       final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
       if (redVal != null) {
         final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
@@ -283,8 +283,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                     final item = entry.value;
                     final nums = (item["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
                     final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                    final red = _usaSuperbalota ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null)) : null;
-                    final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
+                    final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
+                    final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
                     final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
@@ -572,8 +572,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 final rawNums = (item["numeros"] as List<dynamic>? ?? []);
                                 final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList();
                                 final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                                final red = _usaSuperbalota ? (nums.length >= 6 ? nums[5] : (bRoja != null ? int.tryParse(bRoja.toString()) : null)) : null;
-                                final whites = _usaSuperbalota && nums.length >= 6 ? nums.sublist(0, 5) : nums;
+                                final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
+                                final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
 
                                 final Color color = [
                                   Colors.blueAccent,

@@ -23,6 +23,32 @@ class NotificationModel {
     required this.createdAt,
   });
 
+  NotificationModel copyWith({
+    int? id,
+    int? loteriaId,
+    int? paisId,
+    String? loteriaNombre,
+    String? loteriaRoute,
+    DateTime? fechaSorteo,
+    String? mensaje,
+    String? tipo,
+    bool? leido,
+    DateTime? createdAt,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      loteriaId: loteriaId ?? this.loteriaId,
+      paisId: paisId ?? this.paisId,
+      loteriaNombre: loteriaNombre ?? this.loteriaNombre,
+      loteriaRoute: loteriaRoute ?? this.loteriaRoute,
+      fechaSorteo: fechaSorteo ?? this.fechaSorteo,
+      mensaje: mensaje ?? this.mensaje,
+      tipo: tipo ?? this.tipo,
+      leido: leido ?? this.leido,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
       id: json['id'],

@@ -260,13 +260,13 @@ class JugadasListWidgetState extends State<JugadasListWidget>
 
                         final bRoja = jugada["balota_roja"] ?? jugada["balotaroja"];
                         final int? superBallVal = _usaSuperbalota
-                            ? (numeros.length >= 6
-                                ? numeros[5]
-                                : (bRoja != null ? int.tryParse(bRoja.toString()) : null))
+                            ? (bRoja != null
+                                ? int.tryParse(bRoja.toString())
+                                : (numeros.length >= 6 ? numeros.last : null))
                             : null;
 
-                        final whites = _usaSuperbalota && numeros.length >= 6
-                            ? numeros.sublist(0, 5)
+                        final whites = _usaSuperbalota && bRoja == null && numeros.length >= 6
+                            ? numeros.sublist(0, numeros.length - 1)
                             : numeros;
 
                         final Color color = [

@@ -41,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Post> posts = [];
   String? currentUserId;
   String? pais;
+  String? userName;
   List<dynamic> _loterias = [];
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
@@ -65,6 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
         storage.read(key: 'user_id'),
         storage.read(key: 'pais_id'),
         storage.read(key: 'pais_nombre'),
+        storage.read(key: 'name'),
       ]);
 
       String? userIdStr = keys[0];
@@ -74,6 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
+      final nameStr = keys[3];
 
       final paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
           ? rawPaisId
@@ -88,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           currentUserId = userIdStr;
           pais = paisNombreStr ?? "Colombia";
+          userName = nameStr;
           _loterias = List<dynamic>.from(cachedLoterias);
           _filteredLoterias = List<dynamic>.from(_loterias);
           if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
@@ -100,10 +104,11 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_loterias.isEmpty) setState(() => isLoading = true);
 
       // 2. Cargar Posts, Anuncios y Loterías en PARALELO
-      final postsFuture = ApiService.getPosts().catchError((e) {
+      final postsFuture = ApiService.getPosts().catchError((Object e) {
         debugPrint("⚠️ Error al obtener posts: $e");
         return <Post>[];
       });
+
 
       final anunciosFuture = ApiService.getPublicidades(paisId: paisIdInt).catchError((e) {
         debugPrint("⚠️ Error al obtener publicidad: $e");
@@ -141,6 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         currentUserId = userIdStr;
         pais = paisNombreStr ?? "Colombia";
+        userName = nameStr;
         posts = rawPosts;
         anuncios = List<Map<String, dynamic>>.from(resultados[1]);
         _loterias = loteriasRes;
@@ -167,6 +173,33 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Widget _buildWelcomeGreeting() {
+    final rawName = userName?.trim();
+    final displayName = (rawName != null && rawName.isNotEmpty)
+        ? rawName.split(' ').first
+        : "Usuario";
+
+    final langCode = Localizations.localeOf(context).languageCode;
+    String saludo = "¡Hola";
+    if (langCode == 'en') {
+      saludo = "Hello";
+    } else if (langCode == 'pt') {
+      saludo = "Olá";
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: Text(
+        "$saludo, $displayName! 👋",
+        style: AppTextStyles.h1.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+          fontSize: 22,
+        ),
+      ),
+    );
   }
 
   Widget _buildCountryHeader() {
@@ -559,7 +592,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final rawPosts = await ApiService.getPosts();
       final postsConConteo = await Future.wait(
-        rawPosts.map<Future<Post>>((p) async {
+        rawPosts.map((p) async {
           try {
             final comments = await ApiService.getComments(p.id);
             return Post(
@@ -571,10 +604,12 @@ class _HomeScreenState extends State<HomeScreen> {
               createdAt: p.createdAt,
               commentsCount: comments.length,
             );
-          } catch (_) {}
-          return p;
+          } catch (_) {
+            return p;
+          }
         }),
       );
+
 
       if (!mounted) return;
       setState(() {
@@ -584,12 +619,9 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error al cargar posts: $e")));
-      }
+      debugPrint("⚠️ Error al cargar posts: $e");
     }
+
   }
 
   Future<void> _abrirPostScreen(Post post) async {
@@ -973,6 +1005,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeaderRow(context),
+              _buildWelcomeGreeting(),
               _buildCountryHeader(),
               _buildSearchBar(),
               

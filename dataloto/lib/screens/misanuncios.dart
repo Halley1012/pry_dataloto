@@ -7,7 +7,7 @@ import 'package:dataloto/styles/app_text_styles.dart';
 import 'package:dataloto/widgets/cardbussiness.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 
 class MisAnunciosScreen extends StatefulWidget {
   const MisAnunciosScreen({super.key});
@@ -21,8 +21,8 @@ class _MisAnunciosScreenState extends State<MisAnunciosScreen> {
   bool cargando = false;
 
   final tituloController = TextEditingController();
-  final _storage = const FlutterSecureStorage();
   Timer? _debounce;
+
 
   List<Map<String, dynamic>> anuncios = [];
 

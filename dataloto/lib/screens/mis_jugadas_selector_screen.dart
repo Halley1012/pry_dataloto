@@ -76,15 +76,13 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       debugPrint("   - Loterías activas (rutas): $activas");
       debugPrint("   - Total loterías disponibles: ${todas.length}");
 
-      final List<Map<String, dynamic>> jugadasLoterias = activas.isNotEmpty
-          ? todas.where((mapItem) {
-              final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
-              final route = (rawRoute != null && rawRoute.isNotEmpty)
-                  ? rawRoute
-                  : _getRouteFromName(mapItem['nombre'] ?? "");
-              return activas.contains(route);
-            }).toList()
-          : todas;
+      final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
+        final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
+        final route = (rawRoute != null && rawRoute.isNotEmpty)
+            ? rawRoute
+            : _getRouteFromName(mapItem['nombre'] ?? "");
+        return activas.contains(route);
+      }).toList();
 
       debugPrint("   - Loterías mostradas: ${jugadasLoterias.map((e) => e['nombre']).toList()}");
 
@@ -95,9 +93,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _filteredLoterias = jugadasLoterias;
           _isLoading = false;
         });
-        if (jugadasLoterias.isNotEmpty) {
-          CacheService.setJson(cacheKey, jugadasLoterias);
-        }
+        CacheService.setJson(cacheKey, jugadasLoterias);
       }
     } catch (e) {
       debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
