@@ -190,7 +190,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
-      final nums = (play["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
+      final nums = (play["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList() ?? [];
       final bRoja = play["balota_roja"] ?? play["balotaroja"];
       final int? redVal = _usaSuperbalota
           ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null))
@@ -281,7 +281,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
-                    final nums = (item["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList() ?? [];
+                    final nums = (item["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList() ?? [];
                     final bRoja = item["balota_roja"] ?? item["balotaroja"];
                     final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
                     final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
@@ -570,7 +570,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 final isSelected = _selectedIds.contains(id);
                                 final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
                                 final rawNums = (item["numeros"] as List<dynamic>? ?? []);
-                                final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList();
+                                final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList();
                                 final bRoja = item["balota_roja"] ?? item["balotaroja"];
                                 final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
                                 final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;

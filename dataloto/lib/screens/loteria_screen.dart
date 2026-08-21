@@ -218,8 +218,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     final cached = await CacheService.getJson(cacheKeyPred);
     if (cached != null && cached["numeros"] != null) {
       final nums = (cached["numeros"] as List)
-          .map((e) => int.tryParse(e.toString()) ?? 0)
-          .where((e) => e != 0)
+          .map((e) => int.tryParse(e.toString()) ?? -1)
+          .where((e) => e >= 0)
           .toList();
       final redNums = cached["balotaroja"] != null
           ? (cached["balotaroja"] as List)
@@ -289,8 +289,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       final data = await ApiService.getPrediccionLoteria(config.route);
       if (data["numeros"] != null && mounted) {
         final nums = (data["numeros"] as List)
-            .map((e) => int.tryParse(e.toString()) ?? 0)
-            .where((e) => e != 0)
+            .map((e) => int.tryParse(e.toString()) ?? -1)
+            .where((e) => e >= 0)
             .toList();
 
         final redNums = data["balotaroja"] != null
@@ -531,8 +531,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
     final bool isDuplicate = _jugadasList.any((j) {
       final rawNums = (j["numeros"] as List<dynamic>?)
-              ?.map((n) => int.tryParse(n.toString()) ?? 0)
-              .where((n) => n > 0)
+              ?.map((n) => int.tryParse(n.toString()) ?? -1)
+              .where((n) => n >= 0)
               .toList() ??
           [];
       if (rawNums.isEmpty) return false;
@@ -1685,18 +1685,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           Column(
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Expanded(
-                    flex: 1,
+                    flex: 3,
                     child: Text(
                       l10n?.fechaLabel ?? "Fecha",
-                      textAlign: TextAlign.center,
+                      textAlign: TextAlign.left,
                       style: AppTextStyles.fechasResultado,
                     ),
                   ),
                   Expanded(
-                    flex: 2,
+                    flex: 10,
                     child: Text(
                       l10n?.resultados ?? "Resultados",
                       textAlign: TextAlign.center,
@@ -1710,8 +1709,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 final fecha = resultado["fecha"] ?? "S/F";
                 final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
                 final numeros = rawNumeros
-                    .map((e) => int.tryParse(e.toString()) ?? 0)
-                    .where((e) => e > 0)
+                    .map((e) => int.tryParse(e.toString()) ?? -1)
+                    .where((e) => e >= 0)
                     .toList();
 
                 return Padding(
@@ -1720,46 +1719,53 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     builder: (context, constraints) {
                       final screenWidth = MediaQuery.of(context).size.width;
                       final isSmall = screenWidth < 360;
-                      final ballSize = isSmall ? 25.0 : 31.0;
+                      final ballSize = isSmall ? 25.0 : 30.0;
 
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
-                            flex: 1,
+                            flex: 3,
                             child: Text(
                               fecha,
-                              textAlign: TextAlign.center,
-                              style: AppTextStyles.mensajeImportante,
+                              textAlign: TextAlign.left,
+                              style: AppTextStyles.mensajeImportante.copyWith(fontSize: 12),
                             ),
                           ),
                           Expanded(
-                            flex: 2,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: numeros.isEmpty
-                                  ? [
-                                      Text(
-                                        l10n?.sinNumeros ?? "Sin números",
-                                        style: AppTextStyles.mensajeSecundario,
-                                      ),
-                                    ]
-                                  : List.generate(numeros.length, (index) {
-                                      final n = numeros[index];
-                                      final isLast = config.tieneBalotaRoja &&
-                                          index == numeros.length - 1;
-                                      return SizedBox(
-                                        width: ballSize,
-                                        height: ballSize,
-                                        child: _build3DBall(
-                                          n,
-                                          baseColor: isLast
-                                              ? Colors.redAccent
-                                              : Colors.amber,
-                                          size: ballSize,
+                            flex: 10,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: numeros.isEmpty
+                                    ? [
+                                        Text(
+                                          l10n?.sinNumeros ?? "Sin números",
+                                          style: AppTextStyles.mensajeSecundario,
                                         ),
-                                      );
-                                    }),
+                                      ]
+                                    : List.generate(numeros.length, (index) {
+                                        final n = numeros[index];
+                                        final isSpecial = config.tieneBalotaRoja &&
+                                            index >= config.maxSeleccion;
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                                          child: SizedBox(
+                                            width: ballSize,
+                                            height: ballSize,
+                                            child: _build3DBall(
+                                              n,
+                                              baseColor: isSpecial
+                                                  ? Colors.redAccent
+                                                  : Colors.amber,
+                                              size: ballSize,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                              ),
                             ),
                           ),
                         ],

@@ -44,10 +44,10 @@ class UltimosSorteosTable extends StatelessWidget {
           // Header Tabla
           Row(
             children: [
-              Expanded(flex: 3, child: Text(l10n.fechaLabel, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
-              Expanded(flex: 7, child: Center(child: Text(l10n.numerosGanadores, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Center(child: Text(l10n.coberturaIA, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
-              Expanded(flex: 3, child: Align(alignment: Alignment.center
+              Expanded(flex: 2, child: Text(l10n.fechaLabel, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38))),
+              Expanded(flex: 11, child: Center(child: Text(l10n.numerosGanadores, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 2, child: Center(child: Text(l10n.coberturaIA, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
+              Expanded(flex: 2, child: Align(alignment: Alignment.center
                   , child: Text(l10n.aciertosSimple, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)))),
             ],
           ),
@@ -66,14 +66,14 @@ class UltimosSorteosTable extends StatelessWidget {
 
                   children: [
                     Expanded(
-                      flex: 3,
+                      flex: 2,
                       child: Text(
                         item["fecha"].toString(),
                         style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
                       ),
                     ),
                     Expanded(
-                      flex: 7,
+                      flex: 11,
                       child: Center(
                         child: SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
@@ -83,12 +83,12 @@ class UltimosSorteosTable extends StatelessWidget {
                             children: [
                               ...nums.map((n) => Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                    child: buildMiniBall(n, baseColor: coverageColor, size: 20),
+                                    child: buildMiniBall(n, baseColor: coverageColor, size: 19),
                                   )),
                               if (red != null)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: 20),
+                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: 19),
                                 ),
                             ],
                           ),
@@ -96,7 +96,7 @@ class UltimosSorteosTable extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      flex: 3,
+                      flex: 2,
                       child: Center(
                         child: Text(
                           item["cobertura"].toString(),
@@ -105,7 +105,7 @@ class UltimosSorteosTable extends StatelessWidget {
                       ),
                     ),
                     Expanded(
-                      flex: 3,
+                      flex: 2,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
