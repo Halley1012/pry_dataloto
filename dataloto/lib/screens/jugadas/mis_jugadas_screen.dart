@@ -14,6 +14,7 @@ import 'package:dataloto/styles/colores.dart';
 import 'package:dataloto/widgets/contenedor3.dart';
 import 'package:dataloto/widgets/custom_app_bar.dart';
 import 'package:dataloto/l10n/generated/app_localizations.dart';
+import '../loteria_screen.dart';
 
 class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
@@ -34,11 +35,30 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Set<int> _selectedIds = {};
   bool _cargando = true;
   String? _userId;
+  LoteriaConfig? _config;
 
   @override
   void initState() {
     super.initState();
+    _cargarConfig();
     _cargarJugadas();
+  }
+
+  Future<void> _cargarConfig() async {
+    try {
+      final loteriasData = await ApiService.getAllLoterias();
+      final match = loteriasData.firstWhere(
+        (l) =>
+            (l['route']?.toString().toLowerCase() == widget.loteriaRoute.toLowerCase()) ||
+            (l['nombre']?.toString().toLowerCase() == widget.loteriaNombre.toLowerCase()),
+        orElse: () => <String, dynamic>{},
+      );
+      if (match.isNotEmpty && mounted) {
+        setState(() {
+          _config = LoteriaConfig.fromJson(Map<String, dynamic>.from(match as Map), fallbackNombre: widget.loteriaNombre);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _cargarJugadas({bool force = false}) async {
@@ -164,12 +184,47 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   }
 
   bool get _usaSuperbalota {
+    if (_config != null) return _config!.tieneBalotaRoja;
     for (var j in _jugadasList) {
       if (j['balota_roja'] != null || j['superbalota'] != null) return true;
       final nums = j['numeros'];
-      if (nums is List && nums.length > 5) return true;
+      if (nums is List && nums.length > 6) return true;
     }
     return false;
+  }
+
+  (List<int>, int?) _parsearJugada(Map<String, dynamic> item) {
+    final rawNums = (item["numeros"] as List<dynamic>? ?? []);
+    final nums = rawNums
+        .map((n) => int.tryParse(n.toString()) ?? -1)
+        .where((n) => n >= 0)
+        .toList();
+
+    final bRoja = item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
+    final int maxSel = _config?.maxSeleccion ??
+        (nums.length >= 7 ? 6 : (nums.length == 6 && !_usaSuperbalota ? 6 : 5));
+
+    final bool tieneRoja = _config?.tieneBalotaRoja ?? _usaSuperbalota;
+
+    int? red;
+    List<int> whites;
+
+    if (bRoja != null) {
+      red = int.tryParse(bRoja.toString());
+      if (nums.length > maxSel) {
+        whites = nums.sublist(0, maxSel);
+      } else {
+        whites = nums.where((n) => n != red).toList();
+      }
+    } else if (tieneRoja && nums.length > maxSel) {
+      whites = nums.sublist(0, maxSel);
+      red = nums.last;
+    } else {
+      whites = nums;
+      red = null;
+    }
+
+    return (whites, red);
   }
 
   void _compartirWhatsApp() async {
@@ -190,13 +245,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     for (int i = 0; i < jugadasACompartir.length; i++) {
       final play = jugadasACompartir[i];
-      final nums = (play["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList() ?? [];
-      final bRoja = play["balota_roja"] ?? play["balotaroja"];
-      final int? redVal = _usaSuperbalota
-          ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null))
-          : null;
-
-      final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
+      final (whites, redVal) = _parsearJugada(play);
       final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
       if (redVal != null) {
         final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
@@ -281,10 +330,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   data: jugadasAImprimir.asMap().entries.map((entry) {
                     final index = entry.key + 1;
                     final item = entry.value;
-                    final nums = (item["numeros"] as List<dynamic>?)?.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList() ?? [];
-                    final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                    final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
-                    final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
+                    final (whites, red) = _parsearJugada(item);
                     final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
                     final balotasStr = red != null
@@ -569,11 +615,15 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 final id = item["id"] as int? ?? 0;
                                 final isSelected = _selectedIds.contains(id);
                                 final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-                                final rawNums = (item["numeros"] as List<dynamic>? ?? []);
-                                final nums = rawNums.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList();
-                                final bRoja = item["balota_roja"] ?? item["balotaroja"];
-                                final red = _usaSuperbalota ? (bRoja != null ? int.tryParse(bRoja.toString()) : (nums.length >= 6 ? nums.last : null)) : null;
-                                final whites = _usaSuperbalota && bRoja == null && nums.length >= 6 ? nums.sublist(0, nums.length - 1) : nums;
+                                final (whites, red) = _parsearJugada(item);
+
+                                final int totalBalls = whites.length + (red != null ? 1 : 0);
+                                final double ballSize = totalBalls <= 5
+                                    ? 33.0
+                                    : (totalBalls == 6 ? 29.0 : (totalBalls == 7 ? 25.5 : 22.5));
+                                final double hPadding = totalBalls <= 5
+                                    ? 2.5
+                                    : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.2));
 
                                 final Color color = [
                                   Colors.blueAccent,
@@ -639,7 +689,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                           },
                                         ),
                                       ),
-                                      const SizedBox(width: 6), 
+                                      const SizedBox(width: 4), 
 
                                       // 2. Solo el Número (Sin la palabra "Nro.")
                                       Text(
@@ -649,46 +699,47 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                             fontWeight: FontWeight.bold
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      // 3. Balotas compactas (5 Amarillas/Colores + 1 Roja)
+                                      const SizedBox(width: 4),
+                                      // 3. Balotas dinámicas y adaptativas
                                       Expanded(
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            ...whites.map((n) => Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                                              child: _build3DBall(
-                                                n,
-                                                baseColor: color,
-                                                size: 35,
-                                              ),
-                                            )),
-                                            if (red != null)
-                                              Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 2.5),
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.center,
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              ...whites.map((n) => Padding(
+                                                padding: EdgeInsets.symmetric(horizontal: hPadding),
                                                 child: _build3DBall(
-                                                  red,
-                                                  baseColor: Colors.redAccent,
-                                                  size: 35,
+                                                  n,
+                                                  baseColor: color,
+                                                  size: ballSize,
                                                 ),
-                                              ),
-                                          ],
+                                              )),
+                                              if (red != null)
+                                                Padding(
+                                                  padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                  child: _build3DBall(
+                                                    red,
+                                                    baseColor: Colors.redAccent,
+                                                    size: ballSize,
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
                                         ),
                                       ),
+                                      const SizedBox(width: 4),
                                       // 4. Fecha (dd/MM/yyyy con tamaño reducido)
                                       if (fechaStr.isNotEmpty)
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              fechaStr,
-                                              style: AppTextStyles.caption.copyWith(
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                          ],
+                                        Text(
+                                          fechaStr,
+                                          style: AppTextStyles.caption.copyWith(
+                                            color: Colors.white70,
+                                            fontSize: 11,
+                                          ),
                                         ),
-                                      const SizedBox(width: 6)
+                                      const SizedBox(width: 4)
                                     ],
                                   ),
                                 );

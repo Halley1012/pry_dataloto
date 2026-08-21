@@ -373,27 +373,41 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   }
 
   Widget _buildCardResumenGeneral(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
-    String label3 = l10n?.tipo ?? "Combinación";
-    String value3 = "5 Números";
+    final String label3 = l10n?.numerosLabel ?? "Números";
+    final String value3;
 
-    if (maxRoja > 0) {
-      label3 = "Superbalota";
-      value3 = "1 - $maxRoja";
-    } else if (routeName == "colorloto") {
-      label3 = l10n?.tipo ?? "Combinación";
-      value3 = "6 Números + Color";
+    if (routeName == "colorloto" || routeName == "cloto") {
+      value3 = "6 + Color";
+    } else {
+      int totalBallsInResults = 0;
+      if (resultados.isNotEmpty) {
+        final firstNums = resultados.first["numeros"];
+        if (firstNums is List && firstNums.isNotEmpty) {
+          totalBallsInResults = firstNums.length;
+        }
+      }
+
+      final int extraCount = totalBallsInResults > maxSeleccion
+          ? (totalBallsInResults - maxSeleccion)
+          : (maxRoja > 0 ? 1 : 0);
+
+      if (extraCount > 0) {
+        value3 = "$maxSeleccion + $extraCount";
+      } else {
+        value3 = "$maxSeleccion";
+      }
     }
 
     return AppContainer3(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            MetricStat(label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados", value: "${resultados.length}"),
-            MetricStat(label: "Rango Balotas", value: "1 - $maxBalota"),
-            MetricStat(label: label3, value: value3),
-          ],
-        ),
-      );
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          MetricStat(label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados", value: "${resultados.length}"),
+          MetricStat(label: l10n?.rangoBalotas ?? "Rango Balotas", value: "1 - $maxBalota"),
+          MetricStat(label: label3, value: value3),
+        ],
+      ),
+    );
   }
 
   Widget _buildCardCalientesFrios(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
@@ -1030,8 +1044,83 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     );
   }
 
+  int _calcularScoreProbabilidadIA(List<Map<String, dynamic>> resultados) {
+    if (resultados.isEmpty) return 85;
+
+    final rawPredNums = prediccionIA?["numeros"];
+    final List<int> predNums = (rawPredNums is List && rawPredNums.isNotEmpty)
+        ? rawPredNums
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((n) => n > 0)
+            .take(maxSeleccion)
+            .toList()
+        : [];
+
+    if (predNums.isEmpty) return 85;
+
+    double scoreTotal = 0.0;
+
+    // 1. Afinidad con Números Frecuentes Históricos (40 pts máx)
+    final frecs = _calcularFrecuencias(resultados);
+    int totalPuntosFrec = 0;
+    int maxPosibleFrec = 0;
+    final sortedFrecs = frecs.values.toList()..sort();
+    final maxFrec = sortedFrecs.isNotEmpty && sortedFrecs.last > 0 ? sortedFrecs.last : 1;
+
+    for (var n in predNums) {
+      final f = frecs[n] ?? 0;
+      totalPuntosFrec += f;
+      maxPosibleFrec += maxFrec;
+    }
+    double frecScore = maxPosibleFrec > 0 ? (totalPuntosFrec / maxPosibleFrec) * 40.0 : 30.0;
+    scoreTotal += frecScore.clamp(18.0, 40.0);
+
+    // 2. Consistencia Par/Impar (25 pts máx)
+    int pares = predNums.where((n) => n % 2 == 0).length;
+    int impares = predNums.length - pares;
+    double balanceParImpar = (pares - impares).abs() <= 1 ? 25.0 : ((pares - impares).abs() <= 2 ? 18.0 : 12.0);
+    scoreTotal += balanceParImpar;
+
+    // 3. Dispersión y Suma Histórica (20 pts máx)
+    int sumaPred = predNums.fold(0, (acc, n) => acc + n);
+    List<int> sumasHist = [];
+    for (var r in resultados) {
+      final nums = List<int>.from(r["numeros"] ?? []).take(maxSeleccion);
+      if (nums.isNotEmpty) {
+        sumasHist.add(nums.fold(0, (acc, n) => acc + n));
+      }
+    }
+    if (sumasHist.isNotEmpty) {
+      double mediaSuma = sumasHist.reduce((a, b) => a + b) / sumasHist.length;
+      double diffSuma = (sumaPred - mediaSuma).abs();
+      double maxDiff = mediaSuma * 0.5;
+      double sumaScore = (1.0 - (diffSuma / (maxDiff > 0 ? maxDiff : 1.0))).clamp(0.0, 1.0) * 20.0;
+      scoreTotal += sumaScore;
+    } else {
+      scoreTotal += 15.0;
+    }
+
+    // 4. Distribución Bajos vs Altos (15 pts máx)
+    int mitad = maxBalota ~/ 2;
+    int bajos = predNums.where((n) => n <= mitad).length;
+    int altos = predNums.length - bajos;
+    double balanceBajosAltos = (bajos - altos).abs() <= 1 ? 15.0 : ((bajos - altos).abs() <= 2 ? 10.0 : 6.0);
+    scoreTotal += balanceBajosAltos;
+
+    return scoreTotal.round().clamp(60, 97);
+  }
+
   Widget _buildCardScoreIA(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
-    final score = 92;
+    final score = _calcularScoreProbabilidadIA(resultados);
+    final String mensajeConsistencia;
+    if (score >= 88) {
+      mensajeConsistencia = l10n?.altaConsistenciaIA ?? "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.";
+    } else if (score >= 76) {
+      mensajeConsistencia = l10n?.moderadaConsistenciaIA ?? "⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.";
+    } else {
+      mensajeConsistencia = l10n?.variabilidadConsistenciaIA ?? "📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.";
+    }
+
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1047,17 +1136,24 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   value: score / 100,
                   minHeight: 12,
                   backgroundColor: AppColors.darkGray,
-                  color: Colors.amber,
+                  color: score >= 80 ? Colors.amber : (score >= 70 ? Colors.orangeAccent : Colors.redAccent),
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
               const SizedBox(width: 16),
-              Text("$score%", style: AppTextStyles.tituloPrincipal.copyWith(color: Colors.amber)),
+              Text(
+                "$score%",
+                style: AppTextStyles.tituloPrincipal.copyWith(
+                  color: score >= 80 ? Colors.amber : (score >= 70 ? Colors.orangeAccent : Colors.redAccent),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(l10n?.altaConsistenciaIA ?? "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
-              style: AppTextStyles.caption),
+          Text(
+            mensajeConsistencia,
+            style: AppTextStyles.caption,
+          ),
         ],
       ),
     );

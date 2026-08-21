@@ -219,14 +219,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
               child: Row(
                 children: [
-                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 22)),
+                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
                   const SizedBox(width: 8),
                   Text(
                     countryDisplay,
-                    style: AppTextStyles.h2.copyWith(color: AppColors.white),
+                    style: AppTextStyles.h2.copyWith(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -248,34 +252,36 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     final proximoLbl = l10n?.proximoSorteoConFecha ?? "Próximo sorteo:";
 
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: ListTile(
+        dense: true,
+        visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resolveScreen(loteria))),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-        leading: LotteryAvatar3D(nombre: nombre, size: 46),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0.0),
+        leading: LotteryAvatar3D(nombre: nombre, size: 36),
         title: Text(
           nombreFormateado,
           style: AppTextStyles.h2.copyWith(
             color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            fontSize: 14.5,
           ),
         ),
         subtitle: Text(
           "$proximoLbl $fechaSorteo",
           style: AppTextStyles.mensajeSecundario.copyWith(
             color: Colors.white38,
-            fontSize: 11,
+            fontSize: 10.5,
           ),
         ),
         trailing: const Icon(
           Icons.star_outline,
           color: AppColors.yellow,
-          size: 22,
+          size: 20,
         ),
       ),
     );

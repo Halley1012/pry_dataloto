@@ -26,6 +26,8 @@ class LoteriaConfig {
   final int maxBalotasRojas;
   final String superbalotaNombre;
   final bool hasRevancha;
+  final int totalBalotasSorteo;
+  final bool tieneComplementario;
 
   const LoteriaConfig({
     required this.nombre,
@@ -35,6 +37,8 @@ class LoteriaConfig {
     this.maxBalotasRojas = 0,
     this.superbalotaNombre = "Superbalota",
     this.hasRevancha = false,
+    this.totalBalotasSorteo = 5,
+    this.tieneComplementario = false,
   });
 
   bool get tieneBalotaRoja => maxBalotasRojas > 0;
@@ -47,6 +51,8 @@ class LoteriaConfig {
     int? maxBalotasRojas,
     String? superbalotaNombre,
     bool? hasRevancha,
+    int? totalBalotasSorteo,
+    bool? tieneComplementario,
   }) {
     return LoteriaConfig(
       nombre: nombre ?? this.nombre,
@@ -56,6 +62,8 @@ class LoteriaConfig {
       maxBalotasRojas: maxBalotasRojas ?? this.maxBalotasRojas,
       superbalotaNombre: superbalotaNombre ?? this.superbalotaNombre,
       hasRevancha: hasRevancha ?? this.hasRevancha,
+      totalBalotasSorteo: totalBalotasSorteo ?? this.totalBalotasSorteo,
+      tieneComplementario: tieneComplementario ?? this.tieneComplementario,
     );
   }
 
@@ -89,6 +97,16 @@ class LoteriaConfig {
 
     final revancha = json["has_revancha"] == true || json["hasRevancha"] == true;
 
+    final tieneComp = json["tiene_complementario"] == true ||
+        json["tieneComplementario"] == true;
+
+    final int totalSorteoFallback = (maxSel ?? 5) + ((maxRojas ?? 0) > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
+    final totalSorteo = json["total_balotas_sorteo"] != null
+        ? int.tryParse(json["total_balotas_sorteo"].toString())
+        : (json["totalBalotasSorteo"] != null
+            ? int.tryParse(json["totalBalotasSorteo"].toString())
+            : null);
+
     return LoteriaConfig(
       nombre: rawNombre,
       route: rawRoute,
@@ -97,6 +115,8 @@ class LoteriaConfig {
       maxBalotasRojas: maxRojas ?? 0,
       superbalotaNombre: superNombre ?? "Superbalota",
       hasRevancha: revancha,
+      totalBalotasSorteo: totalSorteo ?? totalSorteoFallback,
+      tieneComplementario: tieneComp,
     );
   }
 
@@ -111,14 +131,21 @@ class LoteriaConfig {
         ? t[0].toUpperCase() + t.substring(1)
         : "Lotería";
 
+    final tieneComp = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
+    final int maxSel = (cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams")) ? 6 : 5;
+    final int maxRojas = (cleanRoute.contains("mloto") || cleanRoute.contains("cloto")) ? 0 : 10;
+    final int totalSorteo = maxSel + (maxRojas > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
+
     return LoteriaConfig(
       nombre: formattedName,
       route: cleanRoute,
-      maxSeleccion: 5,
+      maxSeleccion: maxSel,
       maxBalotasBlancas: 45,
-      maxBalotasRojas: 0,
+      maxBalotasRojas: maxRojas,
       superbalotaNombre: "Superbalota",
       hasRevancha: false,
+      totalBalotasSorteo: totalSorteo,
+      tieneComplementario: tieneComp,
     );
   }
 
@@ -1244,31 +1271,41 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             ],
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              ...List.generate(config.maxSeleccion, (index) {
-                int? val;
-                if (isCustomSelection) {
-                  val = index < seleccionados.length ? seleccionados[index] : null;
-                } else {
-                  val = index < listaProbables.length ? listaProbables[index] : null;
-                }
-                return _build3DBallPrediction(
-                  val,
-                  baseColor: const Color(0xFF1A4594),
-                  size: config.maxSeleccion > 5 ? 38 : 45,
-                );
-              }),
-              if (config.tieneBalotaRoja)
-                _build3DBallPrediction(
-                  isCustomSelection
-                      ? balotaRojaSeleccionada
-                      : (listaBalotaRoja.isNotEmpty ? listaBalotaRoja.first : null),
-                  baseColor: const Color(0xFFD32F2F),
-                  size: config.maxSeleccion > 5 ? 38 : 45,
-                ),
-            ],
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ...List.generate(config.maxSeleccion, (index) {
+                  int? val;
+                  if (isCustomSelection) {
+                    val = index < seleccionados.length ? seleccionados[index] : null;
+                  } else {
+                    val = index < listaProbables.length ? listaProbables[index] : null;
+                  }
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                    child: _build3DBallPrediction(
+                      val,
+                      baseColor: const Color(0xFF1A4594),
+                      size: config.maxSeleccion > 5 ? 38 : 45,
+                    ),
+                  );
+                }),
+                if (config.tieneBalotaRoja)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                    child: _build3DBallPrediction(
+                      isCustomSelection
+                          ? balotaRojaSeleccionada
+                          : (listaBalotaRoja.isNotEmpty ? listaBalotaRoja.first : null),
+                      baseColor: const Color(0xFFD32F2F),
+                      size: config.maxSeleccion > 5 ? 38 : 45,
+                    ),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -1672,6 +1709,46 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     List<Map<String, dynamic>>? listaResultados,
   }) {
     final resultadosUsar = listaResultados ?? ultimosResultados;
+    final int maxBallsInResults = resultadosUsar.isNotEmpty
+        ? resultadosUsar
+            .map((r) => (r["numeros"] as List<dynamic>? ?? []).length)
+            .fold(0, (max, len) => len > max ? len : max)
+        : 5;
+
+    // Configuración adaptativa según la cantidad de balotas de la lotería
+    final double dateWidth;
+    final double dateFontSize;
+    final double defaultBallSize;
+    final double ballSpacing;
+    final double rowPaddingVertical;
+
+    if (maxBallsInResults <= 5) {
+      dateWidth = 88.0;
+      dateFontSize = 15.0;
+      defaultBallSize = 35.0;
+      ballSpacing = 5.5;
+      rowPaddingVertical = 2.5;
+    } else if (maxBallsInResults == 6) {
+      dateWidth = 84.0;
+      dateFontSize = 14.0;
+      defaultBallSize = 34.0;
+      ballSpacing = 3.5;
+      rowPaddingVertical = 2.5;
+    } else if (maxBallsInResults == 7) {
+      dateWidth = 88.0;
+      dateFontSize = 14.0;
+      defaultBallSize = 31.0;
+      ballSpacing = 2.0;
+      rowPaddingVertical = 2.5;
+    } else {
+      // 8 o más balotas (La Primitiva, Bonoloto, etc.)
+      dateWidth = 85.0;
+      dateFontSize = 14.0;
+      defaultBallSize = 28.0;
+      ballSpacing = 1.8;
+      rowPaddingVertical = 2.5;
+    }
+
     return Column(
       children: [
         if (resultadosUsar.isEmpty)
@@ -1686,20 +1763,22 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             children: [
               Row(
                 children: [
-                  Expanded(
-                    flex: 3,
+                  SizedBox(
+                    width: dateWidth,
                     child: Text(
                       l10n?.fechaLabel ?? "Fecha",
-                      textAlign: TextAlign.left,
-                      style: AppTextStyles.fechasResultado,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.fechasResultado.copyWith(fontSize: dateFontSize),
                     ),
                   ),
+                  const SizedBox(width: 6),
                   Expanded(
-                    flex: 10,
-                    child: Text(
-                      l10n?.resultados ?? "Resultados",
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.fechasResultado,
+                    child: Center(
+                      child: Text(
+                        l10n?.resultados ?? "Resultados",
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.fechasResultado.copyWith(fontSize: dateFontSize),
+                      ),
                     ),
                   ),
                 ],
@@ -1714,63 +1793,71 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     .toList();
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6.0),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final screenWidth = MediaQuery.of(context).size.width;
-                      final isSmall = screenWidth < 360;
-                      final ballSize = isSmall ? 25.0 : 30.0;
+                  padding: EdgeInsets.symmetric(vertical: rowPaddingVertical),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: dateWidth,
+                        child: Text(
+                          fecha,
+                          textAlign: TextAlign.left,
+                          style: AppTextStyles.mensajeImportante.copyWith(
+                            fontSize: dateFontSize,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final totalBalls = numeros.length;
+                            final double calculatedSize = totalBalls > 0
+                                ? ((constraints.maxWidth - (totalBalls * ballSpacing * 2)) / totalBalls)
+                                : defaultBallSize;
+                            final double ballSize = calculatedSize.clamp(18.0, defaultBallSize);
 
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Expanded(
-                            flex: 3,
-                            child: Text(
-                              fecha,
-                              textAlign: TextAlign.left,
-                              style: AppTextStyles.mensajeImportante.copyWith(fontSize: 12),
-                            ),
-                          ),
-                          Expanded(
-                            flex: 10,
-                            child: SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: numeros.isEmpty
-                                    ? [
-                                        Text(
-                                          l10n?.sinNumeros ?? "Sin números",
-                                          style: AppTextStyles.mensajeSecundario,
-                                        ),
-                                      ]
-                                    : List.generate(numeros.length, (index) {
-                                        final n = numeros[index];
-                                        final isSpecial = config.tieneBalotaRoja &&
-                                            index >= config.maxSeleccion;
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                          child: SizedBox(
-                                            width: ballSize,
-                                            height: ballSize,
-                                            child: _build3DBall(
-                                              n,
-                                              baseColor: isSpecial
-                                                  ? Colors.redAccent
-                                                  : Colors.amber,
-                                              size: ballSize,
-                                            ),
+                            return Center(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.center,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: numeros.isEmpty
+                                      ? [
+                                          Text(
+                                            l10n?.sinNumeros ?? "Sin números",
+                                            style: AppTextStyles.mensajeSecundario,
                                           ),
-                                        );
-                                      }),
+                                        ]
+                                      : List.generate(numeros.length, (index) {
+                                          final n = numeros[index];
+                                          final isSpecial = config.tieneBalotaRoja &&
+                                              index >= config.maxSeleccion;
+                                          return Padding(
+                                            padding: EdgeInsets.symmetric(horizontal: ballSpacing),
+                                            child: SizedBox(
+                                              width: ballSize,
+                                              height: ballSize,
+                                              child: _build3DBall(
+                                                n,
+                                                baseColor: isSpecial
+                                                    ? Colors.redAccent
+                                                    : Colors.amber,
+                                                size: ballSize,
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                ),
                               ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 );
               }),
@@ -1817,10 +1904,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 fontSize: 16,
               ),
             ),
-            Text(
-              l10n?.verTodas ?? "Ver todas ›",
-              style: const TextStyle(color: AppColors.yellow, fontSize: 12),
-            ),
+
           ],
         ),
         const SizedBox(height: 16),

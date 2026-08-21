@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 
 // --- HELPERS VISUALES Y BOLAS ---
-Widget build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool isSpecial = false}) {
+Widget build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool isSpecial = false, double size = 44}) {
   return Container(
-    width: 44,
-    height: 44,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       gradient: RadialGradient(
@@ -21,8 +21,8 @@ Widget build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool 
       boxShadow: [
         BoxShadow(
           color: Colors.black.withValues(alpha: 0.5),
-          offset: const Offset(3, 4),
-          blurRadius: 6,
+          offset: const Offset(2, 3),
+          blurRadius: 5,
         ),
       ],
       border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
@@ -32,7 +32,7 @@ Widget build3DBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), bool 
         "$numero",
         textAlign: TextAlign.center,
         style: GoogleFonts.montserrat(
-          fontSize: 18,
+          fontSize: size * 0.41,
           fontWeight: FontWeight.bold,
           color: Colors.white,
           height: 1.0,

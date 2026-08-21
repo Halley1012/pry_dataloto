@@ -640,8 +640,8 @@ class ApiService {
       route = "cloto";
     }
 
-    final List<int> numerosParaGuardar = (balotaRoja != null && numeros.length == 5)
-        ? [...numeros, balotaRoja]
+    final List<int> numerosParaGuardar = (balotaRoja != null)
+        ? (numeros.isNotEmpty && numeros.last == balotaRoja ? numeros : [...numeros, balotaRoja])
         : numeros;
 
     final Map<String, dynamic> payload = {

@@ -474,6 +474,14 @@ class AppLocalizationsEs extends AppLocalizations {
       '✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.';
 
   @override
+  String get moderadaConsistenciaIA =>
+      '⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.';
+
+  @override
+  String get variabilidadConsistenciaIA =>
+      '📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.';
+
+  @override
   String get comportamientoHistoricoVsIA => 'Comportamiento Histórico vs IA ⚡';
 
   @override
@@ -1066,4 +1074,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get errorAnuncios => 'Error al cargar los anuncios.';
+
+  @override
+  String get numerosLabel => 'Números';
 }
