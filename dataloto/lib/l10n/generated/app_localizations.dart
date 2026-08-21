@@ -994,6 +994,18 @@ abstract class AppLocalizations {
   /// **'✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.'**
   String get altaConsistenciaIA;
 
+  /// No description provided for @moderadaConsistenciaIA.
+  ///
+  /// In es, this message translates to:
+  /// **'⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.'**
+  String get moderadaConsistenciaIA;
+
+  /// No description provided for @variabilidadConsistenciaIA.
+  ///
+  /// In es, this message translates to:
+  /// **'📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.'**
+  String get variabilidadConsistenciaIA;
+
   /// No description provided for @comportamientoHistoricoVsIA.
   ///
   /// In es, this message translates to:
@@ -2012,6 +2024,12 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Error al cargar los anuncios.'**
   String get errorAnuncios;
+
+  /// No description provided for @numerosLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Números'**
+  String get numerosLabel;
 }
 
 class _AppLocalizationsDelegate

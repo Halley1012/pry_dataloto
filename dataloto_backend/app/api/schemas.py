@@ -87,6 +87,8 @@ class LoteriaOut(BaseModel):
     max_balotas_rojas: Optional[int] = 0
     superbalota_nombre: Optional[str] = None
     has_revancha: Optional[bool] = False
+    total_balotas_sorteo: Optional[int] = 5
+    tiene_complementario: Optional[bool] = False
     jackpot: Optional[str] = None
 
 class PublicidadQuery:

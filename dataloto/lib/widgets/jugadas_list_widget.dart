@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/cache_service.dart';
 import '../styles/app_text_styles.dart';
 import '../styles/colores.dart';
+import '../screens/loteria_screen.dart';
 
 class JugadasListWidget extends StatefulWidget {
   final AnimationController jugadasController;
@@ -27,6 +28,7 @@ class JugadasListWidgetState extends State<JugadasListWidget>
   List<dynamic> get jugadas => _jugadasList;
   bool _isLoading = true;
   String? userId;
+  LoteriaConfig? _config;
 
   @override
   void initState() {
@@ -35,9 +37,29 @@ class JugadasListWidgetState extends State<JugadasListWidget>
   }
 
   Future<void> _inicializar() async {
+    _cargarConfig();
     await cargarUserId();
     await _cargarJugadasDesdeCache();
     await _fetchJugadas();
+  }
+
+  Future<void> _cargarConfig() async {
+    try {
+      final loteriasData = await ApiService.getAllLoterias();
+      final match = loteriasData.firstWhere(
+        (l) =>
+            (l['route']?.toString().toLowerCase() == widget.loteriaRoute.toLowerCase()) ||
+            (widget.loteriaNombre != null &&
+                l['nombre']?.toString().toLowerCase() ==
+                    widget.loteriaNombre!.toLowerCase()),
+        orElse: () => <String, dynamic>{},
+      );
+      if (match.isNotEmpty && mounted) {
+        setState(() {
+          _config = LoteriaConfig.fromJson(Map<String, dynamic>.from(match as Map), fallbackNombre: widget.loteriaNombre);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> cargarUserId() async {
@@ -63,27 +85,55 @@ class JugadasListWidgetState extends State<JugadasListWidget>
   }
 
   Future<void> _fetchJugadas({bool force = false}) async {
-    if (_jugadasList.isEmpty || force) {
-      if (mounted) setState(() => _isLoading = true);
-    }
-
     try {
-      final jugadas = await ApiService.listarJugadasGenerica(widget.loteriaRoute);
-      if (!mounted) return;
-
-      setState(() {
-        _jugadasList = jugadas;
-        _isLoading = false;
-      });
-
-      if (jugadas.isNotEmpty) {
-        CacheService.setJson(_cacheKey, jugadas);
+      final jugadasApi = await ApiService.listarJugadasGenerica(widget.loteriaRoute);
+      if (mounted) {
+        setState(() {
+          _jugadasList = jugadasApi;
+          _isLoading = false;
+        });
+        CacheService.setJson(_cacheKey, _jugadasList);
       }
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
+      if (mounted && _jugadasList.isEmpty) {
+        setState(() => _isLoading = false);
+      }
       debugPrint("⚠️ Error cargando jugadas para ${widget.loteriaRoute}: $e");
     }
+  }
+
+  (List<int>, int?) _parsearJugada(Map<String, dynamic> item) {
+    final rawNums = (item["numeros"] as List<dynamic>? ?? []);
+    final nums = rawNums
+        .map((n) => int.tryParse(n.toString()) ?? -1)
+        .where((n) => n >= 0)
+        .toList();
+
+    final bRoja = item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
+    final int maxSel = _config?.maxSeleccion ??
+        (nums.length >= 7 ? 6 : (nums.length == 6 && !_usaSuperbalota ? 6 : 5));
+
+    final bool tieneRoja = _config?.tieneBalotaRoja ?? _usaSuperbalota;
+
+    int? red;
+    List<int> whites;
+
+    if (bRoja != null) {
+      red = int.tryParse(bRoja.toString());
+      if (nums.length > maxSel) {
+        whites = nums.sublist(0, maxSel);
+      } else {
+        whites = nums.where((n) => n != red).toList();
+      }
+    } else if (tieneRoja && nums.length > maxSel) {
+      whites = nums.sublist(0, maxSel);
+      red = nums.last;
+    } else {
+      whites = nums;
+      red = null;
+    }
+
+    return (whites, red);
   }
 
   Future<void> addJugada(
@@ -96,7 +146,7 @@ class JugadasListWidgetState extends State<JugadasListWidget>
     
     // Si viene balota roja y los números son 5, asegurar que el array o campo estén listos
     final List<int> numerosCompletos = List<int>.from(numeros);
-    if (balotaRoja != null && numerosCompletos.length == 5 && _usaSuperbalota) {
+    if (balotaRoja != null && (numerosCompletos.isEmpty || numerosCompletos.last != balotaRoja)) {
       numerosCompletos.add(balotaRoja);
     }
 
@@ -187,10 +237,11 @@ class JugadasListWidgetState extends State<JugadasListWidget>
   }
 
   bool get _usaSuperbalota {
+    if (_config != null) return _config!.tieneBalotaRoja;
     for (var j in _jugadasList) {
       if (j['balota_roja'] != null || j['superbalota'] != null) return true;
       final nums = j['numeros'];
-      if (nums is List && nums.length > 5) return true;
+      if (nums is List && nums.length > 6) return true;
     }
     return false;
   }
@@ -255,19 +306,16 @@ class JugadasListWidgetState extends State<JugadasListWidget>
                       itemCount: listaMostrar.length,
                       itemBuilder: (context, index) {
                         final jugada = listaMostrar[index];
-                        final rawNums = (jugada["numeros"] as List<dynamic>? ?? []);
-                        final numeros = rawNums.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList();
+                        final rawMap = jugada is Map<String, dynamic> ? jugada : Map<String, dynamic>.from(jugada as Map);
+                        final (whites, superBallVal) = _parsearJugada(rawMap);
 
-                        final bRoja = jugada["balota_roja"] ?? jugada["balotaroja"];
-                        final int? superBallVal = _usaSuperbalota
-                            ? (bRoja != null
-                                ? int.tryParse(bRoja.toString())
-                                : (numeros.length >= 6 ? numeros.last : null))
-                            : null;
-
-                        final whites = _usaSuperbalota && bRoja == null && numeros.length >= 6
-                            ? numeros.sublist(0, numeros.length - 1)
-                            : numeros;
+                        final int totalBalls = whites.length + (superBallVal != null ? 1 : 0);
+                        final double ballSize = totalBalls <= 5
+                            ? 33.0
+                            : (totalBalls == 6 ? 29.0 : (totalBalls == 7 ? 25.5 : 22.5));
+                        final double hPadding = totalBalls <= 5
+                            ? 2.5
+                            : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.2));
 
                         final Color color = [
                           Colors.blueAccent,
@@ -285,7 +333,7 @@ class JugadasListWidgetState extends State<JugadasListWidget>
                         return Container(
                           key: Key(jugada["id"].toString()),
                           margin: const EdgeInsets.symmetric(vertical: 4.0),
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(14),
                             gradient: LinearGradient(
@@ -315,60 +363,66 @@ class JugadasListWidgetState extends State<JugadasListWidget>
                                 "${l10n?.nro ?? 'Nro.'} ${index + 1}",
                                 style: AppTextStyles.mensajeSecundario.copyWith(
                                   color: Colors.white70,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              const SizedBox(width: 4),
                               Expanded(
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: numeros.isEmpty
-                                      ? [
-                                          Text(
-                                            l10n?.sinNumeros ?? "Sin números",
-                                            style: AppTextStyles.mensajeSecundario,
-                                          ),
-                                        ]
-                                      : [
-                                          ...whites.map((n) {
-                                            Widget ball = _build3DBall(
-                                              n,
-                                              baseColor: color,
-                                              size: 34,
-                                            );
-
-                                            if (index == 0) {
-                                              return Padding(
-                                                padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                                                child: ScaleTransition(
-                                                  scale: Tween<double>(begin: 0.0, end: 1.0).animate(
-                                                    CurvedAnimation(
-                                                      parent: widget.jugadasController,
-                                                      curve: const Interval(0.0, 1.0, curve: Curves.elasticOut),
-                                                    ),
-                                                  ),
-                                                  child: ball,
-                                                ),
-                                              );
-                                            }
-
-                                            return Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                                              child: ball,
-                                            );
-                                          }),
-                                          if (superBallVal != null)
-                                            Padding(
-                                              padding: const EdgeInsets.symmetric(horizontal: 2.5),
-                                              child: _build3DBall(
-                                                superBallVal,
-                                                baseColor: Colors.redAccent,
-                                                size: 34,
-                                              ),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.center,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: whites.isEmpty && superBallVal == null
+                                        ? [
+                                            Text(
+                                              l10n?.sinNumeros ?? "Sin números",
+                                              style: AppTextStyles.mensajeSecundario,
                                             ),
-                                        ],
+                                          ]
+                                        : [
+                                            ...whites.map((n) {
+                                              Widget ball = _build3DBall(
+                                                n,
+                                                baseColor: color,
+                                                size: ballSize,
+                                              );
+
+                                              if (index == 0) {
+                                                return Padding(
+                                                  padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                  child: ScaleTransition(
+                                                    scale: Tween<double>(begin: 0.0, end: 1.0).animate(
+                                                      CurvedAnimation(
+                                                        parent: widget.jugadasController,
+                                                        curve: const Interval(0.0, 1.0, curve: Curves.elasticOut),
+                                                      ),
+                                                    ),
+                                                    child: ball,
+                                                  ),
+                                                );
+                                              }
+
+                                              return Padding(
+                                                padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                child: ball,
+                                              );
+                                            }),
+                                            if (superBallVal != null)
+                                              Padding(
+                                                padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                child: _build3DBall(
+                                                  superBallVal,
+                                                  baseColor: Colors.redAccent,
+                                                  size: ballSize,
+                                                ),
+                                              ),
+                                          ],
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 4),
                               GestureDetector(
                                 onTap: () {
                                   final jId = jugada["id"];

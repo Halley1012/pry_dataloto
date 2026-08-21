@@ -341,13 +341,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildLoteriaCard(dynamic loteria, {bool showCountry = true}) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: () {
           Navigator.push(
             context,
@@ -355,11 +355,11 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 12.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              LotteryAvatar3D(nombre: loteria["nombre"] ?? "", size: 46),
+              LotteryAvatar3D(nombre: loteria["nombre"] ?? "", size: 36),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -370,16 +370,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       loteria["nombre"],
                       style: AppTextStyles.mensajeImportante.copyWith(
                         color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14.5,
                       ),
                     ),
                     if (showCountry) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 1),
                       Text(
                         _getPaisNombre(loteria),
                         style: const TextStyle(
                           color: Colors.white38,
-                          fontSize: 12,
+                          fontSize: 10.5,
                         ),
                       ),
                     ],
@@ -393,16 +394,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   Text(
                     AppLocalizations.of(context)?.proximoSorteo ?? "Próximo sorteo",
-                    style: const TextStyle(color: Colors.white38, fontSize: 10),
+                    style: const TextStyle(color: Colors.white38, fontSize: 9.5),
                   ),
                   Text(
                     _formatearFechaSimple(loteria["proximo_sorteo"]),
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
                   ),
                 ],
               ),
-              const SizedBox(width: 8),
-              const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 16),
+              const SizedBox(width: 6),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
             ],
           ),
         ),
