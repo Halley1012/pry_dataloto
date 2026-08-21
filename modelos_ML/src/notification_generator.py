@@ -136,6 +136,15 @@ class NotificationGenerator:
                 "has_special": True,
                 "is_baloto": False,
             },
+            "eurodreams": {
+                "route": "eurodreams",
+                "nombre": "EuroDreams",
+                "tabla_resultados": "resultados_eurodreams",
+                "query_resultados": "SELECT * FROM resultados_eurodreams WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 20,
+                "has_special": True,
+                "is_baloto": False,
+            },
         }
 
         if loteria == "all":

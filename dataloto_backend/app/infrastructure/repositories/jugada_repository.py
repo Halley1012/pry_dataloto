@@ -348,89 +348,95 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                # 1. Intentar con balota1..balota6 + balotaroja + balotaroja2
-                try:
-                    cur.execute(f"""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balota6, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
-                        FROM {tabla} r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC
-                        LIMIT 5;
-                    """)
-                    rows = cur.fetchall()
-                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5], r[6]] if x is not None and x > 0], [x for x in [r[7], r[8]] if x is not None and x >= 0], r[9] if len(r) > 9 and r[9] else sorteo_nombre, r[10]) for r in rows]
-                except Exception:
-                    conn.rollback()
+                cur.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position;
+                """, (tabla,))
+                cols = [r[0].lower() for r in cur.fetchall()]
+                if not cols:
+                    return []
 
-                # 2. Intentar con balota1..balota5 + balotaroja + balotaroja2
-                try:
-                    cur.execute(f"""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
-                        FROM {tabla} r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC
-                        LIMIT 5;
-                    """)
-                    rows = cur.fetchall()
-                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5]] if x is not None and x > 0], [x for x in [r[6], r[7]] if x is not None and x >= 0], r[8] if len(r) > 8 and r[8] else sorteo_nombre, r[9]) for r in rows]
-                except Exception:
-                    conn.rollback()
+                balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
+                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
 
-                # 3. Fallback estándar 5 balotas + 1 balota roja
-                cur.execute(f"""
-                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
+                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
+
+                first_balota = balota_cols[0] if balota_cols else "fecha"
+                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
+
+                query = f"""
+                    SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.balota1 <> 0
+                    WHERE r.{first_balota} <> 0
                     ORDER BY r.fecha DESC
                     LIMIT 5;
-                """)
+                """
+                cur.execute(query)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]] if r[6] is not None and r[6] >= 0 else [], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
+
+                num_balotas = len(balota_cols)
+                num_rojas = len(roja_cols)
+
+                results = []
+                for r in rows:
+                    fecha = r[0]
+                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] > 0]
+                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
+                    jackpot = r[1 + num_balotas + num_rojas + 1]
+                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+
+                return results
 
     @cached(ttl=600)
     def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                # 1. Intentar con balota1..balota6 + balotaroja + balotaroja2
-                try:
-                    cur.execute(f"""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balota6, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
-                        FROM {tabla} r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC;
-                    """)
-                    rows = cur.fetchall()
-                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5], r[6]] if x is not None and x > 0], [x for x in [r[7], r[8]] if x is not None and x >= 0], r[9] if len(r) > 9 and r[9] else sorteo_nombre, r[10]) for r in rows]
-                except Exception:
-                    conn.rollback()
+                cur.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position;
+                """, (tabla,))
+                cols = [r[0].lower() for r in cur.fetchall()]
+                if not cols:
+                    return []
 
-                # 2. Intentar con balota1..balota5 + balotaroja + balotaroja2
-                try:
-                    cur.execute(f"""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.balotaroja2, r.sorteo, j.jackpot
-                        FROM {tabla} r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC;
-                    """)
-                    rows = cur.fetchall()
-                    return [(r[0], [x for x in [r[1], r[2], r[3], r[4], r[5]] if x is not None and x > 0], [x for x in [r[6], r[7]] if x is not None and x >= 0], r[8] if len(r) > 8 and r[8] else sorteo_nombre, r[9]) for r in rows]
-                except Exception:
-                    conn.rollback()
+                balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
+                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
 
-                # 3. Fallback estándar
-                cur.execute(f"""
-                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
+                roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
+                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
+
+                first_balota = balota_cols[0] if balota_cols else "fecha"
+                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
+
+                query = f"""
+                    SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.balota1 <> 0
+                    WHERE r.{first_balota} <> 0
                     ORDER BY r.fecha DESC;
-                """)
+                """
+                cur.execute(query)
                 rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]] if r[6] is not None and r[6] >= 0 else [], r[7] if len(r) > 7 and r[7] else sorteo_nombre, r[8]) for r in rows]
+
+                num_balotas = len(balota_cols)
+                num_rojas = len(roja_cols)
+
+                results = []
+                for r in rows:
+                    fecha = r[0]
+                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] > 0]
+                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
+                    jackpot = r[1 + num_balotas + num_rojas + 1]
+                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+
+                return results
 

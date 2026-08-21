@@ -256,7 +256,7 @@ class JugadasListWidgetState extends State<JugadasListWidget>
                       itemBuilder: (context, index) {
                         final jugada = listaMostrar[index];
                         final rawNums = (jugada["numeros"] as List<dynamic>? ?? []);
-                        final numeros = rawNums.map((n) => int.tryParse(n.toString()) ?? 0).where((n) => n > 0).toList();
+                        final numeros = rawNums.map((n) => int.tryParse(n.toString()) ?? -1).where((n) => n >= 0).toList();
 
                         final bRoja = jugada["balota_roja"] ?? jugada["balotaroja"];
                         final int? superBallVal = _usaSuperbalota
