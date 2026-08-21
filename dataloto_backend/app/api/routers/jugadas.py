@@ -68,6 +68,10 @@ async def get_active_lotteries(user_id: int, use_cases: JugadaUseCases = Depends
 async def get_active_lotteries_with_count(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     return await use_cases.obtener_loterias_con_conteo(user_id)
 
+@router.get("/mis_loterias_info", response_model=Dict[str, Dict[str, Any]])
+async def get_active_lotteries_info(user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    return await use_cases.obtener_loterias_info(user_id)
+
 
 # --- Bloto endpoints ---
 @router.get("/bloto")
