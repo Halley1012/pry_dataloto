@@ -22,7 +22,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
-  Map<String, int> _conteos = {};
+  Map<String, Map<String, dynamic>> _infoJugadas = {};
   final TextEditingController _searchController = TextEditingController();
   String? _userCountry;
   bool _isLoading = true;
@@ -38,15 +38,15 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (!mounted) return;
 
     final uId = await _storage.read(key: 'user_id');
-    final cacheKey = 'mis_jugadas_selector_v3_${uId ?? "anon"}';
+    final cacheKey = 'mis_jugadas_selector_v5_${uId ?? "anon"}';
     final uCountry = await _storage.read(key: 'pais_nombre');
 
     // ⚡ 1. Mostrar caché al instante (0 ms) si existe y no es forceRefresh
     if (!forceRefresh) {
       final cached = await CacheService.getJson(cacheKey);
       final cachedPaises = await CacheService.getJson('paises_list_cache');
-      final cachedConteos = await CacheService.getJson('mis_jugadas_conteos_cache');
-      if (cached != null && mounted) {
+      final cachedInfo = await CacheService.getJson('mis_jugadas_info_cache');
+      if (cached != null && (cached as List).isNotEmpty && mounted) {
         setState(() {
           _userCountry = uCountry;
           _loterias = List<Map<String, dynamic>>.from(cached);
@@ -54,8 +54,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           if (cachedPaises != null) {
             _paises = List<Map<String, dynamic>>.from(cachedPaises);
           }
-          if (cachedConteos != null && cachedConteos is Map) {
-            _conteos = cachedConteos.map((k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0));
+          if (cachedInfo != null && cachedInfo is Map) {
+            _infoJugadas = cachedInfo.map((k, v) => MapEntry(k.toString(), Map<String, dynamic>.from(v as Map)));
           }
           _isLoading = false;
         });
@@ -67,34 +67,44 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     try {
       // ⚡ 2. Cargar datos en PARALELO
       final resultados = await Future.wait([
-        ApiService.getLoteriasConConteo().catchError((e) {
-          debugPrint("⚠️ Error obteniendo conteos de jugadas: $e");
-          return <String, int>{};
+        ApiService.getLoteriasInfoJugadas().catchError((e) {
+          debugPrint("⚠️ Error obteniendo info de jugadas: $e");
+          return <String, Map<String, dynamic>>{};
+        }),
+        ApiService.getLoteriasConJugadas().catchError((e) {
+          return <String>[];
         }),
         _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
-      final Map<String, int> conteos = Map<String, int>.from(resultados[0] as Map);
-      final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
+      final Map<String, Map<String, dynamic>> infoMap = Map<String, Map<String, dynamic>>.from(resultados[0] as Map);
+      final List<String> activas = List<String>.from(resultados[1] as List);
+      final List<Map<String, dynamic>> todas = resultados[2] as List<Map<String, dynamic>>;
+
+      for (final a in activas) {
+        infoMap.putIfAbsent(a.toLowerCase(), () => {"count": 1, "fecha": null});
+      }
 
       final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
         final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
         final route = (rawRoute != null && rawRoute.isNotEmpty)
             ? rawRoute
             : _getRouteFromName(mapItem['nombre'] ?? "");
-        return conteos.containsKey(route) && (conteos[route] ?? 0) > 0;
+        return infoMap.containsKey(route) || activas.contains(route);
       }).toList();
 
       if (mounted) {
         setState(() {
           _userCountry = uCountry;
-          _conteos = conteos;
+          _infoJugadas = infoMap;
           _loterias = jugadasLoterias;
           _filteredLoterias = jugadasLoterias;
           _isLoading = false;
         });
-        CacheService.setJson(cacheKey, jugadasLoterias);
-        CacheService.setJson('mis_jugadas_conteos_cache', conteos);
+        if (jugadasLoterias.isNotEmpty) {
+          CacheService.setJson(cacheKey, jugadasLoterias);
+          CacheService.setJson('mis_jugadas_info_cache', infoMap);
+        }
       }
     } catch (e) {
       debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
@@ -343,7 +353,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     }
   }
 
-  String _calcularDiasFaltantes(String? fecha) {
+  String _calcularEstadoSorteo(String? fecha) {
     if (fecha == null || fecha.isEmpty) return "";
     try {
       final clean = fecha.trim();
@@ -358,13 +368,16 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final langCode = Localizations.localeOf(context).languageCode;
 
       if (diff == 0) {
-        return langCode == 'en' ? "Today" : (langCode == 'pt' ? "Hoje" : "Hoy");
+        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
       } else if (diff == 1) {
         return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
       } else if (diff > 1) {
         return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+      } else if (diff == -1) {
+        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
       } else {
-        return langCode == 'en' ? "Past draw" : (langCode == 'pt' ? "Sorteio realizado" : "Sorteo realizado");
+        final dias = diff.abs();
+        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
       }
     } catch (_) {
       return "";
@@ -381,10 +394,11 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         ? rawRoute
         : _getRouteFromName(nombre);
 
-    final count = _conteos[route] ?? 1;
-    final rawFecha = loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+    final info = _infoJugadas[route];
+    final count = info?['count'] ?? 1;
+    final rawFecha = info?['fecha'] ?? loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
     final fechaDisplay = _formatearFechaProximo(rawFecha?.toString());
-    final faltanDisplay = _calcularDiasFaltantes(rawFecha?.toString());
+    final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
     final baseColor = LotteryAvatar3D.getColorForNombre(nombre);
     final langCode = Localizations.localeOf(context).languageCode;
     final jugadasText = count == 1 
@@ -443,10 +457,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                           ),
                         ],
                       ),
-                      if (faltanDisplay.isNotEmpty) ...[
+                      if (estadoDisplay.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          faltanDisplay,
+                          estadoDisplay,
                           style: const TextStyle(
                             color: Colors.white38,
                             fontSize: 10.5,
