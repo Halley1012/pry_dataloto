@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
@@ -39,7 +40,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final uId = await _storage.read(key: 'user_id');
     final uPaisId = await _storage.read(key: 'pais_id') ?? "5";
     final uCountry = await _storage.read(key: 'pais_nombre') ?? "Colombia";
-    final cacheKey = 'resultados_selector_${uId ?? "anon"}_$uPaisId';
+    final cacheKey = 'resultados_selector_v3_${uId ?? "anon"}_$uPaisId';
 
     if (!forceRefresh) {
       // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
@@ -134,7 +135,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
     if (!force) {
-      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
+      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all_v3');
       final cachedPaises = await CacheService.getJson('paises_list_cache');
       if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
         _paises = List<Map<String, dynamic>>.from(cachedPaises);
@@ -165,7 +166,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           .toList();
 
       if (todas.isNotEmpty) {
-        CacheService.setJson('loterias_mapeadas_all', todas);
+        CacheService.setJson('loterias_mapeadas_all_v3', todas);
       }
       return todas;
     } catch (e) {
@@ -419,7 +420,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       );
 
       for (var loteria in lots) {
-        sliverItems.add(_buildLotteryItem(loteria));
+        sliverItems.add(_buildLotteryItem(loteria, l10n));
       }
     }
 
@@ -433,12 +434,38 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
-  Widget _buildLotteryItem(Map<String, dynamic> loteria) {
+  String _formatearFechaSimple(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "10 Ago 2026";
+    try {
+      final clean = fecha.trim();
+      DateTime parsed = DateTime.parse(clean.substring(0, 10));
+      final langCode = Localizations.localeOf(context).languageCode;
+      List<String> meses;
+      if (langCode == 'en') {
+        meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        return "${meses[parsed.month - 1]} ${parsed.day}, ${parsed.year}";
+      } else if (langCode == 'pt') {
+        meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      } else {
+        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      }
+    } catch (_) {
+      return fecha;
+    }
+  }
+
+  Widget _buildLotteryItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
     final nombre = loteria["nombre"] ?? "";
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
-    
+    final rawFecha = loteria["ultimo_sorteo"] ?? loteria["fecha_ultimo_sorteo"] ?? loteria["fecha"] ?? loteria["proximo_sorteo"];
+    final fechaDisplay = _formatearFechaSimple(rawFecha?.toString());
+    final langCode = Localizations.localeOf(context).languageCode;
+    final badgeText = langCode == 'en' ? "Updated" : (langCode == 'pt' ? "Atualizada" : "Actualizada");
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
       decoration: BoxDecoration(
@@ -457,6 +484,41 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             color: Colors.white,
             fontWeight: FontWeight.w600,
             fontSize: 14.5,
+          ),
+        ),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 2.0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                "${l10n?.ultimoSorteo ?? 'Último sorteo'}: $fechaDisplay",
+                style: AppTextStyles.mensajeSecundario.copyWith(
+                  color: Colors.white38,
+                  fontSize: 10.5,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E676).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: const Color(0xFF00E676).withValues(alpha: 0.35),
+                    width: 0.7,
+                  ),
+                ),
+                child: Text(
+                  badgeText,
+                  style: GoogleFonts.montserrat(
+                    color: const Color(0xFF00E676),
+                    fontSize: 9.0,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
