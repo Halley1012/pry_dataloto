@@ -171,6 +171,8 @@
   "apariciones": "appearances",
   "pareja": "Pair",
   "altaConsistenciaIA": "✅ High consistency with historical even/odd patterns and sum dispersion.",
+  "moderadaConsistenciaIA": "⚡ Moderate-high affinity with historical frequencies and balanced dispersion.",
+  "variabilidadConsistenciaIA": "📊 High statistical variability behavior compared to previous trends.",
   "comportamientoHistoricoVsIA": "Historical Behavior vs AI ⚡",
   "numerosMayorTendencia": "Numbers with the highest historical trend:",
   "prediccionActualIA": "Current AI model prediction:",
@@ -598,5 +600,6 @@
   "pagar": "Pay",
   "pagoExito": "✅ Payment successful",
   "pagarEpayco": "Pay with ePayco",
-  "errorAnuncios": "Error loading ads."
+  "errorAnuncios": "Error loading ads.",
+  "numerosLabel": "Numbers"
 }

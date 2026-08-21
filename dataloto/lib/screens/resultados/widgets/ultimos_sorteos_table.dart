@@ -75,20 +75,20 @@ class UltimosSorteosTable extends StatelessWidget {
                     Expanded(
                       flex: 11,
                       child: Center(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          physics: const BouncingScrollPhysics(),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               ...nums.map((n) => Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                    child: buildMiniBall(n, baseColor: coverageColor, size: 19),
+                                    padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                                    child: buildMiniBall(n, baseColor: coverageColor, size: 18),
                                   )),
                               if (red != null)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: 19),
+                                  padding: const EdgeInsets.symmetric(horizontal: 1.0),
+                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: 18),
                                 ),
                             ],
                           ),

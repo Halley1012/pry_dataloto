@@ -171,6 +171,8 @@
   "apariciones": "apariciones",
   "pareja": "Pareja",
   "altaConsistenciaIA": "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
+  "moderadaConsistenciaIA": "⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.",
+  "variabilidadConsistenciaIA": "📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.",
   "comportamientoHistoricoVsIA": "Comportamiento Histórico vs IA ⚡",
   "numerosMayorTendencia": "Números de mayor tendencia histórica:",
   "prediccionActualIA": "Predicción actual del modelo IA:",
@@ -598,5 +600,6 @@
   "pagar": "Pagar",
   "pagoExito": "✅ Pago realizado con éxito",
   "pagarEpayco": "Pagar con ePayco",
-  "errorAnuncios": "Error al cargar los anuncios."
+  "errorAnuncios": "Error al cargar los anuncios.",
+  "numerosLabel": "Números"
 }

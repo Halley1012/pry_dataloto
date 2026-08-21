@@ -135,7 +135,7 @@ class MisJugadasCard extends StatelessWidget {
                               alignment: WrapAlignment.end,
                               children: [
                                 Text(
-                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null)}",
+                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null, winningNums.length)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
@@ -143,7 +143,7 @@ class MisJugadasCard extends StatelessWidget {
                                   ),
                                 ),
                                 Text(
-                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}${_getHitsEmoji(hitsCountRev, redHitRev, red != null)}",
+                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}${_getHitsEmoji(hitsCountRev, redHitRev, red != null, winningNumsRevancha.length)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
@@ -154,7 +154,7 @@ class MisJugadasCard extends StatelessWidget {
                             )
                           else
                             Text(
-                              "${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null)}",
+                              "${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null, winningNums.length)}",
                               style: GoogleFonts.montserrat(
                                 fontSize: 10,
                                 color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
@@ -282,13 +282,13 @@ class MisJugadasCard extends StatelessWidget {
                         ),
                       ],
                       if (hasRevanchaData) ...[
-                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal) != null)
-                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal)!,
-                        if (_buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario) != null)
-                          _buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario)!,
+                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal, winningNums.length) != null)
+                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal, winningNums.length)!,
+                        if (_buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario, winningNumsRevancha.length) != null)
+                          _buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario, winningNumsRevancha.length)!,
                       ] else ...[
-                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria) != null)
-                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria)!,
+                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria, winningNums.length) != null)
+                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria, winningNums.length)!,
                       ],
                     ],
                   ),
@@ -314,36 +314,38 @@ class MisJugadasCard extends StatelessWidget {
     );
   }
 
-  String _getHitsEmoji(int hits, bool redHit, bool hasRedBall) {
-    final isJackpot = (hits == 5 && (!hasRedBall || redHit));
+  String _getHitsEmoji(int hits, bool redHit, bool hasRedBall, [int totalBalls = 5]) {
+    final int maxBalls = totalBalls > 0 ? totalBalls : 5;
+    final isJackpot = (hits >= maxBalls && (!hasRedBall || redHit));
     if (isJackpot) return " 🏆";
-    if (hits == 5) return " 🌟";
-    if (hits == 4) return " ✨";
-    if (hits == 3) return " 👍";
+    if (hits >= maxBalls) return " 🌟";
+    if (hits == maxBalls - 1) return " ✨";
+    if (hits >= maxBalls - 2 && hits >= 3) return " 👍";
     return "";
   }
 
-  Widget? _buildFeedbackBanner(int hits, bool redHit, bool hasRedBall, String drawName) {
+  Widget? _buildFeedbackBanner(int hits, bool redHit, bool hasRedBall, String drawName, [int totalBalls = 5]) {
     String? message;
     IconData? icon;
     Color? color;
 
-    final isJackpot = (hits == 5 && (!hasRedBall || redHit));
+    final int maxBalls = totalBalls > 0 ? totalBalls : 5;
+    final isJackpot = (hits >= maxBalls && (!hasRedBall || redHit));
 
     if (isJackpot) {
       message = "¡Felicidades! Eres el ganador del Premio Mayor de $drawName 🏆🎉";
       icon = Icons.emoji_events;
       color = Colors.amber;
-    } else if (hits == 5) {
-      message = "¡Increíble! Acertaste 5 números en $drawName 🥳🌟";
+    } else if (hits >= maxBalls) {
+      message = "¡Increíble! Acertaste $hits números en $drawName 🥳🌟";
       icon = Icons.star;
       color = Colors.amberAccent;
-    } else if (hits == 4) {
-      message = "¡Excelente! Acertaste 4 números en $drawName 👏✨";
+    } else if (hits == maxBalls - 1) {
+      message = "¡Excelente! Acertaste $hits números en $drawName 👏✨";
       icon = Icons.thumb_up;
       color = Colors.greenAccent;
-    } else if (hits == 3) {
-      message = "¡Buen intento! Acertaste 3 números en $drawName. ¡Sigue así! 👍";
+    } else if (hits >= maxBalls - 2 && hits >= 3) {
+      message = "¡Buen intento! Acertaste $hits números en $drawName. ¡Sigue así! 👍";
       icon = Icons.sentiment_satisfied_alt;
       color = Colors.blueAccent;
     } else {
