@@ -214,7 +214,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           final rawNums = cachedPred["numeros"];
           final rawRoja = cachedPred["balotaroja"] ?? cachedPred["balota_roja"];
           if (rawNums is List) {
-            predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+            predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
             final limit = _getTopLimitForLoteria(_selectedLoteria, predictionNumeros.length);
             top20 = predictionNumeros.take(limit).toList();
           }
@@ -253,7 +253,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             predictionBalotaroja = [];
           } else {
             if (rawNums is List) {
-              predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+              predictionNumeros = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
               final limit = _getTopLimitForLoteria(_selectedLoteria, predictionNumeros.length);
               top20 = predictionNumeros.take(limit).toList();
             }
@@ -315,7 +315,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     if (_predictionNumeros.isNotEmpty) {
       top20 = _predictionNumeros.take(limit).toList();
     } else if (rawTop20 is List) {
-      final allNums = rawTop20.map((e) => int.tryParse(e.toString()) ?? 0).where((n) => n > 0).toList();
+      final allNums = rawTop20.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
       top20 = allNums.take(limit).toList();
     }
     _top20List = top20;
@@ -372,7 +372,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       List<int> extractedNums = _extraerNumerosDeMap(ultimoPrincipal);
       final redVal = int.tryParse(ultimoPrincipal["superbalota"]?.toString() ?? ultimoPrincipal["balota"]?.toString() ?? ultimoPrincipal["red"]?.toString() ?? "");
 
-      if (tieneBalotaExtra && redVal == null && extractedNums.length > 5) {
+      int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? 5;
+
+      if (tieneBalotaExtra && redVal == null && extractedNums.length > maxSel) {
         _winningRed = extractedNums.removeLast();
       } else {
         _winningRed = redVal;
@@ -394,7 +396,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         List<int> extractedSecundario = _extraerNumerosDeMap(ultimoSecundario);
         final redValRev = int.tryParse(ultimoSecundario["superbalota"]?.toString() ?? ultimoSecundario["balota"]?.toString() ?? ultimoSecundario["red"]?.toString() ?? "");
 
-        if (tieneBalotaExtra && redValRev == null && extractedSecundario.length > 5) {
+        if (tieneBalotaExtra && redValRev == null && extractedSecundario.length > maxSel) {
           _winningRedRevancha = extractedSecundario.removeLast();
         } else {
           _winningRedRevancha = redValRev;
@@ -407,23 +409,24 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
     }
 
-    // 2. Cobertura IA real (exclusivamente sobre las 5 balotas principales)
+    // 2. Cobertura IA real (sobre las balotas principales)
+    int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (_winningNums.length > 5 ? 6 : 5);
     if (top20.isNotEmpty) {
       _probablesCount = top20.length;
     }
 
-    _totalWinningCount = 5;
+    _totalWinningCount = maxSel;
 
     if (_winningNums.isNotEmpty && top20.isNotEmpty) {
-      final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
-      _topHitsCount = mainBaloto.where((n) => top20.contains(n)).length;
-      _coberturaPorcentaje = (_topHitsCount / 5.0).clamp(0.0, 1.0);
+      final mainBalls = _winningNums.length > maxSel ? _winningNums.sublist(0, maxSel) : _winningNums;
+      _topHitsCount = mainBalls.where((n) => top20.contains(n)).length;
+      _coberturaPorcentaje = (_topHitsCount / maxSel.toDouble()).clamp(0.0, 1.0);
     }
 
     if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty && top20.isNotEmpty) {
-      final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
+      final mainRevancha = _winningNumsRevancha.length > maxSel ? _winningNumsRevancha.sublist(0, maxSel) : _winningNumsRevancha;
       _topHitsCountRevancha = mainRevancha.where((n) => top20.contains(n)).length;
-      _coberturaPorcentajeRevancha = (_topHitsCountRevancha / 5.0).clamp(0.0, 1.0);
+      _coberturaPorcentajeRevancha = (_topHitsCountRevancha / maxSel.toDouble()).clamp(0.0, 1.0);
     }
 
     // 3. Procesar jugadas del usuario (Filtrando estrictamente por la fecha del sorteo)
@@ -530,20 +533,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int> _extraerNumerosDeMap(Map<String, dynamic> item) {
     if (item["numeros"] is List) {
       return (item["numeros"] as List)
-          .map((e) => int.tryParse(e.toString()) ?? 0)
-          .where((n) => n > 0)
+          .map((e) => int.tryParse(e.toString()) ?? -1)
+          .where((n) => n >= 0)
           .toList();
     } else if (item["numeros"] != null) {
       final numsStr = item["numeros"].toString().replaceAll(RegExp(r'[\[\]]'), '');
-      return numsStr.split(RegExp(r'[,\-\s]+')).map((e) => int.tryParse(e.trim()) ?? 0).where((n) => n > 0).toList();
+      return numsStr.split(RegExp(r'[,\-\s]+')).map((e) => int.tryParse(e.trim()) ?? -1).where((n) => n >= 0).toList();
     } else if (item["n1"] != null) {
       return [
-        int.tryParse(item["n1"].toString()) ?? 0,
-        int.tryParse(item["n2"].toString()) ?? 0,
-        int.tryParse(item["n3"].toString()) ?? 0,
-        int.tryParse(item["n4"].toString()) ?? 0,
-        int.tryParse(item["n5"].toString()) ?? 0,
-      ].where((n) => n > 0).toList();
+        int.tryParse(item["n1"].toString()) ?? -1,
+        int.tryParse(item["n2"].toString()) ?? -1,
+        int.tryParse(item["n3"].toString()) ?? -1,
+        int.tryParse(item["n4"].toString()) ?? -1,
+        int.tryParse(item["n5"].toString()) ?? -1,
+      ].where((n) => n >= 0).toList();
     }
     return [];
   }
@@ -606,11 +609,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       return l10n.prediccionesNoDisponibles;
     }
 
-    final mainBaloto = _winningNums.length > 5 ? _winningNums.sublist(0, 5) : _winningNums;
+    int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (_winningNums.length > 5 ? 6 : 5);
+    final mainBaloto = _winningNums.length > maxSel ? _winningNums.sublist(0, maxSel) : _winningNums;
     final balotoHits = mainBaloto.where((n) => _top20List.contains(n)).toList();
 
     if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
-      final mainRevancha = _winningNumsRevancha.length > 5 ? _winningNumsRevancha.sublist(0, 5) : _winningNumsRevancha;
+      final mainRevancha = _winningNumsRevancha.length > maxSel ? _winningNumsRevancha.sublist(0, maxSel) : _winningNumsRevancha;
       final revanchaHits = mainRevancha.where((n) => _top20List.contains(n)).toList();
 
       final String bText = balotoHits.isNotEmpty
@@ -636,6 +640,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final l10n = AppLocalizations.of(context)!;
     final canPop = Navigator.canPop(context);
     final nombreSorteoSecundario = _getNombreSorteoSecundario(context);
+    int dynamicMaxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (_winningNums.length > 5 ? 6 : 5);
 
     // Preparar listToRender para la tabla
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
@@ -657,20 +662,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
             List<int> nums = _extraerNumerosDeMap(item);
             int? red = int.tryParse(item["superbalota"]?.toString() ?? item["balota"]?.toString() ?? item["red"]?.toString() ?? "");
-            if (red == null && nums.length > 5) {
+            if (red == null && nums.length > dynamicMaxSel) {
               red = nums.removeLast();
             }
 
-            final main5 = nums.length > 5 ? nums.sublist(0, 5) : nums;
-            final hits = main5.where((n) => _top20List.contains(n)).length;
-            final covPercent = main5.isNotEmpty ? ((hits / main5.length) * 100).round() : 0;
+            final mainNums = nums.length > dynamicMaxSel ? nums.sublist(0, dynamicMaxSel) : nums;
+            final hits = mainNums.where((n) => _top20List.contains(n)).length;
+            final covPercent = mainNums.isNotEmpty ? ((hits / mainNums.length) * 100).round() : 0;
 
             return {
               "fecha": dateDisplay,
               "nums": nums,
               "red": red,
               "cobertura": "$covPercent%",
-              "aciertos": "$hits / ${main5.length}",
+              "aciertos": "$hits / ${mainNums.length}",
               "color": covPercent >= 60 ? Colors.greenAccent : Colors.amber,
             };
           }).toList()
@@ -680,7 +685,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               "nums": _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
               "red": _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
               "cobertura": _selectedResultadosTab == 1 ? "${(_coberturaPorcentajeRevancha * 100).round()}%" : "${(_coberturaPorcentaje * 100).round()}%",
-              "aciertos": _selectedResultadosTab == 1 ? "$_topHitsCountRevancha / 5" : "$_topHitsCount / ${_winningNums.length > 5 ? 5 : _winningNums.length}",
+              "aciertos": _selectedResultadosTab == 1 ? "$_topHitsCountRevancha / $dynamicMaxSel" : "$_topHitsCount / $dynamicMaxSel",
               "color": Colors.greenAccent,
             },
           ];
