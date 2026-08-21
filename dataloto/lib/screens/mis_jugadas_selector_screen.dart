@@ -22,6 +22,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
+  Map<String, int> _conteos = {};
   final TextEditingController _searchController = TextEditingController();
   String? _userCountry;
   bool _isLoading = true;
@@ -37,13 +38,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (!mounted) return;
 
     final uId = await _storage.read(key: 'user_id');
-    final cacheKey = 'mis_jugadas_selector_${uId ?? "anon"}';
+    final cacheKey = 'mis_jugadas_selector_v3_${uId ?? "anon"}';
     final uCountry = await _storage.read(key: 'pais_nombre');
 
     // ⚡ 1. Mostrar caché al instante (0 ms) si existe y no es forceRefresh
     if (!forceRefresh) {
       final cached = await CacheService.getJson(cacheKey);
       final cachedPaises = await CacheService.getJson('paises_list_cache');
+      final cachedConteos = await CacheService.getJson('mis_jugadas_conteos_cache');
       if (cached != null && mounted) {
         setState(() {
           _userCountry = uCountry;
@@ -51,6 +53,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
           if (cachedPaises != null) {
             _paises = List<Map<String, dynamic>>.from(cachedPaises);
+          }
+          if (cachedConteos != null && cachedConteos is Map) {
+            _conteos = cachedConteos.map((k, v) => MapEntry(k.toString(), int.tryParse(v.toString()) ?? 0));
           }
           _isLoading = false;
         });
@@ -62,38 +67,34 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     try {
       // ⚡ 2. Cargar datos en PARALELO
       final resultados = await Future.wait([
-        ApiService.getLoteriasConJugadas().catchError((e) {
-          debugPrint("⚠️ Error obteniendo jugadas activas: $e");
-          return <String>[];
+        ApiService.getLoteriasConConteo().catchError((e) {
+          debugPrint("⚠️ Error obteniendo conteos de jugadas: $e");
+          return <String, int>{};
         }),
         _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
-      final List<String> activas = List<String>.from(resultados[0] as List);
+      final Map<String, int> conteos = Map<String, int>.from(resultados[0] as Map);
       final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
-
-      debugPrint("🔍 Depuración Mis Jugadas:");
-      debugPrint("   - Loterías activas (rutas): $activas");
-      debugPrint("   - Total loterías disponibles: ${todas.length}");
 
       final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
         final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
         final route = (rawRoute != null && rawRoute.isNotEmpty)
             ? rawRoute
             : _getRouteFromName(mapItem['nombre'] ?? "");
-        return activas.contains(route);
+        return conteos.containsKey(route) && (conteos[route] ?? 0) > 0;
       }).toList();
-
-      debugPrint("   - Loterías mostradas: ${jugadasLoterias.map((e) => e['nombre']).toList()}");
 
       if (mounted) {
         setState(() {
           _userCountry = uCountry;
+          _conteos = conteos;
           _loterias = jugadasLoterias;
           _filteredLoterias = jugadasLoterias;
           _isLoading = false;
         });
         CacheService.setJson(cacheKey, jugadasLoterias);
+        CacheService.setJson('mis_jugadas_conteos_cache', conteos);
       }
     } catch (e) {
       debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
@@ -103,7 +104,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
   Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
     if (!force) {
-      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all');
+      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all_v3');
       if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
@@ -306,40 +307,193 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                 ],
               ),
             ),
-            ...lots.map((loteria) => _buildLotteryItem(loteria)),
+            ...lots.map((loteria) => _buildLotteryItem(loteria, l10n)),
           ],
         );
       },
     );
   }
 
-  Widget _buildLotteryItem(Map<String, dynamic> loteria) {
+  String _formatearFechaProximo(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return fecha;
+
+      final langCode = Localizations.localeOf(context).languageCode;
+      final dias = langCode == 'en' 
+          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+          : (langCode == 'pt' 
+              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+
+      final meses = langCode == 'en'
+          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+          : (langCode == 'pt'
+              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+
+      final diaSemana = dias[parsed.weekday - 1];
+      final mes = meses[parsed.month - 1];
+
+      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
+    } catch (_) {
+      return fecha;
+    }
+  }
+
+  String _calcularDiasFaltantes(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "";
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return "";
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      final diff = target.difference(today).inDays;
+
+      final langCode = Localizations.localeOf(context).languageCode;
+
+      if (diff == 0) {
+        return langCode == 'en' ? "Today" : (langCode == 'pt' ? "Hoje" : "Hoy");
+      } else if (diff == 1) {
+        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+      } else if (diff > 1) {
+        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+      } else {
+        return langCode == 'en' ? "Past draw" : (langCode == 'pt' ? "Sorteio realizado" : "Sorteo realizado");
+      }
+    } catch (_) {
+      return "";
+    }
+  }
+
+  Widget _buildLotteryItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
     final nombre = loteria["nombre"] ?? "";
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
-    
+    final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+    final route = (rawRoute != null && rawRoute.isNotEmpty)
+        ? rawRoute
+        : _getRouteFromName(nombre);
+
+    final count = _conteos[route] ?? 1;
+    final rawFecha = loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+    final fechaDisplay = _formatearFechaProximo(rawFecha?.toString());
+    final faltanDisplay = _calcularDiasFaltantes(rawFecha?.toString());
+    final baseColor = LotteryAvatar3D.getColorForNombre(nombre);
+    final langCode = Localizations.localeOf(context).languageCode;
+    final jugadasText = count == 1 
+        ? (langCode == 'en' ? 'play' : (langCode == 'pt' ? 'jogada' : 'jugada'))
+        : (langCode == 'en' ? 'plays' : (langCode == 'pt' ? 'jugadas' : 'jugadas'));
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: ListTile(
-        dense: true,
-        visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-        onTap: () => _navigateToJugadas(loteria),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0.0),
-        leading: LotteryAvatar3D(nombre: nombre, size: 36),
-        title: Text(
-          nombreFormateado,
-          style: AppTextStyles.h2.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 14.5,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _navigateToJugadas(loteria),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            child: Row(
+              children: [
+                LotteryAvatar3D(nombre: nombre, size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        nombreFormateado,
+                        style: AppTextStyles.h2.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today_outlined,
+                            size: 12,
+                            color: baseColor.withValues(alpha: 0.9),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              fechaDisplay,
+                              style: TextStyle(
+                                color: baseColor.withValues(alpha: 0.95),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (faltanDisplay.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          faltanDisplay,
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141414),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "$count",
+                        style: TextStyle(
+                          color: baseColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        jugadasText,
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 13),
+              ],
+            ),
           ),
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
       ),
     );
   }
