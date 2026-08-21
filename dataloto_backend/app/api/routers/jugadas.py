@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from app.api import schemas, dependencies
 from app.application.jugada_use_cases import JugadaUseCases
 
