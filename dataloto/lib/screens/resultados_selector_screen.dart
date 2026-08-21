@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:dataloto/services/api_service.dart';
 import 'package:dataloto/services/cache_service.dart';
 import 'package:dataloto/styles/colores.dart';
@@ -463,8 +462,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         : "";
     final rawFecha = loteria["ultimo_sorteo"] ?? loteria["fecha_ultimo_sorteo"] ?? loteria["fecha"] ?? loteria["proximo_sorteo"];
     final fechaDisplay = _formatearFechaSimple(rawFecha?.toString());
-    final langCode = Localizations.localeOf(context).languageCode;
-    final badgeText = langCode == 'en' ? "Updated" : (langCode == 'pt' ? "Atualizada" : "Actualizada");
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
@@ -486,39 +483,11 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             fontSize: 14.5,
           ),
         ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 2.0),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                "${l10n?.ultimoSorteo ?? 'Último sorteo'}: $fechaDisplay",
-                style: AppTextStyles.mensajeSecundario.copyWith(
-                  color: Colors.white38,
-                  fontSize: 10.5,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00E676).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: const Color(0xFF00E676).withValues(alpha: 0.35),
-                    width: 0.7,
-                  ),
-                ),
-                child: Text(
-                  badgeText,
-                  style: GoogleFonts.montserrat(
-                    color: const Color(0xFF00E676),
-                    fontSize: 9.0,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+        subtitle: Text(
+          "${l10n?.ultimoSorteo ?? 'Último sorteo'}: $fechaDisplay",
+          style: AppTextStyles.mensajeSecundario.copyWith(
+            color: Colors.white38,
+            fontSize: 10.5,
           ),
         ),
         trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
