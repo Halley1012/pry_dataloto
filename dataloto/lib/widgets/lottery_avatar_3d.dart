@@ -25,12 +25,25 @@ class LotteryAvatar3D extends StatelessWidget {
     Color(0xFFFF9100), // Deep Orange
   ];
 
+  static Color getColorForNombre(String nombre, [Color? customColor]) {
+    if (customColor != null) return customColor;
+    final cleanName = nombre.trim().toLowerCase();
+    if (cleanName.contains("baloto") || cleanName == "bloto") return const Color(0xFF00E676);
+    if (cleanName.contains("colorloto") || cleanName == "cloto") return const Color(0xFFFF9100);
+    if (cleanName.contains("miloto") || cleanName == "mloto") return const Color(0xFF00B0FF);
+    if (cleanName.contains("bonoloto")) return const Color(0xFFFFB300);
+    if (cleanName.contains("euromillones")) return const Color(0xFF00E676);
+    if (cleanName.contains("primitiva")) return const Color(0xFF7C4DFF);
+    if (cleanName.contains("eurodreams")) return const Color(0xFF00E5FF);
+    return _palette[cleanName.hashCode.abs() % _palette.length];
+  }
+
   @override
   Widget build(BuildContext context) {
     final cleanName = nombre.trim();
     final initial = cleanName.isNotEmpty ? cleanName[0].toUpperCase() : "?";
 
-    final baseColor = customColor ?? _palette[cleanName.toLowerCase().hashCode.abs() % _palette.length];
+    final baseColor = getColorForNombre(cleanName, customColor);
     final topColor = Color.lerp(baseColor, Colors.white, 0.65)!;
     final isLightText = ThemeData.estimateBrightnessForColor(baseColor) == Brightness.dark;
 
