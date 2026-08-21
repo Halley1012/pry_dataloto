@@ -81,6 +81,7 @@ class LoteriaOut(BaseModel):
     tipo: Optional[str] = None
     pais_id: int
     proximo_sorteo: Optional[str] = None
+    ultimo_sorteo: Optional[str] = None
     route: Optional[str] = None
     max_seleccion: Optional[int] = 5
     max_balotas_blancas: Optional[int] = 45

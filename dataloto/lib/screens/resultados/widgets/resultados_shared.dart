@@ -56,15 +56,30 @@ Widget buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), dou
     height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      color: baseColor,
-      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1),
+      gradient: RadialGradient(
+        colors: [
+          baseColor.withValues(alpha: 0.95),
+          baseColor.withValues(alpha: 0.75),
+          baseColor.withValues(alpha: 0.5),
+        ],
+        center: Alignment.topLeft,
+        radius: 0.85,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.35),
+          offset: const Offset(1, 1.5),
+          blurRadius: 2.5,
+        ),
+      ],
+      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 0.8),
     ),
     child: Center(
       child: Text(
         "$numero",
         textAlign: TextAlign.center,
         style: GoogleFonts.montserrat(
-          fontSize: size * 0.45,
+          fontSize: size * 0.46,
           fontWeight: FontWeight.bold,
           color: textColor,
           height: 1.0,

@@ -1834,8 +1834,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                                         ]
                                       : List.generate(numeros.length, (index) {
                                           final n = numeros[index];
-                                          final isSpecial = config.tieneBalotaRoja &&
-                                              index >= config.maxSeleccion;
+                                          final bool isLastBall = index == numeros.length - 1;
+                                          final bool isSpecial = config.tieneBalotaRoja && isLastBall && numeros.length > config.maxSeleccion;
+                                          final bool isComp = config.tieneComplementario && index == config.maxSeleccion && numeros.length > config.maxSeleccion + 1;
+                                          final Color ballColor = isSpecial
+                                              ? const Color(0xFFB91C1C)
+                                              : (isComp ? const Color(0xFF0D9488) : Colors.amber);
+
                                           return Padding(
                                             padding: EdgeInsets.symmetric(horizontal: ballSpacing),
                                             child: SizedBox(
@@ -1843,9 +1848,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                                               height: ballSize,
                                               child: _build3DBall(
                                                 n,
-                                                baseColor: isSpecial
-                                                    ? Colors.redAccent
-                                                    : Colors.amber,
+                                                baseColor: ballColor,
                                                 size: ballSize,
                                               ),
                                             ),

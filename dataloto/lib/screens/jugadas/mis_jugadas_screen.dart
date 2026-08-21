@@ -619,11 +619,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
                                 final int totalBalls = whites.length + (red != null ? 1 : 0);
                                 final double ballSize = totalBalls <= 5
-                                    ? 33.0
-                                    : (totalBalls == 6 ? 29.0 : (totalBalls == 7 ? 25.5 : 22.5));
+                                    ? 35.0
+                                    : (totalBalls == 6 ? 33.0 : (totalBalls == 7 ? 30.5 : 27.5));
                                 final double hPadding = totalBalls <= 5
-                                    ? 2.5
-                                    : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.2));
+                                    ? 3.0
+                                    : (totalBalls == 6 ? 2.5 : (totalBalls == 7 ? 2.0 : 1.5));
 
                                 final Color color = [
                                   Colors.blueAccent,
