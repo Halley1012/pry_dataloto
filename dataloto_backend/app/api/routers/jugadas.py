@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from app.api import schemas, dependencies
 from app.application.jugada_use_cases import JugadaUseCases
 
@@ -163,7 +163,7 @@ RESERVED_ROUTES = {
     "login", "register", "auth", "refresh", "users", "loterias", 
     "paises", "departamentos", "ciudades", "categorias", "publicidad", 
     "posts", "comments", "notifications", "transacciones", "healthz", 
-    "docs", "openapi.json", "test", "mis_loterias_activas", "mloto", "bloto", "colorloto"
+    "docs", "openapi.json", "test", "mis_loterias_activas", "mis_loterias_con_conteo", "mis_loterias_info", "mloto", "bloto", "colorloto"
 }
 
 @router.get("/{r_name}/ultimos5", name="get_loteria_ultimos5_dinamico")
