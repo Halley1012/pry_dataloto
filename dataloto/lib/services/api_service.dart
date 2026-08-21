@@ -755,6 +755,27 @@ class ApiService {
     return [];
   }
 
+  /// 🔍 Obtener mapa de loterías con conteo de jugadas {route: count}
+  static Future<Map<String, int>> getLoteriasConConteo() async {
+    final userId = await getUserId();
+    if (userId == null) return {};
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/mis_loterias_con_conteo?user_id=$userId"),
+        headers: {"Content-Type": "application/json"},
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body);
+        return data.map((key, value) => MapEntry(key.toString().toLowerCase(), int.tryParse(value.toString()) ?? 0));
+      }
+    } catch (e) {
+      debugPrint("Error obteniendo conteo de jugadas: $e");
+    }
+    return {};
+  }
+
 
   /// GET genérico
   static Future<http.Response> get(String endpoint) async {

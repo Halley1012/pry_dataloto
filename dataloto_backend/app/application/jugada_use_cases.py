@@ -76,6 +76,9 @@ class JugadaUseCases:
     async def obtener_loterias_con_jugadas(self, user_id: int) -> List[str]:
         return await self.jugada_repo.list_active_lotteries(user_id)
 
+    async def obtener_loterias_con_conteo(self, user_id: int) -> Dict[str, int]:
+        return await self.jugada_repo.list_active_lotteries_counts(user_id)
+
     def obtener_prediccion_colorloto(self, tipo: str) -> Dict[str, Any]:
         return null
     

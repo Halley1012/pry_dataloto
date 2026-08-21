@@ -55,6 +55,10 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def list_active_lotteries_counts(self, user_id: int) -> Dict[str, int]:
+        pass
+
+    @abstractmethod
     def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
         pass
 
