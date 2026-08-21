@@ -364,14 +364,39 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         lot['route'] = r
 
                     tabla = f"resultados_{r}"
+                    if r in ['colorloto', 'cloto']:
+                        tabla = 'resultados_colorloto2' if 'resultados_colorloto2' in existing_tables else 'resultados_colorloto'
+
                     if tabla in existing_tables:
                         try:
-                            cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
-                            res = cur.fetchone()
-                            if res:
-                                max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
-                                if max_fecha:
-                                    lot['proximo_sorteo'] = str(max_fecha)
+                            if 'colorloto' in tabla:
+                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE numero = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                                res = cur.fetchone()
+                                if res:
+                                    max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
+                                    if max_fecha:
+                                        lot['proximo_sorteo'] = str(max_fecha)
+
+                                cur.execute(f"SELECT MAX(fecha) AS ult_fecha FROM {tabla} WHERE numero > 0")
+                                res_u = cur.fetchone()
+                                if res_u:
+                                    ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
+                                    if ult_fecha:
+                                        lot['ultimo_sorteo'] = str(ult_fecha)
+                            else:
+                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                                res = cur.fetchone()
+                                if res:
+                                    max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
+                                    if max_fecha:
+                                        lot['proximo_sorteo'] = str(max_fecha)
+
+                                cur.execute(f"SELECT MAX(fecha) AS ult_fecha FROM {tabla} WHERE balota1 > 0")
+                                res_u = cur.fetchone()
+                                if res_u:
+                                    ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
+                                    if ult_fecha:
+                                        lot['ultimo_sorteo'] = str(ult_fecha)
                         except Exception:
                             try:
                                 conn.rollback()

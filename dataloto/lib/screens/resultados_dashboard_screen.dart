@@ -629,6 +629,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     return rawDate;
   }
 
+  String _formatearFechaCorta(String rawDate) {
+    if (rawDate.isEmpty) return "18-08-26";
+    try {
+      final clean = rawDate.trim();
+      if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
+        final year = clean.substring(2, 4);
+        final month = clean.substring(5, 7);
+        final day = clean.substring(8, 10);
+        return "$day-$month-$year";
+      }
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        final day = parsed.day.toString().padLeft(2, '0');
+        final month = parsed.month.toString().padLeft(2, '0');
+        final year = (parsed.year % 100).toString().padLeft(2, '0');
+        return "$day-$month-$year";
+      }
+    } catch (_) {}
+    return rawDate;
+  }
+
   String _buildInsightIAText(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     if (_winningNums.isEmpty) return "";
@@ -686,7 +707,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final List<Map<String, dynamic>> listToRender = rawSource.isNotEmpty
         ? rawSource.take(5).map((item) {
             final rawDate = item["fecha"]?.toString() ?? "";
-            final dateDisplay = _formatearFecha(rawDate);
+            final dateDisplay = _formatearFechaCorta(rawDate);
 
             List<int> nums = _extraerNumerosDeMap(item);
             int? red = int.tryParse(
@@ -719,7 +740,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           }).toList()
         : [
             {
-              "fecha": _fechaSorteo.isNotEmpty ? _fechaSorteo : l10n.reciente,
+              "fecha": _formatearFechaCorta(_fechaSorteo.isNotEmpty ? _fechaSorteo : ""),
               "nums": _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
               "red": _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
               "cobertura": _selectedResultadosTab == 1 ? "${(_coberturaPorcentajeRevancha * 100).round()}%" : "${(_coberturaPorcentaje * 100).round()}%",
@@ -875,6 +896,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               UltimosSorteosTable(
                 subTitulo: subTitulo,
                 listToRender: listToRender,
+                maxSeleccion: dynamicMaxSel,
+                tieneComplementario: widget.loteriaData?['tiene_complementario'] == true ||
+                    widget.loteriaData?['tieneComplementario'] == true ||
+                    (_winningNums.length > dynamicMaxSel),
                 tabSelector: ResultadosTabSelector(
                   hasRevanchaData: _hasRevanchaData,
                   selectedResultadosTab: _selectedResultadosTab,
