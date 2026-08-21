@@ -164,6 +164,28 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             """, user_id)
             return {r['route']: r['count'] for r in rows if r['route']}
 
+    async def list_active_lotteries_info(self, user_id: int) -> Dict[str, Dict[str, Any]]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            rows = await conn.fetch("""
+                SELECT LOWER(loteria_route) AS route, 
+                       COUNT(*)::int AS count,
+                       MAX(COALESCE(fecha_sorteo, fecha_guardado::date)) AS latest_fecha
+                FROM jugadas
+                WHERE user_id = $1
+                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
+                GROUP BY LOWER(loteria_route)
+            """, user_id)
+            return {
+                r['route']: {
+                    'count': r['count'],
+                    'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None
+                }
+                for r in rows if r['route']
+            }
+
 
     @cached(ttl=300)
     def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
