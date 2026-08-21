@@ -764,14 +764,98 @@ class ApiService {
       final response = await http.get(
         Uri.parse("$baseUrl/mis_loterias_con_conteo?user_id=$userId"),
         headers: {"Content-Type": "application/json"},
-      );
+      ).timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> data = jsonDecode(response.body);
-        return data.map((key, value) => MapEntry(key.toString().toLowerCase(), int.tryParse(value.toString()) ?? 0));
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && !decoded.containsKey("error")) {
+          return decoded.map((key, value) => MapEntry(key.toString().toLowerCase(), int.tryParse(value.toString()) ?? 0));
+        }
       }
+    } catch (_) {}
+
+    // Fallback garantizado para Render
+    try {
+      final activas = await getLoteriasConJugadas();
+      if (activas.isEmpty) return {};
+
+      final Map<String, int> conteos = {};
+      await Future.wait(
+        activas.map((r) async {
+          try {
+            final list = await listarJugadasGenerica(r, retries: 1);
+            conteos[r.toLowerCase()] = list.length;
+          } catch (_) {
+            conteos[r.toLowerCase()] = 1;
+          }
+        }),
+      );
+      return conteos;
     } catch (e) {
-      debugPrint("Error obteniendo conteo de jugadas: $e");
+      debugPrint("Error en conteos fallback: $e");
+    }
+    return {};
+  }
+
+  /// 🔍 Obtener mapa de loterías con información de jugadas {route: {count: int, fecha: String?}}
+  static Future<Map<String, Map<String, dynamic>>> getLoteriasInfoJugadas() async {
+    final userId = await getUserId();
+    if (userId == null) return {};
+
+    try {
+      final response = await http.get(
+        Uri.parse("$baseUrl/mis_loterias_info?user_id=$userId"),
+        headers: {"Content-Type": "application/json"},
+      ).timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && !decoded.containsKey("error")) {
+          return decoded.map((key, value) => MapEntry(key.toString().toLowerCase(), Map<String, dynamic>.from(value as Map)));
+        }
+      }
+    } catch (_) {}
+
+    // Fallback garantizado para Render
+    try {
+      final activas = await getLoteriasConJugadas();
+      if (activas.isEmpty) return {};
+
+      final Map<String, Map<String, dynamic>> infoMap = {};
+      await Future.wait(
+        activas.map((r) async {
+          try {
+            final list = await listarJugadasGenerica(r, retries: 1);
+            if (list.isNotEmpty) {
+              final fechas = list
+                  .map((j) => (j['fecha_sorteo'] ?? (j['fecha_guardado'] != null ? j['fecha_guardado'].toString().substring(0, 10) : null))?.toString())
+                  .where((f) => f != null && f.isNotEmpty)
+                  .cast<String>()
+                  .toList();
+              
+              fechas.sort();
+              final latestFecha = fechas.isNotEmpty ? fechas.last : null;
+              infoMap[r.toLowerCase()] = {
+                "count": list.length,
+                "fecha": latestFecha,
+              };
+            } else {
+              infoMap[r.toLowerCase()] = {
+                "count": 1,
+                "fecha": null,
+              };
+            }
+          } catch (_) {
+            infoMap[r.toLowerCase()] = {
+              "count": 1,
+              "fecha": null,
+            };
+          }
+        }),
+      );
+      return infoMap;
+    } catch (e) {
+      debugPrint("Error obteniendo info de jugadas: $e");
     }
     return {};
   }
