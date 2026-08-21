@@ -170,7 +170,9 @@
   "balotasMayorTiempo": "Bolas com o maior tempo sem aparecer:",
   "apariciones": "aparições",
   "pareja": "Par",
-  "altaConsistenciaIA": "✅ Alta consistência com padrões históricos par/impar e dispersión de suma.",
+  "altaConsistenciaIA": "✅ Alta consistência com padrões históricos par/impar e dispersão de soma.",
+  "moderadaConsistenciaIA": "⚡ Afinidade moderada-alta com frequências históricas e dispersão equilibrada.",
+  "variabilidadConsistenciaIA": "📊 Comportamento de alta variabilidade estatística em relação às tendências anteriores.",
   "comportamientoHistoricoVsIA": "Comportamento Histórico vs IA ⚡",
   "numerosMayorTendencia": "Números com maior tendência histórica:",
   "prediccionActualIA": "Previsão atual do modelo IA:",
@@ -470,5 +472,6 @@
   "pagar": "Pagar",
   "pagoExito": "✅ Pagamento realizado com sucesso",
   "pagarEpayco": "Pagar com ePayco",
-  "errorAnuncios": "Erro ao carregar anúncios."
+  "errorAnuncios": "Erro ao carregar anúncios.",
+  "numerosLabel": "Números"
 }

@@ -37,17 +37,20 @@ class InsightIaCard extends StatelessWidget {
   }) : super(key: key);
 
   int _getTopLimit() {
+    if (probablesCount > 0) return probablesCount;
     final lower = selectedLoteria.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
     if (lower.contains("megamillions") || lower.contains("megamillion")) return 35;
     if (lower.contains("powerball")) return 34;
     if (lower.contains("doubleplay")) return 34;
     if (lower.contains("millionaire") || lower.contains("millionairelife")) return 29;
     if (lower.contains("lottoamerica")) return 26;
+    if (lower.contains("bonoloto") || lower.contains("primitiva")) return 25;
+    if (lower.contains("euromillones")) return 25;
+    if (lower.contains("eurodreams")) return 20;
     if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
     if (lower.contains("baloto") || lower.contains("bloto")) return 21;
 
-    if (probablesCount > 0) return probablesCount;
     if (predictionNumeros != null && predictionNumeros!.isNotEmpty) {
       return (predictionNumeros!.length ~/ 2);
     }
@@ -228,27 +231,38 @@ class InsightIaCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        ...winningNums.map((n) {
-                          final isHit = predictionNumeros?.contains(n) ?? false;
-                          final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6.0),
-                            child: _build3DBall(
-                              n,
-                              baseColor: baseColor,
-                              size: 26,
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ...winningNums.map((n) {
+                                  final isHit = predictionNumeros?.contains(n) ?? false;
+                                  final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 5.0),
+                                    child: _build3DBall(
+                                      n,
+                                      baseColor: baseColor,
+                                      size: 25,
+                                    ),
+                                  );
+                                }),
+                                if (winningRed != null) ...[
+                                  const SizedBox(width: 3),
+                                  _build3DBall(
+                                    winningRed,
+                                    baseColor: Colors.redAccent,
+                                    size: 25,
+                                  ),
+                                ],
+                              ],
                             ),
-                          );
-                        }),
-                        if (winningRed != null) ...[
-                          const SizedBox(width: 4),
-                          _build3DBall(
-                            winningRed,
-                            baseColor: Colors.redAccent,
-                            size: 26,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -265,27 +279,38 @@ class InsightIaCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        ...winningNumsRevancha.map((n) {
-                          final isHit = predictionNumeros?.contains(n) ?? false;
-                          final baseColor = isHit ? const Color(0xFFD8B4FE) : const Color(0xFF4C1D95);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6.0),
-                            child: _build3DBall(
-                              n,
-                              baseColor: baseColor,
-                              size: 26,
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ...winningNumsRevancha.map((n) {
+                                  final isHit = predictionNumeros?.contains(n) ?? false;
+                                  final baseColor = isHit ? const Color(0xFFD8B4FE) : const Color(0xFF4C1D95);
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 5.0),
+                                    child: _build3DBall(
+                                      n,
+                                      baseColor: baseColor,
+                                      size: 25,
+                                    ),
+                                  );
+                                }),
+                                if (winningRedRevancha != null) ...[
+                                  const SizedBox(width: 3),
+                                  _build3DBall(
+                                    winningRedRevancha,
+                                    baseColor: Colors.redAccent,
+                                    size: 25,
+                                  ),
+                                ],
+                              ],
                             ),
-                          );
-                        }),
-                        if (winningRedRevancha != null) ...[
-                          const SizedBox(width: 4),
-                          _build3DBall(
-                            winningRedRevancha,
-                            baseColor: Colors.redAccent,
-                            size: 26,
                           ),
-                        ],
+                        ),
                       ],
                     ),
                   ],
@@ -300,27 +325,38 @@ class InsightIaCard extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                           color: Colors.white70),
                     ),
-                    const SizedBox(width: 16),
-                    ...winningNums.map((n) {
-                      final isHit = predictionNumeros?.contains(n) ?? false;
-                      final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6.0),
-                        child: _build3DBall(
-                          n,
-                          baseColor: baseColor,
-                          size: 26,
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ...winningNums.map((n) {
+                              final isHit = predictionNumeros?.contains(n) ?? false;
+                              final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 5.0),
+                                child: _build3DBall(
+                                  n,
+                                  baseColor: baseColor,
+                                  size: 25,
+                                ),
+                              );
+                            }),
+                            if (winningRed != null) ...[
+                              const SizedBox(width: 3),
+                              _build3DBall(
+                                winningRed,
+                                baseColor: Colors.redAccent,
+                                size: 25,
+                              ),
+                            ],
+                          ],
                         ),
-                      );
-                    }),
-                    if (winningRed != null) ...[
-                      const SizedBox(width: 4),
-                      _build3DBall(
-                        winningRed,
-                        baseColor: Colors.redAccent,
-                        size: 26,
                       ),
-                    ],
+                    ),
                   ],
                 ),
               const SizedBox(height: 20),

@@ -13,6 +13,9 @@ class UltimoSorteoCard extends StatelessWidget {
   final int? winningRed;
   final List<int> winningNumsRevancha;
   final int? winningRedRevancha;
+  final int maxSeleccion;
+  final bool tieneComplementario;
+  final int? totalBalotasSorteo;
 
   const UltimoSorteoCard({
     Key? key,
@@ -25,13 +28,35 @@ class UltimoSorteoCard extends StatelessWidget {
     this.winningRed,
     required this.winningNumsRevancha,
     this.winningRedRevancha,
+    this.maxSeleccion = 5,
+    this.tieneComplementario = false,
+    this.totalBalotasSorteo,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final bool tieneBalotaExtra = !selectedLoteria.toLowerCase().contains("miloto") &&
-        !selectedLoteria.toLowerCase().contains("colorloto");
+
+    final bool tieneComp = tieneComplementario || (winningNums.length > maxSeleccion);
+
+    // Separar balotas principales de complementarias
+    final List<int> mainBalls = winningNums.length > maxSeleccion
+        ? winningNums.sublist(0, maxSeleccion)
+        : winningNums;
+    final int? compBall = (tieneComp && winningNums.length > maxSeleccion)
+        ? winningNums.last
+        : null;
+
+    final int totalBalls = mainBalls.length +
+        (compBall != null ? 1 : 0) +
+        (winningRed != null ? 1 : 0);
+
+    final double ballSize = totalBalls <= 5
+        ? 42.0
+        : (totalBalls == 6 ? 38.0 : (totalBalls == 7 ? 34.0 : 30.0));
+    final double ballPadding = totalBalls <= 5
+        ? 3.5
+        : (totalBalls == 6 ? 2.8 : (totalBalls == 7 ? 2.0 : 1.5));
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -72,19 +97,29 @@ class UltimoSorteoCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Center(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.center,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ...winningNums.map((nVal) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: build3DBall(nVal, baseColor: const Color(0xFF1E3A8A)),
+                  ...mainBalls.map((nVal) => Padding(
+                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                    child: build3DBall(nVal, baseColor: const Color(0xFF1E3A8A), size: ballSize),
                   )),
-                  if (tieneBalotaExtra && winningRed != null) ...[
-                    const SizedBox(width: 10),
-                    build3DBall(winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+                  if (compBall != null) ...[
+                    SizedBox(width: ballPadding),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                      child: build3DBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
+                    ),
+                  ],
+                  if (winningRed != null) ...[
+                    SizedBox(width: ballPadding * 1.5),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                      child: build3DBall(winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true, size: ballSize),
+                    ),
                   ],
                 ],
               ),
@@ -104,19 +139,22 @@ class UltimoSorteoCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Center(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ...winningNumsRevancha.map((nVal) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: build3DBall(nVal, baseColor: const Color(0xFF4C1D95)),
+                      padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                      child: build3DBall(nVal, baseColor: const Color(0xFF4C1D95), size: ballSize),
                     )),
-                    if (tieneBalotaExtra && winningRedRevancha != null) ...[
-                      const SizedBox(width: 10),
-                      build3DBall(winningRedRevancha!, baseColor: const Color(0xFFB91C1C), isSpecial: true),
+                    if (winningRedRevancha != null) ...[
+                      SizedBox(width: ballPadding * 1.5),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                        child: build3DBall(winningRedRevancha!, baseColor: const Color(0xFFB91C1C), isSpecial: true, size: ballSize),
+                      ),
                     ],
                   ],
                 ),
