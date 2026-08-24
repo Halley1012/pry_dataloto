@@ -132,15 +132,16 @@ class LoteriaConfig {
         : "Lotería";
 
     final tieneComp = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
-    final int maxSel = (cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams")) ? 6 : 5;
-    final int maxRojas = (cleanRoute.contains("mloto") || cleanRoute.contains("cloto")) ? 0 : 10;
+    final int maxSel = (cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams") || cleanRoute.contains("megasena")) ? 6 : 5;
+    final int maxRojas = (cleanRoute.contains("mloto") || cleanRoute.contains("cloto") || cleanRoute.contains("megasena")) ? 0 : 10;
+    final int maxBlancas = cleanRoute.contains("megasena") ? 60 : 45;
     final int totalSorteo = maxSel + (maxRojas > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
 
     return LoteriaConfig(
       nombre: formattedName,
       route: cleanRoute,
       maxSeleccion: maxSel,
-      maxBalotasBlancas: 45,
+      maxBalotasBlancas: maxBlancas,
       maxBalotasRojas: maxRojas,
       superbalotaNombre: "Superbalota",
       hasRevancha: false,

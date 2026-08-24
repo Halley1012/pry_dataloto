@@ -434,24 +434,62 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   }
 
   String _formatearFechaSimple(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "10 Ago 2026";
+    if (fecha == null || fecha.isEmpty) return "";
     try {
       final clean = fecha.trim();
-      DateTime parsed = DateTime.parse(clean.substring(0, 10));
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return fecha;
+
       final langCode = Localizations.localeOf(context).languageCode;
-      List<String> meses;
-      if (langCode == 'en') {
-        meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return "${meses[parsed.month - 1]} ${parsed.day}, ${parsed.year}";
-      } else if (langCode == 'pt') {
-        meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
-      } else {
-        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
-      }
+      final dias = langCode == 'en' 
+          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+          : (langCode == 'pt' 
+              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+
+      final meses = langCode == 'en'
+          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+          : (langCode == 'pt'
+              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+
+      final diaSemana = dias[parsed.weekday - 1];
+      final mes = meses[parsed.month - 1];
+
+      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
     } catch (_) {
       return fecha;
+    }
+  }
+
+  String _calcularEstadoSorteo(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "";
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return "";
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      final diff = target.difference(today).inDays;
+
+      final langCode = Localizations.localeOf(context).languageCode;
+
+      if (diff == 0) {
+        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
+      } else if (diff == 1) {
+        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+      } else if (diff > 1) {
+        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+      } else if (diff == -1) {
+        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
+      } else {
+        final dias = diff.abs();
+        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
+      }
+    } catch (_) {
+      return "";
     }
   }
 
@@ -462,6 +500,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         : "";
     final rawFecha = loteria["ultimo_sorteo"] ?? loteria["fecha_ultimo_sorteo"] ?? loteria["fecha"] ?? loteria["proximo_sorteo"];
     final fechaDisplay = _formatearFechaSimple(rawFecha?.toString());
+    final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
@@ -483,12 +522,32 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             fontSize: 14.5,
           ),
         ),
-        subtitle: Text(
-          "${l10n?.ultimoSorteo ?? 'Último sorteo'}: $fechaDisplay",
-          style: AppTextStyles.mensajeSecundario.copyWith(
-            color: Colors.white38,
-            fontSize: 10.5,
-          ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 2),
+            Text(
+              fechaDisplay,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (estadoDisplay.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                estadoDisplay,
+                style: const TextStyle(
+                  color: Colors.white38,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+            ],
+          ],
         ),
         trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
       ),

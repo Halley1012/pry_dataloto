@@ -35,6 +35,7 @@ class LotteryAvatar3D extends StatelessWidget {
     if (cleanName.contains("euromillones")) return const Color(0xFF00E676);
     if (cleanName.contains("primitiva")) return const Color(0xFF7C4DFF);
     if (cleanName.contains("eurodreams")) return const Color(0xFF00E5FF);
+    if (cleanName.contains("megasena") || cleanName.contains("mega-sena") || cleanName.contains("sena")) return const Color(0xFF209869);
     return _palette[cleanName.hashCode.abs() % _palette.length];
   }
 

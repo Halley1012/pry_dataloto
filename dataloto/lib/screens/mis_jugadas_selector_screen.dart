@@ -435,27 +435,15 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                           fontSize: 15,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.calendar_today_outlined,
-                            size: 12,
-                            color: baseColor.withValues(alpha: 0.9),
-                          ),
-                          const SizedBox(width: 4),
-                          Expanded(
-                            child: Text(
-                              fechaDisplay,
-                              style: TextStyle(
-                                color: baseColor.withValues(alpha: 0.95),
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        fechaDisplay,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       if (estadoDisplay.isNotEmpty) ...[
                         const SizedBox(height: 2),
