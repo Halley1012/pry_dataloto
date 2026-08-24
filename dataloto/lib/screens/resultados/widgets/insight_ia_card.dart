@@ -49,6 +49,7 @@ class InsightIaCard extends StatelessWidget {
     if (lower.contains("eurodreams")) return 20;
     if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
+    if (lower.contains("megasena") || lower.contains("megasena")) return 30;
     if (lower.contains("baloto") || lower.contains("bloto")) return 21;
 
     if (predictionNumeros != null && predictionNumeros!.isNotEmpty) {

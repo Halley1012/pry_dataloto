@@ -244,12 +244,12 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   Widget _buildExploreItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
     final nombre = loteria["nombre"] ?? "";
-    final fechaSorteo = _formatearFechaSimple(loteria["proximo_sorteo"]);
+    final rawFecha = loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+    final fechaDisplay = _formatearFechaProximo(rawFecha?.toString());
+    final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
-
-    final proximoLbl = l10n?.proximoSorteoConFecha ?? "Próximo sorteo:";
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
@@ -257,59 +257,127 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: ListTile(
-        dense: true,
-        visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => _resolveScreen(loteria))),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0.0),
-        leading: LotteryAvatar3D(nombre: nombre, size: 36),
-        title: Text(
-          nombreFormateado,
-          style: AppTextStyles.h2.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w600,
-            fontSize: 14.5,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              LotteryAvatar3D(nombre: nombre, size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  nombreFormateado,
+                  style: AppTextStyles.h2.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    l10n?.proximoSorteo ?? "Próximo sorteo",
+                    style: const TextStyle(color: Colors.white38, fontSize: 9.5),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    fechaDisplay,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  if (estadoDisplay.isNotEmpty) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      estadoDisplay,
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.star_outline,
+                color: AppColors.yellow,
+                size: 20,
+              ),
+            ],
           ),
-        ),
-        subtitle: Text(
-          "$proximoLbl $fechaSorteo",
-          style: AppTextStyles.mensajeSecundario.copyWith(
-            color: Colors.white38,
-            fontSize: 10.5,
-          ),
-        ),
-        trailing: const Icon(
-          Icons.star_outline,
-          color: AppColors.yellow,
-          size: 20,
         ),
       ),
     );
   }
 
-  String _formatearFechaSimple(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "Próximamente";
+  String _formatearFechaProximo(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
     try {
-      DateTime parsed = DateTime.parse(fecha.substring(0, 10));
-      DateTime now = DateTime.now();
-      DateTime hoy = DateTime(now.year, now.month, now.day);
-      DateTime fechaS = DateTime(parsed.year, parsed.month, parsed.day);
-      if (fechaS.isBefore(hoy)) return "Próximamente";
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return fecha;
 
       final langCode = Localizations.localeOf(context).languageCode;
-      List<String> meses;
-      if (langCode == 'en') {
-        meses = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        return "${meses[parsed.month - 1]} ${parsed.day}, ${parsed.year}";
-      } else if (langCode == 'pt') {
-        meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
-        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+      final dias = langCode == 'en' 
+          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+          : (langCode == 'pt' 
+              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+
+      final meses = langCode == 'en'
+          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+          : (langCode == 'pt'
+              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+
+      final diaSemana = dias[parsed.weekday - 1];
+      final mes = meses[parsed.month - 1];
+
+      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
+    } catch (_) {
+      return fecha;
+    }
+  }
+
+  String _calcularEstadoSorteo(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return "";
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return "";
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      final diff = target.difference(today).inDays;
+
+      final langCode = Localizations.localeOf(context).languageCode;
+
+      if (diff == 0) {
+        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
+      } else if (diff == 1) {
+        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+      } else if (diff > 1) {
+        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+      } else if (diff == -1) {
+        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
       } else {
-        meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-        return "${parsed.day.toString().padLeft(2, '0')} ${meses[parsed.month - 1]} ${parsed.year}";
+        final dias = diff.abs();
+        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
       }
     } catch (_) {
-      return "Próximamente";
+      return "";
     }
   }
 

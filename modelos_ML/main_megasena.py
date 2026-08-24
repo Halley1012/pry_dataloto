@@ -13,12 +13,12 @@ if hasattr(sys.stdout, 'reconfigure'):
 if "/opt/airflow" not in sys.path:
     sys.path.append("/opt/airflow")
 
-from src.eurodreams.scraper import EuroDreamsScraper
-from src.eurodreams.predictor import EuroDreamsPredictor
+from src.megasena.scraper import MegaSenaScraper
+from src.megasena.predictor import MegaSenaPredictor
 from src.notification_generator import NotificationGenerator
 
 def main():
-    parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para EuroDreams (España / Europa)")
+    parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para Mega-Sena (Brasil)")
     parser.add_argument(
         "--task",
         type=str,
@@ -29,7 +29,7 @@ def main():
     parser.add_argument(
         "--backfill",
         action="store_true",
-        help="Si se especifica, descarga el histórico completo de sorteos desde 2023"
+        help="Si se especifica, descarga el histórico amplio de sorteos"
     )
 
     args, _ = parser.parse_known_args()
@@ -37,34 +37,33 @@ def main():
     backfill = args.backfill
 
     print("==================================================")
-    print(f"Iniciando orquestación: Lotería=EuroDreams | Tarea={task} | Backfill={backfill}")
+    print(f"Iniciando orquestación: Lotería=Mega-Sena | Tarea={task} | Backfill={backfill}")
     print("==================================================")
 
     if task in ["scrap", "all"]:
         try:
-            scraper_inst = EuroDreamsScraper()
+            scraper_inst = MegaSenaScraper()
             scraper_inst.run(backfill=backfill)
         except Exception as e:
-            print(f"❌ Falló la tarea de scraping para EuroDreams: {e}")
+            print(f"❌ Falló la tarea de scraping para Mega-Sena: {e}")
             sys.exit(1)
 
     if task in ["predict", "all"]:
         try:
-            predictor_inst = EuroDreamsPredictor()
+            predictor_inst = MegaSenaPredictor()
             predictor_inst.run()
         except Exception as e:
-            print(f"❌ Falló la tarea de predicción para EuroDreams: {e}")
+            print(f"❌ Falló la tarea de predicción para Mega-Sena: {e}")
             sys.exit(1)
 
     if task in ["notify", "all"]:
         try:
             notif_inst = NotificationGenerator()
-            notif_inst.run("eurodreams")
+            notif_inst.run("megasena")
         except Exception as e:
-            print(f"❌ Falló la tarea de notificaciones para EuroDreams: {e}")
+            print(f"❌ Falló la tarea de notificaciones para Mega-Sena: {e}")
 
-    print("✅ ¡Proceso completado exitosamente para EuroDreams!")
+    print("✅ ¡Proceso completado exitosamente para Mega-Sena!")
 
 if __name__ == "__main__":
     main()
-

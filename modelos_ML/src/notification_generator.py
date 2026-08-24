@@ -30,6 +30,7 @@ class NotificationGenerator:
         if "gordo" in lower or "el_gordo" in lower: return 27
         if "miloto" in lower or "mloto" in lower: return 20
         if "colorloto" in lower: return 10
+        if "megasena" in lower or "mega_sena" in lower: return 30
         return 21  # Default / Baloto
 
     def run(self, loteria="all"):
@@ -143,6 +144,15 @@ class NotificationGenerator:
                 "query_resultados": "SELECT * FROM resultados_eurodreams WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
                 "mitad": 20,
                 "has_special": True,
+                "is_baloto": False,
+            },
+            "megasena": {
+                "route": "megasena",
+                "nombre": "Mega-Sena",
+                "tabla_resultados": "resultados_megasena",
+                "query_resultados": "SELECT * FROM resultados_megasena WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 30,
+                "has_special": False,
                 "is_baloto": False,
             },
         }
