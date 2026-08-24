@@ -49,7 +49,7 @@ def main():
         help="La tarea a ejecutar (scraping, predicción, notificación o todas) (default: all)"
     )
 
-    args = parser.parse_args()
+    args, _ = parser.parse_known_args()
     loteria_arg = args.loteria
     task = args.task
 
