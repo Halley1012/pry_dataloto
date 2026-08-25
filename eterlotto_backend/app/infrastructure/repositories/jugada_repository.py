@@ -386,7 +386,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             with conn.cursor() as cur:
                 # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
                 cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false)
+                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
                     FROM loterias
                     WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
                     LIMIT 1;
@@ -395,6 +395,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 max_sel = lot_config[0] if lot_config else None
                 max_rojas_cfg = lot_config[1] if lot_config else 0
                 tiene_comp_cfg = lot_config[2] if lot_config else False
+                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
+                min_roja_val = 0 if is_reintegro else 1
 
                 cur.execute("""
                     SELECT column_name
@@ -425,7 +427,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC
-                    LIMIT 10;
+                    LIMIT 40;
                 """
                 cur.execute(query)
                 rows = cur.fetchall()
@@ -436,13 +438,12 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 results = []
                 for r in rows:
                     fecha = r[0]
-                    # Permite números >= 0 (para soportar reintegros o balotas 0 válidas)
                     numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
                     if max_sel is not None:
                         limite = max_sel + (1 if tiene_comp_cfg else 0)
                         numeros = numeros[:limite]
 
-                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
                     if max_rojas_cfg > 0:
                         balotas_rojas = balotas_rojas[:max_rojas_cfg]
                     else:
@@ -461,7 +462,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             with conn.cursor() as cur:
                 # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
                 cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false)
+                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
                     FROM loterias
                     WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
                     LIMIT 1;
@@ -470,6 +471,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 max_sel = lot_config[0] if lot_config else None
                 max_rojas_cfg = lot_config[1] if lot_config else 0
                 tiene_comp_cfg = lot_config[2] if lot_config else False
+                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
+                min_roja_val = 0 if is_reintegro else 1
 
                 cur.execute("""
                     SELECT column_name
@@ -499,7 +502,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
-                    ORDER BY r.fecha DESC;
+                    ORDER BY r.fecha DESC
+                    LIMIT 250;
                 """
                 cur.execute(query)
                 rows = cur.fetchall()
@@ -515,7 +519,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         limite = max_sel + (1 if tiene_comp_cfg else 0)
                         numeros = numeros[:limite]
 
-                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
                     if max_rojas_cfg > 0:
                         balotas_rojas = balotas_rojas[:max_rojas_cfg]
                     else:

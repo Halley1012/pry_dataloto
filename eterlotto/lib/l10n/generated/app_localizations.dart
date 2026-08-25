@@ -154,6 +154,24 @@ abstract class AppLocalizations {
   /// **'Últimos 5 resultados Baloto Revancha'**
   String get ultimosResultadosRevancha;
 
+  /// No description provided for @verMasResultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver más resultados (50)'**
+  String get verMasResultados;
+
+  /// No description provided for @historicoResultadosTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Historial de Resultados'**
+  String get historicoResultadosTitulo;
+
+  /// No description provided for @ultimos50Resultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Últimos 50 sorteos de {loteria}'**
+  String ultimos50Resultados(String loteria);
+
   /// No description provided for @tusNumerosSuerte.
   ///
   /// In es, this message translates to:
