@@ -1711,12 +1711,20 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     AppLocalizations? l10n, {
     List<Map<String, dynamic>>? listaResultados,
   }) {
-    final resultadosUsar = listaResultados ?? ultimosResultados;
+    final rawResultados = listaResultados ?? ultimosResultados;
+    // Filtrar filas de predicción futura / placeholders de ML (donde todos los números principales son 0)
+    final resultadosUsar = rawResultados.where((r) {
+      final rawNums = (r["numeros"] as List<dynamic>? ?? []);
+      if (rawNums.isEmpty) return false;
+      final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
+      return parsed.any((n) => n > 0);
+    }).toList();
+
     final int maxBallsInResults = resultadosUsar.isNotEmpty
         ? resultadosUsar
             .map((r) => (r["numeros"] as List<dynamic>? ?? [])
                 .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n > 0)
+                .where((n) => n >= 0)
                 .length)
             .fold(0, (max, len) => len > max ? len : max)
         : config.totalBalotasSorteo;
