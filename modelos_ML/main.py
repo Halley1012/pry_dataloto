@@ -33,7 +33,7 @@ from src.megamillions.predictor import MegaMillionsPredictor
 from src.notification_generator import NotificationGenerator
 
 def main():
-    parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para Dataloto")
+    parser = argparse.ArgumentParser(description="Orquestador de Tareas ML para Eterlotto")
     parser.add_argument(
         "--loteria",
         type=str,

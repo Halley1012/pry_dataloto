@@ -1,2 +1,2 @@
-# pry_dataloto
-Proyecto dataloto
+# pry_eterlotto
+Proyecto Eterlotto
