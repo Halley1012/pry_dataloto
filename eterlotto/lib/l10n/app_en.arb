@@ -1,0 +1,605 @@
+{
+  "@@locale": "en",
+  "tituloApp": "Eterlotto",
+  "iniciarSesion": "Sign In",
+  "registrarse": "Register",
+  "bienvenido": "Welcome to Eterlotto!",
+  "descripcionBienvenida": "We are excited to help you with smart predictions and make you enjoy the thrill of every draw to the max.",
+  "prediccionesInteligentes": "Smart Predictions",
+  "ultimosResultados": "Last 5 results",
+  "ultimosResultadosBaloto": "Last 5 Baloto results",
+  "ultimosResultadosRevancha": "Last 5 Baloto Revancha results",
+  "tusNumerosSuerte": "Your lucky numbers",
+  "generar": "Generate",
+  "guardar": "Save",
+  "misJugadas": "My Plays",
+  "estadisticas": "Statistics",
+  "estadisticasAvanzadas": "Advanced Statistics & Charts",
+  "seleccionaNumeros": "Select your numbers",
+  "sorteosEvaluados": "Draws Evaluated",
+  "numerosCalientes": "Hot Numbers",
+  "numerosFrios": "Cold Numbers",
+  "frecuenciaHistorica": "Historical Frequency",
+  "ausenciaSorteos": "Draws / Days Without Appearing",
+  "parImpar": "Even vs Odd Distribution",
+  "bajosAltos": "Low vs High",
+  "sumaCombinacion": "Sum of Combination",
+  "parejasFrecuentes": "Most Frequent Pairs",
+  "scoreProbabilidadIA": "AI Probability Score",
+  "comparacionIA": "Historical Behavior vs AI",
+  "idioma": "Language",
+  "cambiarIdioma": "Change Language",
+  "email": "Email Address",
+  "contrasena": "Password",
+  "olvidoContrasena": "Forgot Password?",
+  "ingresar": "Sign In",
+  "iniciaSesionParaContinuar": "Sign in to continue",
+  "nombre": "Name",
+  "crearCuenta": "Create Account",
+  "notificaciones": "Notifications",
+  "configuracion": "Settings",
+  "cerrarSesion": "Log Out",
+  "perfil": "Profile",
+  "inicio": "Home",
+  "resultados": "Results",
+  "misAnuncios": "My Ads",
+  "metodosPago": "Payment Methods",
+  "invitarAmigos": "Invite Friends",
+  "ayudaSoporte": "Help & Support",
+  "eliminarCuenta": "Delete Account",
+  "pais": "Country",
+  "departamentoEstado": "State / Region",
+  "editarPerfil": "Edit Profile",
+  "guardarCambios": "Save Changes",
+  "miPais": "My Country",
+  "internacionales": "International",
+  "todas": "All",
+  "sinNotificaciones": "No notifications yet",
+  "explorar": "Explore",
+  "buscarLoteria": "Search lottery...",
+  "populares": "Popular",
+  "verTodas": "View all",
+  "proximoSorteo": "Next draw",
+  "todasLasLoterias": "All Lotteries",
+  "comentarios": "Comments",
+  "responder": "Reply",
+  "respuesta": "reply",
+  "respuestas": "replies",
+  "sinPosts": "No posts yet",
+  "anunciosDestacados": "Featured Ads",
+  "derechosReservados": "© 2025 Eterlotto. All rights reserved.",
+  "version": "Version",
+  "sinNotificacionesCategoria": "No notifications for your country",
+  "verTodasNotificaciones": "View all notifications",
+  "explorarLoterias": "Explore Lotteries",
+  "buscarLoteriaOPais": "Search lottery or country...",
+  "buscarPorLoteriaOPais": "Search by lottery or country...",
+  "proximoSorteoConFecha": "Next draw:",
+  "verTodasLoteriasMundo": "View all lotteries of the world",
+  "analisisYResultados": "Analysis & Results",
+  "aunNoTienesJugadas": "You have no saved plays yet",
+  "empiezaAGuardarNumeros": "Start saving your favorite numbers from the Explore section.",
+  "usuarioPremium": "Premium User",
+  "ganaBeneficios": "Earn benefits",
+  "avisoLegal": "Legal Notice",
+  "acercaDe": "About",
+  "cerrar": "Close",
+  "contenidoAvisoLegal": "This app is not official nor associated with lottery operators or gambling regulatory bodies in any country. It is not a lottery game, but a statistical analysis and artificial intelligence tool that generates predictions to help you choose your numbers with greater confidence. Results do not guarantee prizes and its use is solely for informational and entertainment purposes.",
+  "contenidoAcercaDe": "Eterlotto uses artificial intelligence to analyze historical lottery patterns and provide informed predictions. Although our predictions are data-based, there is no absolute certainty that these numbers will win, as lottery is a game of chance. We do not guarantee prizes, we only help you choose with greater confidence. Use the app responsibly and only for entertainment purposes. The decision to use these predictions is under your own responsibility.",
+  "notificacionesIA": "Notifications",
+  "marcarTodoComoLeido": "Mark all as read",
+  "seleccionarTodo": "Select all",
+  "desmarcarTodo": "Unselect all",
+  "eliminar": "Delete",
+  "imprimirPDF": "Print PDF",
+  "historialJugadas": "Play History",
+  "guardadasCantidad": "saved",
+  "noTienesJugadasGuardadas": "You have no saved plays yet",
+  "eliminarJugadas": "Delete plays",
+  "confirmarCerrarSesion": "Are you sure you want to log out?",
+  "idiomaSistema": "System Language",
+  "seleccionarIdioma": "Select Language",
+  "cancelar": "Cancel",
+  "jackpotEstimado": "Estimated Jackpot",
+  "millonesCOP": "million COP",
+  "millonesUSD": "million USD",
+  "resumenRapido": "Quick summary",
+  "verEstadisticasCompletas": "View full statistics ›",
+  "masCaliente": "Hottest",
+  "masFrio": "Coldest",
+  "prediccionIAHoy": "AI Prediction for today",
+  "basadaEnAnalisisDe": "Based on analysis of {count} draws",
+  "@basadaEnAnalisisDe": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "indiceAfinidadHistorica": "Historical affinity index",
+  "tuJugadaSeleccionada": "Your Selected Play",
+  "balotasPrincipales": "{count} main balls",
+  "@balotasPrincipales": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotaRoja": "1 red ball",
+  "tocaNumerosModificar": "Tap numbers below to modify",
+  "numeroSuerteSugerido": "Lucky number suggested by AI",
+  "jugada": "Play",
+  "notaTendenciasEstadisticas": "Note: these are only statistical tendencies, not absolute guarantees.",
+  "generarJugada": "Generate Play",
+  "guardarJugada": "Save Play",
+  "guardando": "Saving...",
+  "jugadaGuardadaExito": "Play saved successfully! 🎉",
+  "errorGuardarJugada": "Error saving play",
+  "iniciaSesionGuardar": "Sign in to save your play",
+  "cargandoPrediccion": "Loading prediction... Try again",
+  "debesSeleccionarBalotas": "You must select 5 main balls and 1 red ball to save your play.",
+  "jugadaYaExiste": "This play is already in your saved plays",
+  "balotasRojas": "Red Balls",
+  "numerosOrdenadosProbabilidad": "Numbers ordered from highest to lowest probability.",
+  "tocaNumeroSeleccionar": "Tap a number to select it",
+  "ultimoSorteo": "Last draw",
+  "sinNumeros": "No numbers",
+  "noticiasAlertas": "News / Alerts",
+  "hoyEsSorteo": "Today is the {loteria} draw",
+  "@hoyEsSorteo": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noOlvidesRevisar": "Don't forget to check your numbers and good luck.",
+  "paresImpares": "Even - Odd",
+  "analizados": "Analyzed",
+  "veces": "times",
+  "versionApp": "App version",
+  "tocaParaVerMas": "Tap to see more",
+  "filtrosAnalisis": "Analysis Filters",
+  "sorteos": "Draws",
+  "tipo": "Type",
+  "numerosCalientesFrios": "Hot and Cold Numbers 🔥❄️",
+  "masFrecuentes": "Most Frequent",
+  "menosFrecuentes": "Least Frequent",
+  "ausenciaSorteosTitle": "Draws / Days Without Appearing (Absence)",
+  "balotasMayorTiempo": "Balls with the longest time without appearing:",
+  "apariciones": "appearances",
+  "pareja": "Pair",
+  "altaConsistenciaIA": "✅ High consistency with historical even/odd patterns and sum dispersion.",
+  "moderadaConsistenciaIA": "⚡ Moderate-high affinity with historical frequencies and balanced dispersion.",
+  "variabilidadConsistenciaIA": "📊 High statistical variability behavior compared to previous trends.",
+  "comportamientoHistoricoVsIA": "Historical Behavior vs AI ⚡",
+  "numerosMayorTendencia": "Numbers with the highest historical trend:",
+  "prediccionActualIA": "Current AI model prediction:",
+  "coberturaIA": "AI Coverage",
+  "verTodasNotificacionesButton": "View all notifications",
+  "sinNotificacionesAun": "You have no notifications yet",
+  "miPaisFilter": "My Country",
+  "internacionalesFilter": "International",
+  "todasFilter": "All",
+  "marcarLeido": "Mark as read",
+  "errorConexion": "Connection error",
+  "credencialesInvalidas": "Invalid credentials",
+  "errorObtenerTokens": "Error obtaining tokens",
+  "ingresaEmailContrasena": "⚠️ Enter email and password",
+  "enviadoEnlace": "A link has been sent to {email}",
+  "@enviadoEnlace": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "recuperarContrasena": "Recover Password",
+  "cancelarButton": "Cancel",
+  "enviarButton": "Send",
+  "noDisponible": "Not available at the moment...",
+  "estadisticasLoteria": "{loteria} Statistics",
+  "@estadisticasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "rangoBalotas": "Ball Range",
+  "powerballRoja": "Red Powerball",
+  "starBall": "Star Ball",
+  "megaBall": "Mega Ball",
+  "cashBall": "Cash Ball",
+  "errorCargarEstadisticas": "Could not connect to the server to get statistics.",
+  "promedioSumaHistorica": "Average historical sum: {valor}",
+  "@promedioSumaHistorica": {
+    "placeholders": {
+      "valor": {
+        "type": "String"
+      }
+    }
+  },
+  "coberturaResultado": "Result coverage",
+  "numerosEnTopIA": "Numbers in the AI Top {count}",
+  "@numerosEnTopIA": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hitsDeAciertos": "{hits} out of {total} hits",
+  "@hitsDeAciertos": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "excelenteResultado": "Excellent result! 🎯",
+  "buenDesempeno": "Good performance 📊",
+  "insightsIA": "AI Insights",
+  "resultadoReal": "Real result",
+  "tendenciasIA": "AI Trends",
+  "noHayTendencias": "No detailed trends saved for this draw.",
+  "sorteoDel": "Draw of {fecha}",
+  "@sorteoDel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "revancha": "Revancha",
+  "ultimos5ResultadosNombre": "Last 5 results {nombre}",
+  "@thisLoteriaResultados": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "ultimosSorteos": "Last draws",
+  "reciente": "Recent",
+  "prediccionesNoDisponibles": "AI predictions for this past draw are not available in the history.",
+  "insightIACayeron": "Of the {count} most likely numbers generated by the AI for {loteria}, {hits} matched.",
+  "@insightIACayeron": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIANoCoincidencias": "Of the {count} most likely numbers generated by the AI for {loteria}, there were no matches in this draw.",
+  "@insightIANoCoincidencias": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIACayeronDual": "Of the {count} most likely numbers generated by the AI for {loteria}, {bText} and {rText} matched.",
+  "@insightIACayeronDual": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "bText": {
+        "type": "String"
+      },
+      "rText": {
+        "type": "String"
+      }
+    }
+  },
+  "aciertoIA": "AI Hit",
+  "balotasPrincipalesTitle": "Main Balls",
+  "balotasRojasEspeciales": "Red / Special Balls",
+  "resultadosLoteria": "Results - {loteria}",
+  "@resultadosLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "sorteoFechaLabel": "Draw: {fecha}",
+  "@sorteoFechaLabel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "numerosGanadores": "Winning numbers",
+  "comparacionJugadas": "My Plays vs Result Comparison",
+  "aciertosLabel": "Hits",
+  "balotaLabel": "Ball",
+  "sinAciertoLabel": "No hit",
+  "tusJugadasVsGanadores": "Your saved plays vs Draw winning numbers",
+  "noRealizasteJugadas": "You did not make any plays for this draw.",
+  "cantidadAciertos": "{count} hit(s)",
+  "@cantidadAciertos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaLabel": "Date",
+  "aciertosSimple": "Hits",
+  "coberturaIndividualDetalle": "{hits} out of {total} winning numbers are in the top {top} most likely",
+  "@coberturaIndividualDetalle": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "top": {
+        "type": "int"
+      }
+    }
+  },
+  "nEnBaloto": "{count} in Baloto ({nums})",
+  "ceroEnBaloto": "0 in Baloto",
+  "nEnRevancha": "{count} in Revancha ({nums})",
+  "ceroEnRevancha": "0 in Revancha",
+  "nNumeros": "{count} numbers",
+  "@nNumeros": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errorEnviarCorreo": "Error: Could not send email",
+  "usuarioRequerido": "User required",
+  "correoInvalido": "Invalid email",
+  "contrasenaMinima": "Minimum 6 characters",
+  "seleccionaPais": "Select a country",
+  "seleccionaDepartamento": "Select a department",
+  "yaTienesCuenta": "Already have an account? Sign in",
+  "actualizaTusDatos": "Update your data",
+  "registroUsuario": "User registration",
+  "modificaInformacion": "Modify your information",
+  "confirmarEliminarCuenta": "Are you sure you want to delete your account? This action is irreversible.",
+  "error": "Error",
+  "sinResultadosAnalisis": "No results analysis yet",
+  "buscaloAqui": "Search Here",
+  "anunciateHoy": "Advertise today and make yourself known to everyone!",
+  "crearNuevaPublicidad": "Create new advertisement",
+  "buscarPorTitulo": "Search by title",
+  "noHayAnunciosFiltros": "No advertisements available \nfor the selected filters.",
+  "todos": "All",
+  "todasCategorias": "All categories",
+  "noHayPaisesDisponibles": "No countries available",
+  "noHayDepartamentosDisponibles": "No departments available",
+  "noHayCategoriasDisponibles": "No categories available",
+  "estadoProvincia": "State / Province",
+  "categoria": "Category",
+  "presionaOtraVezSalir": "Press again to exit",
+  "tusJugadasHoy": "Your plays for today",
+  "errorCargarJugadas": "Error loading plays",
+  "errorAgregarJugada": "Error adding play",
+  "nro": "No.",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "My Ads",
+  "noHasPublicadoAnuncios": "You haven't published any ads yet.\nCreate the first one now!",
+  "eliminarAnuncio": "Delete ad",
+  "confirmarEliminarAnuncio": "Are you sure you want to delete this ad?",
+  "editar": "Edit",
+  "eliminar": "Delete",
+  "crearPublicidad": "Create Advertisement",
+  "editarAnuncio": "Edit Ad",
+  "crearNuevoAnuncio": "Create new ad",
+  "promocionaNegocioStyle": "Promote your business with style",
+  "titulo": "Title",
+  "descripcion": "Description",
+  "descripcionObligatoria": "Description required",
+  "telefono": "Phone",
+  "telefonoObligatorio": "Phone required",
+  "direccion": "Address",
+  "imagenUrl": "Image URL",
+  "ciudad": "City",
+  "redesSociales": "Social networks",
+  "paginaWeb": "Website",
+  "whatsappObligatorio": "WhatsApp required",
+  "anuncioActualizado": "Ad updated",
+  "anuncioCreado": "Ad created",
+  "errorGuardar": "Error saving",
+  "campoRequerido": "{campo} required",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Select {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "My {loteria} Plays - Eterlotto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "No plays to share",
+  "buenaSuerteDataLoto": "Good luck with Eterlotto!",
+  "tiqueteDataloto": "ETERLOTTO - {loteria} TICKET",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Saved Plays Report ({count} play(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Saved Date",
+  "balotasLoteria": "{loteria} Balls",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "Much success in your game! - Generated from Eterlotto App",
+  "jugadaShare": "Play #{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "No plays selected to print",
+  "generaGuardaJugadas": "Generate and save your plays from the {loteria} main screen",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "Are you sure you want to delete {count} play(s)?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "Successfully deleted {count} play(s).",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Superball: {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "My Plays - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Ticket_{loteria}_Eterlotto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / day",
+  "postEliminado": "Post deleted successfully",
+  "errorEliminarPost": "Error deleting post: {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Edit Post",
+  "crearPost": "Create Post",
+  "todosCamposObligatorios": "All fields are required",
+  "errorGuardarPost": "Error saving post",
+  "contenido": "Content",
+  "publicar": "Publish",
+  "escribeComentario": "Write a comment",
+  "errorEnviarComentario": "Error sending comment: {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Comment deleted",
+  "errorEliminarComentario": "Error deleting: {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioReportado": "Comment from @{usuario} reported.",
+  "@comentarioReportado": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "respondiendoA": "Replying to @{usuario}",
+  "@respondiendoA": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "escribeRespuesta": "Write your reply...",
+  "escribeComentarioHint": "Write a comment...",
+  "noHayComentarios": "No comments yet. Be the first to comment!",
+  "opcionPago": "Payment Option",
+  "completaDatosPago": "Complete your payment details",
+  "nombreTarjeta": "Name on card",
+  "numeroTarjeta": "Card Number",
+  "ingresaNombre": "Enter name",
+  "tarjetaInvalida": "Invalid card number",
+  "fechaInvalida": "Invalid date",
+  "cvvInvalido": "Invalid CVV",
+  "pagar": "Pay",
+  "pagoExito": "✅ Payment successful",
+  "pagarEpayco": "Pay with ePayco",
+  "errorAnuncios": "Error loading ads.",
+  "numerosLabel": "Numbers"
+}
