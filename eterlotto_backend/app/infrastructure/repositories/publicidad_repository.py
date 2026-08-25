@@ -271,7 +271,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                    superbalota_nombre,
                                    COALESCE(has_revancha, false) AS has_revancha,
                                    COALESCE(total_balotas_sorteo, 5) AS total_balotas_sorteo,
-                                   COALESCE(tiene_complementario, false) AS tiene_complementario
+                                   COALESCE(tiene_complementario, false) AS tiene_complementario,
+                                   COALESCE(tiene_reintegro, false) AS tiene_reintegro
                             FROM loterias
                             WHERE pais_id = %s
                               AND activa = true
@@ -287,7 +288,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                    superbalota_nombre,
                                    COALESCE(has_revancha, false) AS has_revancha,
                                    COALESCE(total_balotas_sorteo, 5) AS total_balotas_sorteo,
-                                   COALESCE(tiene_complementario, false) AS tiene_complementario
+                                   COALESCE(tiene_complementario, false) AS tiene_complementario,
+                                   COALESCE(tiene_reintegro, false) AS tiene_reintegro
                             FROM loterias
                             WHERE activa = true
                             ORDER BY nombre
