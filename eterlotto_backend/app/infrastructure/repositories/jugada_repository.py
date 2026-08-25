@@ -384,6 +384,18 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
+                cur.execute("""
+                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false)
+                    FROM loterias
+                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
+                    LIMIT 1;
+                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
+                lot_config = cur.fetchone()
+                max_sel = lot_config[0] if lot_config else None
+                max_rojas_cfg = lot_config[1] if lot_config else 0
+                tiene_comp_cfg = lot_config[2] if lot_config else False
+
                 cur.execute("""
                     SELECT column_name
                     FROM information_schema.columns
@@ -397,9 +409,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
                 balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
 
-                roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
-                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
+                # Si la lotería no tiene balota roja configurada, ignoramos cualquier columna balotaroja residual
+                if max_rojas_cfg > 0 or lot_config is None:
+                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
+                else:
+                    roja_cols = []
 
+                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
@@ -407,7 +423,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.{first_balota} <> 0
+                    WHERE r.{first_balota} IS NOT NULL
                     ORDER BY r.fecha DESC
                     LIMIT 10;
                 """
@@ -420,8 +436,18 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 results = []
                 for r in rows:
                     fecha = r[0]
-                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] > 0]
+                    # Permite números >= 0 (para soportar reintegros o balotas 0 válidas)
+                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
+                    if max_sel is not None:
+                        limite = max_sel + (1 if tiene_comp_cfg else 0)
+                        numeros = numeros[:limite]
+
                     balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    if max_rojas_cfg > 0:
+                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
+                    else:
+                        balotas_rojas = []
+
                     sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
                     jackpot = r[1 + num_balotas + num_rojas + 1]
                     results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
@@ -433,6 +459,18 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         loteria_nombre = tabla.replace("resultados_", "")
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
+                cur.execute("""
+                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false)
+                    FROM loterias
+                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
+                    LIMIT 1;
+                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
+                lot_config = cur.fetchone()
+                max_sel = lot_config[0] if lot_config else None
+                max_rojas_cfg = lot_config[1] if lot_config else 0
+                tiene_comp_cfg = lot_config[2] if lot_config else False
+
                 cur.execute("""
                     SELECT column_name
                     FROM information_schema.columns
@@ -446,9 +484,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
                 balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
 
-                roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
-                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
+                # Si la lotería no tiene balota roja configurada, ignoramos cualquier columna balotaroja residual
+                if max_rojas_cfg > 0 or lot_config is None:
+                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
+                else:
+                    roja_cols = []
 
+                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
@@ -456,7 +498,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.{first_balota} <> 0
+                    WHERE r.{first_balota} IS NOT NULL
                     ORDER BY r.fecha DESC;
                 """
                 cur.execute(query)
@@ -468,8 +510,17 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 results = []
                 for r in rows:
                     fecha = r[0]
-                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] > 0]
+                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
+                    if max_sel is not None:
+                        limite = max_sel + (1 if tiene_comp_cfg else 0)
+                        numeros = numeros[:limite]
+
                     balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= 0]
+                    if max_rojas_cfg > 0:
+                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
+                    else:
+                        balotas_rojas = []
+
                     sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
                     jackpot = r[1 + num_balotas + num_rojas + 1]
                     results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
