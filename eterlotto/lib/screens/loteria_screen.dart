@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/screens/estadisticas_dashboard_screen.dart';
 import 'package:eterlotto/screens/jugadas/mis_jugadas_screen.dart';
+import 'package:eterlotto/screens/resultados/historico_resultados_screen.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -28,6 +29,7 @@ class LoteriaConfig {
   final bool hasRevancha;
   final int totalBalotasSorteo;
   final bool tieneComplementario;
+  final bool tieneReintegro;
 
   const LoteriaConfig({
     required this.nombre,
@@ -39,6 +41,7 @@ class LoteriaConfig {
     this.hasRevancha = false,
     this.totalBalotasSorteo = 5,
     this.tieneComplementario = false,
+    this.tieneReintegro = false,
   });
 
   bool get tieneBalotaRoja => maxBalotasRojas > 0;
@@ -53,6 +56,7 @@ class LoteriaConfig {
     bool? hasRevancha,
     int? totalBalotasSorteo,
     bool? tieneComplementario,
+    bool? tieneReintegro,
   }) {
     return LoteriaConfig(
       nombre: nombre ?? this.nombre,
@@ -64,6 +68,7 @@ class LoteriaConfig {
       hasRevancha: hasRevancha ?? this.hasRevancha,
       totalBalotasSorteo: totalBalotasSorteo ?? this.totalBalotasSorteo,
       tieneComplementario: tieneComplementario ?? this.tieneComplementario,
+      tieneReintegro: tieneReintegro ?? this.tieneReintegro,
     );
   }
 
@@ -100,6 +105,9 @@ class LoteriaConfig {
     final tieneComp = json["tiene_complementario"] == true ||
         json["tieneComplementario"] == true;
 
+    final tieneReintegro = json["tiene_reintegro"] == true ||
+        json["tieneReintegro"] == true;
+
     final int totalSorteoFallback = (maxSel ?? 5) + ((maxRojas ?? 0) > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
     final totalSorteo = json["total_balotas_sorteo"] != null
         ? int.tryParse(json["total_balotas_sorteo"].toString())
@@ -117,6 +125,7 @@ class LoteriaConfig {
       hasRevancha: revancha,
       totalBalotasSorteo: totalSorteo ?? totalSorteoFallback,
       tieneComplementario: tieneComp,
+      tieneReintegro: tieneReintegro,
     );
   }
 
@@ -132,6 +141,7 @@ class LoteriaConfig {
         : "Lotería";
 
     final tieneComp = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
+    final tieneReintegro = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("el_gordo");
     final int maxSel = (cleanRoute.contains("kabala") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") || cleanRoute.contains("duplasena") || cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams") || cleanRoute.contains("megasena") || cleanRoute.contains("maismilionaria") || cleanRoute.contains("melate")) ? 6 : 5;
     final int maxRojas = (cleanRoute.contains("ganadiario") || cleanRoute.contains("kabala") || cleanRoute.contains("duplasena") || cleanRoute.contains("quina") || cleanRoute.contains("chispazo") || cleanRoute.contains("mloto") || cleanRoute.contains("cloto") || cleanRoute.contains("megasena")) ? 0 : (cleanRoute.contains("maismilionaria") ? 6 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : 10)))));
     final int maxBlancas = cleanRoute.contains("quina") ? 80 : (cleanRoute.contains("megasena") ? 60 : (cleanRoute.contains("duplasena") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("kabala") ? 40 : (cleanRoute.contains("ganadiario") ? 35 : (cleanRoute.contains("chispazo") ? 28 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : (cleanRoute.contains("maismilionaria") ? 50 : 45)))))))));
@@ -149,6 +159,7 @@ class LoteriaConfig {
       hasRevancha: hasRev,
       totalBalotasSorteo: totalSorteo,
       tieneComplementario: tieneComp,
+      tieneReintegro: tieneReintegro,
     );
   }
 
@@ -1680,6 +1691,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               l10n,
               listaResultados: listToShow.isNotEmpty ? listToShow : ultimosResultados,
             ),
+            _buildVerMasButton(l10n),
           ],
         ),
       );
@@ -1701,7 +1713,60 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           ),
           const SizedBox(height: 16),
           _buildResultadosContent(config.nombre, l10n),
+          _buildVerMasButton(l10n),
         ],
+      ),
+    );
+  }
+
+  Widget _buildVerMasButton(AppLocalizations? l10n) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 14.0),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HistoricoResultadosScreen(
+                config: config,
+                sorteosDisponibles: _sorteosDisponibles,
+                initialSorteo: _selectedResultadosTab,
+              ),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 16),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: AppColors.yellow.withValues(alpha: 0.35),
+              width: 0.8,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                l10n?.verMasResultados ?? "Ver más resultados (50)",
+                style: GoogleFonts.montserrat(
+                  color: AppColors.yellow,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.arrow_forward_ios,
+                size: 12,
+                color: AppColors.yellow,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1802,9 +1867,16 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 final fecha = resultado["fecha"] ?? "S/F";
                 final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
                 final int limiteBalotas = config.totalBalotasSorteo > 0 ? config.totalBalotasSorteo : 20;
+                final bool isReintegro = config.tieneReintegro;
                 final numeros = rawNumeros
                     .map((e) => int.tryParse(e.toString()) ?? -1)
-                    .where((e) => e >= 0)
+                    .whereIndexed((index, n) {
+                      if (n < 0) return false;
+                      if (n == 0 && index >= config.maxSeleccion && !isReintegro) {
+                        return false;
+                      }
+                      return true;
+                    })
                     .take(limiteBalotas)
                     .toList();
 

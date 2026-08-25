@@ -9,6 +9,16 @@
   "ultimosResultados": "Últimos 5 resultados",
   "ultimosResultadosBaloto": "Últimos 5 resultados Baloto",
   "ultimosResultadosRevancha": "Últimos 5 resultados Baloto Revancha",
+  "verMasResultados": "Ver mais resultados (50)",
+  "historicoResultadosTitulo": "Histórico de Resultados",
+  "ultimos50Resultados": "Últimos 50 sorteios de {loteria}",
+  "@ultimos50Resultados": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
   "tusNumerosSuerte": "Seus números da sorte",
   "generar": "Gerar",
   "guardar": "Salvar",
