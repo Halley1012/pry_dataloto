@@ -1,4 +1,4 @@
-﻿import 'dart:math';
+import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -1714,9 +1714,12 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     final resultadosUsar = listaResultados ?? ultimosResultados;
     final int maxBallsInResults = resultadosUsar.isNotEmpty
         ? resultadosUsar
-            .map((r) => (r["numeros"] as List<dynamic>? ?? []).length)
+            .map((r) => (r["numeros"] as List<dynamic>? ?? [])
+                .map((e) => int.tryParse(e.toString()) ?? -1)
+                .where((n) => n > 0)
+                .length)
             .fold(0, (max, len) => len > max ? len : max)
-        : 5;
+        : config.totalBalotasSorteo;
 
     // Configuración adaptativa según la cantidad de balotas de la lotería
     final double dateWidth;
@@ -1727,28 +1730,28 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
     if (maxBallsInResults <= 5) {
       dateWidth = 88.0;
-      dateFontSize = 15.0;
+      dateFontSize = 14.5;
       defaultBallSize = 35.0;
-      ballSpacing = 5.5;
+      ballSpacing = 5.0;
       rowPaddingVertical = 2.5;
     } else if (maxBallsInResults == 6) {
       dateWidth = 84.0;
-      dateFontSize = 14.0;
-      defaultBallSize = 34.0;
-      ballSpacing = 3.5;
+      dateFontSize = 13.5;
+      defaultBallSize = 33.0;
+      ballSpacing = 3.0;
       rowPaddingVertical = 2.5;
     } else if (maxBallsInResults == 7) {
-      dateWidth = 88.0;
-      dateFontSize = 14.0;
-      defaultBallSize = 31.0;
+      dateWidth = 82.0;
+      dateFontSize = 13.0;
+      defaultBallSize = 30.0;
       ballSpacing = 2.0;
       rowPaddingVertical = 2.5;
     } else {
-      // 8 o más balotas (La Primitiva, Bonoloto, etc.)
-      dateWidth = 85.0;
-      dateFontSize = 14.0;
-      defaultBallSize = 28.0;
-      ballSpacing = 1.8;
+      // 8 o más balotas (La Primitiva, Bonoloto, +Milionária, etc.)
+      dateWidth = 80.0;
+      dateFontSize = 12.5;
+      defaultBallSize = 27.0;
+      ballSpacing = 1.5;
       rowPaddingVertical = 2.5;
     }
 
@@ -1790,9 +1793,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               ...resultadosUsar.take(5).map((resultado) {
                 final fecha = resultado["fecha"] ?? "S/F";
                 final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
+                final int limiteBalotas = config.totalBalotasSorteo > 0 ? config.totalBalotasSorteo : 20;
                 final numeros = rawNumeros
                     .map((e) => int.tryParse(e.toString()) ?? -1)
                     .where((e) => e >= 0)
+                    .take(limiteBalotas)
                     .toList();
 
                 return Padding(
@@ -1819,7 +1824,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                             final double calculatedSize = totalBalls > 0
                                 ? ((constraints.maxWidth - (totalBalls * ballSpacing * 2)) / totalBalls)
                                 : defaultBallSize;
-                            final double ballSize = calculatedSize.clamp(18.0, defaultBallSize);
+                            final double ballSize = calculatedSize.clamp(16.0, defaultBallSize);
 
                             return Center(
                               child: FittedBox(
@@ -1838,8 +1843,12 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                                       : List.generate(numeros.length, (index) {
                                           final n = numeros[index];
                                           final bool isLastBall = index == numeros.length - 1;
-                                          final bool isSpecial = config.tieneBalotaRoja && isLastBall && numeros.length > config.maxSeleccion;
-                                          final bool isComp = config.tieneComplementario && index == config.maxSeleccion && numeros.length > config.maxSeleccion + 1;
+                                          final bool isComp = config.tieneComplementario &&
+                                              numeros.length > config.maxSeleccion &&
+                                              index == config.maxSeleccion;
+                                          final bool isSpecial = config.tieneBalotaRoja &&
+                                              numeros.length > config.maxSeleccion &&
+                                              (index >= config.maxSeleccion + (config.tieneComplementario ? 1 : 0) || isLastBall);
                                           final Color ballColor = isSpecial
                                               ? const Color(0xFFB91C1C)
                                               : (isComp ? const Color(0xFF0D9488) : Colors.amber);
@@ -1866,7 +1875,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     ],
                   ),
                 );
-              }),
+              }).toList(),
             ],
           ),
       ],

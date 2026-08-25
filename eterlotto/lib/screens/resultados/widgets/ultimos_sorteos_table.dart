@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
@@ -81,9 +81,16 @@ class UltimosSorteosTable extends StatelessWidget {
           // Filas Tabla
           Column(
             children: listToRender.map((item) {
-              final nums = item["nums"] as List<int>;
-              final red = item["red"] as int?;
-              final Color coverageColor = item["color"] as Color;
+              final rawNums = (item["nums"] as List<dynamic>? ?? []);
+              final nums = rawNums
+                  .map((e) => int.tryParse(e.toString()) ?? -1)
+                  .where((n) => n >= 0)
+                  .toList();
+              final rawRed = item["red"];
+              final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0)
+                  ? int.parse(rawRed.toString())
+                  : null;
+              final Color coverageColor = item["color"] as Color? ?? Colors.amber;
 
               final bool tieneComp = tieneComplementario || (nums.length > maxSeleccion);
               final List<int> mainBalls = nums.length > maxSeleccion
