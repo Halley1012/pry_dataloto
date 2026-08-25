@@ -90,6 +90,7 @@ class LoteriaOut(BaseModel):
     has_revancha: Optional[bool] = False
     total_balotas_sorteo: Optional[int] = 5
     tiene_complementario: Optional[bool] = False
+    tiene_reintegro: Optional[bool] = False
     jackpot: Optional[str] = None
 
 class PublicidadQuery:
