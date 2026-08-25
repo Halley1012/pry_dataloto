@@ -80,7 +80,11 @@ class UltimosSorteosTable extends StatelessWidget {
 
           // Filas Tabla
           Column(
-            children: listToRender.map((item) {
+            children: listToRender.where((item) {
+              final raw = (item["nums"] as List<dynamic>? ?? []);
+              final p = raw.map((e) => int.tryParse(e.toString()) ?? 0).toList();
+              return p.any((n) => n > 0);
+            }).map((item) {
               final rawNums = (item["nums"] as List<dynamic>? ?? []);
               final nums = rawNums
                   .map((e) => int.tryParse(e.toString()) ?? -1)
