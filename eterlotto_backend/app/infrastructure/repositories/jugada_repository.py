@@ -423,7 +423,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.{first_balota} IS NOT NULL
+                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC
                     LIMIT 10;
                 """
@@ -498,7 +498,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
-                    WHERE r.{first_balota} IS NOT NULL
+                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC;
                 """
                 cur.execute(query)
