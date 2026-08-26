@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core import config
 from app.infrastructure import db_connection
 from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepository
-from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications
+from app.infrastructure.repositories.user_repository import PostgresUserRepository
+from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications, subscriptions
 
 app = FastAPI(title="Eterlotto Backend")
 
@@ -22,6 +23,7 @@ async def startup():
     try:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            await PostgresUserRepository.ensure_schema(conn)
             await PostgresJugadaRepository.ensure_schema(conn)
     except Exception as e:
         print(f"⚠️ Advertencia inicializando esquema en startup: {e}")
@@ -51,6 +53,7 @@ app.include_router(transacciones.router)
 app.include_router(metadata.router)
 app.include_router(notifications.router)
 app.include_router(jugadas.router)
+app.include_router(subscriptions.router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
