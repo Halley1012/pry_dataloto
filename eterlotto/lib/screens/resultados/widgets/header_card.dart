@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 
@@ -22,7 +22,11 @@ class HeaderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final parts = PaisHelper.getJackpotParts(jackpot, fallbackValue: "--");
+    final parts = PaisHelper.getJackpotParts(
+      jackpot,
+      loteriaRoute: selectedLoteria,
+      fallbackValue: "--",
+    );
     String label = parts["label"] ?? "";
     
     // Aplicar localización a la etiqueta "millones" según formato

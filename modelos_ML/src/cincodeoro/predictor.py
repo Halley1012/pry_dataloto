@@ -18,7 +18,7 @@ class CincoDeOroPredictor:
         self.loteria_route = '5deoro'
 
     def cargar_datos(self) -> pd.DataFrame:
-        query = "SELECT * FROM resultados_5deoro ORDER BY fecha ASC;"
+        query = "SELECT * FROM resultados_5deoro WHERE sorteo = '5 de Oro' ORDER BY fecha ASC;"
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn)
         return df
