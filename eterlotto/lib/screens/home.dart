@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
@@ -23,6 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/widgets/banner_ad_widget.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -893,7 +894,13 @@ class _HomeScreenState extends State<HomeScreen> {
       },
       child: Scaffold(
         backgroundColor: AppColors.blackfondo,
-        bottomNavigationBar: _buildBottomNavBar(),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const BannerAdWidget(),
+            _buildBottomNavBar(),
+          ],
+        ),
         body: IndexedStack(
           index: _selectedIndex,
           children: [

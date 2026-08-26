@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -85,6 +85,12 @@ class ApiService {
             );
           }
 
+          final isPremium = user?["is_premium"] == true;
+          await _storage.write(
+            key: "is_premium_subscribed",
+            value: isPremium ? "true" : "false",
+          );
+
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
 
@@ -99,6 +105,7 @@ class ApiService {
             'pais_nombre': paisNombre,
             'departamento_id': departamentoId?.toString(),
             'departamento_nombre': departamentoNombre,
+            'is_premium': isPremium,
           };
         }
 
@@ -1500,4 +1507,63 @@ class ApiService {
       throw Exception("Error al obtener histórico ($cleanRoute): ${response.statusCode}");
     }
   }
+
+  /// 💎 Confirmar y registrar suscripción en la base de datos
+  static Future<Map<String, dynamic>> confirmSubscription({
+    required String productId,
+    String? purchaseToken,
+    String? orderId,
+  }) async {
+    try {
+      final userIdStr = await getUserId();
+      if (userIdStr == null) {
+        return {'success': false, 'error': 'Usuario no autenticado'};
+      }
+
+      final response = await post("/subscriptions/confirm", {
+        "user_id": int.parse(userIdStr.toString()),
+        "product_id": productId,
+        "purchase_token": purchaseToken,
+        "order_id": orderId,
+        "status": "active",
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        await _storage.write(key: "is_premium_subscribed", value: "true");
+        return {'success': true, 'data': data};
+      } else {
+        return {
+          'success': false,
+          'error': 'Error del servidor: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// 💎 Consultar estado VIP del usuario desde la base de datos
+  static Future<bool> checkSubscriptionStatus() async {
+    try {
+      final userIdStr = await getUserId();
+      if (userIdStr == null) return false;
+
+      final response = await get("/subscriptions/status/$userIdStr");
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final bool isPremium = data["is_premium"] == true;
+        await _storage.write(
+          key: "is_premium_subscribed",
+          value: isPremium ? "true" : "false",
+        );
+        return isPremium;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("Error verificando suscripción con backend: $e");
+      return false;
+    }
+  }
 }
+

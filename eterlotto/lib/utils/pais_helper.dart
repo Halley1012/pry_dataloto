@@ -144,7 +144,7 @@ class PaisHelper {
     if (raw.contains("ARS")) return "ARS";
     if (raw.contains("CLP")) return "CLP";
     if (raw.contains("PYG")) return "PYG";
-    if (raw.contains("CRC")) return "CRC";
+    if (raw.contains("CRC") || raw.contains("₡")) return "CRC";
     if (raw.contains("DOP")) return "DOP";
     if (raw.contains("S/")) return "PEN";
 
@@ -158,7 +158,7 @@ class PaisHelper {
     if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("panama") || r.contains("panamá") || r.contains("ecuador")) return "USD";
     if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus")) return "ARS";
     if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "CLP";
-    if (r.contains("costa_rica") || r.contains("costa rica")) return "CRC";
+    if (r.contains("lotto_cr") || r.contains("costa_rica") || r.contains("costa rica")) return "CRC";
     if (r.contains("dominicana") || r.contains("leidsa")) return "DOP";
     if (r.contains("paraguay")) return "PYG";
     if (r.contains("bolivia")) return "BOB";

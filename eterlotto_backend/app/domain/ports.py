@@ -36,6 +36,18 @@ class UserRepositoryPort(ABC):
     async def update_password(self, user_id: int, new_password_hashed: str) -> None:
         pass
 
+    @abstractmethod
+    async def set_premium(
+        self,
+        user_id: int,
+        is_premium: bool,
+        expires_at: Optional[datetime] = None,
+        order_id: Optional[str] = None,
+        purchase_token: Optional[str] = None,
+        product_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pass
+
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
