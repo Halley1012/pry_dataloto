@@ -863,29 +863,38 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                LotteryAvatar3D(nombre: config.nombre, size: 32),
-                const SizedBox(width: 10),
-                Text(
-                  config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
-                  style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
-                ),
-              ],
-            ),
-            const SizedBox(height: 15),
-            Text(
-              "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}",
-              style: AppTextStyles.caption,
-            ),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  LotteryAvatar3D(nombre: config.nombre, size: 32),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
+                      style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}",
+                style: AppTextStyles.caption,
+              ),
+            ],
+          ),
         ),
+        const SizedBox(width: 10),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          constraints: const BoxConstraints(minWidth: 105),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(12),
@@ -895,30 +904,43 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             builder: (context) {
               final parts = PaisHelper.getJackpotParts(
                 _jackpot,
+                loteriaRoute: config.route,
                 fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty) ? _jackpot! : "--",
               );
               final displayVal = parts["value"]!.isNotEmpty ? parts["value"]! : "--";
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     l10n?.jackpotEstimado ?? "Jackpot estimado",
-                    style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9),
+                    style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9.5),
+                    maxLines: 1,
                   ),
-                  Text(
-                    displayVal,
-                    style: AppTextStyles.h2.copyWith(
-                      color: AppColors.yellow,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                  const SizedBox(height: 2),
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: Text(
+                      displayVal,
+                      style: AppTextStyles.h2.copyWith(
+                        color: AppColors.yellow,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                      maxLines: 1,
                     ),
                   ),
-                  if (parts["label"]!.isNotEmpty)
+                  if (parts["label"]!.isNotEmpty) ...[
+                    const SizedBox(height: 1),
                     Text(
                       parts["label"]!,
-                      style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9),
+                      style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9.5),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                  ],
                 ],
               );
             },
@@ -1731,6 +1753,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 config: config,
                 sorteosDisponibles: _sorteosDisponibles,
                 initialSorteo: _selectedResultadosTab,
+                initialResultados: todosResultadosHistorico,
               ),
             ),
           );
