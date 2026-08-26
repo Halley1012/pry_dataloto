@@ -9,9 +9,9 @@
   "ultimosResultados": "Last 5 results",
   "ultimosResultadosBaloto": "Last 5 Baloto results",
   "ultimosResultadosRevancha": "Last 5 Baloto Revancha results",
-  "verMasResultados": "See more results (50)",
+  "verMasResultados": "See full draw history",
   "historicoResultadosTitulo": "Results History",
-  "ultimos50Resultados": "Last 50 draws of {loteria}",
+  "ultimos50Resultados": "Draw history of {loteria}",
   "@ultimos50Resultados": {
     "placeholders": {
       "loteria": {

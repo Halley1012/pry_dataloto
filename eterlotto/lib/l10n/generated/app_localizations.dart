@@ -157,7 +157,7 @@ abstract class AppLocalizations {
   /// No description provided for @verMasResultados.
   ///
   /// In es, this message translates to:
-  /// **'Ver más resultados (50)'**
+  /// **'Ver historial completo de resultados'**
   String get verMasResultados;
 
   /// No description provided for @historicoResultadosTitulo.
@@ -169,7 +169,7 @@ abstract class AppLocalizations {
   /// No description provided for @ultimos50Resultados.
   ///
   /// In es, this message translates to:
-  /// **'Últimos 50 sorteos de {loteria}'**
+  /// **'Historial de sorteos de {loteria}'**
   String ultimos50Resultados(String loteria);
 
   /// No description provided for @tusNumerosSuerte.

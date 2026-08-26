@@ -24,6 +24,7 @@ import 'package:eterlotto/providers/notification_provider.dart';
 import '../utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
+import 'package:shimmer/shimmer.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -1029,7 +1030,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHomeTab() {
     return SafeArea(
       child: RefreshIndicator(
-        color: Colors.amber,
+        color: Colors.transparent,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         onRefresh: () async {
           await Future.wait([
             _loadUserData(),
@@ -1040,20 +1043,26 @@ class _HomeScreenState extends State<HomeScreen> {
           ]);
         },
         child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isLoading && _loterias.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: LinearProgressIndicator(
+                    backgroundColor: Color(0xFF1E2029),
+                    color: AppColors.yellow,
+                    minHeight: 2.5,
+                  ),
+                ),
               _buildHeaderRow(context),
               _buildWelcomeGreeting(),
               _buildCountryHeader(),
               _buildSearchBar(),
               
               if (isLoading && _loterias.isEmpty)
-                const Center(child: Padding(
-                  padding: EdgeInsets.all(20.0),
-                  child: CircularProgressIndicator(color: AppColors.yellow),
-                ))
+                _buildHomeSkeleton()
               else if (_filteredLoterias.isEmpty) ...[
                 _buildEmptyLoteriasState(),
                 if (_globalLoterias.isNotEmpty) ...[
@@ -1071,8 +1080,18 @@ class _HomeScreenState extends State<HomeScreen> {
               // SECCIÓN DE PUBLICIDAD (SE MANTIENE)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: cargando
-                    ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                child: cargando && anuncios.isEmpty
+                    ? Shimmer.fromColors(
+                        baseColor: const Color(0xFF1A1A1A),
+                        highlightColor: const Color(0xFF2C2C2C),
+                        child: Container(
+                          height: 140,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      )
                     : anuncios.isEmpty
                     ? const SizedBox.shrink()
                     : Column(
@@ -1124,7 +1143,23 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 10),
                     AppContainer4(
                       child: isLoading && posts.isEmpty
-                          ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                          ? Shimmer.fromColors(
+                              baseColor: const Color(0xFF1A1A1A),
+                              highlightColor: const Color(0xFF2C2C2C),
+                              child: Column(
+                                children: List.generate(
+                                  3,
+                                  (index) => Container(
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
                           : posts.isEmpty
                           ? Center(child: Text(AppLocalizations.of(context)?.sinPosts ?? "No hay posts", style: const TextStyle(color: AppColors.yellow)))
                           : SizedBox(
@@ -1279,5 +1314,59 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
     return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Lotería");
+  }
+
+  Widget _buildHomeSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          // Populares carousel skeleton
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            child: Row(
+              children: List.generate(
+                3,
+                (index) => Container(
+                  width: 150,
+                  height: 180,
+                  margin: const EdgeInsets.only(right: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Grid skeleton
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 4,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 1.1,
+            ),
+            itemBuilder: (context, index) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 }

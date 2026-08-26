@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
@@ -8,6 +8,7 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/screens/resultados_dashboard_screen.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:shimmer/shimmer.dart';
 
 
 
@@ -224,11 +225,24 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       backgroundColor: AppColors.blackfondo,
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.yellow,
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           onRefresh: () => cargarLoterias(forceRefresh: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
+              if (_isLoading && _loterias.isNotEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0xFF1E2029),
+                      color: AppColors.yellow,
+                      minHeight: 2.5,
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
@@ -242,12 +256,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                 child: _buildSearchBar(l10n),
               ),
               if (_isLoading && _loterias.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: CircularProgressIndicator(color: AppColors.yellow),
-                  ),
-                )
+                _buildSliverSkeletonList()
               else if (_filteredLoterias.isEmpty)
                 SliverToBoxAdapter(
                   child: _buildEmptyState(l10n),
@@ -561,6 +570,32 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         builder: (_) => ResultadosDashboardScreen(
           loteriaNombreInicial: loteria["nombre"] ?? "Lotería",
           loteriaData: loteria,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSliverSkeletonList() {
+    return SliverToBoxAdapter(
+      child: Shimmer.fromColors(
+        baseColor: const Color(0xFF1A1A1A),
+        highlightColor: const Color(0xFF2C2C2C),
+        period: const Duration(milliseconds: 1400),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: List.generate(
+              6,
+              (index) => Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

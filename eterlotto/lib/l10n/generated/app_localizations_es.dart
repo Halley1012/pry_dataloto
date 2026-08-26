@@ -38,14 +38,14 @@ class AppLocalizationsEs extends AppLocalizations {
       'Últimos 5 resultados Baloto Revancha';
 
   @override
-  String get verMasResultados => 'Ver más resultados (50)';
+  String get verMasResultados => 'Ver historial completo de resultados';
 
   @override
   String get historicoResultadosTitulo => 'Historial de Resultados';
 
   @override
   String ultimos50Resultados(String loteria) {
-    return 'Últimos 50 sorteos de $loteria';
+    return 'Historial de sorteos de $loteria';
   }
 
   @override
