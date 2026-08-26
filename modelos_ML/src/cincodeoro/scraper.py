@@ -22,12 +22,101 @@ class CincoDeOroScraper:
         self.base_url = "https://www.combinacionganadora.com/uy/5-de-oro/resultados"
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """Sorteos de 5 de Oro: Miércoles (2) y Domingos (6)."""
-        dias_validos = {2, 6}
-        candidate = ultima_fecha_real + timedelta(days=1)
-        while candidate.weekday() not in dias_validos:
+        """Sorteos de 5 de Oro: Miércoles (2) y Domingos (6).
+        Calcula la próxima fecha de sorteo válida que sea >= a hoy y posterior a la última fecha real.
+        """
+        dias_validos = {2, 6} # Miércoles (2), Domingo (6)
+        hoy = datetime.now().date()
+        base = max(ultima_fecha_real, hoy)
+        
+        if hoy.weekday() in dias_validos and ultima_fecha_real < hoy:
+            return hoy
+            
+        candidate = base + timedelta(days=1)
+        while candidate.weekday() not in dias_validos or candidate <= ultima_fecha_real:
             candidate += timedelta(days=1)
         return candidate
+
+    def extraer_en_vivo_infouruguay(self) -> tuple:
+        """Extrae los últimos sorteos en vivo y la fecha/pozo oficial de InfoUruguay."""
+        print("➡️ Consultando fuente en vivo de InfoUruguay...")
+        live_draws = []
+        fecha_proximo_oficial = None
+        pozo_oficial = None
+
+        try:
+            r = requests.post("https://www.infouruguay.com.uy/RES_5_ORO.php", data="5 DE ORO", headers=self.headers, timeout=10, verify=False)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                spans = soup.find_all("span", style=re.compile(r"font-size:18px"))
+
+                # 1. Extraer fecha del último sorteo
+                m_fecha = re.search(r'([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text)
+                if m_fecha and len(spans) >= 3:
+                    dia, mes, anio = m_fecha.group(2), m_fecha.group(3), m_fecha.group(4)
+                    fecha_ult_str = f"{anio}-{int(mes):02d}-{int(dia):02d}"
+
+                    # Extraer números 5 de Oro
+                    oro_txt = spans[0].get_text(strip=True)
+                    oro_nums = [int(n) for n in re.findall(r'\d+', oro_txt)]
+                    extra_num = int(re.search(r'\d+', spans[1].get_text(strip=True)).group(0)) if re.search(r'\d+', spans[1].get_text(strip=True)) else 0
+
+                    # Extraer números Revancha
+                    rev_txt = spans[2].get_text(strip=True)
+                    rev_nums = [int(n) for n in re.findall(r'\d+', rev_txt)]
+
+                    if len(oro_nums) == 5:
+                        oro_sorted = sorted(oro_nums)
+                        live_draws.append({
+                            "sorteo": "5 de Oro",
+                            "fecha": fecha_ult_str,
+                            "balota1": oro_sorted[0],
+                            "balota2": oro_sorted[1],
+                            "balota3": oro_sorted[2],
+                            "balota4": oro_sorted[3],
+                            "balota5": oro_sorted[4],
+                            "balotaroja": extra_num
+                        })
+
+                    if len(rev_nums) == 5:
+                        rev_sorted = sorted(rev_nums)
+                        live_draws.append({
+                            "sorteo": "Revancha",
+                            "fecha": fecha_ult_str,
+                            "balota1": rev_sorted[0],
+                            "balota2": rev_sorted[1],
+                            "balota3": rev_sorted[2],
+                            "balota4": rev_sorted[3],
+                            "balota5": rev_sorted[4],
+                            "balotaroja": 0
+                        })
+
+                    print(f"✅ Sorteo en vivo obtenido de InfoUruguay para fecha: {fecha_ult_str}")
+
+                # 2. Extraer fecha oficial del próximo sorteo (considera feriados nacionales como 25 de Agosto)
+                m_prox = re.search(r'Pozos estimados para el pr.*?ximo sorteo.*?>\s*([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text, re.DOTALL | re.IGNORECASE)
+                if m_prox:
+                    d_p, m_p, y_p = m_prox.group(2), m_prox.group(3), m_prox.group(4)
+                    fecha_proximo_oficial = f"{y_p}-{int(m_p):02d}-{int(d_p):02d}"
+                    print(f"📅 Fecha oficial del próximo sorteo detectada: {fecha_proximo_oficial}")
+
+                # 3. Extraer pozo acumulado para el próximo sorteo
+                prox_section = re.search(r'Pozos estimados para el pr.*?ximo sorteo(.*?)RESULTADOS ANTERIORES', r.text, re.DOTALL | re.IGNORECASE)
+                if prox_section:
+                    sec_text = prox_section.group(1)
+                    m_pozo_oro = re.search(r'Pozo de Oro:\s*<strong>\s*\$\s*([0-9\.,]+)\s*</strong>', sec_text)
+                    m_pozo_rev = re.search(r'Pozo Revancha:\s*<strong>\s*\$\s*([0-9\.,]+)\s*</strong>', sec_text)
+                    if m_pozo_oro and m_pozo_rev:
+                        oro_val = int(m_pozo_oro.group(1).replace('.', '').replace(',', ''))
+                        rev_val = int(m_pozo_rev.group(1).replace('.', '').replace(',', ''))
+                        total_pozo = oro_val + rev_val
+                        pozo_oficial = f"$ {total_pozo:,}".replace(',', '.')
+                    elif m_pozo_oro:
+                        pozo_oficial = f"$ {m_pozo_oro.group(1).replace(' ', '')}"
+        except Exception as e:
+            print(f"⚠️ Error consultando InfoUruguay: {e}")
+
+        return live_draws, fecha_proximo_oficial, pozo_oficial
 
     def extraer_pozo_estimado(self) -> str:
         """Extrae el pozo acumulado para el próximo sorteo."""
@@ -48,8 +137,8 @@ class CincoDeOroScraper:
 
         return "$ 48.000.000"
 
-    def _parsear_sorteo_fecha(self, fecha_str: str) -> dict:
-        """Descarga y parsea el sorteo de una fecha específica."""
+    def _parsear_sorteo_fecha(self, fecha_str: str) -> list:
+        """Descarga y parsea el sorteo de una fecha específica retornando filas para 5 de Oro y Revancha."""
         url = f"{self.base_url}/{fecha_str}/"
         try:
             r = requests.get(url, headers=self.headers, timeout=6, verify=False)
@@ -81,22 +170,31 @@ class CincoDeOroScraper:
 
                     if len(main_balls) == 5:
                         main_sorted = sorted(main_balls)
-                        rev_sorted = sorted(rev_balls) if len(rev_balls) == 5 else [0, 0, 0, 0, 0]
-                        return {
-                            "sorteo": "5 de Oro",
-                            "fecha": fecha_str,
-                            "balota1": main_sorted[0],
-                            "balota2": main_sorted[1],
-                            "balota3": main_sorted[2],
-                            "balota4": main_sorted[3],
-                            "balota5": main_sorted[4],
-                            "balotaroja": extra_ball,
-                            "revancha1": rev_sorted[0],
-                            "revancha2": rev_sorted[1],
-                            "revancha3": rev_sorted[2],
-                            "revancha4": rev_sorted[3],
-                            "revancha5": rev_sorted[4]
-                        }
+                        items = [
+                            {
+                                "sorteo": "5 de Oro",
+                                "fecha": fecha_str,
+                                "balota1": main_sorted[0],
+                                "balota2": main_sorted[1],
+                                "balota3": main_sorted[2],
+                                "balota4": main_sorted[3],
+                                "balota5": main_sorted[4],
+                                "balotaroja": extra_ball
+                            }
+                        ]
+                        if len(rev_balls) == 5:
+                            rev_sorted = sorted(rev_balls)
+                            items.append({
+                                "sorteo": "Revancha",
+                                "fecha": fecha_str,
+                                "balota1": rev_sorted[0],
+                                "balota2": rev_sorted[1],
+                                "balota3": rev_sorted[2],
+                                "balota4": rev_sorted[3],
+                                "balota5": rev_sorted[4],
+                                "balotaroja": 0
+                            })
+                        return items
         except Exception:
             pass
         return None
@@ -118,9 +216,12 @@ class CincoDeOroScraper:
 
         for res in results:
             if res:
-                draws.append(res)
+                if isinstance(res, list):
+                    draws.extend(res)
+                else:
+                    draws.append(res)
 
-        print(f"📊 Sorteos procesados de 5 de Oro: {len(draws)}")
+        print(f"📊 Filas procesadas de 5 de Oro y Revancha: {len(draws)}")
         return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
@@ -156,34 +257,40 @@ class CincoDeOroScraper:
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de 5 de Oro y Revancha (Uruguay)...")
 
-        # 1. Obtener datos existentes en BD
+        # 1. Obtener datos en vivo de InfoUruguay (sorteo más reciente + fecha oficial de próximo sorteo + pozo)
+        live_draws, fecha_proximo_oficial, pozo_info = self.extraer_en_vivo_infouruguay()
+        pozo_oficial = pozo_info or self.extraer_pozo_estimado()
+
+        # 2. Obtener datos existentes en BD
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT * FROM resultados_5deoro WHERE balota1 > 0;"), conn)
+                df_existente = pd.read_sql(text("SELECT sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_5deoro WHERE balota1 > 0;"), conn)
         except Exception:
             pass
 
-        # 2. Descargar histórico y pozo estimado
-        pozo_oficial = self.extraer_pozo_estimado()
-
+        # 3. Descargar histórico concurrente
         if backfill or df_existente.empty or len(df_existente) < 50:
             df_scraped = self.extraer_historico_concurrente(max_draws=350)
         else:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
-        if df_scraped.empty and df_existente.empty:
+        # Combinar en vivo + existente + histórico
+        dfs_to_combine = []
+        if live_draws:
+            dfs_to_combine.append(pd.DataFrame(live_draws))
+        if not df_existente.empty and 'sorteo' in df_existente.columns:
+            dfs_to_combine.append(df_existente)
+        if not df_scraped.empty:
+            dfs_to_combine.append(df_scraped)
+
+        if not dfs_to_combine:
             print("❌ No se pudieron obtener resultados de 5 de Oro.")
             return
 
-        # 3. Combinar y limpiar
-        if not df_existente.empty:
-            df_combined = pd.concat([df_existente, df_scraped], ignore_index=True)
-        else:
-            df_combined = df_scraped
-
+        df_combined = pd.concat(dfs_to_combine, ignore_index=True)
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=False).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo']).sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         hoy_max = datetime.now().date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
@@ -192,29 +299,43 @@ class CincoDeOroScraper:
             print("❌ No hay datos válidos para procesar.")
             return
 
-        # 4. Calcular próximo sorteo
-        ultima_fecha_real = df_combined.iloc[0]['fecha']
-        proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
-        proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
-        print(f"📅 Fecha del próximo sorteo agregada para 5 de Oro: {proxima_fecha_str}")
+        # 4. Determinar fecha del próximo sorteo (usando la fecha oficial anunciada o cálculo automático)
+        df_real = df_combined[df_combined['balota1'] > 0]
+        ultima_fecha_real = df_real.iloc[0]['fecha']
 
-        # Fila placeholder en ceros
-        fila_proximo = {
-            "sorteo": "5 de Oro",
-            "fecha": proxima_fecha,
-            "balota1": 0,
-            "balota2": 0,
-            "balota3": 0,
-            "balota4": 0,
-            "balota5": 0,
-            "balotaroja": 0,
-            "revancha1": 0,
-            "revancha2": 0,
-            "revancha3": 0,
-            "revancha4": 0,
-            "revancha5": 0
-        }
-        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
+        if fecha_proximo_oficial:
+            proxima_fecha_str = fecha_proximo_oficial
+            proxima_fecha = datetime.strptime(fecha_proximo_oficial, "%Y-%m-%d").date()
+        else:
+            proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
+            proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
+
+        print(f"📅 Fecha del próximo sorteo oficial establecida para 5 de Oro: {proxima_fecha_str}")
+
+        # Filas placeholder en ceros idéntico a Baloto/Revancha
+        filas_proximo = [
+            {
+                "sorteo": "5 de Oro",
+                "fecha": proxima_fecha,
+                "balota1": 0,
+                "balota2": 0,
+                "balota3": 0,
+                "balota4": 0,
+                "balota5": 0,
+                "balotaroja": 0
+            },
+            {
+                "sorteo": "Revancha",
+                "fecha": proxima_fecha,
+                "balota1": 0,
+                "balota2": 0,
+                "balota3": 0,
+                "balota4": 0,
+                "balota5": 0,
+                "balotaroja": 0
+            }
+        ]
+        df_final = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
 
         # 5. Guardar en PostgreSQL
         dtypes = {
@@ -226,20 +347,15 @@ class CincoDeOroScraper:
             'balota4': Integer(),
             'balota5': Integer(),
             'balotaroja': Integer(),
-            'revancha1': Integer(),
-            'revancha2': Integer(),
-            'revancha3': Integer(),
-            'revancha4': Integer(),
-            'revancha5': Integer()
         }
 
         with self.engine.connect() as conn:
             df_final.to_sql('resultados_5deoro', conn, if_exists='replace', index=False, dtype=dtypes)
             conn.commit()
 
-        print(f"✅ Resultados de 5 de Oro guardados exitosamente! Total filas: {len(df_final)}")
+        print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas: {len(df_final)}")
         self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
 
 if __name__ == "__main__":
     scraper = CincoDeOroScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)

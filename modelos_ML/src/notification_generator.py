@@ -250,7 +250,7 @@ class NotificationGenerator:
                 "route": "5deoro",
                 "nombre": "5 de Oro",
                 "tabla_resultados": "resultados_5deoro",
-                "query_resultados": "SELECT * FROM resultados_5deoro WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "query_resultados": "SELECT * FROM resultados_5deoro WHERE sorteo = '5 de Oro' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1",
                 "mitad": 24,
                 "has_special": True,
                 "is_baloto": False,

@@ -10,16 +10,20 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/widgets/footer.dart';
 
+import 'package:eterlotto/services/cache_service.dart';
+
 class HistoricoResultadosScreen extends StatefulWidget {
   final LoteriaConfig config;
   final List<String> sorteosDisponibles;
   final String? initialSorteo;
+  final List<Map<String, dynamic>>? initialResultados;
 
   const HistoricoResultadosScreen({
     super.key,
     required this.config,
     this.sorteosDisponibles = const [],
     this.initialSorteo,
+    this.initialResultados,
   });
 
   @override
@@ -32,30 +36,92 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
 
+  List<String> get sorteosActivos {
+    final encontrados = _todosResultados
+        .map((r) => r["sorteo"]?.toString().trim())
+        .where((s) => s != null && s.isNotEmpty)
+        .toSet()
+        .cast<String>()
+        .toList();
+    if (encontrados.isNotEmpty) return encontrados;
+    return widget.sorteosDisponibles;
+  }
+
   @override
   void initState() {
     super.initState();
     _selectedSorteo = widget.initialSorteo ??
         (widget.sorteosDisponibles.isNotEmpty ? widget.sorteosDisponibles.first : widget.config.nombre);
+
+    // ⚡ Optimización Cache-First: Usar datos iniciales si vienen pre-cargados
+    if (widget.initialResultados != null && widget.initialResultados!.isNotEmpty) {
+      _todosResultados = widget.initialResultados!;
+      _isLoading = false;
+    }
+
     _cargarHistorico();
   }
 
   Future<void> _cargarHistorico() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+    final cacheKey = '${widget.config.route}_historico_completo';
 
+    // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
+    if (_todosResultados.isEmpty) {
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached != null && cached["resultados"] != null && mounted) {
+        final listCached = List<Map<String, dynamic>>.from(cached["resultados"]);
+        if (listCached.isNotEmpty) {
+          final encontrados = listCached
+              .map((r) => r["sorteo"]?.toString().trim())
+              .where((s) => s != null && s.isNotEmpty)
+              .toSet()
+              .cast<String>()
+              .toList();
+
+          setState(() {
+            _todosResultados = listCached;
+            _isLoading = false;
+            if (encontrados.isNotEmpty &&
+                !encontrados.any((s) => s.toLowerCase() == _selectedSorteo.toLowerCase())) {
+              _selectedSorteo = encontrados.first;
+            }
+          });
+        }
+      }
+    }
+
+    if (_todosResultados.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+
+    // 2. Revalidar en segundo plano con el servidor
     try {
       final list = await ApiService.getHistoricoCompleto(widget.config.route);
-      if (mounted) {
+      if (mounted && list.isNotEmpty) {
+        final encontrados = list
+            .map((r) => r["sorteo"]?.toString().trim())
+            .where((s) => s != null && s.isNotEmpty)
+            .toSet()
+            .cast<String>()
+            .toList();
+
         setState(() {
           _todosResultados = list;
           _isLoading = false;
+          if (encontrados.isNotEmpty &&
+              !encontrados.any((s) => s.toLowerCase() == _selectedSorteo.toLowerCase())) {
+            _selectedSorteo = encontrados.first;
+          }
         });
+
+        // Guardar en caché local
+        CacheService.setJson(cacheKey, {"resultados": list});
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted && _todosResultados.isEmpty) {
         setState(() {
           _errorMessage = e.toString();
           _isLoading = false;
@@ -65,14 +131,18 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   List<Map<String, dynamic>> _obtenerResultadosFiltrados() {
+    final disponibles = sorteosActivos;
     List<Map<String, dynamic>> baseList = _todosResultados;
 
-    if (widget.sorteosDisponibles.length > 1) {
-      baseList = _todosResultados
+    if (disponibles.length > 1) {
+      final filtrados = _todosResultados
           .where((r) =>
               (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
               _selectedSorteo.trim().toLowerCase())
           .toList();
+      if (filtrados.isNotEmpty) {
+        baseList = filtrados;
+      }
     }
 
     // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0
@@ -192,10 +262,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Selector de Sub-Sorteos (ej. Melate / Revancha / Revanchita / Baloto / Revancha)
-                    if (widget.sorteosDisponibles.length > 1) ...[
+                    // Selector de Sub-Sorteos (ej. Melate / Revancha / Revanchita / Baloto / Revancha / 5 de Oro / Revancha)
+                    if (sorteosActivos.length > 1) ...[
                       Row(
-                        children: widget.sorteosDisponibles.map((sorteo) {
+                        children: sorteosActivos.map((sorteo) {
                           final isSelected =
                               _selectedSorteo.toLowerCase() == sorteo.toLowerCase();
                           return Expanded(

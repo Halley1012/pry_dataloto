@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine
+from sqlalchemy.pool import NullPool
 from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env
@@ -24,8 +25,8 @@ if not all([PGHOST, PGDATABASE, PGUSER, PGPASSWORD]):
 connection_string = f'postgresql+psycopg2://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}?sslmode={PGSSLMODE}'
 engine = create_engine(
     connection_string,
-    pool_pre_ping=True,      # Verifica si la conexión sigue viva antes de usarla
-    pool_recycle=300         # Recicla conexiones cada 5 minutos
+    poolclass=NullPool,
+    pool_pre_ping=True
 )
 
 def get_engine():
