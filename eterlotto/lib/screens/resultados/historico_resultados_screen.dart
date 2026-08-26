@@ -1,7 +1,14 @@
+import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/screens/loteria_screen.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -9,8 +16,9 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/widgets/footer.dart';
-
 import 'package:eterlotto/services/cache_service.dart';
+import 'package:eterlotto/utils/screen_security_helper.dart';
+import 'package:shimmer/shimmer.dart';
 
 class HistoricoResultadosScreen extends StatefulWidget {
   final LoteriaConfig config;
@@ -50,6 +58,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   @override
   void initState() {
     super.initState();
+    ScreenSecurityHelper.enableSecureScreen();
     _selectedSorteo = widget.initialSorteo ??
         (widget.sorteosDisponibles.isNotEmpty ? widget.sorteosDisponibles.first : widget.config.nombre);
 
@@ -60,6 +69,12 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     }
 
     _cargarHistorico();
+  }
+
+  @override
+  void dispose() {
+    ScreenSecurityHelper.disableSecureScreen();
+    super.dispose();
   }
 
   Future<void> _cargarHistorico() async {
@@ -151,7 +166,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       if (rawNums.isEmpty) return false;
       final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
       return parsed.any((n) => n > 0);
-    }).take(50).toList();
+    }).toList();
   }
 
   Widget _build3DBall(
@@ -202,6 +217,216 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     );
   }
 
+  Widget _buildActionButton({
+    required dynamic icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    bool isEnabled = true,
+    double size = 42,
+  }) {
+    return InkWell(
+      onTap: isEnabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(size / 2),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: isEnabled
+                ? [color.withValues(alpha: 0.35), Colors.black]
+                : [Colors.white10, Colors.black],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            if (isEnabled) ...[
+              BoxShadow(
+                color: color.withValues(alpha: 0.35),
+                blurRadius: 7,
+                offset: const Offset(-1.5, -1.5),
+                spreadRadius: 0.5,
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.8),
+                blurRadius: 8,
+                offset: const Offset(3, 3),
+                spreadRadius: 1,
+              ),
+            ] else
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.5),
+                blurRadius: 4,
+                offset: const Offset(1, 1),
+              ),
+          ],
+          border: Border.all(
+            color: isEnabled ? color.withValues(alpha: 0.5) : Colors.white10,
+            width: 1.2,
+          ),
+        ),
+        child: Center(
+          child: icon is IconData
+              ? Icon(
+                  icon,
+                  color: isEnabled ? color : Colors.white24,
+                  size: size * 0.42,
+                )
+              : FaIcon(
+                  icon,
+                  color: isEnabled ? color : Colors.white24,
+                  size: size * 0.42,
+                ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _exportarPDF() async {
+    final listToShow = _obtenerResultadosFiltrados();
+    if (listToShow.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No hay resultados para exportar")),
+      );
+      return;
+    }
+
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        header: (pw.Context ctx) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text(
+                  "ETERLOTTO - ${widget.config.nombre.toUpperCase()}",
+                  style: pw.TextStyle(
+                    fontSize: 18,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.amber900,
+                  ),
+                ),
+                pw.Text(
+                  DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+                  style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 4),
+            pw.Text(
+              "Historial Completo de Resultados - Sorteo: $_selectedSorteo (${listToShow.length} sorteos)",
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.Divider(),
+            pw.SizedBox(height: 6),
+          ],
+        ),
+        footer: (pw.Context ctx) => pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(
+              "Generado desde Eterlotto App",
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+            ),
+            pw.Text(
+              "Página ${ctx.pageNumber} de ${ctx.pagesCount}",
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+            ),
+          ],
+        ),
+        build: (pw.Context ctx) => [
+          pw.TableHelper.fromTextArray(
+            headers: [
+              "#",
+              "Fecha",
+              "Resultados",
+              if (widget.config.maxBalotasRojas > 0 || widget.config.tieneComplementario)
+                widget.config.superbalotaNombre.isNotEmpty ? widget.config.superbalotaNombre : "Especial"
+            ],
+            data: listToShow.asMap().entries.map((entry) {
+              final index = entry.key + 1;
+              final r = entry.value;
+              final rawNums = (r["numeros"] as List<dynamic>? ?? []);
+              final nums = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
+              final rawRed = r["balotaroja"] ?? r["superbalota"] ?? r["comodin"] ?? r["reintegro"];
+              final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0) ? int.parse(rawRed.toString()) : null;
+
+              final mainBalls = nums.length > widget.config.maxSeleccion ? nums.sublist(0, widget.config.maxSeleccion) : nums;
+              final numbersStr = mainBalls.join(' - ');
+
+              final rowData = ["$index", r["fecha"].toString(), numbersStr];
+              if (widget.config.maxBalotasRojas > 0 || widget.config.tieneComplementario) {
+                rowData.add(red?.toString() ?? "-");
+              }
+              return rowData;
+            }).toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9.5),
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.amber800),
+            cellStyle: const pw.TextStyle(fontSize: 8.5),
+            cellHeight: 20,
+            cellAlignments: {
+              0: pw.Alignment.centerLeft,
+              1: pw.Alignment.centerLeft,
+              2: pw.Alignment.center,
+              3: pw.Alignment.center,
+            },
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: "Historial_${widget.config.nombre}_$_selectedSorteo.pdf",
+    );
+  }
+
+  Future<void> _exportarExcel() async {
+    final listToShow = _obtenerResultadosFiltrados();
+    if (listToShow.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No hay resultados para exportar")),
+      );
+      return;
+    }
+
+    final buffer = StringBuffer();
+    // UTF-8 BOM para que Excel abra acentos y símbolos correctamente
+    buffer.write('\uFEFF');
+    buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota");
+
+    for (int i = 0; i < listToShow.length; i++) {
+      final r = listToShow[i];
+      final rawNums = (r["numeros"] as List<dynamic>? ?? []);
+      final nums = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
+      final rawRed = r["balotaroja"] ?? r["superbalota"] ?? r["comodin"] ?? r["reintegro"];
+      final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0) ? int.parse(rawRed.toString()) : null;
+
+      final mainBalls = nums.length > widget.config.maxSeleccion ? nums.sublist(0, widget.config.maxSeleccion) : nums;
+      final numbersStr = mainBalls.join(' - ');
+      final specialStr = red?.toString() ?? "";
+
+      buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"');
+    }
+
+    final bytes = utf8.encode(buffer.toString());
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          Uint8List.fromList(bytes),
+          mimeType: 'text/csv',
+          name: 'Historial_${widget.config.nombre}_$_selectedSorteo.csv',
+        ),
+      ],
+      subject: 'Historial de Resultados ${widget.config.nombre} ($_selectedSorteo)',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -230,35 +455,82 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       ),
       child: Scaffold(
         backgroundColor: AppColors.blackfondo,
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            CustomSliverAppBar(
-              title: widget.config.nombre,
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Título y Subtítulo
-                    Text(
-                      l10n?.historicoResultadosTitulo ?? "Historial de Resultados",
-                      style: AppTextStyles.h2.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
+        body: RefreshIndicator(
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          onRefresh: _cargarHistorico,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              CustomSliverAppBar(
+                title: widget.config.nombre,
+              ),
+              if (_isLoading && _todosResultados.isNotEmpty)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0xFF1E2029),
+                      color: AppColors.yellow,
+                      minHeight: 2.5,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      l10n?.ultimos50Resultados(widget.config.nombre) ??
-                          "Últimos 50 sorteos de ${widget.config.nombre}",
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        color: Colors.white60,
-                        fontWeight: FontWeight.w500,
-                      ),
+                  ),
+                ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                    // Título, Subtítulo y Botones de Exportar
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                l10n?.historicoResultadosTitulo ?? "Historial de Resultados",
+                                style: AppTextStyles.h2.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                listToShow.isNotEmpty
+                                    ? "Todos los sorteos registrados (${listToShow.length} sorteos)"
+                                    : (l10n?.ultimos50Resultados(widget.config.nombre) ?? "Historial de ${widget.config.nombre}"),
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 13,
+                                  color: Colors.white60,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildActionButton(
+                              icon: Icons.picture_as_pdf,
+                              color: const Color(0xFFC026D3), // Fucsia/Púrpura estilo Mis Jugadas
+                              onPressed: _exportarPDF,
+                            ),
+                            const SizedBox(width: 8),
+                            _buildActionButton(
+                              icon: FontAwesomeIcons.fileExcel,
+                              color: const Color(0xFF10B981), // Verde Esmeralda Excel
+                              onPressed: _exportarExcel,
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
 
@@ -308,12 +580,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
                     // Estado de carga / error / lista de resultados
                     if (_isLoading)
-                      const Center(
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 60),
-                          child: CircularProgressIndicator(color: AppColors.yellow),
-                        ),
-                      )
+                      _buildSkeletonHistorico()
                     else if (_errorMessage != null)
                       Center(
                         child: Padding(
@@ -549,6 +816,28 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    ),
+  );
+  }
+
+  Widget _buildSkeletonHistorico() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: Column(
+        children: List.generate(
+          8,
+          (index) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
         ),
       ),
     );

@@ -8,6 +8,7 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:shimmer/shimmer.dart';
 
 class LoteriasPais extends StatefulWidget {
   const LoteriasPais({super.key});
@@ -141,11 +142,22 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       backgroundColor: const Color(0xFF121212),
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.yellow,
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           onRefresh: _cargarExplorarMundial,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (_isLoading && _loterias.isNotEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: LinearProgressIndicator(
+                    backgroundColor: Color(0xFF1E2029),
+                    color: AppColors.yellow,
+                    minHeight: 2.5,
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
                 child: Text(
@@ -156,7 +168,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
               _buildSearchBar(l10n),
               Expanded(
                 child: _isLoading && _loterias.isEmpty
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
+                  ? _buildSkeletonList()
                   : _buildLotteryList(l10n),
               ),
               _buildFooterButton(l10n),
@@ -433,5 +445,27 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       );
     }
     return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Baloto");
+  }
+
+  Widget _buildSkeletonList() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: 6,
+        itemBuilder: (context, index) {
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            height: 72,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          );
+        },
+      ),
+    );
   }
 }
