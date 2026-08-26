@@ -13,6 +13,9 @@ import 'resultados/widgets/resultados_tab_selector.dart';
 import 'resultados/widgets/ultimos_sorteos_table.dart';
 import 'resultados/widgets/header_card.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/styles/colores.dart';
+import 'package:eterlotto/utils/screen_security_helper.dart';
+import 'package:shimmer/shimmer.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -86,8 +89,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    ScreenSecurityHelper.enableSecureScreen();
     _selectedLoteria = widget.loteriaNombreInicial;
     _cargarDatosReales();
+  }
+
+  @override
+  void dispose() {
+    ScreenSecurityHelper.disableSecureScreen();
+    super.dispose();
   }
 
   String _getRouteForLoteria(String name) {
@@ -759,7 +769,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       backgroundColor: const Color(0xFF0D0E12),
       body: SafeArea(
         child: RefreshIndicator(
-          color: Colors.amber,
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           onRefresh: _cargarDatosReales,
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
@@ -768,21 +780,24 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 8.0),
-                  child: LinearProgressIndicator(
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8.0),
+                  child: const LinearProgressIndicator(
                     backgroundColor: Color(0xFF1E2029),
-                    color: Colors.amber,
-                    minHeight: 2,
+                    color: AppColors.yellow,
+                    minHeight: 2.5,
                   ),
                 ),
-              // 0. Encabezado Estilizado
-              HeaderCard(
-                selectedLoteria: _selectedLoteria,
-                fechaSorteo: _fechaSorteo,
-                jackpot: _jackpot,
-                canPop: canPop,
-              ),
+              if (_isLoading && _winningNums.isEmpty)
+                _buildSkeletonDashboard()
+              else ...[
+                // 0. Encabezado Estilizado
+                HeaderCard(
+                  selectedLoteria: _selectedLoteria,
+                  fechaSorteo: _fechaSorteo,
+                  jackpot: _jackpot,
+                  canPop: canPop,
+                ),
 
               // 1. Fila Superior: Números Ganadores + Cobertura del Resultado
               LayoutBuilder(
@@ -912,12 +927,76 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   },
                 ),
               ),
-              const SizedBox(height: 30),
+                const SizedBox(height: 30),
+              ],
             ],
           ),
         ),
       ),
     ),
   );
+  }
+
+  Widget _buildSkeletonDashboard() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Card Skeleton
+          Container(
+            width: double.infinity,
+            height: 90,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Winning Numbers Card Skeleton
+          Container(
+            width: double.infinity,
+            height: 140,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Cobertura Card Skeleton
+          Container(
+            width: double.infinity,
+            height: 180,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Insight IA Card Skeleton
+          Container(
+            width: double.infinity,
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Table Skeleton
+          Container(
+            width: double.infinity,
+            height: 220,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+          const SizedBox(height: 30),
+        ],
+      ),
+    );
   }
 }

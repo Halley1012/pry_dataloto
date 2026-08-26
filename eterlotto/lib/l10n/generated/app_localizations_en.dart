@@ -37,14 +37,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ultimosResultadosRevancha => 'Last 5 Baloto Revancha results';
 
   @override
-  String get verMasResultados => 'See more results (50)';
+  String get verMasResultados => 'See full draw history';
 
   @override
   String get historicoResultadosTitulo => 'Results History';
 
   @override
   String ultimos50Resultados(String loteria) {
-    return 'Last 50 draws of $loteria';
+    return 'Draw history of $loteria';
   }
 
   @override

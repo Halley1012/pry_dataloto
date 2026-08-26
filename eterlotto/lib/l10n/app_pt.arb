@@ -9,9 +9,9 @@
   "ultimosResultados": "Últimos 5 resultados",
   "ultimosResultadosBaloto": "Últimos 5 resultados Baloto",
   "ultimosResultadosRevancha": "Últimos 5 resultados Baloto Revancha",
-  "verMasResultados": "Ver mais resultados (50)",
+  "verMasResultados": "Ver histórico completo de resultados",
   "historicoResultadosTitulo": "Histórico de Resultados",
-  "ultimos50Resultados": "Últimos 50 sorteios de {loteria}",
+  "ultimos50Resultados": "Histórico de sorteios de {loteria}",
   "@ultimos50Resultados": {
     "placeholders": {
       "loteria": {
