@@ -372,7 +372,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     if tabla in existing_tables:
                         try:
                             if 'colorloto' in tabla:
-                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE numero = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE numero = 0")
                                 res = cur.fetchone()
                                 if res:
                                     max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
@@ -386,7 +386,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
                             else:
-                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0 AND fecha >= (CURRENT_DATE - INTERVAL '1 day')")
+                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0")
                                 res = cur.fetchone()
                                 if res:
                                     max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
@@ -399,6 +399,21 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
+                        except Exception:
+                            try:
+                                conn.rollback()
+                            except Exception:
+                                pass
+
+                    # Fallback a tabla predicciones si proximo_sorteo no se encontró en la tabla de resultados
+                    if not lot.get('proximo_sorteo'):
+                        try:
+                            cur.execute("SELECT MAX(fecha) AS p_fecha FROM predicciones WHERE LOWER(loteria_route) = %s", (r,))
+                            p_res = cur.fetchone()
+                            if p_res:
+                                p_fecha = p_res['p_fecha'] if isinstance(p_res, dict) and 'p_fecha' in p_res else p_res[0]
+                                if p_fecha:
+                                    lot['proximo_sorteo'] = str(p_fecha)
                         except Exception:
                             try:
                                 conn.rollback()

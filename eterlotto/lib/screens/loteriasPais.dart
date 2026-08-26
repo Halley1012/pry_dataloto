@@ -1,4 +1,4 @@
-﻿import 'package:eterlotto/screens/loteria_screen.dart';
+import 'package:eterlotto/screens/loteria_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -244,9 +244,17 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
   Widget _buildExploreItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
     final nombre = loteria["nombre"] ?? "";
-    final rawFecha = loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+    final bool hasProximo = loteria["proximo_sorteo"] != null &&
+        loteria["proximo_sorteo"].toString().isNotEmpty &&
+        loteria["proximo_sorteo"].toString() != "null";
+    final rawFecha = hasProximo
+        ? loteria["proximo_sorteo"]
+        : (loteria["fecha"] ?? loteria["ultimo_sorteo"]);
     final fechaDisplay = _formatearFechaProximo(rawFecha?.toString());
     final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
+    final String labelTitulo = hasProximo
+        ? (l10n?.proximoSorteo ?? "Próximo sorteo")
+        : (l10n?.ultimoSorteo ?? "Último sorteo");
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
@@ -283,7 +291,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    l10n?.proximoSorteo ?? "Próximo sorteo",
+                    labelTitulo,
                     style: const TextStyle(color: Colors.white38, fontSize: 9.5),
                   ),
                   const SizedBox(height: 1),

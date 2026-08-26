@@ -129,29 +129,85 @@ class PaisHelper {
     );
   }
 
-  /// Separa el Jackpot en [valor, etiqueta] (ej: ["$160", "millones COP"])
-  static Map<String, String> getJackpotParts(String? raw, {String fallbackValue = ""}) {
-    final String text = (raw == null || raw.isEmpty) ? fallbackValue : raw.trim();
-    if (text.isEmpty) return {"value": "", "label": ""};
+  static String getMonedaByRoute(String? routeOrName, {String? rawText}) {
+    final r = (routeOrName ?? "").toLowerCase().trim();
+    final raw = (rawText ?? "").trim().toUpperCase();
 
-    // Intentar separar por espacio
-    final parts = text.split(RegExp(r'\s+'));
-    if (parts.length > 1) {
+    // 1. Detección por símbolo o código explícito en el texto
+    if (raw.contains("MXN")) return "MXN";
+    if (raw.contains("COP")) return "COP";
+    if (raw.contains("UYU")) return "UYU";
+    if (raw.contains("PEN")) return "PEN";
+    if (raw.contains("BRL") || raw.startsWith("R\$")) return "BRL";
+    if (raw.contains("EUR") || raw.contains("€")) return "EUR";
+    if (raw.contains("USD") || raw.contains("US\$")) return "USD";
+    if (raw.contains("ARS")) return "ARS";
+    if (raw.contains("CLP")) return "CLP";
+    if (raw.contains("PYG")) return "PYG";
+    if (raw.contains("CRC")) return "CRC";
+    if (raw.contains("DOP")) return "DOP";
+    if (raw.contains("S/")) return "PEN";
+
+    // 2. Detección por país o ruta de la lotería
+    if (r.contains("5deoro") || r.contains("cincodeoro") || r.contains("uruguay")) return "UYU";
+    if (r.contains("bloto") || r.contains("baloto") || r.contains("mloto") || r.contains("miloto") || r.contains("cloto") || r.contains("colorloto") || r.contains("colombia")) return "COP";
+    if (r.contains("melate") || r.contains("chispazo") || r.contains("mexico") || r.contains("méxico")) return "MXN";
+    if (r.contains("latinka") || r.contains("tinka") || r.contains("kabala") || r.contains("ganadiario") || r.contains("peru") || r.contains("perú")) return "PEN";
+    if (r.contains("megasena") || r.contains("quina") || r.contains("duplasena") || r.contains("maismilionaria") || r.contains("brasil") || r.contains("brazil")) return "BRL";
+    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("euromillones") || r.contains("eurodreams") || r.contains("espana") || r.contains("españa") || r.contains("spain") || r.contains("francia") || r.contains("italia") || r.contains("alemania")) return "EUR";
+    if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("panama") || r.contains("panamá") || r.contains("ecuador")) return "USD";
+    if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus")) return "ARS";
+    if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "CLP";
+    if (r.contains("costa_rica") || r.contains("costa rica")) return "CRC";
+    if (r.contains("dominicana") || r.contains("leidsa")) return "DOP";
+    if (r.contains("paraguay")) return "PYG";
+    if (r.contains("bolivia")) return "BOB";
+    if (r.contains("reino_unido") || r.contains("uk") || r.contains("national_lottery")) return "GBP";
+
+    return "";
+  }
+
+  /// Separa el Jackpot en [valor, etiqueta] (ej: ["$55.200", "millones COP"], ["$48.000.000", "UYU"], ["R$ 87.000.000", "BRL"])
+  static Map<String, String> getJackpotParts(String? raw, {String? loteriaRoute, String fallbackValue = ""}) {
+    final String text = (raw == null || raw.trim().isEmpty) ? fallbackValue : raw.trim();
+    if (text.isEmpty || text == "--") return {"value": fallbackValue.isNotEmpty ? fallbackValue : "--", "label": ""};
+
+    final String defaultCurrency = getMonedaByRoute(loteriaRoute, rawText: text);
+
+    // 1. Normalizar espacios duplicados
+    String cleaned = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    // 2. Unificar moneda cuando viene separada con espacio (ej: "$ 48.000.000", "S/ 25,507,198", "R$ 87.000.000")
+    cleaned = cleaned.replaceAllMapped(
+      RegExp(r'^(R\$|\$|S\/|US\$)\s+(\d+)'),
+      (match) => "${match.group(1)}${match.group(2)}",
+    );
+
+    // 3. Detectar si contiene sufijos de magnitud (ej: "$55.200 millones", "$10 Million", "$220,000,000 MXN", "59 Millones de Euros")
+    final regexMagnitud = RegExp(
+      r'^((?:R\$|\$|S\/|US\$)?\s*[\d\.,]+(?:\s*€)?)\s+(millones(?:\s+de\s+euros|\s+cop)?|million|millón|mxn|mdp|millões|\/.*|€\/.*)$',
+      caseSensitive: false,
+    );
+
+    final matchMag = regexMagnitud.firstMatch(cleaned);
+    if (matchMag != null) {
+      String label = matchMag.group(2)?.trim() ?? "";
+      if (label.toLowerCase() == "millones" && defaultCurrency.isNotEmpty) {
+        label = "millones $defaultCurrency";
+      } else if (label.toLowerCase() == "million" && defaultCurrency.isNotEmpty) {
+        label = "Million $defaultCurrency";
+      }
       return {
-        "value": parts[0],
-        "label": parts.sublist(1).join(' '),
+        "value": matchMag.group(1)?.trim() ?? cleaned,
+        "label": label,
       };
     }
 
-    // Si no hay espacios, intentar separar número de letras (ej: "$160millones")
-    final match = RegExp(r'^([^\sA-Za-zÀ-ÿ]+)\s*(.*)$').firstMatch(text);
-    if (match != null) {
-      return {
-        "value": match.group(1) ?? text,
-        "label": match.group(2) ?? "",
-      };
-    }
-
-    return {"value": text, "label": ""};
+    // 4. Si es un monto con moneda (ej: "$48.000.000", "R$87.000.000,00", "14.500.000 €", "S/25,507,198")
+    // Se adjunta la moneda oficial del país si la etiqueta quedó vacía
+    return {
+      "value": cleaned,
+      "label": defaultCurrency,
+    };
   }
 }
