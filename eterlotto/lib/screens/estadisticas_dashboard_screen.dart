@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -9,6 +9,7 @@ import 'package:eterlotto/screens/estadisticas/widgets/ball_badge.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:shimmer/shimmer.dart';
 
 class EstadisticasDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -259,9 +260,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
         ],
       ),
       body: cargando
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.amber),
-            )
+          ? _buildSkeletonEstadisticas()
           : errorMensaje != null
               ? Center(
                   child: Text(
@@ -269,13 +268,28 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                     style: AppTextStyles.mensajeImportante,
                   ),
                 )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildFiltrosBarra(l10n),
-                      const SizedBox(height: 20),
+              : RefreshIndicator(
+                  color: Colors.transparent,
+                  backgroundColor: Colors.transparent,
+                  elevation: 0,
+                  onRefresh: _cargarDatos,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (cargando)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8.0),
+                            child: LinearProgressIndicator(
+                              backgroundColor: Color(0xFF1E2029),
+                              color: AppColors.yellow,
+                              minHeight: 2.5,
+                            ),
+                          ),
+                        _buildFiltrosBarra(l10n),
+                        const SizedBox(height: 20),
                       _buildCardResumenGeneral(resultadosFiltrados, l10n),
                       const SizedBox(height: 20),
                       _buildCardCalientesFrios(resultadosFiltrados, l10n),
@@ -299,6 +313,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                     ],
                   ),
                 ),
+              ),
     );
   }
 
@@ -1241,5 +1256,70 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       }
     }
     return ausencias;
+  }
+
+  Widget _buildSkeletonEstadisticas() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Filter bar skeleton
+            Container(
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Resumen card skeleton
+            Container(
+              width: double.infinity,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Hot/Cold card skeleton
+            Container(
+              width: double.infinity,
+              height: 160,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Frequency Chart skeleton
+            Container(
+              width: double.infinity,
+              height: 220,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Pairs/Odds card skeleton
+            Container(
+              width: double.infinity,
+              height: 140,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

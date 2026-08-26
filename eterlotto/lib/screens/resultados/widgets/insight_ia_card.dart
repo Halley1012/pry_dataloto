@@ -1,6 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
 
 class InsightIaCard extends StatelessWidget {
   final String insightIAText;
@@ -527,7 +530,17 @@ class InsightIaCard extends StatelessWidget {
                   children: [
                     Text(fechaSorteo, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)),
                     GestureDetector(
-                      onTap: () => _showProbablesDialog(context),
+                      onTap: () {
+                        final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+                        AdService.instance.showRewardedFeatureGate(
+                          context: context,
+                          isPremium: isPremium,
+                          featureKey: "tendencias_ia",
+                          featureTitle: "Tendencias y Aciertos IA",
+                          featureActionDescription: "Mira un breve video publicitario para ver el desglose completo de números probables y aciertos de la IA.",
+                          onRewardGranted: () => _showProbablesDialog(context),
+                        );
+                      },
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(

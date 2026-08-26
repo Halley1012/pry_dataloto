@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -14,7 +14,12 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/widgets/contenedor3.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import '../../utils/screen_security_helper.dart';
 import '../loteria_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
@@ -40,8 +45,15 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   @override
   void initState() {
     super.initState();
+    ScreenSecurityHelper.enableSecureScreen();
     _cargarConfig();
     _cargarJugadas();
+  }
+
+  @override
+  void dispose() {
+    ScreenSecurityHelper.disableSecureScreen();
+    super.dispose();
   }
 
   Future<void> _cargarConfig() async {
@@ -240,35 +252,45 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       return;
     }
 
-    final StringBuffer buffer = StringBuffer();
-    buffer.writeln("🎰 *${l10n?.misJugadasLoteria(widget.loteriaNombre) ?? "Mis Jugadas de ${widget.loteriaNombre} - Eterlotto"}* 🎰\n");
+    final isPremium = context.read<SubscriptionProvider>().isSubscribed;
 
-    for (int i = 0; i < jugadasACompartir.length; i++) {
-      final play = jugadasACompartir[i];
-      final (whites, redVal) = _parsearJugada(play);
-      final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
-      if (redVal != null) {
-        final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
-        buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
-      } else {
-        buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')}");
-      }
-    }
+    await AdService.instance.showRewardedFeatureGate(
+      context: context,
+      isPremium: isPremium,
+      featureTitle: "Compartir por WhatsApp",
+      featureActionDescription: "Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.",
+      onRewardGranted: () async {
+        final StringBuffer buffer = StringBuffer();
+        buffer.writeln("🎰 *${l10n?.misJugadasLoteria(widget.loteriaNombre) ?? "Mis Jugadas de ${widget.loteriaNombre} - Eterlotto"}* 🎰\n");
 
-    buffer.writeln("\n🍀 _${l10n?.buenaSuerteDataLoto ?? "¡Buena suerte con Eterlotto!"}_");
+        for (int i = 0; i < jugadasACompartir.length; i++) {
+          final play = jugadasACompartir[i];
+          final (whites, redVal) = _parsearJugada(play);
+          final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
+          if (redVal != null) {
+            final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
+            buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
+          } else {
+            buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')}");
+          }
+        }
 
-    final text = buffer.toString();
-    final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
+        buffer.writeln("\n🍀 _${l10n?.buenaSuerteDataLoto ?? "¡Buena suerte con Eterlotto!"}_");
 
-    try {
-      if (await canLaunchUrl(whatsappUrl)) {
-        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-      } else {
-        await Share.share(text);
-      }
-    } catch (_) {
-      await Share.share(text);
-    }
+        final text = buffer.toString();
+        final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
+
+        try {
+          if (await canLaunchUrl(whatsappUrl)) {
+            await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+          } else {
+            await Share.share(text);
+          }
+        } catch (_) {
+          await Share.share(text);
+        }
+      },
+    );
   }
 
   Future<void> _imprimirPDF() async {
@@ -284,95 +306,105 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       return;
     }
 
-    final doc = pw.Document();
+    final isPremium = context.read<SubscriptionProvider>().isSubscribed;
 
-    doc.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context ctx) {
-          return pw.Padding(
-            padding: const pw.EdgeInsets.all(24),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Header(
-                  level: 0,
-                  child: pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text(
-                        l10n?.tiqueteDataloto(widget.loteriaNombre.toUpperCase()) ?? "ETERLOTTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
-                        style: pw.TextStyle(
-                          fontSize: 22,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.amber900,
-                        ),
+    await AdService.instance.showRewardedFeatureGate(
+      context: context,
+      isPremium: isPremium,
+      featureTitle: "Exportar Tiquete en PDF",
+      featureActionDescription: "Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.",
+      onRewardGranted: () async {
+        final doc = pw.Document();
+
+        doc.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (pw.Context ctx) {
+              return pw.Padding(
+                padding: const pw.EdgeInsets.all(24),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Header(
+                      level: 0,
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Text(
+                            l10n?.tiqueteDataloto(widget.loteriaNombre.toUpperCase()) ?? "ETERLOTTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
+                            style: pw.TextStyle(
+                              fontSize: 22,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.amber900,
+                            ),
+                          ),
+                          pw.Text(
+                            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
+                            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                          ),
+                        ],
                       ),
-                      pw.Text(
-                        DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                    ),
+                    pw.SizedBox(height: 12),
+                    pw.Text(
+                      l10n?.reporteJugadasGuardadas(jugadasAImprimir.length) ?? "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 16),
+                    pw.TableHelper.fromTextArray(
+                      headers: [
+                        l10n?.nro ?? "#",
+                        l10n?.fechaGuardado ?? "Fecha Guardado",
+                        l10n?.balotasLoteria(widget.loteriaNombre) ?? "Balotas ${widget.loteriaNombre}"
+                      ],
+                      data: jugadasAImprimir.asMap().entries.map((entry) {
+                        final index = entry.key + 1;
+                        final item = entry.value;
+                        final (whites, red) = _parsearJugada(item);
+                        final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+
+                        final balotasStr = red != null
+                            ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
+                            : whites.join(' - ');
+
+                        return [
+                          "$index",
+                          fecha,
+                          balotasStr,
+                        ];
+                      }).toList(),
+                      headerStyle: pw.TextStyle(
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
                       ),
-                    ],
-                  ),
-                ),
-                pw.SizedBox(height: 12),
-                pw.Text(
-                  l10n?.reporteJugadasGuardadas(jugadasAImprimir.length) ?? "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
-                  style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
-                ),
-                pw.SizedBox(height: 16),
-                pw.TableHelper.fromTextArray(
-                  headers: [
-                    l10n?.nro ?? "#",
-                    l10n?.fechaGuardado ?? "Fecha Guardado",
-                    l10n?.balotasLoteria(widget.loteriaNombre) ?? "Balotas ${widget.loteriaNombre}"
+                      headerDecoration: const pw.BoxDecoration(color: PdfColors.amber800),
+                      cellHeight: 28,
+                      cellAlignments: {
+                        0: pw.Alignment.centerLeft,
+                        1: pw.Alignment.centerLeft,
+                        2: pw.Alignment.center,
+                      },
+                    ),
+                    pw.Spacer(),
+                    pw.Divider(),
+                    pw.Center(
+                      child: pw.Text(
+                        l10n?.muchosExitosJuego ?? "¡Muchos éxitos en tu juego! - Generado desde Eterlotto App",
+                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                      ),
+                    ),
                   ],
-                  data: jugadasAImprimir.asMap().entries.map((entry) {
-                    final index = entry.key + 1;
-                    final item = entry.value;
-                    final (whites, red) = _parsearJugada(item);
-                    final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-
-                    final balotasStr = red != null
-                        ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
-                        : whites.join(' - ');
-
-                    return [
-                      "$index",
-                      fecha,
-                      balotasStr,
-                    ];
-                  }).toList(),
-                  headerStyle: pw.TextStyle(
-                    fontWeight: pw.FontWeight.bold,
-                    color: PdfColors.white,
-                  ),
-                  headerDecoration: const pw.BoxDecoration(color: PdfColors.amber800),
-                  cellHeight: 28,
-                  cellAlignments: {
-                    0: pw.Alignment.centerLeft,
-                    1: pw.Alignment.centerLeft,
-                    2: pw.Alignment.center,
-                  },
                 ),
-                pw.Spacer(),
-                pw.Divider(),
-                pw.Center(
-                  child: pw.Text(
-                    l10n?.muchosExitosJuego ?? "¡Muchos éxitos en tu juego! - Generado desde Eterlotto App",
-                    style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+              );
+            },
+          ),
+        );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => doc.save(),
-      name: l10n?.nombreArchivoPDF(widget.loteriaNombre) ?? "Tiquete_${widget.loteriaNombre}_Eterlotto.pdf",
+        await Printing.layoutPdf(
+          onLayout: (PdfPageFormat format) async => doc.save(),
+          name: l10n?.nombreArchivoPDF(widget.loteriaNombre) ?? "Tiquete_${widget.loteriaNombre}_Eterlotto.pdf",
+        );
+      },
     );
   }
 
@@ -519,12 +551,26 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       body: RefreshIndicator(
-        color: AppColors.yellow,
+        color: Colors.transparent,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         onRefresh: () => _cargarJugadas(force: true),
         child: CustomScrollView(
-        slivers: [
-          CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
-          SliverToBoxAdapter(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
+            if (_cargando && _jugadasList.isNotEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  child: LinearProgressIndicator(
+                    backgroundColor: Color(0xFF1E2029),
+                    color: AppColors.yellow,
+                    minHeight: 2.5,
+                  ),
+                ),
+              ),
+            SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Column(
@@ -583,9 +629,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   ),
                   const SizedBox(height: 8),
                   _cargando
-                      ? const Center(
-                          child: CircularProgressIndicator(color: AppColors.yellow),
-                        )
+                      ? _buildSkeletonJugadas()
                       : _jugadasList.isEmpty
                           ? Center(
                               child: Padding(
@@ -753,5 +797,26 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       ),
     ),
   );
+  }
+
+  Widget _buildSkeletonJugadas() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: Column(
+        children: List.generate(
+          4,
+          (index) => Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            height: 100,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

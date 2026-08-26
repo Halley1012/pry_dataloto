@@ -19,7 +19,9 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Configuración de reglas y límites de cada lotería
 /// Configuración de reglas y límites de cada lotería
@@ -217,6 +219,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   @override
   void initState() {
     super.initState();
+    ScreenSecurityHelper.enableSecureScreen();
     if (widget.loteriaData != null) {
       config = LoteriaConfig.fromJson(widget.loteriaData!, fallbackNombre: widget.loteriaNombre);
       if (widget.loteriaData!['jackpot'] != null && widget.loteriaData!['jackpot'].toString().isNotEmpty) {
@@ -250,6 +253,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   @override
   void dispose() {
+    ScreenSecurityHelper.disableSecureScreen();
     _bounceController.dispose();
     _shineController.dispose();
     _jugadasController.dispose();
@@ -817,50 +821,200 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
+    final bool isDataLoading = cargando && listaProbables.isEmpty && ultimosResultados.isEmpty;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       bottomNavigationBar: const BannerAdWidget(),
       body: SafeArea(
         child: RefreshIndicator(
-          color: AppColors.yellow,
+          color: Colors.transparent,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
           onRefresh: _cargarDataOptimizado,
           child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
             slivers: [
+              if (cargando && !isDataLoading)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: 6.0),
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0xFF1E2029),
+                      color: AppColors.yellow,
+                      minHeight: 2.5,
+                    ),
+                  ),
+                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 3),
-                      _buildHeader(l10n),
-                      const SizedBox(height: 18),
-                      _buildQuickSummary(s, l10n),
-                      const SizedBox(height: 24),
-                      _buildIAPrediction(l10n),
-                      const SizedBox(height: 16),
-                      _buildDisclaimerNote(l10n),
-                      const SizedBox(height: 20),
-                      _buildActionGrid(l10n),
-                      const SizedBox(height: 24),
-                      _buildManualSelectorSection(l10n),
-                      if (config.tieneBalotaRoja) ...[
-                        const SizedBox(height: 24),
-                        _buildRedBallsSection(l10n),
-                      ],
-                      const SizedBox(height: 24),
-                      _buildResultadosSection(l10n),
-                      const SizedBox(height: 24),
-                      _buildNewsSection(l10n),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
+                  child: isDataLoading
+                      ? _buildSkeletonLoading()
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 3),
+                            _buildHeader(l10n),
+                            const SizedBox(height: 18),
+                            _buildQuickSummary(s, l10n),
+                            const SizedBox(height: 24),
+                            _buildIAPrediction(l10n),
+                            const SizedBox(height: 16),
+                            _buildDisclaimerNote(l10n),
+                            const SizedBox(height: 20),
+                            _buildActionGrid(l10n),
+                            const SizedBox(height: 24),
+                            _buildManualSelectorSection(l10n),
+                            if (config.tieneBalotaRoja) ...[
+                              const SizedBox(height: 24),
+                              _buildRedBallsSection(l10n),
+                            ],
+                            const SizedBox(height: 24),
+                            _buildResultadosSection(l10n),
+                            const SizedBox(height: 24),
+                            _buildNewsSection(l10n),
+                            const SizedBox(height: 40),
+                          ],
+                        ),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildSkeletonLoading() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF1A1A1A),
+      highlightColor: const Color(0xFF2C2C2C),
+      period: const Duration(milliseconds: 1400),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 3),
+          // Header Skeleton
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 130,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 90,
+                        height: 11,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Container(
+                width: 95,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+
+          // Resumen Rápido / Stats Skeleton Cards
+          Row(
+            children: List.generate(
+              3,
+              (index) => Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: index < 2 ? 10 : 0),
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Predicción IA Skeleton Card
+          Container(
+            width: double.infinity,
+            height: 180,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // Action Grid Buttons Skeleton
+          Row(
+            children: List.generate(
+              4,
+              (index) => Expanded(
+                child: Container(
+                  margin: EdgeInsets.only(right: index < 3 ? 10 : 0),
+                  height: 65,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Selecciona tus números Skeleton Card
+          Container(
+            width: double.infinity,
+            height: 160,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          // Resultados Skeleton Card
+          Container(
+            width: double.infinity,
+            height: 170,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+          const SizedBox(height: 40),
+        ],
       ),
     );
   }
@@ -1511,10 +1665,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           ),
           const SizedBox(height: 20),
           listaProbables.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(color: AppColors.yellow),
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      l10n?.sinNumeros ?? "No hay números disponibles",
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
                   ),
                 )
               : LayoutBuilder(
@@ -1604,10 +1761,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           ),
           const SizedBox(height: 20),
           listaBalotaRoja.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: CircularProgressIndicator(color: AppColors.yellow),
+                    padding: const EdgeInsets.symmetric(vertical: 24),
+                    child: Text(
+                      l10n?.sinNumeros ?? "No hay balotas disponibles",
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
                   ),
                 )
               : LayoutBuilder(
@@ -1746,16 +1906,27 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       padding: const EdgeInsets.only(top: 14.0),
       child: InkWell(
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HistoricoResultadosScreen(
-                config: config,
-                sorteosDisponibles: _sorteosDisponibles,
-                initialSorteo: _selectedResultadosTab,
-                initialResultados: todosResultadosHistorico,
-              ),
-            ),
+          final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+          AdService.instance.showRewardedFeatureGate(
+            context: context,
+            isPremium: isPremium,
+            featureKey: "historico_resultados",
+            featureTitle: "Histórico de Resultados",
+            featureActionDescription: "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
+            onRewardGranted: () {
+              if (!mounted) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HistoricoResultadosScreen(
+                    config: config,
+                    sorteosDisponibles: _sorteosDisponibles,
+                    initialSorteo: _selectedResultadosTab,
+                    initialResultados: todosResultadosHistorico,
+                  ),
+                ),
+              );
+            },
           );
         },
         borderRadius: BorderRadius.circular(10),
@@ -1854,10 +2025,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     return Column(
       children: [
         if (resultadosUsar.isEmpty)
-          const Center(
+          Center(
             child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(color: AppColors.amber),
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Text(
+                l10n?.sinNumeros ?? "No hay resultados registrados",
+                style: const TextStyle(color: Colors.white38, fontSize: 12),
+              ),
             ),
           )
         else

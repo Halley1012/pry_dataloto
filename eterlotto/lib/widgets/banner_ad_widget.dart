@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
@@ -24,19 +25,46 @@ class BannerAdWidget extends StatefulWidget {
 class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  Timer? _delayTimer;
+
+  // ⏱️ Periodo de gracia para el banner inferior (40 segundos sin publicidad al inicio)
+  static const Duration _bannerGracePeriod = Duration(seconds: 40);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final isSubscribed = Provider.of<SubscriptionProvider>(context).isSubscribed;
-    if (!isSubscribed && _bannerAd == null) {
-      _loadBanner();
-    } else if (isSubscribed && _bannerAd != null) {
+    if (!isSubscribed) {
+      _scheduleBannerLoad();
+    } else if (isSubscribed) {
       _disposeBanner();
     }
   }
 
+  void _scheduleBannerLoad() {
+    if (_bannerAd != null || _isAdLoaded) return;
+
+    final sessionElapsed = AdService.instance.sessionDuration;
+    if (sessionElapsed < _bannerGracePeriod) {
+      final remaining = _bannerGracePeriod - sessionElapsed;
+      debugPrint('🛡️ [Banner AdMob] En espera: Aparecerá en ${remaining.inSeconds}s (gracia de 40s de sesión)');
+      _delayTimer?.cancel();
+      _delayTimer = Timer(remaining, () {
+        if (mounted) {
+          final isSubscribed = context.read<SubscriptionProvider>().isSubscribed;
+          if (!isSubscribed && _bannerAd == null) {
+            _loadBanner();
+          }
+        }
+      });
+    } else {
+      _loadBanner();
+    }
+  }
+
   void _loadBanner() {
+    if (_bannerAd != null || !mounted) return;
+
     _bannerAd = BannerAd(
       adUnitId: AdService.bannerAdUnitId,
       size: widget.adSize,
@@ -47,10 +75,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
             setState(() {
               _isAdLoaded = true;
             });
+            debugPrint('✅ [Banner AdMob] Banner cargado y visible.');
           }
         },
         onAdFailedToLoad: (ad, error) {
-          debugPrint('❌ Banner falló al cargar: ${error.message}');
+          debugPrint('❌ [Banner AdMob] Falló al cargar: ${error.message}');
           ad.dispose();
           if (mounted) {
             setState(() {
@@ -66,6 +95,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _disposeBanner() {
+    _delayTimer?.cancel();
+    _delayTimer = null;
     _bannerAd?.dispose();
     _bannerAd = null;
     _isAdLoaded = false;
@@ -79,7 +110,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Si el usuario tiene suscripción activa o no ha cargado, no mostrar nada (0 px)
+    // Si el usuario tiene suscripción activa, está en los primeros 40s o no ha cargado, 0 px
     final isSubscribed = context.watch<SubscriptionProvider>().isSubscribed;
     if (isSubscribed || !_isAdLoaded || _bannerAd == null) {
       return const SizedBox.shrink();
