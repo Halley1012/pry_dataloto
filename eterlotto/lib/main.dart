@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:eterlotto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -17,10 +17,13 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 import 'providers/locale_provider.dart';
 import 'providers/notification_provider.dart';
+import 'providers/subscription_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/estadisticas_dashboard_screen.dart';
+import 'screens/subscription_screen.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 // 🔑 Navigator key global y Provider de Idioma global
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -43,6 +46,9 @@ void main() {
 
       // Inicializar Notificaciones Push y Firebase en segundo plano
       unawaited(PushNotificationService.initialize());
+
+      // Inicializar Google Mobile Ads en segundo plano
+      unawaited(AdService.instance.initialize());
     },
 
     (error, stack) {
@@ -70,6 +76,7 @@ class EterlottoApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider.value(value: localeProvider),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
       ],
       child: ListenableBuilder(
         listenable: localeProvider,
@@ -137,6 +144,7 @@ class EterlottoApp extends StatelessWidget {
             '/login': (context) => const LoginPage(),
             '/home': (context) => HomeScreen(),
             '/notifications': (context) => const NotificationsScreen(),
+            '/subscription': (context) => const SubscriptionScreen(),
             '/registro': (context) {
               final args = ModalRoute.of(context)?.settings.arguments;
 

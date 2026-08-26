@@ -50,6 +50,8 @@ class AuthUseCases:
                 "pais_nombre": user["pais_nombre"],
                 "departamento_id": user["departamento_id"],
                 "departamento_nombre": user["departamento_nombre"],
+                "is_premium": user.get("is_premium", False),
+                "premium_expires_at": user.get("premium_expires_at").isoformat() if user.get("premium_expires_at") else None,
             }
         }
 

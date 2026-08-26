@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -12,6 +12,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/locale_provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/screens/subscription_screen.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -153,19 +155,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         Text(email ?? l10n.email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
                         const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppColors.yellow),
-                            borderRadius: BorderRadius.circular(20),
+                        GestureDetector(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star, color: AppColors.yellow, size: 14),
-                              const SizedBox(width: 4),
-                              Text(l10n.usuarioPremium, style: const TextStyle(color: AppColors.yellow, fontSize: 12, fontWeight: FontWeight.bold)),
-                            ],
+                          child: Consumer<SubscriptionProvider>(
+                            builder: (context, subProvider, _) {
+                              final isSubscribed = subProvider.isSubscribed;
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: isSubscribed ? Colors.green.withOpacity(0.2) : AppColors.amber.withOpacity(0.15),
+                                  border: Border.all(color: isSubscribed ? Colors.green : AppColors.yellow),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isSubscribed ? Icons.verified : Icons.star,
+                                      color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
+                                      size: 14,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      isSubscribed ? "VIP Sin Anuncios" : "Plan Básico (Hazte VIP)",
+                                      style: TextStyle(
+                                        color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -177,6 +202,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 40),
               
               // Opciones
+              Consumer<SubscriptionProvider>(
+                builder: (context, subProvider, _) {
+                  return _buildOptionItem(
+                    Icons.workspace_premium,
+                    "Eterlotto VIP (Sin Anuncios)",
+                    () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                    ),
+                    color: AppColors.amber.withOpacity(0.12),
+                    iconColor: AppColors.amber,
+                    trailingText: subProvider.isSubscribed ? "Activo" : "Obtener",
+                  );
+                },
+              ),
               _buildOptionItem(Icons.ads_click, l10n.misAnuncios, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
               _buildOptionItem(Icons.payment, l10n.metodosPago, () {}),
               _buildOptionItem(Icons.settings_outlined, l10n.configuracion, _showConfigMenu),
