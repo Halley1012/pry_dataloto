@@ -122,3 +122,10 @@ class FCMTokenUpdate(BaseModel):
 class SocialLoginRequest(BaseModel):
     provider: str
     token: str
+
+class SubscriptionConfirmRequest(BaseModel):
+    user_id: int
+    product_id: str
+    purchase_token: Optional[str] = None
+    order_id: Optional[str] = None
+    status: Optional[str] = "active"

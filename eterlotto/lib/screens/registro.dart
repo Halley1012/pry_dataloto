@@ -1,6 +1,5 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'dart:convert';
 import 'package:eterlotto/screens/welcome.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
@@ -143,11 +142,10 @@ class _RegistroPageState extends State<RegistroScreen> {
       final response = await ApiService.post("/register", body);
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("username", (body["name"] as String?) ?? "");
 
+        if (!mounted) return;
         Navigator.pushReplacementNamed(context, '/login');
       } else {
         // Error silencioso

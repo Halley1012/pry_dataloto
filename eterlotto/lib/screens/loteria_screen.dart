@@ -16,6 +16,10 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/widgets/contenedor3.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
+import 'package:eterlotto/widgets/banner_ad_widget.dart';
+import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:provider/provider.dart';
 
 /// Configuración de reglas y límites de cada lotería
 /// Configuración de reglas y límites de cada lotería
@@ -143,10 +147,10 @@ class LoteriaConfig {
     final tieneComp = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
     final tieneReintegro = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("el_gordo");
     final int maxSel = (cleanRoute.contains("kabala") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") || cleanRoute.contains("duplasena") || cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams") || cleanRoute.contains("megasena") || cleanRoute.contains("maismilionaria") || cleanRoute.contains("melate")) ? 6 : 5;
-    final int maxRojas = (cleanRoute.contains("ganadiario") || cleanRoute.contains("kabala") || cleanRoute.contains("duplasena") || cleanRoute.contains("quina") || cleanRoute.contains("chispazo") || cleanRoute.contains("mloto") || cleanRoute.contains("cloto") || cleanRoute.contains("megasena")) ? 0 : (cleanRoute.contains("maismilionaria") ? 6 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : 10)))));
-    final int maxBlancas = cleanRoute.contains("quina") ? 80 : (cleanRoute.contains("megasena") ? 60 : (cleanRoute.contains("duplasena") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("kabala") ? 40 : (cleanRoute.contains("ganadiario") ? 35 : (cleanRoute.contains("chispazo") ? 28 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : (cleanRoute.contains("maismilionaria") ? 50 : 45)))))))));
+    final int maxRojas = (cleanRoute.contains("lotto_cr") || cleanRoute.contains("ganadiario") || cleanRoute.contains("kabala") || cleanRoute.contains("duplasena") || cleanRoute.contains("quina") || cleanRoute.contains("chispazo") || cleanRoute.contains("mloto") || cleanRoute.contains("cloto") || cleanRoute.contains("megasena")) ? 0 : (cleanRoute.contains("maismilionaria") ? 6 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : 10)))));
+    final int maxBlancas = cleanRoute.contains("quina") ? 80 : (cleanRoute.contains("megasena") ? 60 : (cleanRoute.contains("duplasena") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("kabala") || cleanRoute.contains("lotto_cr") ? 40 : (cleanRoute.contains("ganadiario") ? 35 : (cleanRoute.contains("chispazo") ? 28 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : (cleanRoute.contains("maismilionaria") ? 50 : 45)))))))));
     final String sbNombre = cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? "Bolilla Extra" : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? "Boliyapa" : (cleanRoute.contains("maismilionaria") ? "Tréboles" : (cleanRoute.contains("melate") ? "Adicional" : "Superbalota")));
-    final bool hasRev = cleanRoute.contains("kabala") || cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") || cleanRoute.contains("duplasena") || (!cleanRoute.contains("retro") && cleanRoute.contains("melate")) || cleanRoute.contains("baloto") || cleanRoute.contains("bloto");
+    final bool hasRev = cleanRoute.contains("lotto_cr") || cleanRoute.contains("kabala") || cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") || cleanRoute.contains("duplasena") || (!cleanRoute.contains("retro") && cleanRoute.contains("melate")) || cleanRoute.contains("baloto") || cleanRoute.contains("bloto");
     final int totalSorteo = maxSel + (maxRojas > 0 ? (cleanRoute.contains("maismilionaria") ? 2 : 1) : 0) + (tieneComp ? 1 : 0);
 
     return LoteriaConfig(
@@ -816,6 +820,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
+      bottomNavigationBar: const BannerAdWidget(),
       body: SafeArea(
         child: RefreshIndicator(
           color: AppColors.yellow,
@@ -976,6 +981,28 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     );
   }
 
+  void _navigateToEstadisticas() {
+    final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+    
+    void goToScreen() {
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => EstadisticasDashboardScreen(
+            loteriaNombreInicial: config.nombre,
+            loteriaRoute: config.route,
+          ),
+        ),
+      );
+    }
+
+    AdService.instance.showInterstitialAd(
+      isPremium: isPremium,
+      onAdClosed: goToScreen,
+    );
+  }
+
   Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
     final int affinityScore = listaProbables.isNotEmpty
         ? _calcularAfinidadScore(
@@ -998,16 +1025,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               ],
             ),
             TextButton(
-              onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      EstadisticasDashboardScreen(
-                        loteriaNombreInicial: config.nombre,
-                        loteriaRoute: config.route,
-                      ),
-                ),
-              ),
+              onPressed: _navigateToEstadisticas,
               child: Text(
                 l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›",
                 style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber),
@@ -1081,16 +1099,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     Color? iconColor,
   }) {
     return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              EstadisticasDashboardScreen(
-                loteriaNombreInicial: config.nombre,
-                loteriaRoute: config.route,
-              ),
-        ),
-      ),
+      onTap: _navigateToEstadisticas,
       child: Container(
         width: 105,
         padding: const EdgeInsets.all(12),
@@ -1402,16 +1411,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         _buildActionTile(
           icon: Icons.bar_chart,
           label: l10n?.estadisticas ?? "Estadísticas",
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  EstadisticasDashboardScreen(
-                    loteriaNombreInicial: config.nombre,
-                    loteriaRoute: config.route,
-                  ),
-            ),
-          ),
+          onTap: _navigateToEstadisticas,
         ),
       ],
     );
