@@ -4,40 +4,29 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
+import 'resultados_shared.dart';
 
 class InsightIaCard extends StatelessWidget {
   final String insightIAText;
   final String selectedLoteria;
   final int probablesCount;
   final double coberturaPorcentaje;
-  final List<int> winningNums;
-  final int? winningRed;
+  final List<SubSorteoData> subSorteos;
   final String fechaSorteo;
   final List<int>? predictionNumeros;
   final List<int>? predictionBalotaroja;
-  final bool hasRevanchaData;
-  final List<int> winningNumsRevancha;
-  final int? winningRedRevancha;
-  final String nombreSorteoPrincipal;
-  final String nombreSorteoSecundario;
 
   const InsightIaCard({
-    Key? key,
+    super.key,
     required this.insightIAText,
     required this.selectedLoteria,
     required this.probablesCount,
     required this.coberturaPorcentaje,
-    required this.winningNums,
-    this.winningRed,
+    required this.subSorteos,
     required this.fechaSorteo,
     this.predictionNumeros,
     this.predictionBalotaroja,
-    this.hasRevanchaData = false,
-    this.winningNumsRevancha = const [],
-    this.winningRedRevancha,
-    this.nombreSorteoPrincipal = "Baloto",
-    this.nombreSorteoSecundario = "Revancha",
-  }) : super(key: key);
+  });
 
   int _getTopLimit() {
     if (probablesCount > 0) return probablesCount;
@@ -228,108 +217,66 @@ class InsightIaCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              if (hasRevanchaData)
+              if (subSorteos.length > 1)
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 75,
-                          child: Text(
-                            "$nombreSorteoPrincipal: ",
-                            style: GoogleFonts.montserrat(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white70,
+                  children: subSorteos.asMap().entries.map((entry) {
+                    final int idx = entry.key;
+                    final sub = entry.value;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: idx < subSorteos.length - 1 ? 8.0 : 0.0),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 85,
+                            child: Text(
+                              "${sub.nombre}: ",
+                              style: GoogleFonts.montserrat(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: sub.color,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ...winningNums.map((n) {
-                                  final isHit = predictionNumeros?.contains(n) ?? false;
-                                  final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 5.0),
-                                    child: _build3DBall(
-                                      n,
-                                      baseColor: baseColor,
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ...sub.winningNums.map((n) {
+                                    final isHit = predictionNumeros?.contains(n) ?? false;
+                                    final baseColor = isHit ? sub.color : const Color(0xFF334155);
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 5.0),
+                                      child: _build3DBall(
+                                        n,
+                                        baseColor: baseColor,
+                                        size: 25,
+                                      ),
+                                    );
+                                  }),
+                                  if (sub.winningRed != null) ...[
+                                    const SizedBox(width: 3),
+                                    _build3DBall(
+                                      sub.winningRed,
+                                      baseColor: Colors.redAccent,
                                       size: 25,
                                     ),
-                                  );
-                                }),
-                                if (winningRed != null) ...[
-                                  const SizedBox(width: 3),
-                                  _build3DBall(
-                                    winningRed,
-                                    baseColor: Colors.redAccent,
-                                    size: 25,
-                                  ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 75,
-                          child: Text(
-                            "$nombreSorteoSecundario: ",
-                            style: GoogleFonts.montserrat(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFFD8B4FE),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Expanded(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ...winningNumsRevancha.map((n) {
-                                  final isHit = predictionNumeros?.contains(n) ?? false;
-                                  final baseColor = isHit ? const Color(0xFFD8B4FE) : const Color(0xFF4C1D95);
-                                  return Padding(
-                                    padding: const EdgeInsets.only(right: 5.0),
-                                    child: _build3DBall(
-                                      n,
-                                      baseColor: baseColor,
-                                      size: 25,
-                                    ),
-                                  );
-                                }),
-                                if (winningRedRevancha != null) ...[
-                                  const SizedBox(width: 3),
-                                  _build3DBall(
-                                    winningRedRevancha,
-                                    baseColor: Colors.redAccent,
-                                    size: 25,
-                                  ),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 )
-              else
+              else if (subSorteos.isNotEmpty)
                 Row(
                   children: [
                     Text(
@@ -347,7 +294,7 @@ class InsightIaCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            ...winningNums.map((n) {
+                            ...subSorteos.first.winningNums.map((n) {
                               final isHit = predictionNumeros?.contains(n) ?? false;
                               final baseColor = isHit ? Colors.amber : const Color(0xFF607D8B);
                               return Padding(
@@ -359,10 +306,10 @@ class InsightIaCard extends StatelessWidget {
                                 ),
                               );
                             }),
-                            if (winningRed != null) ...[
+                            if (subSorteos.first.winningRed != null) ...[
                               const SizedBox(width: 3),
                               _build3DBall(
-                                winningRed,
+                                subSorteos.first.winningRed,
                                 baseColor: Colors.redAccent,
                                 size: 25,
                               ),
@@ -413,14 +360,14 @@ class InsightIaCard extends StatelessWidget {
                               children: predictionNumeros!.asMap().entries.map((entry) {
                                 int index = entry.key;
                                 int n = entry.value;
-                                final isBalotoHit = winningNums.contains(n);
-                                final isRevanchaHit = hasRevanchaData && winningNumsRevancha.contains(n);
 
-                                Color baseColor = isBalotoHit
-                                    ? Colors.amber
-                                    : (isRevanchaHit
-                                        ? const Color(0xFFD8B4FE)
-                                        : (index < limit ? Colors.redAccent : const Color(0xFF607D8B)));
+                                Color baseColor = index < limit ? Colors.redAccent : const Color(0xFF607D8B);
+                                for (var sub in subSorteos) {
+                                  if (sub.winningNums.contains(n)) {
+                                    baseColor = sub.color;
+                                    break;
+                                  }
+                                }
 
                                 return _build3DBall(
                                   n,
@@ -454,11 +401,13 @@ class InsightIaCard extends StatelessWidget {
                           crossAxisSpacing: spacing,
                           mainAxisSpacing: spacing,
                           children: predictionBalotaroja!.map((n) {
-                            final isBalotoHit = winningRed == n;
-                            final isRevanchaHit = hasRevanchaData && winningRedRevancha == n;
-                            Color baseColor = isBalotoHit
-                                ? Colors.amber
-                                : (isRevanchaHit ? const Color(0xFFD8B4FE) : Colors.redAccent);
+                            Color baseColor = Colors.redAccent;
+                            for (var sub in subSorteos) {
+                              if (sub.winningRed == n) {
+                                baseColor = sub.color;
+                                break;
+                              }
+                            }
 
                             return _build3DBall(
                               n,
@@ -484,7 +433,9 @@ class InsightIaCard extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final text = insightIAText.isNotEmpty
         ? insightIAText
-        : l10n.insightIACayeron(probablesCount, selectedLoteria, l10n.nNumeros((coberturaPorcentaje * winningNums.length).round()));
+        : (subSorteos.isNotEmpty
+            ? l10n.insightIACayeron(probablesCount, selectedLoteria, l10n.nNumeros((coberturaPorcentaje * subSorteos.first.winningNums.length).round()))
+            : "");
 
     return Container(
       padding: const EdgeInsets.all(14),

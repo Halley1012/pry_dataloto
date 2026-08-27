@@ -625,5 +625,14 @@
   "descripcionMisJugadasBanner": "Here you will find all your plays and the next draw for each lottery",
   "descripcionResultadosBanner": "Here you will find the latest official results, draw history, and prediction analysis for each lottery",
   "descripcionExplorarBanner": "Here you can explore available lotteries by country and generate smart predictions for your upcoming plays",
-  "mostrarLoteriasPrincipales": "Show main lotteries only"
+  "mostrarLoteriasPrincipales": "Show main lotteries only",
+  "saludoUsuario": "Hello, {nombre}! 👋",
+  "@saludoUsuario": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "subtituloSuerte": "Your luck starts here."
 }

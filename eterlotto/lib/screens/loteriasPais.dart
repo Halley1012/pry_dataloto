@@ -9,7 +9,6 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class LoteriasPais extends StatefulWidget {
@@ -67,7 +66,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       }
     }
 
-    if (_loterias.isEmpty || forceRefresh) setState(() => _isLoading = true);
+    if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
       final uCountry = await _storage.read(key: 'pais_nombre');
@@ -160,26 +159,13 @@ class _LoteriasPaisState extends State<LoteriasPais> {
             return Stack(
               children: [
                 RefreshIndicator(
-                  color: Colors.transparent,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  displacement: 65.0,
-                  triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                  color: AppColors.yellow,
+                  backgroundColor: const Color(0xFF1E1E1E),
+                  displacement: 25.0,
                   onRefresh: () => _cargarExplorarMundial(forceRefresh: true),
                   child: CustomScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
-                      if (_isLoading && _loterias.isNotEmpty)
-                        const SliverToBoxAdapter(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                            child: LinearProgressIndicator(
-                              backgroundColor: Color(0xFF1E2029),
-                              color: AppColors.yellow,
-                              minHeight: 2.5,
-                            ),
-                          ),
-                        ),
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -316,7 +302,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
               children: [
                 Row(
                   children: [
-                    const Text("💡", style: TextStyle(fontSize: 14)),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.info_outline,
+                        color: Colors.amber,
+                        size: 14,
+                      ),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       l10n?.explorarLoterias ?? "Explorar Loterías",

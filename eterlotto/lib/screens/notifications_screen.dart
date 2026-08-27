@@ -8,7 +8,6 @@ import 'package:intl/intl.dart';
 import 'resultados_dashboard_screen.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -99,15 +98,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
           return Column(
             children: [
-              if (provider.isLoading && provider.notifications.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: AppColors.yellow,
-                    minHeight: 2.5,
-                  ),
-                ),
               _buildFilterChips(),
               Expanded(
                 child: provider.notifications.isEmpty
@@ -145,14 +135,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                           )
                         : RefreshIndicator(
-                            color: Colors.transparent,
-                            backgroundColor: Colors.transparent,
-                            elevation: 0,
-                            displacement: 65.0,
-                            triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                            color: AppColors.yellow,
+                            backgroundColor: const Color(0xFF1E1E1E),
+                            displacement: 25.0,
                             onRefresh: () => provider.fetchNotifications(force: true),
                             child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+                              physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.all(16),
                               itemCount: filteredList.length,
                               itemBuilder: (context, index) {

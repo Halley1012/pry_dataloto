@@ -1111,4 +1111,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mostrarLoteriasPrincipales => 'Show main lotteries only';
+
+  @override
+  String saludoUsuario(String nombre) {
+    return 'Hello, $nombre! 👋';
+  }
+
+  @override
+  String get subtituloSuerte => 'Your luck starts here.';
 }
