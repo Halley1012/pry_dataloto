@@ -11,7 +11,6 @@ import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 
 class EstadisticasDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -49,6 +48,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   late bool hasRevancha;
   late String nombreSorteoPrincipal;
   late String nombreSorteoSecundario;
+  List<String> listaSorteosDisponibles = [];
 
   @override
   void initState() {
@@ -151,17 +151,36 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       }
     }
 
-    // 4. Detección automática de sorteos múltiples (ej: Baloto y Revancha, Powerball y Double Play)
-    final sorteosUnicos = todosResultados
-        .map((r) => r["sorteo"]?.toString().trim())
-        .where((s) => s != null && s.isNotEmpty)
-        .toSet();
+    // 4. Detección automática de sorteos múltiples (ej: Baloto y Revancha, Powerball y Double Play, Melate/Revancha/Revanchita)
+    final Set<String> sorteosUnicos = {};
+    for (var r in todosResultados) {
+      final s = r["sorteo"]?.toString().trim();
+      if (s != null && s.isNotEmpty) {
+        sorteosUnicos.add(s);
+      }
+    }
 
     if (sorteosUnicos.length > 1) {
       hasRevancha = true;
-      final listaSorteos = sorteosUnicos.toList();
-      nombreSorteoPrincipal = listaSorteos[0]!;
-      nombreSorteoSecundario = listaSorteos[1]!;
+      final List<String> listaSorteos = sorteosUnicos.toList();
+      final cleanLoteria = widget.loteriaNombreInicial.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+      listaSorteos.sort((a, b) {
+        final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+        final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+        if (aIsMain && !bIsMain) return -1;
+        if (!aIsMain && bIsMain) return 1;
+        return 0;
+      });
+      listaSorteosDisponibles = listaSorteos;
+      nombreSorteoPrincipal = listaSorteos[0];
+      nombreSorteoSecundario = listaSorteos[1];
+      if (filtroSorteo == 'Todos' || !listaSorteosDisponibles.contains(filtroSorteo)) {
+        filtroSorteo = listaSorteosDisponibles.first;
+      }
+    } else {
+      listaSorteosDisponibles = [];
     }
   }
 
@@ -219,10 +238,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   List<Map<String, dynamic>> _filtrarResultados() {
     var lista = todosResultados;
 
-    if (hasRevancha && filtroSorteo != 'Todos') {
+    if (hasRevancha && listaSorteosDisponibles.isNotEmpty) {
+      final target = filtroSorteo.toLowerCase();
       lista = lista.where((r) {
         final s = r["sorteo"]?.toString().toLowerCase() ?? "";
-        return s == filtroSorteo.toLowerCase();
+        return s == target;
       }).toList();
     }
 
@@ -256,15 +276,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, size: 24, color: AppColors.yellow),
-            onPressed: () async {
-              setState(() => cargando = true);
-              await _cargarDatos();
-            },
-          )
-        ],
       ),
       body: isInitialLoading
           ? _buildSkeletonEstadisticas()
@@ -276,30 +287,18 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   ),
                 )
               : RefreshIndicator(
-                  color: Colors.transparent,
-                  backgroundColor: Colors.transparent,
-                  elevation: 0,
-                  displacement: 65.0,
-                  triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                  color: AppColors.yellow,
+                  backgroundColor: const Color(0xFF1E1E1E),
+                  displacement: 25.0,
                   onRefresh: () async {
-                    setState(() => cargando = true);
                     await _cargarDatos();
                   },
                   child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+                    physics: const AlwaysScrollableScrollPhysics(),
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (cargando && todosResultados.isNotEmpty)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8.0),
-                            child: LinearProgressIndicator(
-                              backgroundColor: Color(0xFF1E2029),
-                              color: AppColors.yellow,
-                              minHeight: 2.5,
-                            ),
-                          ),
                         _buildFiltrosBarra(l10n),
                         const SizedBox(height: 20),
                       _buildCardResumenGeneral(resultadosFiltrados, l10n),
@@ -337,12 +336,14 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           Text(l10n?.filtrosAnalisis ?? "Filtros de Análisis", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text("${l10n?.sorteos ?? "Sorteos"}: ", style: AppTextStyles.mensajeSecundario),
               const SizedBox(width: 8),
               Expanded(
                 child: Wrap(
                   spacing: 8,
+                  runSpacing: 8,
                   children: [20, 50, 100, 0].map((cant) {
                     final isSel = limiteFiltro == cant;
                     final texto = cant == 0 ? (l10n?.todas ?? "Todos") : "$cant";
@@ -364,32 +365,34 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
               ),
             ],
           ),
-          if (hasRevancha) ...[
+          if (hasRevancha && listaSorteosDisponibles.isNotEmpty) ...[
             const SizedBox(height: 10),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text("${l10n?.tipo ?? "Tipo"}: ", style: AppTextStyles.mensajeSecundario),
                 const SizedBox(width: 8),
-                Wrap(
-                  spacing: 8,
-                  children: ['Todos', nombreSorteoPrincipal, nombreSorteoSecundario].map((tipo) {
-                    final isSel = filtroSorteo == tipo;
-                    String displayTipo = tipo;
-                    if (tipo == 'Todos') displayTipo = l10n?.todas ?? "Todos";
-                    return ChoiceChip(
-                      label: Text(displayTipo),
-                      selected: isSel,
-                      selectedColor: AppColors.yellow,
-                      backgroundColor: AppColors.darkGray,
-                      labelStyle: TextStyle(
-                        color: isSel ? Colors.black : Colors.white70,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      onSelected: (_) {
-                        setState(() => filtroSorteo = tipo);
-                      },
-                    );
-                  }).toList(),
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: listaSorteosDisponibles.map((tipo) {
+                      final isSel = filtroSorteo == tipo;
+                      return ChoiceChip(
+                        label: Text(tipo),
+                        selected: isSel,
+                        selectedColor: AppColors.yellow,
+                        backgroundColor: AppColors.darkGray,
+                        labelStyle: TextStyle(
+                          color: isSel ? Colors.black : Colors.white70,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        onSelected: (_) {
+                          setState(() => filtroSorteo = tipo);
+                        },
+                      );
+                    }).toList(),
+                  ),
                 ),
               ],
             ),
@@ -429,9 +432,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          MetricStat(label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados", value: "${resultados.length}"),
-          MetricStat(label: l10n?.rangoBalotas ?? "Rango Balotas", value: "1 - $maxBalota"),
-          MetricStat(label: label3, value: value3),
+          Expanded(child: MetricStat(label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados", value: "${resultados.length}")),
+          const SizedBox(width: 8),
+          Expanded(child: MetricStat(label: l10n?.rangoBalotas ?? "Rango Balotas", value: "1 - $maxBalota")),
+          const SizedBox(width: 8),
+          Expanded(child: MetricStat(label: label3, value: value3)),
         ],
       ),
     );
@@ -635,23 +640,35 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   ? "+$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}"
                   : "$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}";
 
-              return Column(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.redAccent,
-                    ),
-                    child: Center(
-                      child: Text("${e.key}",
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                    ),
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 38,
+                        height: 38,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.redAccent,
+                        ),
+                        child: Center(
+                          child: Text("${e.key}",
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          labelText,
+                          style: AppTextStyles.caption2,
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 6),
-                  Text(labelText, style: AppTextStyles.caption2),
-                ],
+                ),
               );
             }).toList(),
           ),
@@ -1205,15 +1222,14 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           const SizedBox(height: 12),
           Text(l10n?.numerosMayorTendencia ?? "Números de mayor tendencia histórica:", style: AppTextStyles.caption),
           const SizedBox(height: 6),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: top3Hist
-                .map((n) => Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: Chip(
-                        label: Text("$n"),
-                        backgroundColor: Colors.amber,
-                        labelStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                      ),
+                .map((n) => Chip(
+                      label: Text("$n"),
+                      backgroundColor: Colors.amber,
+                      labelStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
                     ))
                 .toList(),
           ),

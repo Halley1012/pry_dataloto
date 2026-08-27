@@ -1115,4 +1115,12 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get mostrarLoteriasPrincipales => 'Mostrar solo loterías principales';
+
+  @override
+  String saludoUsuario(String nombre) {
+    return '¡Hola, $nombre! 👋';
+  }
+
+  @override
+  String get subtituloSuerte => 'Tu suerte comienza aquí.';
 }

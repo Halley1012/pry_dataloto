@@ -243,8 +243,18 @@ class _RegistroPageState extends State<RegistroScreen> {
         iconTheme: const IconThemeData(color: AppColors.yellow),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, size: 30),
-          onPressed: () {
-            if (Navigator.of(context).canPop()) {
+          onPressed: () async {
+            if (widget.isSocialOnboarding) {
+              const storage = FlutterSecureStorage();
+              await storage.deleteAll();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  (route) => false,
+                );
+              }
+            } else if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop();
             } else {
               Navigator.of(context).pushReplacement(
@@ -256,9 +266,25 @@ class _RegistroPageState extends State<RegistroScreen> {
         title: Text(titulo, style: AppTextStyles.h2),
         centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+      body: PopScope(
+        canPop: !widget.isSocialOnboarding,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
+          if (widget.isSocialOnboarding) {
+            const storage = FlutterSecureStorage();
+            await storage.deleteAll();
+            if (context.mounted) {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                (route) => false,
+              );
+            }
+          }
+        },
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               minHeight:
@@ -457,8 +483,9 @@ class _RegistroPageState extends State<RegistroScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 // Campo de texto reutilizable

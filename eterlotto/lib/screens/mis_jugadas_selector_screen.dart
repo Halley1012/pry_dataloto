@@ -10,7 +10,6 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class MisJugadasSelectorScreen extends StatefulWidget {
@@ -64,7 +63,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       }
     }
 
-    if (_loterias.isEmpty || forceRefresh) setState(() => _isLoading = true);
+    if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
       // ⚡ 2. Cargar datos en PARALELO
@@ -185,26 +184,13 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       backgroundColor: AppColors.blackfondo,
       body: SafeArea(
         child: RefreshIndicator(
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          displacement: 65.0,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          color: AppColors.yellow,
+          backgroundColor: const Color(0xFF1E1E1E),
+          displacement: 25.0,
           onRefresh: () async => cargarLoterias(forceRefresh: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              if (_isLoading && _loterias.isNotEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: LinearProgressIndicator(
-                      backgroundColor: Color(0xFF1E2029),
-                      color: AppColors.yellow,
-                      minHeight: 2.5,
-                    ),
-                  ),
-                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -254,7 +240,18 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               children: [
                 Row(
                   children: [
-                    const Text("💡", style: TextStyle(fontSize: 14)),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.info_outline,
+                        color: Colors.amber,
+                        size: 14,
+                      ),
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       l10n?.misJugadas ?? "Mis jugadas",

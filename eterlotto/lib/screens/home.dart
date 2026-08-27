@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
@@ -22,7 +23,6 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:shimmer/shimmer.dart';
@@ -61,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _loadUserAndData() async {
+  Future<void> _loadUserAndData({bool forceRefresh = false}) async {
     try {
       // 1. Leer credenciales de storage en paralelo
       final keys = await Future.wait([
@@ -80,37 +80,43 @@ class _HomeScreenState extends State<HomeScreen> {
       final paisNombreStr = keys[2];
       final nameStr = keys[3];
 
-      final paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
+      String paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
           ? rawPaisId
-          : "1";
+          : "5";
+      if (paisNombreStr != null && paisNombreStr.toLowerCase().contains("estados")) {
+        paisIdStr = "21";
+      } else if (paisNombreStr != null && paisNombreStr.toLowerCase().contains("colombia")) {
+        paisIdStr = "5";
+      }
       final paisIdInt = int.tryParse(paisIdStr);
 
-      // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms)
-      final cachedLoterias = await CacheService.getJson('home_loterias_$paisIdStr');
-      final cachedAnuncios = await CacheService.getJson('home_anuncios_$paisIdStr');
-      final cachedGlobal = await CacheService.getJson('home_loterias_globales');
-      if (cachedLoterias != null && mounted) {
-        setState(() {
-          currentUserId = userIdStr;
-          pais = paisNombreStr ?? "Colombia";
-          userName = nameStr;
-          _loterias = List<dynamic>.from(cachedLoterias);
-          _filteredLoterias = List<dynamic>.from(_loterias);
-          if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
-          if (cachedAnuncios != null) anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
-          isLoading = false;
-          cargando = false;
-        });
+      // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms) si no es forceRefresh
+      if (!forceRefresh) {
+        final cachedLoterias = await CacheService.getJson('home_loterias_$paisIdStr');
+        final cachedAnuncios = await CacheService.getJson('home_anuncios_$paisIdStr');
+        final cachedGlobal = await CacheService.getJson('home_loterias_globales');
+        if (cachedLoterias != null && mounted) {
+          setState(() {
+            currentUserId = userIdStr;
+            pais = paisNombreStr ?? "Colombia";
+            userName = nameStr;
+            _loterias = List<dynamic>.from(cachedLoterias);
+            _filteredLoterias = List<dynamic>.from(_loterias);
+            if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
+            if (cachedAnuncios != null) anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
+            isLoading = false;
+            cargando = false;
+          });
+        }
       }
 
       if (_loterias.isEmpty) setState(() => isLoading = true);
 
-      // 2. Cargar Posts, Anuncios y Loterías en PARALELO
+      // 2. Cargar Posts, Anuncios y Loterías en PARALELO directamente desde el servidor
       final Future<List<Post>> postsFuture = ApiService.getPosts().catchError((e) {
         debugPrint("⚠️ Error al obtener posts: $e");
         return <Post>[];
       });
-
 
       final anunciosFuture = ApiService.getPublicidades(paisId: paisIdInt).catchError((e) {
         debugPrint("⚠️ Error al obtener publicidad: $e");
@@ -172,28 +178,35 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildWelcomeGreeting() {
+    final l10n = AppLocalizations.of(context);
     final rawName = userName?.trim();
     final displayName = (rawName != null && rawName.isNotEmpty)
         ? rawName.split(' ').first
         : "Usuario";
 
-    final langCode = Localizations.localeOf(context).languageCode;
-    String saludo = "¡Hola";
-    if (langCode == 'en') {
-      saludo = "Hello";
-    } else if (langCode == 'pt') {
-      saludo = "Olá";
-    }
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-      child: Text(
-        "$saludo, $displayName! 👋",
-        style: AppTextStyles.h1.copyWith(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 22,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n?.saludoUsuario(displayName) ?? "¡Hola, $displayName! 👋",
+            style: AppTextStyles.h1.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            l10n?.subtituloSuerte ?? "Tu suerte comienza aquí.",
+            style: GoogleFonts.montserrat(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -229,7 +242,14 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(l10n?.populares ?? "Populares", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(
+                  l10n?.populares ?? "Populares",
+                  style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
                 child: Text(l10n?.verTodas ?? "Ver todas", style: const TextStyle(color: Colors.white54, fontSize: 14)),
@@ -475,43 +495,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _loadLoterias({bool silent = false}) async {
-    try {
-      String? paisId = await storage.read(key: "pais_id");
-      if (paisId == null || paisId == 'null' || paisId.isEmpty) {
-        paisId = "1";
-      }
-
-      final data = await ApiService.getLoteriasPorPais(paisId);
-      List<dynamic> globalRes = [];
-      if (data.isEmpty) {
-        try {
-          final resCol = await ApiService.getLoteriasPorPais("5");
-          final resUsa = await ApiService.getLoteriasPorPais("21");
-          globalRes = [...resCol, ...resUsa];
-          CacheService.setJson('home_loterias_globales', globalRes);
-        } catch (e) {
-          debugPrint("⚠️ Error obteniendo loterías globales: $e");
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _loterias = data;
-          _filteredLoterias = List<dynamic>.from(_loterias);
-          _globalLoterias = globalRes;
-          if (!silent) isLoading = false;
-        });
-        CacheService.setJson('home_loterias_$paisId', data);
-      }
-    } catch (e) {
-      debugPrint("❌ Error cargando loterías: $e");
-      if (mounted && !silent) {
-        setState(() => isLoading = false);
-      }
-    }
-  }
-
   Future<void> buscarAnuncios({String titulo = "", bool silent = false}) async {
     if (!mounted) return;
     if (!silent || anuncios.isEmpty) {
@@ -569,44 +552,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final route = ModalRoute.of(context);
     if (route is PageRoute && route.settings.arguments == true) {
       _loadUserData(); // ← Recarga nombre, país, etc.
-    }
-  }
-
-  // Cargar posts
-  Future<void> _loadPosts({bool silent = false}) async {
-    if (!mounted) return;
-    if (!silent) setState(() => isLoading = true);
-
-    try {
-      final rawPosts = await ApiService.getPosts();
-      final List<Post> postsConConteo = await Future.wait<Post>(
-        rawPosts.map((p) async {
-          try {
-            final comments = await ApiService.getComments(p.id);
-            return Post(
-              id: p.id,
-              title: p.title,
-              content: p.content,
-              userId: p.userId,
-              userName: p.userName,
-              createdAt: p.createdAt,
-              commentsCount: comments.length,
-            );
-          } catch (_) {
-            return p;
-          }
-        }),
-      );
-
-      if (!mounted) return;
-      setState(() {
-        posts = postsConConteo;
-        if (!silent) isLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      if (!silent) setState(() => isLoading = false);
-      debugPrint("⚠️ Error al cargar posts: $e");
     }
   }
 
@@ -949,10 +894,14 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                featuredTitle,
-                style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  featuredTitle,
+                  style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
+              const SizedBox(width: 8),
               TextButton(
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais())),
                 child: Text(l10n?.verTodas ?? "Ver todas", style: const TextStyle(color: Colors.white54, fontSize: 14)),
@@ -974,46 +923,26 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refreshHome() async {
-    if (!mounted) return;
-    setState(() => isLoading = true);
     try {
-      await Future.wait([
-        _loadUserData(),
-        buscarAnuncios(silent: true),
-        _loadPosts(silent: true),
-        _loadLoterias(silent: true),
-        context.read<NotificationProvider>().fetchNotifications(),
-      ]);
+      await _loadUserAndData(forceRefresh: true);
+      if (mounted) {
+        await context.read<NotificationProvider>().fetchNotifications();
+      }
     } catch (e) {
       debugPrint("⚠️ Error al refrescar Home: $e");
-    } finally {
-      if (mounted) setState(() => isLoading = false);
     }
   }
 
   Widget _buildHomeTab() {
     return SafeArea(
       child: RefreshIndicator(
-        color: Colors.transparent,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        displacement: 65.0,
-        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        color: AppColors.yellow,
+        backgroundColor: const Color(0xFF1E1E1E),
+        displacement: 40.0,
         onRefresh: _refreshHome,
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            if (isLoading && _loterias.isNotEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: AppColors.yellow,
-                    minHeight: 2.5,
-                  ),
-                ),
-              ),
             SliverToBoxAdapter(
               child: _buildHeaderRow(context),
             ),
@@ -1092,9 +1021,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      GestureDetector(
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                        child: Text(AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
+                          child: Text(
+                            AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados",
+                            style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
@@ -1119,7 +1054,13 @@ class _HomeScreenState extends State<HomeScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(AppLocalizations.of(context)?.comentarios ?? "Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              Expanded(
+                child: Text(
+                  AppLocalizations.of(context)?.comentarios ?? "Comentarios",
+                  style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
               IconButton(
                 icon: const Icon(Icons.add_circle_outline),
                 color: AppColors.yellow,

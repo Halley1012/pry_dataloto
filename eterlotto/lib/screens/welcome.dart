@@ -6,6 +6,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import 'package:eterlotto/screens/registro.dart';
+import 'package:eterlotto/screens/login.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -132,8 +133,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         borderRadius: BorderRadius.circular(30),
                       ),
                     ),
-                    onPressed: () =>
-                        Navigator.pushReplacementNamed(context, '/login'),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginPage()),
+                    ),
                     child: Text(l10n?.iniciarSesion ?? "Iniciar sesión", style: AppTextStyles.button),
                   ),
                 ),
@@ -180,8 +183,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               const SizedBox(height: 30),
 
               InkWell(
-                onTap: () =>
-                    Navigator.pushReplacementNamed(context, '/registro'),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                ),
                 child: Text(l10n?.registrarse ?? "Crear cuenta", style: AppTextStyles.mensajeImportante),
               ),
               const SizedBox(height: 40),

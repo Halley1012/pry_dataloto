@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:eterlotto/screens/registro.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 
@@ -59,14 +60,37 @@ class _SplashScreenState extends State<SplashScreen>
           hasSession || (accessToken != null || refreshToken != null);
 
       if (stayLoggedIn) {
+        final paisId = await storage.read(key: "pais_id");
+        if (!mounted) return;
+        if (paisId == null || paisId.isEmpty || paisId == "null") {
+          final userId = await storage.read(key: "user_id");
+          final name = await storage.read(key: "name");
+          final email = await storage.read(key: "email");
+          final user = {
+            'id': int.tryParse(userId ?? '0'),
+            'name': name,
+            'email': email,
+          };
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RegistroScreen(
+                user: user,
+                userId: int.tryParse(userId ?? '0'),
+                isSocialOnboarding: true,
+              ),
+            ),
+          );
+          return;
+        }
+
         // 🔥 Sincronizar token FCM en segundo plano
         unawaited(PushNotificationService.syncToken());
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/welcome');
       }
-
-      Navigator.pushReplacementNamed(
-        context,
-        stayLoggedIn ? '/home' : '/welcome',
-      );
 
     } catch (e) {
       debugPrint(
@@ -78,14 +102,37 @@ class _SplashScreenState extends State<SplashScreen>
           (await storage.read(key: "refresh_token")) != null;
 
       if (hasToken) {
+        final paisId = await storage.read(key: "pais_id");
+        if (!mounted) return;
+        if (paisId == null || paisId.isEmpty || paisId == "null") {
+          final userId = await storage.read(key: "user_id");
+          final name = await storage.read(key: "name");
+          final email = await storage.read(key: "email");
+          final user = {
+            'id': int.tryParse(userId ?? '0'),
+            'name': name,
+            'email': email,
+          };
+          if (!mounted) return;
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RegistroScreen(
+                user: user,
+                userId: int.tryParse(userId ?? '0'),
+                isSocialOnboarding: true,
+              ),
+            ),
+          );
+          return;
+        }
+        if (!mounted) return;
         PushNotificationService.syncToken();
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/welcome');
       }
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(
-        context,
-        hasToken ? '/home' : '/welcome',
-      );
     }
   }
 

@@ -1114,4 +1114,12 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get mostrarLoteriasPrincipales => 'Mostrar apenas loterias principais';
+
+  @override
+  String saludoUsuario(String nombre) {
+    return 'Olá, $nombre! 👋';
+  }
+
+  @override
+  String get subtituloSuerte => 'Sua sorte começa aqui.';
 }

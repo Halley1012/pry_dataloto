@@ -18,7 +18,6 @@ import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/widgets/footer.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class HistoricoResultadosScreen extends StatefulWidget {
@@ -458,29 +457,16 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       child: Scaffold(
         backgroundColor: AppColors.blackfondo,
         body: RefreshIndicator(
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          displacement: 65.0,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          color: AppColors.yellow,
+          backgroundColor: const Color(0xFF1E1E1E),
+          displacement: 25.0,
           onRefresh: () => _cargarHistorico(force: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               CustomSliverAppBar(
                 title: widget.config.nombre,
               ),
-              if (_isLoading && _todosResultados.isNotEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-                    child: LinearProgressIndicator(
-                      backgroundColor: Color(0xFF1E2029),
-                      color: AppColors.yellow,
-                      minHeight: 2.5,
-                    ),
-                  ),
-                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),

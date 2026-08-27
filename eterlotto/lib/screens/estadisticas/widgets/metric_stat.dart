@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 
@@ -15,18 +15,26 @@ class MetricStat extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          value,
-          style: AppTextStyles.tituloPrincipal.copyWith(
-            color: AppColors.yellow,
-            fontSize: 24,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: AppTextStyles.tituloPrincipal.copyWith(
+              color: AppColors.yellow,
+              fontSize: 24,
+            ),
           ),
         ),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: AppTextStyles.caption,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            label,
+            style: AppTextStyles.caption,
+            textAlign: TextAlign.center,
+          ),
         ),
       ],
     );
