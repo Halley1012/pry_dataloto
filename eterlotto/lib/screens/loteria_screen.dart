@@ -20,6 +20,7 @@ import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -206,6 +207,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   bool cargando = false;
   bool isSaving = false;
+  int _generacionesCount = 0;
   String? fechaPrediccion;
   String? userId;
   String? _jackpot;
@@ -260,55 +262,57 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     super.dispose();
   }
 
-  Future<void> _cargarDataOptimizado() async {
+  Future<void> _cargarDataOptimizado({bool force = false}) async {
     if (!mounted) return;
 
-    final cacheKeyPred = '${config.route}_prediccion';
-    final cached = await CacheService.getJson(cacheKeyPred);
-    if (cached != null && cached["numeros"] != null) {
-      final nums = (cached["numeros"] as List)
-          .map((e) => int.tryParse(e.toString()) ?? -1)
-          .where((e) => e >= 0)
-          .toList();
-      final redNums = cached["balotaroja"] != null
-          ? (cached["balotaroja"] as List)
-              .map((e) => int.tryParse(e.toString()))
-              .where((e) => e != null && e >= 0)
-              .cast<int>()
-              .toList()
-          : <int>[];
+    if (!force) {
+      final cacheKeyPred = '${config.route}_prediccion';
+      final cached = await CacheService.getJson(cacheKeyPred);
+      if (cached != null && cached["numeros"] != null) {
+        final nums = (cached["numeros"] as List)
+            .map((e) => int.tryParse(e.toString()) ?? -1)
+            .where((e) => e >= 0)
+            .toList();
+        final redNums = cached["balotaroja"] != null
+            ? (cached["balotaroja"] as List)
+                .map((e) => int.tryParse(e.toString()))
+                .where((e) => e != null && e >= 0)
+                .cast<int>()
+                .toList()
+            : <int>[];
 
-      setState(() {
-        listaProbables = nums;
-        listaBalotaRoja = redNums;
-        fechaPrediccion = cached["fecha"]?.toString();
-        if (cached["jackpot"] != null) {
-          _jackpot = cached["jackpot"].toString();
-        }
-      });
+        setState(() {
+          listaProbables = nums;
+          listaBalotaRoja = redNums;
+          fechaPrediccion = cached["fecha"]?.toString();
+          if (cached["jackpot"] != null) {
+            _jackpot = cached["jackpot"].toString();
+          }
+        });
+      }
+
+      final cacheKeyUltimos = '${config.route}_ultimos5';
+      final cachedUltimos = await CacheService.getJson(cacheKeyUltimos);
+      if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
+        final list = List<Map<String, dynamic>>.from(cachedUltimos["resultados"]);
+        final sorteosUnicos = list
+            .map((r) => r["sorteo"]?.toString().trim())
+            .where((s) => s != null && s.isNotEmpty)
+            .cast<String>()
+            .toSet()
+            .toList();
+        setState(() {
+          ultimosResultados = list;
+          _sorteosDisponibles = sorteosUnicos;
+          if (_sorteosDisponibles.isNotEmpty &&
+              !_sorteosDisponibles.contains(_selectedResultadosTab)) {
+            _selectedResultadosTab = _sorteosDisponibles.first;
+          }
+        });
+      }
     }
 
-    final cacheKeyUltimos = '${config.route}_ultimos5';
-    final cachedUltimos = await CacheService.getJson(cacheKeyUltimos);
-    if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
-      final list = List<Map<String, dynamic>>.from(cachedUltimos["resultados"]);
-      final sorteosUnicos = list
-          .map((r) => r["sorteo"]?.toString().trim())
-          .where((s) => s != null && s.isNotEmpty)
-          .cast<String>()
-          .toSet()
-          .toList();
-      setState(() {
-        ultimosResultados = list;
-        _sorteosDisponibles = sorteosUnicos;
-        if (_sorteosDisponibles.isNotEmpty &&
-            !_sorteosDisponibles.contains(_selectedResultadosTab)) {
-          _selectedResultadosTab = _sorteosDisponibles.first;
-        }
-      });
-    }
-
-    if (listaProbables.isEmpty) setState(() => cargando = true);
+    if (listaProbables.isEmpty || force) setState(() => cargando = true);
 
     try {
       final uId = await _storage.read(key: 'user_id');
@@ -459,6 +463,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   void _generarAleatorios() {
     setState(() {
+      _generacionesCount++;
       final Random random = Random();
       seleccionados = [];
 
@@ -490,6 +495,15 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       _bounceController.reset();
       _bounceController.forward();
     });
+
+    // 🎯 Monetización Inteligente: Cada 4 generaciones, evaluar anuncio intersticial
+    if (_generacionesCount % 4 == 0) {
+      final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+      AdService.instance.showInterstitialAd(
+        isPremium: isPremium,
+        ignoreThreshold: true,
+      );
+    }
   }
 
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
@@ -676,6 +690,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             duration: const Duration(seconds: 2),
           ),
         );
+
+        // 🎯 Monetización Inteligente: Evaluar anuncio intersticial tras guardar la jugada con éxito
+        final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+        AdService.instance.showInterstitialAd(
+          isPremium: isPremium,
+          ignoreThreshold: true,
+        );
       }
     } catch (e) {
       debugPrint("❌ Error al guardar jugada: $e");
@@ -831,9 +852,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           color: Colors.transparent,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          onRefresh: _cargarDataOptimizado,
+          displacement: 65.0,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          onRefresh: () => _cargarDataOptimizado(force: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
             slivers: [
               if (cargando && !isDataLoading)
                 const SliverToBoxAdapter(
@@ -1829,7 +1852,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} ${config.nombre}",
+                l10n?.ultimosResultados ?? "Últimos 5 resultados",
                 style: AppTextStyles.h2.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -1855,10 +1878,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                         child: Text(
                           sorteo,
                           textAlign: TextAlign.center,
-                          style: GoogleFonts.montserrat(
+                          style: AppTextStyles.button.copyWith(
                             color: isSelected ? Colors.black : Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontSize: 14,
                           ),
                         ),
                       ),
@@ -1886,7 +1909,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              "${l10n?.ultimosResultados ?? "Últimos 5 resultados"} ${config.nombre}",
+              l10n?.ultimosResultados ?? "Últimos 5 resultados",
               style: AppTextStyles.h2.copyWith(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,

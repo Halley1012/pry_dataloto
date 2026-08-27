@@ -13,7 +13,21 @@ class UserRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def create(self, name: str, email: str, password_hashed: Optional[str], pais_id: Optional[int], departamento_id: Optional[int]) -> Dict[str, Any]:
+    async def create(
+        self,
+        name: str,
+        email: str,
+        password_hashed: Optional[str],
+        pais_id: Optional[int],
+        departamento_id: Optional[int],
+        auth_provider: str = 'email',
+        email_verified: bool = False,
+        avatar_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def update_last_login(self, user_id: int) -> None:
         pass
 
     @abstractmethod

@@ -31,7 +31,13 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
             email=user_update.email,
             pais_id=user_update.pais_id,
             departamento_id=user_update.departamento_id,
-            fcm_token=user_update.fcm_token
+            fcm_token=user_update.fcm_token,
+            telefono=user_update.telefono,
+            idioma=user_update.idioma,
+            notificaciones_activas=user_update.notificaciones_activas,
+            app_version=user_update.app_version,
+            plataforma=user_update.plataforma,
+            avatar_url=user_update.avatar_url
         )
         return res
     except ValueError as e:

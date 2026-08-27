@@ -85,6 +85,23 @@ class ApiService {
             );
           }
 
+          final avatarUrl = user?["avatar_url"];
+          if (avatarUrl != null && avatarUrl.toString().isNotEmpty) {
+            await _storage.write(key: "avatar_url", value: avatarUrl.toString());
+          }
+          final authProvider = user?["auth_provider"];
+          if (authProvider != null) {
+            await _storage.write(key: "auth_provider", value: authProvider.toString());
+          }
+          final telefono = user?["telefono"];
+          if (telefono != null) {
+            await _storage.write(key: "telefono", value: telefono.toString());
+          }
+          final idioma = user?["idioma"];
+          if (idioma != null) {
+            await _storage.write(key: "idioma", value: idioma.toString());
+          }
+
           final isPremium = user?["is_premium"] == true;
           await _storage.write(
             key: "is_premium_subscribed",
@@ -105,6 +122,8 @@ class ApiService {
             'pais_nombre': paisNombre,
             'departamento_id': departamentoId?.toString(),
             'departamento_nombre': departamentoNombre,
+            'avatar_url': avatarUrl,
+            'auth_provider': authProvider,
             'is_premium': isPremium,
           };
         }
@@ -179,6 +198,19 @@ class ApiService {
               value: departamentoNombre,
             );
           }
+
+          final avatarUrl = user?["avatar_url"];
+          if (avatarUrl != null && avatarUrl.toString().isNotEmpty) {
+            await _storage.write(key: "avatar_url", value: avatarUrl.toString());
+          }
+          final authProvider = user?["auth_provider"] ?? provider;
+          await _storage.write(key: "auth_provider", value: authProvider.toString());
+
+          final isPremium = user?["is_premium"] == true;
+          await _storage.write(
+            key: "is_premium_subscribed",
+            value: isPremium ? "true" : "false",
+          );
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -370,6 +402,10 @@ class ApiService {
               : int.tryParse(rawUser['departamento_id'].toString()),
           "departamento_nombre":
               rawUser['departamento_nombre']?.toString() ?? '',
+          "avatar_url": rawUser['avatar_url']?.toString(),
+          "auth_provider": rawUser['auth_provider']?.toString(),
+          "telefono": rawUser['telefono']?.toString(),
+          "idioma": rawUser['idioma']?.toString(),
         },
       };
     } else {
@@ -378,6 +414,16 @@ class ApiService {
           errorData['detail']?.toString() ?? 'Error al actualizar usuario';
       throw Exception(errorMsg);
     }
+  }
+
+  /// 🖼️ Obtener avatar guardado
+  static Future<String?> getAvatarUrl() async {
+    return await _storage.read(key: "avatar_url");
+  }
+
+  /// 🔒 Obtener proveedor de autenticación guardado
+  static Future<String?> getAuthProvider() async {
+    return await _storage.read(key: "auth_provider");
   }
 
   /// 🔑 Obtener userId guardado (con fallback robusto a JWT)

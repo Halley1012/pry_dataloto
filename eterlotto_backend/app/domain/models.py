@@ -2,7 +2,30 @@ from datetime import datetime
 from typing import List, Optional
 
 class User:
-    def __init__(self, id: int, name: str, email: str, password_hashed: str, pais_id: Optional[int] = None, departamento_id: Optional[int] = None, fcm_token: Optional[str] = None):
+    def __init__(
+        self,
+        id: int,
+        name: str,
+        email: str,
+        password_hashed: Optional[str] = None,
+        pais_id: Optional[int] = None,
+        departamento_id: Optional[int] = None,
+        fcm_token: Optional[str] = None,
+        is_premium: bool = False,
+        premium_expires_at: Optional[datetime] = None,
+        activo: bool = True,
+        auth_provider: str = 'email',
+        email_verified: bool = False,
+        avatar_url: Optional[str] = None,
+        telefono: Optional[str] = None,
+        idioma: str = 'es',
+        notificaciones_activas: bool = True,
+        app_version: Optional[str] = None,
+        plataforma: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        updated_at: Optional[datetime] = None,
+        last_login_at: Optional[datetime] = None,
+    ):
         self.id = id
         self.name = name
         self.email = email
@@ -10,6 +33,20 @@ class User:
         self.pais_id = pais_id
         self.departamento_id = departamento_id
         self.fcm_token = fcm_token
+        self.is_premium = is_premium
+        self.premium_expires_at = premium_expires_at
+        self.activo = activo
+        self.auth_provider = auth_provider
+        self.email_verified = email_verified
+        self.avatar_url = avatar_url
+        self.telefono = telefono
+        self.idioma = idioma
+        self.notificaciones_activas = notificaciones_activas
+        self.app_version = app_version
+        self.plataforma = plataforma
+        self.created_at = created_at or datetime.utcnow()
+        self.updated_at = updated_at or datetime.utcnow()
+        self.last_login_at = last_login_at
 
 class Jugada:
     def __init__(self, id: int, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime):

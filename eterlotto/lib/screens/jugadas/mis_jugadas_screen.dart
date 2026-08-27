@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import '../../utils/screen_security_helper.dart';
+import '../../utils/top_bouncing_scroll_physics.dart';
 import '../loteria_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -554,9 +555,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         color: Colors.transparent,
         backgroundColor: Colors.transparent,
         elevation: 0,
+        displacement: 65.0,
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
         onRefresh: () => _cargarJugadas(force: true),
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
           slivers: [
             CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
             if (_cargando && _jugadasList.isNotEmpty)

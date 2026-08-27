@@ -9,6 +9,8 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class MisJugadasSelectorScreen extends StatefulWidget {
@@ -24,7 +26,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   Map<String, Map<String, dynamic>> _infoJugadas = {};
-  final TextEditingController _searchController = TextEditingController();
   String? _userCountry;
   bool _isLoading = true;
 
@@ -168,21 +169,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
-  void _onSearchChanged(String query) {
-    setState(() {
-      final q = query.trim().toLowerCase();
-      if (q.isEmpty) {
-        _filteredLoterias = _loterias;
-      } else {
-        _filteredLoterias = _loterias.where((l) {
-          final name = (l["nombre"] ?? "").toString().toLowerCase();
-          final pNombre = _getPaisNombre(l["pais_id"]).toLowerCase();
-          return name.contains(q) || pNombre.contains(q);
-        }).toList();
-      }
-    });
-  }
-
   String _getPaisNombre(dynamic id) {
     if (_paises.isEmpty) return "Cargando...";
     final p = _paises.firstWhere(
@@ -202,31 +188,45 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           color: Colors.transparent,
           backgroundColor: Colors.transparent,
           elevation: 0,
+          displacement: 65.0,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
           onRefresh: () async => cargarLoterias(forceRefresh: true),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+            slivers: [
               if (_isLoading && _loterias.isNotEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: AppColors.yellow,
-                    minHeight: 2.5,
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: LinearProgressIndicator(
+                      backgroundColor: Color(0xFF1E2029),
+                      color: AppColors.yellow,
+                      minHeight: 2.5,
+                    ),
                   ),
                 ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
-                child: Text(
-                  l10n?.misJugadas ?? "Mis Jugadas",
-                  style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+                  child: Text(
+                    l10n?.misJugadas ?? "Mis Jugadas",
+                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-              _buildSearchBar(l10n),
-              Expanded(
-                child: _isLoading && _loterias.isEmpty
-                  ? _buildSkeletonList()
-                  : _buildLotteryList(l10n),
+              SliverToBoxAdapter(
+                child: _buildInfoBanner(l10n),
+              ),
+              if (_isLoading && _loterias.isEmpty)
+                _buildSliverSkeletonList()
+              else if (_filteredLoterias.isEmpty)
+                SliverToBoxAdapter(
+                  child: _buildEmptyState(l10n),
+                )
+              else
+                _buildSliverLotteryList(l10n),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 20),
               ),
             ],
           ),
@@ -235,57 +235,88 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     );
   }
 
-  Widget _buildSearchBar(AppLocalizations? l10n) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: l10n?.buscarPorLoteriaOPais ?? "Buscar por lotería o país...",
-            hintStyle: const TextStyle(color: Colors.white38),
-            prefixIcon: const Icon(Icons.search, color: Colors.white38),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+  Widget _buildInfoBanner(AppLocalizations? l10n) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 40.0),
+      padding: const EdgeInsets.all(14.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A1E),
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text("💡", style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n?.misJugadas ?? "Mis jugadas",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n?.descripcionMisJugadasBanner ??
+                      "Aquí encontrarás todas tus jugadas y el próximo sorteo de cada lotería",
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSliverSkeletonList() {
+    return SliverToBoxAdapter(
+      child: _buildSkeletonList(),
+    );
+  }
+
+  Widget _buildEmptyState(AppLocalizations? l10n) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(40.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
+            const SizedBox(height: 20),
+            Text(
+              l10n?.aunNoTienesJugadas ?? "Aún no tienes jugadas",
+              style: AppTextStyles.h2.copyWith(color: Colors.white),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar.",
+              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+              textAlign: TextAlign.center,
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildLotteryList(AppLocalizations? l10n) {
-    if (_filteredLoterias.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
-              const SizedBox(height: 20),
-              Text(
-                l10n?.aunNoTienesJugadas ?? "Aún no tienes jugadas",
-                style: AppTextStyles.h2.copyWith(color: Colors.white),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar.",
-                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
+  Widget _buildSliverLotteryList(AppLocalizations? l10n) {
     final grouped = <String, List<Map<String, dynamic>>>{};
     final langCode = Localizations.localeOf(context).languageCode;
 
@@ -301,38 +332,41 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         return a.compareTo(b);
       });
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 20),
-      itemCount: sortedCountries.length,
-      itemBuilder: (context, i) {
-        final country = sortedCountries[i];
-        final lots = grouped[country]!;
-        final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
+    final List<Widget> sliverItems = [];
+    for (var country in sortedCountries) {
+      final lots = grouped[country]!;
+      final countryDisplay = PaisHelper.getNombreTraducido(country, langCode);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Row(
-                children: [
-                  Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Text(
-                    countryDisplay,
-                    style: AppTextStyles.h2.copyWith(
-                      color: AppColors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
+      sliverItems.add(
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+          child: Row(
+            children: [
+              Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 8),
+              Text(
+                countryDisplay,
+                style: AppTextStyles.h2.copyWith(
+                  color: AppColors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            ...lots.map((loteria) => _buildLotteryItem(loteria, l10n)),
-          ],
-        );
-      },
+            ],
+          ),
+        ),
+      );
+
+      for (var loteria in lots) {
+        sliverItems.add(_buildLotteryItem(loteria, l10n));
+      }
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) => sliverItems[index],
+        childCount: sliverItems.length,
+      ),
     );
   }
 
