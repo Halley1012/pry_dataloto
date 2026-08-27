@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:async';
 import 'package:eterlotto/screens/welcome.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -39,6 +39,8 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final googleSignIn = GoogleSignIn(
+        serverClientId:
+            "705812334903-st0akd2g8mq0i7cqpvhm5ul0mkuhhj08.apps.googleusercontent.com",
         scopes: ['email', 'profile'],
       );
       
@@ -51,6 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
+      if (!mounted) return;
       if (idToken == null) {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(

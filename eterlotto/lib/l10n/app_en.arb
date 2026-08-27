@@ -611,5 +611,19 @@
   "pagoExito": "✅ Payment successful",
   "pagarEpayco": "Pay with ePayco",
   "errorAnuncios": "Error loading ads.",
-  "numerosLabel": "Numbers"
+  "numerosLabel": "Numbers",
+  "descripcionHistoricoResultados": "Check the 50 most recent draws or download the full history to analyze the data on your own.",
+  "cargarMasSorteos": "Load 50 more ({count} remaining)",
+  "@cargarMasSorteos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "verTodosSorteos": "View all",
+  "descripcionMisJugadasBanner": "Here you will find all your plays and the next draw for each lottery",
+  "descripcionResultadosBanner": "Here you will find the latest official results, draw history, and prediction analysis for each lottery",
+  "descripcionExplorarBanner": "Here you can explore available lotteries by country and generate smart predictions for your upcoming plays",
+  "mostrarLoteriasPrincipales": "Show main lotteries only"
 }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:eterlotto/models/notification_model.dart';
 import 'package:eterlotto/services/notification_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
@@ -23,8 +23,8 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchNotifications() async {
-    if (_notifications.isEmpty) {
+  Future<void> fetchNotifications({bool force = false}) async {
+    if (_notifications.isEmpty || force) {
       _isLoading = true;
       notifyListeners();
     }
