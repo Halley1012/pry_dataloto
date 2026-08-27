@@ -103,14 +103,14 @@ class _SplashScreenState extends State<SplashScreen>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Image.asset("assets/images/logo_letras_.png", height: 400),
+            Image.asset("assets/images/logo_letras_.png", height: 300, ),
             Shimmer.fromColors(
               baseColor: Colors.transparent,
               highlightColor: Colors.white.withValues(alpha: 0.6),
               period: const Duration(seconds: 2),
               child: Image.asset(
                 "assets/images/logo_letras_.png",
-                height: 400,
+                height: 300,
                 color: Colors.black,
               ),
             ),

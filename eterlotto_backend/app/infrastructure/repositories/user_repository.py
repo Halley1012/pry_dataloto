@@ -11,11 +11,25 @@ class PostgresUserRepository(UserRepositoryPort):
         if cls._schema_ensured:
             return
         try:
-            # 1. Asegurar columnas de suscripción en users
+            # 1. Asegurar columnas de suscripción y perfil en users
             await conn.execute("""
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_expires_at TIMESTAMP WITH TIME ZONE;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS google_order_id VARCHAR(255);
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT TRUE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS rol VARCHAR(20) DEFAULT 'user';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_provider VARCHAR(30) DEFAULT 'email';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url VARCHAR(500);
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS telefono VARCHAR(30);
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS idioma VARCHAR(10) DEFAULT 'es';
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS notificaciones_activas BOOLEAN DEFAULT TRUE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP WITH TIME ZONE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS app_version VARCHAR(20);
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS plataforma VARCHAR(20);
             """)
 
             # 2. Crear tabla histórica de suscripciones / compras
@@ -52,7 +66,19 @@ class PostgresUserRepository(UserRepositoryPort):
                     u.fcm_token,
                     COALESCE(u.is_premium, FALSE) AS is_premium,
                     u.premium_expires_at,
-                    u.google_order_id
+                    u.google_order_id,
+                    COALESCE(u.activo, TRUE) AS activo,
+                    COALESCE(u.auth_provider, 'email') AS auth_provider,
+                    COALESCE(u.email_verified, FALSE) AS email_verified,
+                    u.avatar_url,
+                    u.telefono,
+                    COALESCE(u.idioma, 'es') AS idioma,
+                    COALESCE(u.notificaciones_activas, TRUE) AS notificaciones_activas,
+                    u.app_version,
+                    u.plataforma,
+                    u.created_at,
+                    u.updated_at,
+                    u.last_login_at
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id
@@ -73,7 +99,19 @@ class PostgresUserRepository(UserRepositoryPort):
                     u.fcm_token,
                     COALESCE(u.is_premium, FALSE) AS is_premium,
                     u.premium_expires_at,
-                    u.google_order_id
+                    u.google_order_id,
+                    COALESCE(u.activo, TRUE) AS activo,
+                    COALESCE(u.auth_provider, 'email') AS auth_provider,
+                    COALESCE(u.email_verified, FALSE) AS email_verified,
+                    u.avatar_url,
+                    u.telefono,
+                    COALESCE(u.idioma, 'es') AS idioma,
+                    COALESCE(u.notificaciones_activas, TRUE) AS notificaciones_activas,
+                    u.app_version,
+                    u.plataforma,
+                    u.created_at,
+                    u.updated_at,
+                    u.last_login_at
                 FROM users u
                 LEFT JOIN paises p ON p.id = u.pais_id
                 LEFT JOIN departamentos d ON d.id = u.departamento_id
@@ -81,7 +119,17 @@ class PostgresUserRepository(UserRepositoryPort):
             """, email.strip().lower())
             return dict(row) if row else None
 
-    async def create(self, name: str, email: str, password_hashed: Optional[str], pais_id: Optional[int], departamento_id: Optional[int]) -> Dict[str, Any]:
+    async def create(
+        self,
+        name: str,
+        email: str,
+        password_hashed: Optional[str],
+        pais_id: Optional[int],
+        departamento_id: Optional[int],
+        auth_provider: str = 'email',
+        email_verified: bool = False,
+        avatar_url: Optional[str] = None
+    ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
@@ -89,24 +137,15 @@ class PostgresUserRepository(UserRepositoryPort):
             normalized_name = name.strip().title()
 
             await conn.execute("""
-                INSERT INTO users (name, email, password, pais_id, departamento_id, is_premium)
-                VALUES ($1, $2, $3, $4, $5, FALSE)
-            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id)
+                INSERT INTO users (
+                    name, email, password, pais_id, departamento_id,
+                    is_premium, auth_provider, email_verified, avatar_url,
+                    activo, created_at, updated_at, last_login_at
+                )
+                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id, auth_provider, email_verified, avatar_url)
 
-            row = await conn.fetchrow("""
-                SELECT 
-                    u.id, u.name, u.email,
-                    u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre,
-                    u.fcm_token,
-                    COALESCE(u.is_premium, FALSE) AS is_premium,
-                    u.premium_expires_at
-                FROM users u
-                LEFT JOIN paises p ON p.id = u.pais_id
-                LEFT JOIN departamentos d ON d.id = u.departamento_id
-                WHERE LOWER(u.email) = $1
-            """, normalized_email)
-            return dict(row)
+            return await self.find_by_email(normalized_email) or {}
 
     async def update(self, user_id: int, updates: Dict[str, Any]) -> Dict[str, Any]:
         pool = db_connection.get_pool()
@@ -118,6 +157,9 @@ class PostgresUserRepository(UserRepositoryPort):
                 fields.append(f"{k} = ${len(values) + 1}")
                 values.append(v)
 
+            # Actualizar siempre updated_at
+            fields.append("updated_at = CURRENT_TIMESTAMP")
+
             values.append(user_id)
             query = f"""
                 UPDATE users
@@ -127,20 +169,13 @@ class PostgresUserRepository(UserRepositoryPort):
             """
             await conn.execute(query, *values)
 
-            updated = await conn.fetchrow("""
-                SELECT 
-                    u.id, u.name, u.email,
-                    u.pais_id, p.nombre AS pais_nombre,
-                    u.departamento_id, d.nombre AS departamento_nombre,
-                    u.fcm_token,
-                    COALESCE(u.is_premium, FALSE) AS is_premium,
-                    u.premium_expires_at
-                FROM users u
-                LEFT JOIN paises p ON p.id = u.pais_id
-                LEFT JOIN departamentos d ON d.id = u.departamento_id
-                WHERE u.id = $1
-            """, user_id)
-            return dict(updated)
+            return await self.find_by_id(user_id) or {}
+
+    async def update_last_login(self, user_id: int) -> None:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            await conn.execute("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = $1", user_id)
 
     async def set_premium(
         self,

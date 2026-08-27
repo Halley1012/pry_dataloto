@@ -8,6 +8,8 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/screens/resultados_dashboard_screen.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 
@@ -23,7 +25,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
-  final TextEditingController _searchController = TextEditingController();
   final _storage = const FlutterSecureStorage();
   String? _userCountry;
   bool _isLoading = true;
@@ -191,21 +192,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         .replaceAll(RegExp(r'[\s_]+'), '_');
   }
 
-  void _onSearchChanged(String query) {
-    setState(() {
-      final q = query.trim().toLowerCase();
-      if (q.isEmpty) {
-        _filteredLoterias = _loterias;
-      } else {
-        _filteredLoterias = _loterias.where((l) {
-          final name = (l["nombre"] ?? "").toString().toLowerCase();
-          final pNombre = _getPaisNombre(l["pais_id"]).toLowerCase();
-          return name.contains(q) || pNombre.contains(q);
-        }).toList();
-      }
-    });
-  }
-
   String _getPaisNombre(dynamic id) {
     if (_paises.isEmpty) {
       return _userCountry ?? "Internacional";
@@ -217,7 +203,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     return p["nombre"] ?? (_userCountry ?? "Internacional");
   }
 
-
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -228,9 +213,11 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           color: Colors.transparent,
           backgroundColor: Colors.transparent,
           elevation: 0,
+          displacement: 65.0,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
           onRefresh: () => cargarLoterias(forceRefresh: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
             slivers: [
               if (_isLoading && _loterias.isNotEmpty)
                 const SliverToBoxAdapter(
@@ -245,7 +232,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                 ),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
                   child: Text(
                     l10n?.analisisYResultados ?? "Análisis y Resultados",
                     style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
@@ -253,7 +240,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                 ),
               ),
               SliverToBoxAdapter(
-                child: _buildSearchBar(l10n),
+                child: _buildInfoBanner(l10n),
               ),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
@@ -263,6 +250,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                 )
               else
                 _buildSliverLotteryList(l10n),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 20),
+              ),
             ],
           ),
         ),
@@ -270,60 +260,58 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
-  Widget _buildSearchBar(AppLocalizations? l10n) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: l10n?.buscarPorLoteriaOPais ?? "Buscar por lotería o país...",
-            hintStyle: const TextStyle(color: Colors.white38),
-            prefixIcon: const Icon(Icons.search, color: Colors.white38),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+  Widget _buildInfoBanner(AppLocalizations? l10n) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 40.0),
+      padding: const EdgeInsets.all(14.0),
+      decoration: BoxDecoration(
+        color: const Color(0xFF141A1E),
+        borderRadius: BorderRadius.circular(16.0),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text("💡", style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 4),
+                    Text(
+                      l10n?.analisisYResultados ?? "Análisis y Resultados",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  l10n?.descripcionResultadosBanner ??
+                      "Aquí encontrarás los últimos resultados oficiales, el historial de sorteos y el análisis de predicciones de cada lotería",
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
     final langCode = Localizations.localeOf(context).languageCode;
-    final isSearching = _searchController.text.trim().isNotEmpty;
     final countryName = PaisHelper.getNombreTraducido(_userCountry ?? "Colombia", langCode);
-
-    if (isSearching) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 40.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.search_off_outlined, color: Colors.white24, size: 64),
-              const SizedBox(height: 16),
-              Text(
-                langCode == 'en' ? "No lotteries found" : (langCode == 'pt' ? "Nenhuma loteria encontrada" : "No se encontraron loterías"),
-                style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                langCode == 'en' ? "Try another search term." : (langCode == 'pt' ? "Tente outro termo de busca." : "Intenta con otro término de búsqueda."),
-                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54, fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
 
     final String titleText = langCode == 'en'
         ? "No lotteries registered for $countryName"

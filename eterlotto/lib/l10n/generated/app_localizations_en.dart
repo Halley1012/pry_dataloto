@@ -1084,4 +1084,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get numerosLabel => 'Numbers';
+
+  @override
+  String get descripcionHistoricoResultados =>
+      'Check the 50 most recent draws or download the full history to analyze the data on your own.';
+
+  @override
+  String cargarMasSorteos(int count) {
+    return 'Load 50 more ($count remaining)';
+  }
+
+  @override
+  String get verTodosSorteos => 'View all';
+
+  @override
+  String get descripcionMisJugadasBanner =>
+      'Here you will find all your plays and the next draw for each lottery';
+
+  @override
+  String get descripcionResultadosBanner =>
+      'Here you will find the latest official results, draw history, and prediction analysis for each lottery';
+
+  @override
+  String get descripcionExplorarBanner =>
+      'Here you can explore available lotteries by country and generate smart predictions for your upcoming plays';
+
+  @override
+  String get mostrarLoteriasPrincipales => 'Show main lotteries only';
 }

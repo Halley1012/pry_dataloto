@@ -41,6 +41,7 @@ class NotificationGenerator:
         if "kabala" in lower: return 20
         if "ganadiario" in lower or "gana_diario" in lower: return 18
         if "5deoro" in lower or "cincodeoro" in lower or "oro" in lower: return 24
+        if "lotto_cr" in lower or "lotto costa rica" in lower or "lottocr" in lower: return 20
         return 21  # Default / Baloto
 
     def run(self, loteria="all"):
@@ -253,6 +254,15 @@ class NotificationGenerator:
                 "query_resultados": "SELECT * FROM resultados_5deoro WHERE sorteo = '5 de Oro' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1",
                 "mitad": 24,
                 "has_special": True,
+                "is_baloto": False,
+            },
+            "lotto_cr": {
+                "route": "lotto_cr",
+                "nombre": "Lotto Costa Rica",
+                "tabla_resultados": "resultados_lotto_cr",
+                "query_resultados": "SELECT * FROM resultados_lotto_cr WHERE sorteo = 'Lotto' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 20,
+                "has_special": False,
                 "is_baloto": False,
             },
         }

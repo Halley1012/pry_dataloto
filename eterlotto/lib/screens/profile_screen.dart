@@ -14,6 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/locale_provider.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/screens/subscription_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -31,6 +32,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String? name;
   String? email;
   String? userId;
+  String? avatarUrl;
+  String? authProvider;
   String _appVersion = "...";
   bool isLoading = true;
 
@@ -59,6 +62,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         name = userData['name'] ?? "Usuario";
         email = userData['email'] ?? "correo@ejemplo.com";
         userId = userData['user_id'];
+        avatarUrl = userData['avatar_url'];
+        authProvider = userData['auth_provider'];
         isLoading = false;
       });
     }
@@ -104,6 +109,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       'departamento_id': int.tryParse(await storage.read(key: 'departamento_id') ?? '0'),
     };
 
+    if (!mounted) return;
     final updated = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => RegistroScreen(user: user, userId: int.tryParse(userId!))),
@@ -137,10 +143,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   CircleAvatar(
                     radius: 45,
                     backgroundColor: AppColors.getAvatarColor(name ?? "", userId: int.tryParse(userId ?? "0")),
-                    child: Text(
-                      (name != null && name!.isNotEmpty) ? name![0].toUpperCase() : "?",
-                      style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
+                    backgroundImage: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
+                        ? NetworkImage(avatarUrl!)
+                        : null,
+                    child: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
+                        ? null
+                        : Text(
+                            (name != null && name!.isNotEmpty) ? name![0].toUpperCase() : "?",
+                            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
@@ -218,7 +229,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 },
               ),
               _buildOptionItem(Icons.ads_click, l10n.misAnuncios, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
-              _buildOptionItem(Icons.payment, l10n.metodosPago, () {}),
+              _buildOptionItem(
+                Icons.payment,
+                l10n.metodosPago,
+                () async {
+                  final uri = Uri.parse("https://play.google.com/store/paymentmethods");
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+              ),
               _buildOptionItem(Icons.settings_outlined, l10n.configuracion, _showConfigMenu),
               _buildOptionItem(Icons.help_outline, l10n.ayudaSoporte, _showHelpMenu),
               _buildOptionItem(Icons.info_outline, l10n.versionApp, () {}, trailingText: _appVersion),

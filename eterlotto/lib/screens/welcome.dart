@@ -24,6 +24,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     try {
       final googleSignIn = GoogleSignIn(
+        serverClientId:
+            "705812334903-st0akd2g8mq0i7cqpvhm5ul0mkuhhj08.apps.googleusercontent.com",
         scopes: ['email', 'profile'],
       );
       
@@ -36,6 +38,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
 
+      if (!mounted) return;
       if (idToken == null) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(

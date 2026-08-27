@@ -18,6 +18,7 @@ import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/widgets/footer.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class HistoricoResultadosScreen extends StatefulWidget {
@@ -43,6 +44,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   String? _errorMessage;
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
+  int _cantidadVisible = 50;
 
   List<String> get sorteosActivos {
     final encontrados = _todosResultados
@@ -77,11 +79,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     super.dispose();
   }
 
-  Future<void> _cargarHistorico() async {
+  Future<void> _cargarHistorico({bool force = false}) async {
     final cacheKey = '${widget.config.route}_historico_completo';
 
     // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
-    if (_todosResultados.isEmpty) {
+    if (_todosResultados.isEmpty && !force) {
       final cached = await CacheService.getJson(cacheKey);
       if (cached != null && cached["resultados"] != null && mounted) {
         final listCached = List<Map<String, dynamic>>.from(cached["resultados"]);
@@ -105,7 +107,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       }
     }
 
-    if (_todosResultados.isEmpty) {
+    if (_todosResultados.isEmpty || force) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
@@ -125,7 +127,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
         setState(() {
           _todosResultados = list;
-          _isLoading = false;
           if (encontrados.isNotEmpty &&
               !encontrados.any((s) => s.toLowerCase() == _selectedSorteo.toLowerCase())) {
             _selectedSorteo = encontrados.first;
@@ -139,9 +140,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       if (mounted && _todosResultados.isEmpty) {
         setState(() {
           _errorMessage = e.toString();
-          _isLoading = false;
         });
       }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -459,9 +461,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           color: Colors.transparent,
           backgroundColor: Colors.transparent,
           elevation: 0,
-          onRefresh: _cargarHistorico,
+          displacement: 65.0,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          onRefresh: () => _cargarHistorico(force: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
             slivers: [
               CustomSliverAppBar(
                 title: widget.config.nombre,
@@ -532,6 +536,34 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                         ),
                       ],
                     ),
+                    if (listToShow.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1C23),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, size: 16, color: AppColors.yellow),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                l10n?.descripcionHistoricoResultados ??
+                                    "Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.",
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
 
                     // Selector de Sub-Sorteos (ej. Melate / Revancha / Revanchita / Baloto / Revancha / 5 de Oro / Revancha)
@@ -544,7 +576,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 4.0),
                               child: GestureDetector(
-                                onTap: () => setState(() => _selectedSorteo = sorteo),
+                                onTap: () => setState(() {
+                                  _selectedSorteo = sorteo;
+                                  _cantidadVisible = 50;
+                                }),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                   decoration: BoxDecoration(
@@ -617,191 +652,259 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                         ),
                       )
                     else
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white12, width: 0.8),
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            // Encabezado de la tabla
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 28,
-                                  child: Text(
-                                    "#",
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                SizedBox(
-                                  width: 82,
-                                  child: Text(
-                                    l10n?.fechaLabel ?? "Fecha",
-                                    textAlign: TextAlign.left,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      l10n?.resultados ?? "Resultados",
-                                      style: GoogleFonts.montserrat(
-                                        fontSize: 11,
-                                        color: Colors.white38,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                      Builder(
+                        builder: (context) {
+                          final visibleList = listToShow.take(_cantidadVisible).toList();
+                          return Container(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1E1E1E),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white12, width: 0.8),
                             ),
-                            const Divider(color: Colors.white12, height: 16),
-
-                            // Filas de sorteos
-                            ...List.generate(listToShow.length, (rowIndex) {
-                              final resultado = listToShow[rowIndex];
-                              final fecha = resultado["fecha"]?.toString() ?? "S/F";
-                              final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
-                              final int limiteBalotas = widget.config.totalBalotasSorteo > 0
-                                  ? widget.config.totalBalotasSorteo
-                                  : 20;
-                              final bool isReintegro = widget.config.tieneReintegro;
-                              final numeros = rawNumeros
-                                  .map((e) => int.tryParse(e.toString()) ?? -1)
-                                  .whereIndexed((index, n) {
-                                    if (n < 0) return false;
-                                    if (n == 0 && index >= widget.config.maxSeleccion && !isReintegro) {
-                                      return false;
-                                    }
-                                    return true;
-                                  })
-                                  .take(limiteBalotas)
-                                  .toList();
-
-                              return Container(
-                                padding: const EdgeInsets.symmetric(vertical: 6.5),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: rowIndex == listToShow.length - 1
-                                          ? Colors.transparent
-                                          : Colors.white10,
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              children: [
+                                // Encabezado de la tabla
+                                Row(
                                   children: [
-                                    // Índice
                                     SizedBox(
                                       width: 28,
                                       child: Text(
-                                        "${rowIndex + 1}",
+                                        "#",
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.montserrat(
                                           fontSize: 11,
                                           color: Colors.white38,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    // Fecha
                                     SizedBox(
                                       width: 82,
                                       child: Text(
-                                        fecha,
+                                        l10n?.fechaLabel ?? "Fecha",
+                                        textAlign: TextAlign.left,
                                         style: GoogleFonts.montserrat(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
+                                          fontSize: 11,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    // Balotas
                                     Expanded(
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final totalBalls = numeros.length;
-                                          final double calculatedSize = totalBalls > 0
-                                              ? ((constraints.maxWidth -
-                                                      (totalBalls * ballSpacing * 2)) /
-                                                  totalBalls)
-                                              : defaultBallSize;
-                                          final double ballSize =
-                                              calculatedSize.clamp(15.0, defaultBallSize);
-
-                                          return Center(
-                                            child: FittedBox(
-                                              fit: BoxFit.scaleDown,
-                                              alignment: Alignment.center,
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: List.generate(numeros.length, (index) {
-                                                  final n = numeros[index];
-                                                  final bool isLastBall =
-                                                      index == numeros.length - 1;
-                                                  final bool isComp =
-                                                      widget.config.tieneComplementario &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          index == widget.config.maxSeleccion;
-                                                  final bool isSpecial =
-                                                      widget.config.tieneBalotaRoja &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          (index >=
-                                                                  widget.config.maxSeleccion +
-                                                                      (widget.config
-                                                                              .tieneComplementario
-                                                                          ? 1
-                                                                          : 0) ||
-                                                              isLastBall);
-                                                  final Color ballColor = isSpecial
-                                                      ? const Color(0xFFB91C1C)
-                                                      : (isComp
-                                                          ? const Color(0xFF0D9488)
-                                                          : Colors.amber);
-
-                                                  return Padding(
-                                                    padding: EdgeInsets.symmetric(
-                                                        horizontal: ballSpacing),
-                                                    child: _build3DBall(
-                                                      n,
-                                                      baseColor: ballColor,
-                                                      size: ballSize,
-                                                    ),
-                                                  );
-                                                }),
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.resultados ?? "Resultados",
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],
                                 ),
-                              );
-                            }),
-                          ],
-                        ),
+                                const Divider(color: Colors.white12, height: 16),
+
+                                // Filas de sorteos visibles
+                                ...List.generate(visibleList.length, (rowIndex) {
+                                  final resultado = visibleList[rowIndex];
+                                  final fecha = resultado["fecha"]?.toString() ?? "S/F";
+                                  final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
+                                  final int limiteBalotas = widget.config.totalBalotasSorteo > 0
+                                      ? widget.config.totalBalotasSorteo
+                                      : 20;
+                                  final bool isReintegro = widget.config.tieneReintegro;
+                                  final numeros = rawNumeros
+                                      .map((e) => int.tryParse(e.toString()) ?? -1)
+                                      .whereIndexed((index, n) {
+                                        if (n < 0) return false;
+                                        if (n == 0 && index >= widget.config.maxSeleccion && !isReintegro) {
+                                          return false;
+                                        }
+                                        return true;
+                                      })
+                                      .take(limiteBalotas)
+                                      .toList();
+
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(vertical: 6.5),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color: rowIndex == visibleList.length - 1 && listToShow.length <= visibleList.length
+                                              ? Colors.transparent
+                                              : Colors.white10,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        // Índice
+                                        SizedBox(
+                                          width: 28,
+                                          child: Text(
+                                            "${rowIndex + 1}",
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 11,
+                                              color: Colors.white38,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        // Fecha
+                                        SizedBox(
+                                          width: 82,
+                                          child: Text(
+                                            fecha,
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        // Balotas
+                                        Expanded(
+                                          child: LayoutBuilder(
+                                            builder: (context, constraints) {
+                                              final totalBalls = numeros.length;
+                                              final double calculatedSize = totalBalls > 0
+                                                  ? ((constraints.maxWidth -
+                                                          (totalBalls * ballSpacing * 2)) /
+                                                      totalBalls)
+                                                  : defaultBallSize;
+                                              final double ballSize =
+                                                  calculatedSize.clamp(15.0, defaultBallSize);
+
+                                              return Center(
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  alignment: Alignment.center,
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: List.generate(numeros.length, (index) {
+                                                      final n = numeros[index];
+                                                      final bool isLastBall =
+                                                          index == numeros.length - 1;
+                                                      final bool isComp =
+                                                          widget.config.tieneComplementario &&
+                                                              numeros.length >
+                                                                  widget.config.maxSeleccion &&
+                                                              index == widget.config.maxSeleccion;
+                                                      final bool isSpecial =
+                                                          widget.config.tieneBalotaRoja &&
+                                                              numeros.length >
+                                                                  widget.config.maxSeleccion &&
+                                                              (index >=
+                                                                      widget.config.maxSeleccion +
+                                                                          (widget.config
+                                                                                  .tieneComplementario
+                                                                              ? 1
+                                                                              : 0) ||
+                                                                  isLastBall);
+                                                      final Color ballColor = isSpecial
+                                                          ? const Color(0xFFB91C1C)
+                                                          : (isComp
+                                                              ? const Color(0xFF0D9488)
+                                                              : Colors.amber);
+
+                                                      return Padding(
+                                                        padding: EdgeInsets.symmetric(
+                                                            horizontal: ballSpacing),
+                                                        child: _build3DBall(
+                                                          n,
+                                                          baseColor: ballColor,
+                                                          size: ballSize,
+                                                        ),
+                                                      );
+                                                    }),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+
+                                // Botón Cargar Más para máxima velocidad
+                                if (listToShow.length > visibleList.length) ...[
+                                  const Divider(color: Colors.white12, height: 20),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              side: BorderSide(
+                                                color: AppColors.yellow.withValues(alpha: 0.6),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(10),
+                                              ),
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
+                                              backgroundColor: AppColors.yellow.withValues(alpha: 0.06),
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _cantidadVisible += 50;
+                                              });
+                                            },
+                                            icon: const Icon(
+                                              Icons.add_circle_outline,
+                                              size: 17,
+                                              color: AppColors.yellow,
+                                            ),
+                                            label: Text(
+                                              l10n?.cargarMasSorteos(listToShow.length - visibleList.length) ??
+                                                  "Cargar 50 más (${listToShow.length - visibleList.length} restantes)",
+                                              style: GoogleFonts.montserrat(
+                                                color: AppColors.yellow,
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        if (listToShow.length - visibleList.length > 50) ...[
+                                          const SizedBox(width: 8),
+                                          TextButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                _cantidadVisible = listToShow.length;
+                                              });
+                                            },
+                                            child: Text(
+                                              l10n?.verTodosSorteos ?? "Ver todos",
+                                              style: GoogleFonts.montserrat(
+                                                color: Colors.white60,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
                       ),
                     const SizedBox(height: 24),
                   ],
