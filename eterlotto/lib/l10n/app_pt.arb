@@ -651,5 +651,14 @@
   "descripcionMisJugadasBanner": "Aqui você encontrará todos os seus jogos e o próximo sorteio de cada loteria",
   "descripcionResultadosBanner": "Aqui você encontrará os últimos resultados oficiais, o histórico de sorteios e a análise de previsões de cada loteria",
   "descripcionExplorarBanner": "Aqui você pode explorar as loterias disponíveis por país e gerar previsões inteligentes para seus próximos jogos",
-  "mostrarLoteriasPrincipales": "Mostrar apenas loterias principais"
+  "mostrarLoteriasPrincipales": "Mostrar apenas loterias principais",
+  "saludoUsuario": "Olá, {nombre}! 👋",
+  "@saludoUsuario": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "subtituloSuerte": "Sua sorte começa aqui."
 }

@@ -20,7 +20,6 @@ import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -301,6 +300,18 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             .cast<String>()
             .toSet()
             .toList();
+
+        final cleanLoteria = config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        sorteosUnicos.sort((a, b) {
+          final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+          final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+          if (aIsMain && !bIsMain) return -1;
+          if (!aIsMain && bIsMain) return 1;
+          return 0;
+        });
+
         setState(() {
           ultimosResultados = list;
           _sorteosDisponibles = sorteosUnicos;
@@ -394,6 +405,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             .cast<String>()
             .toSet()
             .toList();
+
+        final cleanLoteria = config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        sorteosUnicos.sort((a, b) {
+          final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+          final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+          if (aIsMain && !bIsMain) return -1;
+          if (!aIsMain && bIsMain) return 1;
+          return 0;
+        });
 
         setState(() {
           ultimosResultados = list;
@@ -715,8 +737,20 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   }
 
   Map<String, String> _calcularStats() {
-    final listaUsar =
+    var listaUsar =
         todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+
+    if (_sorteosDisponibles.isNotEmpty) {
+      final mainSorteo = _sorteosDisponibles.first.toLowerCase();
+      final filtrados = listaUsar.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == mainSorteo;
+      }).toList();
+      if (filtrados.isNotEmpty) {
+        listaUsar = filtrados;
+      }
+    }
+
     if (listaUsar.isEmpty) {
       return {
         "hot": "--",
@@ -806,8 +840,20 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   }
 
   int _calcularAfinidadScore(List<int> nums, int maxBall) {
-    final listaUsar =
+    var listaUsar =
         todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+
+    if (_sorteosDisponibles.isNotEmpty) {
+      final mainSorteo = _sorteosDisponibles.first.toLowerCase();
+      final filtrados = listaUsar.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == mainSorteo;
+      }).toList();
+      if (filtrados.isNotEmpty) {
+        listaUsar = filtrados;
+      }
+    }
+
     if (listaUsar.isEmpty || nums.isEmpty) return 0;
 
     final Map<int, int> f = {};
@@ -849,26 +895,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       bottomNavigationBar: const BannerAdWidget(),
       body: SafeArea(
         child: RefreshIndicator(
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          displacement: 65.0,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
+          color: AppColors.yellow,
+          backgroundColor: const Color(0xFF1E1E1E),
+          displacement: 25.0,
           onRefresh: () => _cargarDataOptimizado(force: true),
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              if (cargando && !isDataLoading)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.only(bottom: 6.0),
-                    child: LinearProgressIndicator(
-                      backgroundColor: Color(0xFF1E2029),
-                      color: AppColors.yellow,
-                      minHeight: 2.5,
-                    ),
-                  ),
-                ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
@@ -1189,19 +1222,29 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     return Column(
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.bar_chart, color: Colors.amber, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  l10n?.resumenRapido ?? "Resumen rápido",
-                  style: AppTextStyles.mensajeImportante,
-                ),
-              ],
+            Expanded(
+              child: Row(
+                children: [
+                  const Icon(Icons.bar_chart, color: Colors.amber, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      l10n?.resumenRapido ?? "Resumen rápido",
+                      style: AppTextStyles.mensajeImportante,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(width: 6),
             TextButton(
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
               onPressed: _navigateToEstadisticas,
               child: Text(
                 l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›",
@@ -1420,8 +1463,18 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection =
         seleccionados.isNotEmpty || (config.tieneBalotaRoja && balotaRojaSeleccionada != null);
-    final listaUsar =
+    var listaUsar =
         todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    if (_sorteosDisponibles.isNotEmpty) {
+      final mainSorteo = _sorteosDisponibles.first.toLowerCase();
+      final filtrados = listaUsar.where((r) {
+        final s = r["sorteo"]?.toString().toLowerCase() ?? "";
+        return s == mainSorteo;
+      }).toList();
+      if (filtrados.isNotEmpty) {
+        listaUsar = filtrados;
+      }
+    }
     final int totalSorteosAnalizados = listaUsar.length;
 
     final numsEvaluados = isCustomSelection
@@ -1875,13 +1928,16 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                           color: isSelected ? AppColors.yellow : const Color(0xFF2A2A2A),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text(
-                          sorteo,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.button.copyWith(
-                            color: isSelected ? Colors.black : Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            sorteo,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.button.copyWith(
+                              color: isSelected ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
                       ),

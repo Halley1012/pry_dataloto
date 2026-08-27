@@ -1,36 +1,26 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'resultados_shared.dart';
 
 class CoberturaGaugeCard extends StatelessWidget {
-  final bool hasRevanchaData;
-  final String nombreSorteoPrincipal;
-  final String nombreSorteoSecundario;
-  final double coberturaPorcentaje;
-  final double coberturaPorcentajeRevancha;
-  final int topHitsCount;
-  final int topHitsCountRevancha;
+  final List<SubSorteoData> subSorteos;
   final int probablesCount;
   final int totalWinningCount;
 
   const CoberturaGaugeCard({
-    Key? key,
-    required this.hasRevanchaData,
-    required this.nombreSorteoPrincipal,
-    required this.nombreSorteoSecundario,
-    required this.coberturaPorcentaje,
-    required this.coberturaPorcentajeRevancha,
-    required this.topHitsCount,
-    required this.topHitsCountRevancha,
+    super.key,
+    required this.subSorteos,
     required this.probablesCount,
     required this.totalWinningCount,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final bool isMultiDraw = subSorteos.length > 1;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -66,33 +56,27 @@ class CoberturaGaugeCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          if (hasRevanchaData) ...[
-            // MODO DUAL: BALOTO + REVANCHA
+          if (isMultiDraw) ...[
+            // MODO MÚLTIPLES SORTEOS (2, 3 o N)
             Row(
               children: [
-                Expanded(
-                  child: _buildSingleGauge(
-                    context,
-                    nombreSorteoPrincipal,
-                    coberturaPorcentaje,
-                    topHitsCount,
-                    Colors.amber,
+                for (int i = 0; i < subSorteos.length; i++) ...[
+                  if (i > 0)
+                    Container(
+                      width: 1,
+                      height: 110,
+                      color: Colors.white12,
+                    ),
+                  Expanded(
+                    child: _buildSingleGauge(
+                      context,
+                      subSorteos[i].nombre,
+                      subSorteos[i].coberturaPorcentaje,
+                      subSorteos[i].topHitsCount,
+                      subSorteos[i].color,
+                    ),
                   ),
-                ),
-                Container(
-                  width: 1,
-                  height: 110,
-                  color: Colors.white12,
-                ),
-                Expanded(
-                  child: _buildSingleGauge(
-                    context,
-                    nombreSorteoSecundario,
-                    coberturaPorcentajeRevancha,
-                    topHitsCountRevancha,
-                    Colors.purpleAccent,
-                  ),
-                ),
+                ],
               ],
             ),
             const SizedBox(height: 8),
@@ -101,10 +85,10 @@ class CoberturaGaugeCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54),
             ),
-          ] else ...[
+          ] else if (subSorteos.isNotEmpty) ...[
             // MODO INDIVIDUAL NORMAL
             TweenAnimationBuilder<double>(
-              tween: Tween<double>(begin: 0.0, end: coberturaPorcentaje),
+              tween: Tween<double>(begin: 0.0, end: subSorteos.first.coberturaPorcentaje),
               duration: const Duration(milliseconds: 1800),
               curve: Curves.easeOutCubic,
               builder: (context, val, child) {
@@ -134,7 +118,7 @@ class CoberturaGaugeCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              l10n.coberturaIndividualDetalle(topHitsCount, totalWinningCount, probablesCount),
+              l10n.coberturaIndividualDetalle(subSorteos.first.topHitsCount, totalWinningCount, probablesCount),
               textAlign: TextAlign.center,
               style: GoogleFonts.montserrat(fontSize: 12, color: Colors.white70),
             ),
@@ -147,7 +131,7 @@ class CoberturaGaugeCard extends StatelessWidget {
                 border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
               ),
               child: Text(
-                coberturaPorcentaje >= 0.6 ? l10n.excelenteResultado : l10n.buenDesempeno,
+                subSorteos.first.coberturaPorcentaje >= 0.6 ? l10n.excelenteResultado : l10n.buenDesempeno,
                 style: GoogleFonts.montserrat(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -179,6 +163,7 @@ class CoberturaGaugeCard extends StatelessWidget {
               fontWeight: FontWeight.bold,
               color: color,
             ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         const SizedBox(height: 8),
@@ -189,19 +174,19 @@ class CoberturaGaugeCard extends StatelessWidget {
           builder: (context, v, child) {
             final int percentInt = (v * 100).round();
             return SizedBox(
-              width: 100,
-              height: 100,
+              width: 90,
+              height: 90,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   CustomPaint(
-                    size: const Size(100, 100),
+                    size: const Size(90, 90),
                     painter: CircularGaugePainter(percentage: v, activeColor: color),
                   ),
                   Text(
                     "$percentInt%",
                     style: GoogleFonts.montserrat(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                     ),
@@ -212,10 +197,13 @@ class CoberturaGaugeCard extends StatelessWidget {
           },
         ),
         const SizedBox(height: 6),
-        Text(
-          l10n.hitsDeAciertos(hits, totalWinningCount),
-          textAlign: TextAlign.center,
-          style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            l10n.hitsDeAciertos(hits, totalWinningCount),
+            textAlign: TextAlign.center,
+            style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
+          ),
         ),
       ],
     );

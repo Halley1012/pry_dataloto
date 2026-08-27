@@ -18,7 +18,6 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import '../../utils/screen_security_helper.dart';
-import '../../utils/top_bouncing_scroll_physics.dart';
 import '../loteria_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -92,7 +91,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     }
 
     if (!mounted) return;
-    if (_jugadasList.isEmpty || force) setState(() => _cargando = true);
+    if (_jugadasList.isEmpty) setState(() => _cargando = true);
 
     try {
       final response = await ApiService.listarJugadasGenerica(widget.loteriaRoute);
@@ -552,27 +551,14 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       body: RefreshIndicator(
-        color: Colors.transparent,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        displacement: 65.0,
-        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        color: AppColors.yellow,
+        backgroundColor: const Color(0xFF1E1E1E),
+        displacement: 25.0,
         onRefresh: () => _cargarJugadas(force: true),
         child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
-            if (_cargando && _jugadasList.isNotEmpty)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: AppColors.yellow,
-                    minHeight: 2.5,
-                  ),
-                ),
-              ),
             SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
