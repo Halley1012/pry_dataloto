@@ -15,6 +15,7 @@ import 'resultados/widgets/header_card.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
@@ -169,7 +170,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final cachedTop = cached["top20"];
       if (cachedTop is List && cachedTop.isNotEmpty) {
         _procesarDatosCargados(cached);
-        setState(() => _isLoading = false);
       }
     }
 
@@ -759,9 +759,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             },
           ];
 
-    final String subTitulo = _hasRevanchaData
-        ? (_selectedResultadosTab == 1 ? l10n.ultimos5ResultadosNombre(nombreSorteoSecundario) : l10n.ultimos5ResultadosNombre(_nombreSorteoPrincipal))
-        : l10n.ultimosSorteos;
+    final String subTitulo = l10n.ultimosResultados;
 
     final insightText = _buildInsightIAText(context);
 
@@ -772,14 +770,16 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           color: Colors.transparent,
           backgroundColor: Colors.transparent,
           elevation: 0,
+          displacement: 65.0,
+          triggerMode: RefreshIndicatorTriggerMode.onEdge,
           onRefresh: _cargarDatosReales,
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_isLoading)
+              if (_isLoading && _winningNums.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8.0),
                   child: const LinearProgressIndicator(

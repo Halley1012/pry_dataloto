@@ -10,6 +10,8 @@ import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 
 class EstadisticasDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -235,31 +237,36 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final resultadosFiltrados = _filtrarResultados();
+    final bool isInitialLoading = cargando && todosResultados.isEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.blackfondo,
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        backgroundColor: AppColors.blackfondo,
+        backgroundColor: const Color(0xFF1E1E1E),
         elevation: 0,
-        scrolledUnderElevation: 0,
-        surfaceTintColor: Colors.transparent,
-        centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 24, color: AppColors.yellow),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "${l10n?.estadisticas ?? "Estadísticas"} ${widget.loteriaNombreInicial}",
-          style: AppTextStyles.h2,
+          "${l10n?.estadisticas ?? 'Estadísticas'} - ${widget.loteriaNombreInicial}",
+          style: GoogleFonts.montserrat(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh, size: 24, color: AppColors.yellow),
-            onPressed: _cargarDatos,
+            onPressed: () async {
+              setState(() => cargando = true);
+              await _cargarDatos();
+            },
           )
         ],
       ),
-      body: cargando
+      body: isInitialLoading
           ? _buildSkeletonEstadisticas()
           : errorMensaje != null
               ? Center(
@@ -272,14 +279,19 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   color: Colors.transparent,
                   backgroundColor: Colors.transparent,
                   elevation: 0,
-                  onRefresh: _cargarDatos,
+                  displacement: 65.0,
+                  triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                  onRefresh: () async {
+                    setState(() => cargando = true);
+                    await _cargarDatos();
+                  },
                   child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                    physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (cargando)
+                        if (cargando && todosResultados.isNotEmpty)
                           const Padding(
                             padding: EdgeInsets.only(bottom: 8.0),
                             child: LinearProgressIndicator(

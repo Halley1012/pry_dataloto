@@ -20,6 +20,12 @@ class UpdateUser(BaseModel):
     pais_id: Optional[int] = None
     departamento_id: Optional[int] = None
     fcm_token: Optional[str] = None
+    telefono: Optional[str] = None
+    idioma: Optional[str] = None
+    notificaciones_activas: Optional[bool] = None
+    app_version: Optional[str] = None
+    plataforma: Optional[str] = None
+    avatar_url: Optional[str] = None
 
 class JugadaCreate(BaseModel):
     numeros: List[int]

@@ -155,17 +155,22 @@ class AdService {
   }
 
   /// Mostrar anuncio intersticial respetando todas las Reglas de Oro UX
-  bool showInterstitialAd({bool isPremium = false, VoidCallback? onAdClosed}) {
+  bool showInterstitialAd({
+    bool isPremium = false,
+    bool ignoreThreshold = false,
+    VoidCallback? onAdClosed,
+  }) {
     if (isPremium) {
       debugPrint('⭐ [AdMob UX] Usuario VIP: Anuncio omitido');
       onAdClosed?.call();
       return false;
     }
 
-    // 1. Regla: Periodo de gracia inicial (primeros 60 segundos)
+    // 1. Regla: Periodo de gracia inicial (primeros 60 segundos en prod, 5s en modo prueba)
+    final gracePeriod = isTestMode ? const Duration(seconds: 5) : _sessionGracePeriod;
     final sessionDuration = DateTime.now().difference(_sessionStartTime);
-    if (sessionDuration < _sessionGracePeriod) {
-      final remaining = _sessionGracePeriod.inSeconds - sessionDuration.inSeconds;
+    if (sessionDuration < gracePeriod) {
+      final remaining = gracePeriod.inSeconds - sessionDuration.inSeconds;
       debugPrint('🛡️ [AdMob UX Regla 1] Omitido por Periodo de Gracia Inicial: ${sessionDuration.inSeconds}s transcurridos (quedan ${remaining}s protegidos)');
       onAdClosed?.call();
       return false;
@@ -179,19 +184,22 @@ class AdService {
     }
 
     // 3. Regla: Contador de acciones de valor (cada 3 acciones)
-    _actionCounter++;
-    if (_actionCounter % _actionsThreshold != 0) {
-      final needed = _actionsThreshold - (_actionCounter % _actionsThreshold);
-      debugPrint('🎯 [AdMob UX Regla 3] Omitido por Umbral de Acciones: Acción $_actionCounter (faltan $needed para evaluar anuncio)');
-      onAdClosed?.call();
-      return false;
+    if (!ignoreThreshold) {
+      _actionCounter++;
+      if (_actionCounter % _actionsThreshold != 0) {
+        final needed = _actionsThreshold - (_actionCounter % _actionsThreshold);
+        debugPrint('🎯 [AdMob UX Regla 3] Omitido por Umbral de Acciones: Acción $_actionCounter (faltan $needed para evaluar anuncio)');
+        onAdClosed?.call();
+        return false;
+      }
     }
 
-    // 4. Regla: Cooldown entre anuncios (mínimo 2 minutos)
+    // 4. Regla: Cooldown entre anuncios (mínimo 2 minutos en prod, 15s en modo prueba)
+    final minCooldown = isTestMode ? const Duration(seconds: 15) : _minIntervalBetweenInterstitials;
     if (_lastInterstitialShownAt != null) {
       final elapsed = DateTime.now().difference(_lastInterstitialShownAt!);
-      if (elapsed < _minIntervalBetweenInterstitials) {
-        final remaining = _minIntervalBetweenInterstitials.inSeconds - elapsed.inSeconds;
+      if (elapsed < minCooldown) {
+        final remaining = minCooldown.inSeconds - elapsed.inSeconds;
         debugPrint('⏳ [AdMob UX Regla 4] Omitido por Cooldown: ${elapsed.inSeconds}s desde el último (faltan ${remaining}s de enfriamiento)');
         onAdClosed?.call();
         return false;

@@ -6,22 +6,23 @@ import 'package:eterlotto/screens/loteriasPais.dart';
 import 'package:eterlotto/widgets/carrusel.dart';
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
-import 'loteria_screen.dart';
-import 'profile_screen.dart';
-import 'mis_jugadas_selector_screen.dart';
-import 'resultados_selector_screen.dart';
+import 'package:eterlotto/screens/loteria_screen.dart';
+import 'package:eterlotto/screens/profile_screen.dart';
+import 'package:eterlotto/screens/mis_jugadas_selector_screen.dart';
+import 'package:eterlotto/screens/resultados_selector_screen.dart';
 
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../services/api_service.dart';
-import '../models/post.dart';
-import '../screens/createpostscreen.dart';
-import '../screens/notifications_screen.dart';
-import 'post.dart';
+import 'package:eterlotto/services/api_service.dart';
+import 'package:eterlotto/models/post.dart';
+import 'package:eterlotto/screens/createpostscreen.dart';
+import 'package:eterlotto/screens/notifications_screen.dart';
+import 'package:eterlotto/screens/post.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
-import '../utils/pais_helper.dart';
+import 'package:eterlotto/utils/pais_helper.dart';
+import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:shimmer/shimmer.dart';
@@ -36,7 +37,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final storage = const FlutterSecureStorage();
-  final TextEditingController _searchController = TextEditingController();
   bool cargando = false;
   List<Map<String, dynamic>> anuncios = [];
   bool isLoading = false;
@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_loterias.isEmpty) setState(() => isLoading = true);
 
       // 2. Cargar Posts, Anuncios y Loterías en PARALELO
-      final postsFuture = ApiService.getPosts().catchError((Object e) {
+      final Future<List<Post>> postsFuture = ApiService.getPosts().catchError((e) {
         debugPrint("⚠️ Error al obtener posts: $e");
         return <Post>[];
       });
@@ -171,12 +171,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   Widget _buildWelcomeGreeting() {
     final rawName = userName?.trim();
     final displayName = (rawName != null && rawName.isNotEmpty)
@@ -208,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final langCode = Localizations.localeOf(context).languageCode;
     final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 18.0, 16.0, 12.0),
       child: Row(
         children: [
           Text(
@@ -221,46 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
             style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 28),
           ),
         ],
-      ),
-    );
-  }
-
-  void _onSearchChanged(String query) {
-    setState(() {
-      if (query.isEmpty) {
-        _filteredLoterias = List<dynamic>.from(_loterias);
-      } else {
-        _filteredLoterias = _loterias
-            .where((l) => l["nombre"]
-                .toString()
-                .toLowerCase()
-                .contains(query.toLowerCase()))
-            .toList();
-      }
-    });
-  }
-
-  Widget _buildSearchBar() {
-    final l10n = AppLocalizations.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: TextField(
-          controller: _searchController,
-          onChanged: _onSearchChanged,
-          style: const TextStyle(color: Colors.white),
-          decoration: InputDecoration(
-            hintText: l10n?.buscarLoteria ?? "Buscar lotería...",
-            hintStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white38),
-            prefixIcon: const Icon(Icons.search, color: Colors.white38),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
       ),
     );
   }
@@ -503,9 +457,6 @@ class _HomeScreenState extends State<HomeScreen> {
       currentIndex: _selectedIndex,
       onTap: (index) {
         if (index == 0) _loadUserData(); // Actualizar país al volver al inicio
-        if (index == 2) {
-          _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
-        }
         setState(() => _selectedIndex = index);
       },
       backgroundColor: AppColors.black,
@@ -524,7 +475,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _loadLoterias() async {
+  Future<void> _loadLoterias({bool silent = false}) async {
     try {
       String? paisId = await storage.read(key: "pais_id");
       if (paisId == null || paisId == 'null' || paisId.isEmpty) {
@@ -549,21 +500,23 @@ class _HomeScreenState extends State<HomeScreen> {
           _loterias = data;
           _filteredLoterias = List<dynamic>.from(_loterias);
           _globalLoterias = globalRes;
-          isLoading = false;
+          if (!silent) isLoading = false;
         });
         CacheService.setJson('home_loterias_$paisId', data);
       }
     } catch (e) {
       debugPrint("❌ Error cargando loterías: $e");
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() => isLoading = false);
       }
     }
   }
 
-  Future<void> buscarAnuncios([String titulo = ""]) async {
+  Future<void> buscarAnuncios({String titulo = "", bool silent = false}) async {
     if (!mounted) return;
-    setState(() => cargando = true);
+    if (!silent || anuncios.isEmpty) {
+      setState(() => cargando = true);
+    }
 
     try {
       // 🧠 1. Cargar los filtros guardados del usuario (por ID) usando FlutterSecureStorage
@@ -585,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (e, st) {
       debugPrint("❌ Error al buscar anuncios: $e");
       debugPrintStack(stackTrace: st);
-      if (mounted) {
+      if (mounted && !silent) {
         final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n?.errorAnuncios ?? 'Error al cargar los anuncios.')),
@@ -620,13 +573,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // Cargar posts
-  Future<void> _loadPosts() async {
+  Future<void> _loadPosts({bool silent = false}) async {
     if (!mounted) return;
-    setState(() => isLoading = true);
+    if (!silent) setState(() => isLoading = true);
 
     try {
       final rawPosts = await ApiService.getPosts();
-      final postsConConteo = await Future.wait(
+      final List<Post> postsConConteo = await Future.wait<Post>(
         rawPosts.map((p) async {
           try {
             final comments = await ApiService.getComments(p.id);
@@ -645,18 +598,16 @@ class _HomeScreenState extends State<HomeScreen> {
         }),
       );
 
-
       if (!mounted) return;
       setState(() {
         posts = postsConConteo;
-        isLoading = false;
+        if (!silent) isLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => isLoading = false);
+      if (!silent) setState(() => isLoading = false);
       debugPrint("⚠️ Error al cargar posts: $e");
     }
-
   }
 
   Future<void> _abrirPostScreen(Post post) async {
@@ -802,9 +753,9 @@ class _HomeScreenState extends State<HomeScreen> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            height: 110,
+            height: 55,
             child: Image.asset(
-              "assets/images/logo_letras.png",
+              "assets/images/eterlotto_gold_trans.png",
               fit: BoxFit.contain,
               alignment: Alignment.centerLeft,
             ),
@@ -860,8 +811,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  final GlobalKey<MisJugadasSelectorScreenState> _misJugadasKey = GlobalKey();
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -907,13 +856,10 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             _buildHomeTab(),
             const LoteriasPais(),
-            MisJugadasSelectorScreen(key: _misJugadasKey),
+            const MisJugadasSelectorScreen(),
             const ResultadosSelectorScreen(),
             ProfileScreen(
               onTabChange: (index) {
-                if (index == 2) {
-                  _misJugadasKey.currentState?.cargarLoterias(forceRefresh: true);
-                }
                 setState(() => _selectedIndex = index);
               },
             ),
@@ -1027,28 +973,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _refreshHome() async {
+    if (!mounted) return;
+    setState(() => isLoading = true);
+    try {
+      await Future.wait([
+        _loadUserData(),
+        buscarAnuncios(silent: true),
+        _loadPosts(silent: true),
+        _loadLoterias(silent: true),
+        context.read<NotificationProvider>().fetchNotifications(),
+      ]);
+    } catch (e) {
+      debugPrint("⚠️ Error al refrescar Home: $e");
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
   Widget _buildHomeTab() {
     return SafeArea(
       child: RefreshIndicator(
         color: Colors.transparent,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        onRefresh: () async {
-          await Future.wait([
-            _loadUserData(),
-            buscarAnuncios(),
-            _loadPosts(),
-            _loadLoterias(),
-            context.read<NotificationProvider>().fetchNotifications(),
-          ]);
-        },
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (isLoading && _loterias.isNotEmpty)
-                const Padding(
+        displacement: 65.0,
+        triggerMode: RefreshIndicatorTriggerMode.onEdge,
+        onRefresh: _refreshHome,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+          slivers: [
+            if (isLoading && _loterias.isNotEmpty)
+              const SliverToBoxAdapter(
+                child: Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: LinearProgressIndicator(
                     backgroundColor: Color(0xFF1E2029),
@@ -1056,134 +1013,161 @@ class _HomeScreenState extends State<HomeScreen> {
                     minHeight: 2.5,
                   ),
                 ),
-              _buildHeaderRow(context),
-              _buildWelcomeGreeting(),
-              _buildCountryHeader(),
-              _buildSearchBar(),
-              
-              if (isLoading && _loterias.isEmpty)
-                _buildHomeSkeleton()
-              else if (_filteredLoterias.isEmpty) ...[
-                _buildEmptyLoteriasState(),
-                if (_globalLoterias.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _buildGlobalFallbackSection(),
-                ],
-              ] else ...[
-                _buildPopularesSection(),
+              ),
+            SliverToBoxAdapter(
+              child: _buildHeaderRow(context),
+            ),
+            SliverToBoxAdapter(
+              child: _buildWelcomeGreeting(),
+            ),
+            SliverToBoxAdapter(
+              child: _buildCountryHeader(),
+            ),
+            if (isLoading && _loterias.isEmpty)
+              SliverToBoxAdapter(
+                child: _buildHomeSkeleton(),
+              )
+            else if (_filteredLoterias.isEmpty) ...[
+              SliverToBoxAdapter(
+                child: _buildEmptyLoteriasState(),
+              ),
+              if (_globalLoterias.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: _buildGlobalFallbackSection(),
+                  ),
+                ),
+            ] else ...[
+              SliverToBoxAdapter(
+                child: _buildPopularesSection(),
+              ),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 10),
+              ),
+              SliverToBoxAdapter(
+                child: _buildTodasLoteriasSection(),
+              ),
+            ],
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 30),
+            ),
+            SliverToBoxAdapter(
+              child: _buildPublicidadSection(),
+            ),
+            SliverToBoxAdapter(
+              child: _buildComunidadSection(),
+            ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 30),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPublicidadSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: cargando && anuncios.isEmpty
+          ? Shimmer.fromColors(
+              baseColor: const Color(0xFF1A1A1A),
+              highlightColor: const Color(0xFF2C2C2C),
+              child: Container(
+                height: 140,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            )
+          : anuncios.isEmpty
+          ? const SizedBox.shrink()
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
+                        child: Text(AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
+                        icon: const Icon(Icons.search, color: AppColors.yellow, size: 24),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 10),
-                _buildTodasLoteriasSection(),
+                InfiniteAdsCarousel(key: ValueKey(anuncios.length), anuncios: anuncios),
               ],
+            ),
+    );
+  }
 
-              const SizedBox(height: 30),
-
-              // SECCIÓN DE PUBLICIDAD (SE MANTIENE)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: cargando && anuncios.isEmpty
-                    ? Shimmer.fromColors(
-                        baseColor: const Color(0xFF1A1A1A),
-                        highlightColor: const Color(0xFF2C2C2C),
-                        child: Container(
-                          height: 140,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                      )
-                    : anuncios.isEmpty
-                    ? const SizedBox.shrink()
-                    : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          GestureDetector(
-                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                            child: Text(AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                          ),
-                          IconButton(
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                            icon: const Icon(Icons.search, color: AppColors.yellow, size: 24),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    InfiniteAdsCarousel(key: ValueKey(anuncios.length), anuncios: anuncios),
-                  ],
-                ),
+  Widget _buildComunidadSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(AppLocalizations.of(context)?.comentarios ?? "Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline),
+                color: AppColors.yellow,
+                iconSize: 28,
+                onPressed: () async {
+                  final newPost = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatePostScreen()));
+                  if (newPost != null && mounted) setState(() => posts.insert(0, newPost));
+                },
               ),
-
-              // SECCIÓN DE POSTS (SE MANTIENE)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(AppLocalizations.of(context)?.comentarios ?? "Comentarios", style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          color: AppColors.yellow,
-                          iconSize: 28,
-                          onPressed: () async {
-                            final newPost = await Navigator.push(context, MaterialPageRoute(builder: (_) => const CreatePostScreen()));
-                            if (newPost != null && mounted) setState(() => posts.insert(0, newPost));
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    AppContainer4(
-                      child: isLoading && posts.isEmpty
-                          ? Shimmer.fromColors(
-                              baseColor: const Color(0xFF1A1A1A),
-                              highlightColor: const Color(0xFF2C2C2C),
-                              child: Column(
-                                children: List.generate(
-                                  3,
-                                  (index) => Container(
-                                    margin: const EdgeInsets.only(bottom: 8),
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            )
-                          : posts.isEmpty
-                          ? Center(child: Text(AppLocalizations.of(context)?.sinPosts ?? "No hay posts", style: const TextStyle(color: AppColors.yellow)))
-                          : SizedBox(
-                        height: 400,
-                        child: ListView.builder(
-                          shrinkWrap: true,
-                          physics: const BouncingScrollPhysics(),
-                          itemCount: posts.length,
-                          itemBuilder: (context, index) {
-                            final post = posts[index];
-                            final bool isOwner = currentUserId != null && post.userId == int.tryParse(currentUserId!);
-                            return _buildPostItem(post, isOwner);
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-              const SizedBox(height: 10),
             ],
           ),
-        ),
+          const SizedBox(height: 10),
+          AppContainer4(
+            child: isLoading && posts.isEmpty
+                ? Shimmer.fromColors(
+                    baseColor: const Color(0xFF1A1A1A),
+                    highlightColor: const Color(0xFF2C2C2C),
+                    child: Column(
+                      children: List.generate(
+                        3,
+                        (index) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : posts.isEmpty
+                ? Center(child: Text(AppLocalizations.of(context)?.sinPosts ?? "No hay posts", style: const TextStyle(color: AppColors.yellow)))
+                : SizedBox(
+                    height: 400,
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: posts.length,
+                      itemBuilder: (context, index) {
+                        final post = posts[index];
+                        final bool isOwner = currentUserId != null && post.userId == int.tryParse(currentUserId!);
+                        return _buildPostItem(post, isOwner);
+                      },
+                    ),
+                  ),
+          ),
+        ],
       ),
     );
   }

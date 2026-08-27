@@ -1,10 +1,10 @@
-﻿import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../widgets/contenedor4.dart';
-import '../styles/app_text_styles.dart';
-import '../styles/colores.dart';
-import '../widgets/custom_app_bar.dart';
-import '../models/post.dart';
+import 'package:flutter/material.dart';
+import 'package:eterlotto/services/api_service.dart';
+import 'package:eterlotto/widgets/contenedor4.dart';
+import 'package:eterlotto/styles/app_text_styles.dart';
+import 'package:eterlotto/styles/colores.dart';
+import 'package:eterlotto/widgets/custom_app_bar.dart';
+import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class CreatePostScreen extends StatefulWidget {

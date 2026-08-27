@@ -1065,10 +1065,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get ingresaNombre => 'Insira o nome';
 
   @override
-  String get tarjetaInvalida => 'Número do cartão inválido';
+  String get tarjetaInvalida => 'Número de tarjeta inválido';
 
   @override
-  String get fechaInvalida => 'Data inválida';
+  String get fechaInvalida => 'Fecha inválida';
 
   @override
   String get cvvInvalido => 'CVV inválido';
@@ -1077,14 +1077,41 @@ class AppLocalizationsPt extends AppLocalizations {
   String get pagar => 'Pagar';
 
   @override
-  String get pagoExito => '✅ Pagamento realizado com sucesso';
+  String get pagoExito => '✅ Pago realizado con éxito';
 
   @override
-  String get pagarEpayco => 'Pagar com ePayco';
+  String get pagarEpayco => 'Pagar con ePayco';
 
   @override
-  String get errorAnuncios => 'Erro ao carregar anúncios.';
+  String get errorAnuncios => 'Error al cargar los anuncios.';
 
   @override
   String get numerosLabel => 'Números';
+
+  @override
+  String get descripcionHistoricoResultados =>
+      'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.';
+
+  @override
+  String cargarMasSorteos(int count) {
+    return 'Cargar 50 más ($count restantes)';
+  }
+
+  @override
+  String get verTodosSorteos => 'Ver todos';
+
+  @override
+  String get descripcionMisJugadasBanner =>
+      'Aqui você encontrará todos os seus jogos e o próximo sorteio de cada loteria';
+
+  @override
+  String get descripcionResultadosBanner =>
+      'Aqui você encontrará os últimos resultados oficiais, o histórico de sorteios e a análise de previsões de cada loteria';
+
+  @override
+  String get descripcionExplorarBanner =>
+      'Aqui você pode explorar as loterias disponíveis por país e gerar previsões inteligentes para seus próximos jogos';
+
+  @override
+  String get mostrarLoteriasPrincipales => 'Mostrar apenas loterias principais';
 }

@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/screens/publicidad.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -344,7 +344,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
 
         return DropdownButtonFormField<String>(
-          value: valorActual,
+          initialValue: valorActual,
           isExpanded: true,
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,
@@ -435,7 +435,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
 
         return DropdownButtonFormField<String>(
-          value: valorActual,
+          initialValue: valorActual,
           isExpanded: true,
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,
@@ -506,7 +506,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
 
         return DropdownButtonFormField<String>(
-          value: valorActual,
+          initialValue: valorActual,
           isExpanded: true,
           dropdownColor: Colors.black87,
           style: AppTextStyles.mensajeSecundario,

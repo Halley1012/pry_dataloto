@@ -476,12 +476,180 @@
   "nombreTarjeta": "Nome no cartão",
   "numeroTarjeta": "Número do cartão",
   "ingresaNombre": "Insira o nome",
-  "tarjetaInvalida": "Número do cartão inválido",
-  "fechaInvalida": "Data inválida",
-  "cvvInvalido": "CVV inválido",
-  "pagar": "Pagar",
-  "pagoExito": "✅ Pagamento realizado com sucesso",
-  "pagarEpayco": "Pagar com ePayco",
-  "errorAnuncios": "Erro ao carregar anúncios.",
-  "numerosLabel": "Números"
+  "errorAgregarJugada": "Erro ao adicionar aposta",
+  "nro": "Nro.",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "Meus Anúncios",
+  "noHasPublicadoAnuncios": "Você ainda não publicou nenhum anúncio.\nCrie o primeiro agora!",
+  "eliminarAnuncio": "Excluir anúncio",
+  "confirmarEliminarAnuncio": "Tem certeza que deseja excluir este anúncio?",
+  "editar": "Editar",
+  "eliminar": "Excluir",
+  "crearPublicidad": "Criar Publicidade",
+  "editarAnuncio": "Editar Anúncio",
+  "crearNuevoAnuncio": "Criar novo anúncio",
+  "promocionaNegocioStyle": "Promova seu negócio com estilo",
+  "titulo": "Título",
+  "descripcion": "Descrição",
+  "descripcionObligatoria": "Descrição obrigatória",
+  "telefono": "Telefone",
+  "telefonoObligatorio": "Telefone obrigatório",
+  "direccion": "Endereço",
+  "imagenUrl": "URL da Imagem",
+  "ciudad": "Cidade",
+  "redesSociales": "Redes sociais",
+  "paginaWeb": "Página Web",
+  "whatsappObligatorio": "WhatsApp obrigatório",
+  "anuncioActualizado": "Anúncio atualizado",
+  "anuncioCreado": "Anúncio criado",
+  "errorGuardar": "Erro ao salvar",
+  "campoRequerido": "{campo} obrigatório",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Selecione {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "Minhas Apostas de {loteria} - Eterlotto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "Não há apostas para compartilhar",
+  "buenaSuerteDataLoto": "Boa sorte com o Eterlotto!",
+  "tiqueteDataloto": "ETERLOTTO - BILHETE {loteria}",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Relatório de Apostas Salvas ({count} aposta(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Data de Salvamento",
+  "balotasLoteria": "Bolas {loteria}",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "Muito sucesso no seu jogo! - Gerado pelo Eterlotto App",
+  "jugadaShare": "Aposta #{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "Não há apostas selecionadas para imprimir",
+  "generaGuardaJugadas": "Gere e salve suas apostas na tela principal do {loteria}",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "Tem certeza que deseja excluir {count} aposta(s)?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "{count} aposta(s) excluída(s) com sucesso.",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Bola especial: {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "Minhas Apostas - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Bilhete_{loteria}_Eterlotto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / dia",
+  "postEliminado": "Post excluído com sucesso",
+  "errorEliminarPost": "Erro ao excluir o post: {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Editar Post",
+  "crearPost": "Criar Post",
+  "todosCamposObligatorios": "Todos os campos são obrigatórios",
+  "errorGuardarPost": "Erro ao salvar o post",
+  "contenido": "Conteúdo",
+  "publicar": "Publicar",
+  "escribeComentario": "Escreva um comentário",
+  "errorEnviarComentario": "Erro ao enviar comentário: {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Comentário excluído",
+  "errorEliminarComentario": "Erro ao excluir: {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "verTodosSorteos": "Ver todos",
+  "descripcionMisJugadasBanner": "Aqui você encontrará todos os seus jogos e o próximo sorteio de cada loteria",
+  "descripcionResultadosBanner": "Aqui você encontrará os últimos resultados oficiais, o histórico de sorteios e a análise de previsões de cada loteria",
+  "descripcionExplorarBanner": "Aqui você pode explorar as loterias disponíveis por país e gerar previsões inteligentes para seus próximos jogos",
+  "mostrarLoteriasPrincipales": "Mostrar apenas loterias principais"
 }

@@ -2048,6 +2048,48 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Números'**
   String get numerosLabel;
+
+  /// No description provided for @descripcionHistoricoResultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.'**
+  String get descripcionHistoricoResultados;
+
+  /// No description provided for @cargarMasSorteos.
+  ///
+  /// In es, this message translates to:
+  /// **'Cargar 50 más ({count} restantes)'**
+  String cargarMasSorteos(int count);
+
+  /// No description provided for @verTodosSorteos.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver todos'**
+  String get verTodosSorteos;
+
+  /// No description provided for @descripcionMisJugadasBanner.
+  ///
+  /// In es, this message translates to:
+  /// **'Aquí encontrarás todas tus jugadas y el próximo sorteo de cada lotería'**
+  String get descripcionMisJugadasBanner;
+
+  /// No description provided for @descripcionResultadosBanner.
+  ///
+  /// In es, this message translates to:
+  /// **'Aquí encontrarás los últimos resultados oficiales, el historial de sorteos y el análisis de predicciones de cada lotería'**
+  String get descripcionResultadosBanner;
+
+  /// No description provided for @descripcionExplorarBanner.
+  ///
+  /// In es, this message translates to:
+  /// **'Aquí podrás explorar las loterías disponibles por país y generar predicciones inteligentes para tus próximas jugadas'**
+  String get descripcionExplorarBanner;
+
+  /// No description provided for @mostrarLoteriasPrincipales.
+  ///
+  /// In es, this message translates to:
+  /// **'Mostrar solo loterías principales'**
+  String get mostrarLoteriasPrincipales;
 }
 
 class _AppLocalizationsDelegate

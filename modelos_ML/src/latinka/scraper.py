@@ -20,13 +20,20 @@ class LaTinkaScraper:
             "Accept-Language": "es-PE,es-419;q=0.9,es;q=0.8,en;q=0.7",
         }
         self.url_oficial = "https://www.latinka.com.pe/p/juega-tinka.html"
+        self.url_home = "https://tinkaresultados.com/"
         self.url_sitemap = "https://tinkaresultados.com/sitemap.xml"
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """Sorteos de La Tinka: Miércoles (2) y Domingos (6)."""
         dias_validos = {2, 6}
-        candidate = ultima_fecha_real + timedelta(days=1)
-        while candidate.weekday() not in dias_validos:
+        hoy = datetime.now().date()
+        base = max(ultima_fecha_real, hoy)
+        
+        if hoy.weekday() in dias_validos and ultima_fecha_real < hoy:
+            return hoy
+            
+        candidate = base + timedelta(days=1)
+        while candidate.weekday() not in dias_validos or candidate <= ultima_fecha_real:
             candidate += timedelta(days=1)
         return candidate
 
@@ -89,29 +96,61 @@ class LaTinkaScraper:
         return None
 
     def extraer_historico_concurrente(self, max_draws: int = 400) -> pd.DataFrame:
-        """Obtiene URLs del sitemap y descarga los sorteos históricos concurrentemente."""
-        print(f"➡️ Obteniendo lista de sorteos históricos desde sitemap...")
+        """Obtiene URLs recientes y del sitemap y descarga los sorteos históricos concurrentemente ordenados por fecha."""
+        print(f"➡️ Obteniendo lista de sorteos históricos...")
+        urls_set = set()
+
+        # 1. URLs desde la página principal de resultados recientes
+        try:
+            r_home = requests.get(self.url_home, headers=self.headers, timeout=10, verify=False)
+            if r_home.status_code == 200:
+                soup = BeautifulSoup(r_home.text, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if "jugada-" in href:
+                        if not href.startswith("http"):
+                            href = "https://www.tinkaresultados.com" + href
+                        urls_set.add(href)
+        except Exception as e:
+            print(f"⚠️ Error obteniendo URLs desde home: {e}")
+
+        # 2. URLs desde el sitemap
         try:
             r = requests.get(self.url_sitemap, headers=self.headers, timeout=10, verify=False)
             if r.status_code == 200:
                 urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                tinka_urls = [u for u in urls if 'jugada-' in u][:max_draws]
-                print(f"Descargando {len(tinka_urls)} sorteos de La Tinka concurrentemente...")
-
-                draws = []
-                with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-                    results = list(executor.map(self._parsear_jugada, tinka_urls))
-
-                for res in results:
-                    if res:
-                        draws.append(res)
-
-                print(f"📊 Sorteos procesados de La Tinka: {len(draws)}")
-                return pd.DataFrame(draws)
+                for u in urls:
+                    if 'jugada-' in u:
+                        urls_set.add(u)
         except Exception as e:
-            print(f"⚠️ Error descargando histórico: {e}")
+            print(f"⚠️ Error consultando sitemap: {e}")
 
-        return pd.DataFrame()
+        if not urls_set:
+            print("❌ No se encontraron URLs para descargar sorteos.")
+            return pd.DataFrame()
+
+        def get_date_key(u: str) -> str:
+            m = re.search(r'del-(\d{1,2})-(\d{1,2})-(\d{4})', u)
+            if m:
+                d, mo, y = m.groups()
+                return f"{y}-{mo.zfill(2)}-{d.zfill(2)}"
+            m_num = re.search(r'jugada-(\d+)', u)
+            return str(m_num.group(1)).zfill(6) if m_num else ""
+
+        # Ordenar de más reciente a más antiguo
+        tinka_urls = sorted(list(urls_set), key=get_date_key, reverse=True)[:max_draws]
+        print(f"Descargando {len(tinka_urls)} sorteos de La Tinka concurrentemente...")
+
+        draws = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+            results = list(executor.map(self._parsear_jugada, tinka_urls))
+
+        for res in results:
+            if res:
+                draws.append(res)
+
+        print(f"📊 Sorteos procesados de La Tinka: {len(draws)}")
+        return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el pozo de La Tinka en la tabla loterias_jackpots."""

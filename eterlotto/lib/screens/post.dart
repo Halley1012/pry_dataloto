@@ -1,8 +1,8 @@
-﻿import 'package:eterlotto/widgets/contenedor4.dart';
+import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
-import '../services/api_service.dart';
-import '../models/comment.dart';
-import '../widgets/custom_app_bar.dart';
+import 'package:eterlotto/services/api_service.dart';
+import 'package:eterlotto/models/comment.dart';
+import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
