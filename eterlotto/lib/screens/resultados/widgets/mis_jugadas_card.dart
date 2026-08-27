@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'resultados_shared.dart';
@@ -6,30 +6,20 @@ import 'resultados_shared.dart';
 class MisJugadasCard extends StatelessWidget {
   final String selectedLoteria;
   final List<Map<String, dynamic>> misJugadas;
-  final List<int> winningNums;
-  final int? winningRed;
-  final bool hasRevanchaData;
-  final List<int> winningNumsRevancha;
-  final int? winningRedRevancha;
-  final String nombreSorteoPrincipal;
-  final String nombreSorteoSecundario;
+  final List<SubSorteoData> subSorteos;
 
   const MisJugadasCard({
     super.key,
     required this.selectedLoteria,
     required this.misJugadas,
-    required this.winningNums,
-    this.winningRed,
-    required this.hasRevanchaData,
-    required this.winningNumsRevancha,
-    this.winningRedRevancha,
-    required this.nombreSorteoPrincipal,
-    required this.nombreSorteoSecundario,
+    required this.subSorteos,
   });
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final bool hasMultipleDraws = subSorteos.length > 1;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -89,15 +79,24 @@ class MisJugadasCard extends StatelessWidget {
           else
             Column(
               children: misJugadas.map((jugada) {
-                final nums = jugada["nums"] as List<int>;
+                final nums = (jugada["nums"] as List).map((e) => int.tryParse(e.toString()) ?? 0).toList();
                 final red = jugada["red"] as int?;
-                final titulo = jugada["titulo"].toString();
+                final titulo = jugada["titulo"]?.toString() ?? "Jugada";
 
-                int hitsCountBaloto = nums.where((n) => winningNums.contains(n)).length;
-                bool redHitBaloto = (red != null && red == winningRed);
+                int maxHitsAcrossAll = 0;
+                bool anyRedHit = false;
 
-                int hitsCountRev = hasRevanchaData ? nums.where((n) => winningNumsRevancha.contains(n)).length : 0;
-                bool redHitRev = hasRevanchaData && (red != null && red == winningRedRevancha);
+                final List<Map<String, dynamic>> drawStats = subSorteos.map((sub) {
+                  int hits = nums.where((n) => sub.winningNums.contains(n)).length;
+                  bool redHit = (red != null && red == sub.winningRed);
+                  if (hits > maxHitsAcrossAll) maxHitsAcrossAll = hits;
+                  if (redHit) anyRedHit = true;
+                  return {
+                    "sub": sub,
+                    "hits": hits,
+                    "redHit": redHit,
+                  };
+                }).toList();
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -106,7 +105,7 @@ class MisJugadasCard extends StatelessWidget {
                     color: const Color(0xFF1B1E27),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color: (hitsCountBaloto >= 3 || hitsCountRev >= 3) ? Colors.amber.withValues(alpha: 0.4) : Colors.white10,
+                      color: maxHitsAcrossAll >= 3 ? Colors.amber.withValues(alpha: 0.4) : Colors.white10,
                     ),
                   ),
                   child: Column(
@@ -128,167 +127,90 @@ class MisJugadasCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          if (hasRevanchaData)
+                          if (hasMultipleDraws)
                             Wrap(
-                              spacing: 12,
+                              spacing: 10,
                               runSpacing: 4,
                               alignment: WrapAlignment.end,
-                              children: [
-                                Text(
-                                  "$nombreSorteoPrincipal: ${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null, winningNums.length)}",
+                              children: drawStats.map((stat) {
+                                final SubSorteoData sub = stat["sub"];
+                                final int hits = stat["hits"];
+                                final bool redHit = stat["redHit"];
+                                return Text(
+                                  "${sub.nombre}: ${l10n.cantidadAciertos(hits)}${_getHitsEmoji(hits, redHit, red != null, sub.winningNums.length)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
-                                    color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
+                                    color: hits > 0 ? Colors.greenAccent : Colors.white38,
                                   ),
-                                ),
-                                Text(
-                                  "$nombreSorteoSecundario: ${l10n.cantidadAciertos(hitsCountRev)}${_getHitsEmoji(hitsCountRev, redHitRev, red != null, winningNumsRevancha.length)}",
-                                  style: GoogleFonts.montserrat(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
-                                    color: hitsCountRev > 0 ? Colors.greenAccent : Colors.white38,
-                                  ),
-                                ),
-                              ],
+                                );
+                              }).toList(),
                             )
-                          else
+                          else if (drawStats.isNotEmpty)
                             Text(
-                              "${l10n.cantidadAciertos(hitsCountBaloto)}${_getHitsEmoji(hitsCountBaloto, redHitBaloto, red != null, winningNums.length)}",
+                              "${l10n.cantidadAciertos(drawStats.first["hits"])}${_getHitsEmoji(drawStats.first["hits"], drawStats.first["redHit"], red != null, subSorteos.first.winningNums.length)}",
                               style: GoogleFonts.montserrat(
                                 fontSize: 10,
-                                color: hitsCountBaloto > 0 ? Colors.greenAccent : Colors.white38,
+                                color: drawStats.first["hits"] > 0 ? Colors.greenAccent : Colors.white38,
                               ),
                             ),
                         ],
                       ),
                       const SizedBox(height: 8),
 
-                      if (hasRevanchaData) ...[
-                        // Fila Baloto
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                nombreSorteoPrincipal,
-                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w500),
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNums.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
+                      // Filas de cada sub-sorteo
+                      ...subSorteos.asMap().entries.map((entry) {
+                        final int idx = entry.key;
+                        final SubSorteoData sub = entry.value;
+                        final bool redHit = (red != null && red == sub.winningRed);
 
-                        // Fila Revancha
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                nombreSorteoSecundario,
-                                style: GoogleFonts.montserrat(fontSize: 11, color: Colors.amberAccent, fontWeight: FontWeight.w500),
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: idx < subSorteos.length - 1 ? 8.0 : 0.0),
+                          child: Row(
+                            children: [
+                              SizedBox(
+                                width: 75,
+                                child: Text(
+                                  hasMultipleDraws ? sub.nombre : selectedLoteria,
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 11,
+                                    color: sub.color,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNumsRevancha.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitRev, isRed: true),
+                              Expanded(
+                                child: Center(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    physics: const BouncingScrollPhysics(),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        ...nums.map((n) {
+                                          final isHit = sub.winningNums.contains(n);
+                                          return Padding(
+                                            padding: const EdgeInsets.symmetric(horizontal: 3),
+                                            child: buildPlayBall(n, isHit: isHit),
+                                          );
+                                        }),
+                                        if (red != null) ...[
+                                          const SizedBox(width: 6),
+                                          buildPlayBall(red, isHit: redHit, isRed: true),
+                                        ],
                                       ],
-                                    ],
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        // Fila estándar si no hay Revancha
-                        Row(
-                          children: [
-                            SizedBox(
-                              width: 65,
-                              child: Text(
-                                selectedLoteria,
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  color: Colors.white70,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            Expanded(
-                              child: Center(
-                                child: SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  physics: const BouncingScrollPhysics(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      ...nums.map((n) {
-                                        final isHit = winningNums.contains(n);
-                                        return Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 3),
-                                          child: buildPlayBall(n, isHit: isHit),
-                                        );
-                                      }),
-                                      if (red != null) ...[
-                                        const SizedBox(width: 6),
-                                        buildPlayBall(red, isHit: redHitBaloto, isRed: true),
-                                      ],
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      if (hasRevanchaData) ...[
-                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal, winningNums.length) != null)
-                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, nombreSorteoPrincipal, winningNums.length)!,
-                        if (_buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario, winningNumsRevancha.length) != null)
-                          _buildFeedbackBanner(hitsCountRev, redHitRev, red != null, nombreSorteoSecundario, winningNumsRevancha.length)!,
-                      ] else ...[
-                        if (_buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria, winningNums.length) != null)
-                          _buildFeedbackBanner(hitsCountBaloto, redHitBaloto, red != null, selectedLoteria, winningNums.length)!,
+                            ],
+                          ),
+                        );
+                      }),
+                      if (_buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, red != null, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6) != null) ...[
+                        const SizedBox(height: 10),
+                        _buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, red != null, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6)!,
                       ],
                     ],
                   ),

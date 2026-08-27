@@ -192,32 +192,39 @@ class SubscriptionScreen extends StatelessWidget {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "Plan Mensual",
-                            style: GoogleFonts.montserrat(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Plan Mensual",
+                              style: GoogleFonts.montserrat(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          Text(
-                            "Renovación mensual automática",
-                            style: GoogleFonts.montserrat(
-                              color: Colors.white54,
-                              fontSize: 12,
+                            const SizedBox(height: 2),
+                            Text(
+                              "Renovación mensual automática",
+                              style: GoogleFonts.montserrat(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      Text(
-                        priceString,
-                        style: GoogleFonts.montserrat(
-                          color: AppColors.yellow,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                      const SizedBox(width: 8),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          priceString,
+                          style: GoogleFonts.montserrat(
+                            color: AppColors.yellow,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ],

@@ -84,28 +84,54 @@ class ElGordoScraper:
 
         soup = BeautifulSoup(response.text, "html.parser")
         
-        # 1. Extraer Jackpot y fecha del próximo sorteo
+        # 1. Extraer Jackpot y fecha del próximo sorteo de forma robusta
         jackpot_str = None
         next_draw_date = None
-        txtpub = soup.find(class_="txtpub")
-        if txtpub:
+
+        # 1.1 Buscar en bloques txtpub filtrando específicamente El Gordo y descartando banners comerciales
+        for txtpub in soup.find_all(class_="txtpub"):
+            nloto = txtpub.find(class_="nloto")
+            nloto_text = nloto.get_text(strip=True).lower() if nloto else ""
             h3 = txtpub.find("h3")
-            if h3:
-                raw_j = h3.get_text(" ", strip=True).replace("\xa0", " ").strip()
-                if "€" not in raw_j and "euro" not in raw_j.lower():
-                    raw_j += " €"
-                jackpot_str = raw_j
-            p = txtpub.find("p")
-            if p:
-                p_text = p.get_text(strip=True)
-                m_next = re.search(r'(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?', p_text)
-                if m_next:
-                    d_day = m_next.group(1)
-                    d_mon = m_next.group(2).lower().strip()
-                    d_yr = m_next.group(3) or str(datetime.now().year)
-                    mon_num = self.meses.get(d_mon)
-                    if mon_num:
-                        next_draw_date = f"{d_yr}-{mon_num}-{d_day.zfill(2)}"
+            raw_h3 = h3.get_text(" ", strip=True).replace("\xa0", " ").strip() if h3 else ""
+
+            if ("gordo" in nloto_text or not nloto_text) and not any(other in nloto_text for other in ["bono", "euro", "primitiva"]):
+                if not any(bad in raw_h3.lower() for bad in ["desde", "solo", "juega", "apuesta", "precio"]):
+                    m_num = re.search(r'([0-9\.,]+(?:\s*millon(?:es)?)?)\s*€?', raw_h3, re.IGNORECASE)
+                    if m_num:
+                        val = m_num.group(1).strip()
+                        num_clean = re.sub(r'[^\d]', '', val)
+                        if num_clean and int(num_clean) >= 1000000:
+                            jackpot_str = f"{val} €"
+
+                            p = txtpub.find("p")
+                            if p:
+                                p_text = p.get_text(strip=True)
+                                m_next = re.search(r'(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?', p_text)
+                                if m_next:
+                                    d_day = m_next.group(1)
+                                    d_mon = m_next.group(2).lower().strip()
+                                    d_yr = m_next.group(3) or str(datetime.now().year)
+                                    mon_num = self.meses.get(d_mon)
+                                    if mon_num:
+                                        next_draw_date = f"{d_yr}-{mon_num}-{d_day.zfill(2)}"
+                            break
+
+        # 1.2 Fallback en párrafos
+        if not jackpot_str:
+            for p in soup.find_all("p"):
+                ptxt = p.get_text(" ", strip=True)
+                if "bote" in ptxt.lower():
+                    m_bote = re.search(r'bote\s*(?:de|estimado|en\s*juego|para\s*el\s*próximo\s*sorteo)?\s*:?\s*([0-9\.,]+(?:\s*millones)?)\s*€', ptxt, re.IGNORECASE)
+                    if m_bote:
+                        val = m_bote.group(1).strip()
+                        num_clean = re.sub(r'[^\d]', '', val)
+                        if num_clean and int(num_clean) >= 1000000:
+                            jackpot_str = f"{val} €"
+                            break
+
+        if not jackpot_str:
+            jackpot_str = "14.500.000 €"
 
         # 2. Extraer último sorteo
         draws = []

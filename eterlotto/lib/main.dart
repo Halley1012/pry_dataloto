@@ -142,42 +142,29 @@ class EterlottoApp extends StatelessWidget {
             '/splash': (context) => const SplashScreen(),
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginPage(),
-            '/home': (context) => HomeScreen(),
+            '/home': (context) => const HomeScreen(),
             '/notifications': (context) => const NotificationsScreen(),
             '/subscription': (context) => const SubscriptionScreen(),
-            '/registro': (context) {
-              final args = ModalRoute.of(context)?.settings.arguments;
-
-              // Si no se pasan argumentos, usar valores por defecto
-              if (args == null || args is! Map<String, dynamic>) {
-                return const RegistroScreen(user: null, userId: null);
-              }
-
-              return RegistroScreen(
-                user: args['user'] as Map<String, dynamic>?,
-                userId: args['userId'] as int?,
-              );
-            },
+            '/registro': (context) => const RegistroScreen(),
           },
           onGenerateRoute: (settings) {
             final name = settings.name ?? '';
+            if (name == '/registro') {
+              final args = settings.arguments as Map<String, dynamic>?;
+              return MaterialPageRoute(
+                builder: (_) => RegistroScreen(
+                  user: args?['user'] as Map<String, dynamic>?,
+                  userId: args?['userId'] as int?,
+                  isSocialOnboarding: args?['isSocialOnboarding'] as bool? ?? false,
+                ),
+              );
+            }
             if (name.startsWith('/estadisticas_')) {
               final loteriaKey = name.replaceFirst('/estadisticas_', '');
               return MaterialPageRoute(
                 builder: (_) => EstadisticasDashboardScreen(
                   loteriaNombreInicial: loteriaKey,
                   loteriaRoute: loteriaKey,
-                ),
-              );
-            }
-            if (name.startsWith('/')) {
-              final cleanName = name.substring(1);
-              final args = settings.arguments;
-              return MaterialPageRoute(
-                builder: (_) => LoteriaScreen(
-                  loteriaNombre: cleanName,
-                  loteriaRoute: cleanName,
-                  loteriaData: args is Map<String, dynamic> ? args : null,
                 ),
               );
             }

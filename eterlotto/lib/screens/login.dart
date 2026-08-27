@@ -435,7 +435,6 @@ class _LoginPageState extends State<LoginPage> {
                   style: AppTextStyles.mensajeSecundario.copyWith(
                     color: AppColors.yellow,
                     fontWeight: FontWeight.bold,
-                    decoration: TextDecoration.underline,
                   ),
                 ),
               ),
@@ -481,6 +480,28 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
               ),
+              const SizedBox(height: 30),
+              InkWell(
+                onTap: () {
+                  if (Navigator.of(context).canPop()) {
+                    Navigator.of(context).pop();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                    );
+                  }
+                },
+                child: Text(
+                  l10n.registrarse,
+                  style: AppTextStyles.mensajeImportante,
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),

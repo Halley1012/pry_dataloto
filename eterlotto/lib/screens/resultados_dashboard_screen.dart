@@ -12,10 +12,10 @@ import 'resultados/widgets/estadisticas_cards.dart';
 import 'resultados/widgets/resultados_tab_selector.dart';
 import 'resultados/widgets/ultimos_sorteos_table.dart';
 import 'resultados/widgets/header_card.dart';
+import 'resultados/widgets/resultados_shared.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
-import 'package:eterlotto/utils/top_bouncing_scroll_physics.dart';
 import 'package:shimmer/shimmer.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
@@ -43,49 +43,23 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int> _top20List = [];
   List<int> _predictionNumeros = [];
   List<int> _predictionBalotaroja = [];
-  List<int> _winningNums = [];
-  int? _winningRed;
-  bool _hasRevanchaData = false;
-  String _nombreSorteo1 = "Principal";
-  String _nombreSorteo2 = "Secundario";
-  List<int> _winningNumsRevancha = [];
-  int? _winningRedRevancha;
-  double _coberturaPorcentajeRevancha = 0.0;
-  int _topHitsCountRevancha = 0;
+  List<SubSorteoData> _subSorteos = [];
+  List<String> _sorteosNombres = [];
   String _fechaSorteo = "";
   String _jackpot = "";
-  double _coberturaPorcentaje = 0.0;
   int _probablesCount = 20;
   int _totalWinningCount = 5;
-  int _topHitsCount = 0;
   List<double> _historialCoberturasList = [];
   int _rachaActualCount = 0;
   int _mejorRachaCount = 0;
   List<Map<String, dynamic>> _misJugadas = [];
   List<int> _distribucionAciertos = [0, 0, 0, 0, 0, 0];
-  int _selectedResultadosTab = 0; // 0 = Sorteo Principal, 1 = Sorteo Secundario
+  int _selectedResultadosTab = 0; // Índice de tab seleccionado
 
-  String get _nombreSorteoPrincipal {
-    if (_hasRevanchaData && _nombreSorteo1.isNotEmpty) {
-      return _nombreSorteo1;
-    }
-    final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) {
-      return parts[0];
-    }
-    return _selectedLoteria;
-  }
-
-  String _getNombreSorteoSecundario(BuildContext context) {
-    if (_hasRevanchaData && _nombreSorteo2.isNotEmpty) {
-      return _nombreSorteo2;
-    }
-    final parts = _selectedLoteria.split('/').map((s) => s.trim()).toList();
-    if (parts.length > 1 && parts[1].isNotEmpty) {
-      return parts[1];
-    }
-    return AppLocalizations.of(context)!.revancha;
-  }
+  List<int> get _winningNums => _subSorteos.isNotEmpty ? _subSorteos.first.winningNums : [];
+  int? get _winningRed => _subSorteos.isNotEmpty ? _subSorteos.first.winningRed : null;
+  double get _coberturaPorcentaje => _subSorteos.isNotEmpty ? _subSorteos.first.coberturaPorcentaje : 0.0;
+  int get _topHitsCount => _subSorteos.isNotEmpty ? _subSorteos.first.topHitsCount : 0;
 
   @override
   void initState() {
@@ -159,18 +133,25 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
   }
 
-  Future<void> _cargarDatosReales() async {
-    setState(() => _isLoading = true);
+  Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
     final cacheKey = 'resultados_dashboard_cache_v6_$route';
 
-    // 1. Caché inmediato
-    final cached = await CacheService.getJson(cacheKey);
-    if (cached != null && mounted) {
-      final cachedTop = cached["top20"];
-      if (cachedTop is List && cachedTop.isNotEmpty) {
-        _procesarDatosCargados(cached);
+    // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
+    if (!forceRefresh) {
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached != null && mounted) {
+        setState(() {
+          _procesarDatosCargados(cached);
+          if (_winningNums.isNotEmpty) {
+            _isLoading = false;
+          }
+        });
       }
+    }
+
+    if (_winningNums.isEmpty) {
+      setState(() => _isLoading = true);
     }
 
     try {
@@ -335,109 +316,108 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final bool tieneBalotaExtra = _predictionBalotaroja.isNotEmpty ||
         (widget.loteriaData != null && (int.tryParse(widget.loteriaData!['max_balotas_rojas']?.toString() ?? '0') ?? 0) > 0);
 
-    _hasRevanchaData = false;
-    _winningNumsRevancha = [];
-    _winningRedRevancha = null;
-    _coberturaPorcentajeRevancha = 0.0;
-    _topHitsCountRevancha = 0;
-
     String drawDateISO = "";
+    List<SubSorteoData> subSorteosParsed = [];
 
-    // 1. Extraer último sorteo real dinámicamente
+    // 1. Extraer todos los sub-sorteos dinámicamente
     if (sorteosRaw.isNotEmpty) {
-      final sorteosUnicos = sorteosRaw
-          .map((s) => s["sorteo"]?.toString().trim())
-          .where((s) => s != null && s.isNotEmpty)
-          .toSet()
-          .toList();
-
-      Map<String, dynamic>? ultimoPrincipal;
-      Map<String, dynamic>? ultimoSecundario;
-
-      if (sorteosUnicos.length > 1) {
-        _hasRevanchaData = true;
-        _nombreSorteo1 = sorteosUnicos[0]!;
-        _nombreSorteo2 = sorteosUnicos[1]!;
-
-        final matches1 = sorteosRaw.where(
-          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(_nombreSorteo1.toLowerCase()),
-        ).toList();
-        ultimoPrincipal = matches1.isNotEmpty ? matches1.first : sorteosRaw.first;
-
-        final matches2 = sorteosRaw.where(
-          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(_nombreSorteo2.toLowerCase()),
-        ).toList();
-        if (matches2.isNotEmpty) {
-          ultimoSecundario = matches2.first;
-        }
-      } else {
-        ultimoPrincipal = sorteosRaw.first;
-      }
-
-      // Procesar Sorteo Principal
-      _fechaSorteo = _formatearFecha(ultimoPrincipal["fecha"]?.toString() ?? "");
-      drawDateISO = _normalizarFechaISO(ultimoPrincipal["fecha"]?.toString() ?? "");
-
-      List<int> extractedNums = _extraerNumerosDeMap(ultimoPrincipal);
-      final redVal = int.tryParse(
-        ultimoPrincipal["balotaroja2"]?.toString() ??
-        ultimoPrincipal["reintegro"]?.toString() ??
-        ultimoPrincipal["balotaroja"]?.toString() ??
-        ultimoPrincipal["balota_roja"]?.toString() ??
-        ultimoPrincipal["superbalota"]?.toString() ??
-        ultimoPrincipal["balota"]?.toString() ??
-        ultimoPrincipal["red"]?.toString() ?? "",
-      );
-
-      int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (extractedNums.length > 6 ? 6 : 5);
-
-      if (tieneBalotaExtra && redVal == null && extractedNums.length > maxSel) {
-        _winningRed = extractedNums.removeLast();
-      } else {
-        _winningRed = redVal;
-        if (tieneBalotaExtra && _winningRed != null && extractedNums.length > maxSel && extractedNums.last == _winningRed) {
-          extractedNums.removeLast();
+      final Set<String> distinctNames = {};
+      for (var s in sorteosRaw) {
+        final name = s["sorteo"]?.toString().trim();
+        if (name != null && name.isNotEmpty) {
+          distinctNames.add(name);
         }
       }
 
-      if (extractedNums.isNotEmpty) {
-        _winningNums = extractedNums;
+      // Ordenar nombres: el principal (que coincide con _selectedLoteria) va de PRIMERO
+      List<String> sortedNames = distinctNames.toList();
+      if (sortedNames.length > 1) {
+        final cleanLoteria = _selectedLoteria.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        sortedNames.sort((a, b) {
+          final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+          final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+          if (aIsMain && !bIsMain) return -1;
+          if (!aIsMain && bIsMain) return 1;
+          return 0;
+        });
+      } else if (sortedNames.isEmpty) {
+        sortedNames = [_selectedLoteria];
       }
+      _sorteosNombres = sortedNames;
 
-      _jackpot = "";
-      if (ultimoPrincipal["jackpot"] != null && ultimoPrincipal["jackpot"].toString().isNotEmpty) {
-        _jackpot = ultimoPrincipal["jackpot"].toString();
-      } else if (data["jackpot"] != null && data["jackpot"].toString().isNotEmpty) {
-        _jackpot = data["jackpot"].toString();
-      }
+      final palette = [
+        Colors.amber,
+        const Color(0xFFC084FC),
+        const Color(0xFF2DD4BF),
+        const Color(0xFFFB923C),
+        Colors.blueAccent,
+      ];
 
-      // Procesar Sorteo Secundario (si existe)
-      if (ultimoSecundario != null) {
-        List<int> extractedSecundario = _extraerNumerosDeMap(ultimoSecundario);
-        final redValRev = int.tryParse(
-          ultimoSecundario["balotaroja2"]?.toString() ??
-          ultimoSecundario["reintegro"]?.toString() ??
-          ultimoSecundario["balotaroja"]?.toString() ??
-          ultimoSecundario["balota_roja"]?.toString() ??
-          ultimoSecundario["superbalota"]?.toString() ??
-          ultimoSecundario["balota"]?.toString() ??
-          ultimoSecundario["red"]?.toString() ?? "",
-        );
+      for (int i = 0; i < sortedNames.length; i++) {
+        final sName = sortedNames[i];
+        final matches = sorteosRaw.where(
+          (s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(sName.toLowerCase()),
+        ).toList();
+        final Map<String, dynamic> record = matches.isNotEmpty ? matches.first : sorteosRaw.first;
 
-        if (tieneBalotaExtra && redValRev == null && extractedSecundario.length > maxSel) {
-          _winningRedRevancha = extractedSecundario.removeLast();
-        } else {
-          _winningRedRevancha = redValRev;
-          if (tieneBalotaExtra && _winningRedRevancha != null && extractedSecundario.length > maxSel && extractedSecundario.last == _winningRedRevancha) {
-            extractedSecundario.removeLast();
+        if (i == 0) {
+          _fechaSorteo = _formatearFecha(record["fecha"]?.toString() ?? "");
+          drawDateISO = _normalizarFechaISO(record["fecha"]?.toString() ?? "");
+          _jackpot = "";
+          if (record["jackpot"] != null && record["jackpot"].toString().isNotEmpty) {
+            _jackpot = record["jackpot"].toString();
+          } else if (data["jackpot"] != null && data["jackpot"].toString().isNotEmpty) {
+            _jackpot = data["jackpot"].toString();
           }
         }
 
-        if (extractedSecundario.isNotEmpty) {
-          _winningNumsRevancha = extractedSecundario;
-          _hasRevanchaData = true;
+        List<int> extractedNums = _extraerNumerosDeMap(record);
+        final redVal = int.tryParse(
+          record["balotaroja2"]?.toString() ??
+          record["reintegro"]?.toString() ??
+          record["balotaroja"]?.toString() ??
+          record["balota_roja"]?.toString() ??
+          record["superbalota"]?.toString() ??
+          record["balota"]?.toString() ??
+          record["red"]?.toString() ?? "",
+        );
+
+        int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (extractedNums.length > 6 ? 6 : 5);
+
+        int? winningRed;
+        if (tieneBalotaExtra && redVal == null && extractedNums.length > maxSel) {
+          winningRed = extractedNums.removeLast();
+        } else {
+          winningRed = redVal;
+          if (tieneBalotaExtra && winningRed != null && extractedNums.length > maxSel && extractedNums.last == winningRed) {
+            extractedNums.removeLast();
+          }
         }
+
+        final mainBalls = extractedNums.length > maxSel ? extractedNums.sublist(0, maxSel) : extractedNums;
+        final int? compBall = extractedNums.length > maxSel ? extractedNums.last : null;
+
+        final hitsInTop = top20.isNotEmpty ? mainBalls.where((n) => top20.contains(n)).toList() : <int>[];
+        final double cobertura = maxSel > 0 ? (hitsInTop.length / maxSel.toDouble()).clamp(0.0, 1.0) : 0.0;
+
+        subSorteosParsed.add(SubSorteoData(
+          nombre: sName,
+          winningNums: extractedNums,
+          winningRed: winningRed,
+          compBall: compBall,
+          coberturaPorcentaje: cobertura,
+          topHitsCount: hitsInTop.length,
+          hitsInTop: hitsInTop,
+          color: palette[i % palette.length],
+        ));
       }
+    }
+
+    _subSorteos = subSorteosParsed;
+    if (_selectedResultadosTab >= _sorteosNombres.length) {
+      _selectedResultadosTab = 0;
     }
 
     // 2. Cobertura IA real (sobre las balotas principales)
@@ -445,20 +425,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     if (top20.isNotEmpty) {
       _probablesCount = top20.length;
     }
-
     _totalWinningCount = maxSel;
-
-    if (_winningNums.isNotEmpty && top20.isNotEmpty) {
-      final mainBalls = _winningNums.length > maxSel ? _winningNums.sublist(0, maxSel) : _winningNums;
-      _topHitsCount = mainBalls.where((n) => top20.contains(n)).length;
-      _coberturaPorcentaje = (_topHitsCount / maxSel.toDouble()).clamp(0.0, 1.0);
-    }
-
-    if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty && top20.isNotEmpty) {
-      final mainRevancha = _winningNumsRevancha.length > maxSel ? _winningNumsRevancha.sublist(0, maxSel) : _winningNumsRevancha;
-      _topHitsCountRevancha = mainRevancha.where((n) => top20.contains(n)).length;
-      _coberturaPorcentajeRevancha = (_topHitsCountRevancha / maxSel.toDouble()).clamp(0.0, 1.0);
-    }
 
     // 3. Procesar jugadas del usuario (Filtrando estrictamente por la fecha del sorteo)
     if (jugadasRaw.isNotEmpty) {
@@ -662,50 +629,52 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   String _buildInsightIAText(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    if (_winningNums.isEmpty) return "";
+    if (_subSorteos.isEmpty) return "";
 
     if (_top20List.isEmpty) {
       return l10n.prediccionesNoDisponibles;
     }
 
-    int maxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (_winningNums.length > 5 ? 6 : 5);
-    final mainBaloto = _winningNums.length > maxSel ? _winningNums.sublist(0, maxSel) : _winningNums;
-    final balotoHits = mainBaloto.where((n) => _top20List.contains(n)).toList();
-
-    if (_hasRevanchaData && _winningNumsRevancha.isNotEmpty) {
-      final mainRevancha = _winningNumsRevancha.length > maxSel ? _winningNumsRevancha.sublist(0, maxSel) : _winningNumsRevancha;
-      final revanchaHits = mainRevancha.where((n) => _top20List.contains(n)).toList();
-
-      final String bText = balotoHits.isNotEmpty
-          ? l10n.nEnBaloto(balotoHits.length, balotoHits.join(', '))
-          : l10n.ceroEnBaloto;
-      final String rText = revanchaHits.isNotEmpty
-          ? l10n.nEnRevancha(revanchaHits.length, revanchaHits.join(', '))
-          : l10n.ceroEnRevancha;
-
-      return l10n.insightIACayeronDual(_probablesCount, _selectedLoteria, bText, rText);
-    } else {
-      if (balotoHits.isNotEmpty) {
-        final numsStr = balotoHits.join(', ');
-        return l10n.insightIACayeron(_probablesCount, _selectedLoteria, "${l10n.nNumeros(balotoHits.length)} ($numsStr)");
+    if (_subSorteos.length == 1) {
+      final s = _subSorteos.first;
+      if (s.hitsInTop.isNotEmpty) {
+        final numsStr = s.hitsInTop.join(', ');
+        return l10n.insightIACayeron(_probablesCount, _selectedLoteria, "${l10n.nNumeros(s.hitsInTop.length)} ($numsStr)");
       } else {
         return l10n.insightIANoCoincidencias(_probablesCount, _selectedLoteria);
       }
     }
+
+    List<String> parts = [];
+    for (var s in _subSorteos) {
+      if (s.hitsInTop.isNotEmpty) {
+        parts.add("${s.hitsInTop.length} en ${s.nombre} (${s.hitsInTop.join(', ')})");
+      } else {
+        parts.add("0 en ${s.nombre}");
+      }
+    }
+
+    String joined;
+    if (parts.length == 2) {
+      joined = "${parts[0]} y ${parts[1]}";
+    } else {
+      joined = "${parts.sublist(0, parts.length - 1).join(', ')} y ${parts.last}";
+    }
+
+    return "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron $joined.";
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final canPop = Navigator.canPop(context);
-    final nombreSorteoSecundario = _getNombreSorteoSecundario(context);
     int dynamicMaxSel = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? (_winningNums.length > 5 ? 6 : 5);
 
     // Preparar listToRender para la tabla
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
 
-    if (_hasRevanchaData) {
-      final targetSorteo = _selectedResultadosTab == 1 ? _nombreSorteo2 : _nombreSorteo1;
+    if (_sorteosNombres.length > 1 && _selectedResultadosTab < _sorteosNombres.length) {
+      final targetSorteo = _sorteosNombres[_selectedResultadosTab];
       final matches = _ultimosSorteos
           .where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(targetSorteo.toLowerCase()))
           .toList();
@@ -713,6 +682,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         rawSource = matches;
       }
     }
+
+    final SubSorteoData? currentSub = _selectedResultadosTab < _subSorteos.length
+        ? _subSorteos[_selectedResultadosTab]
+        : (_subSorteos.isNotEmpty ? _subSorteos.first : null);
 
     final List<Map<String, dynamic>> listToRender = rawSource.isNotEmpty
         ? rawSource.take(5).map((item) {
@@ -751,10 +724,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         : [
             {
               "fecha": _formatearFechaCorta(_fechaSorteo.isNotEmpty ? _fechaSorteo : ""),
-              "nums": _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
-              "red": _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
-              "cobertura": _selectedResultadosTab == 1 ? "${(_coberturaPorcentajeRevancha * 100).round()}%" : "${(_coberturaPorcentaje * 100).round()}%",
-              "aciertos": _selectedResultadosTab == 1 ? "$_topHitsCountRevancha / $dynamicMaxSel" : "$_topHitsCount / $dynamicMaxSel",
+              "nums": currentSub?.winningNums ?? _winningNums,
+              "red": currentSub?.winningRed ?? _winningRed,
+              "cobertura": "${((currentSub?.coberturaPorcentaje ?? _coberturaPorcentaje) * 100).round()}%",
+              "aciertos": "${currentSub?.topHitsCount ?? _topHitsCount} / $dynamicMaxSel",
               "color": Colors.greenAccent,
             },
           ];
@@ -767,28 +740,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       backgroundColor: const Color(0xFF0D0E12),
       body: SafeArea(
         child: RefreshIndicator(
-          color: Colors.transparent,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          displacement: 65.0,
-          triggerMode: RefreshIndicatorTriggerMode.onEdge,
-          onRefresh: _cargarDatosReales,
+          color: AppColors.yellow,
+          backgroundColor: const Color(0xFF1E1E1E),
+          displacement: 25.0,
+          onRefresh: () => _cargarDatosReales(forceRefresh: true),
           child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: TopBouncingScrollPhysics()),
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (_isLoading && _winningNums.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8.0),
-                  child: const LinearProgressIndicator(
-                    backgroundColor: Color(0xFF1E2029),
-                    color: AppColors.yellow,
-                    minHeight: 2.5,
-                  ),
-                ),
-              if (_isLoading && _winningNums.isEmpty)
+              if (_isLoading && _subSorteos.isEmpty)
                 _buildSkeletonDashboard()
               else ...[
                 // 0. Encabezado Estilizado
@@ -811,26 +773,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   final ultimoSorteoWidget = UltimoSorteoCard(
                     selectedLoteria: _selectedLoteria,
                     fechaSorteo: _fechaSorteo,
-                    hasRevanchaData: _hasRevanchaData,
-                    nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                    nombreSorteoSecundario: nombreSorteoSecundario,
-                    winningNums: _winningNums,
-                    winningRed: _winningRed,
-                    winningNumsRevancha: _winningNumsRevancha,
-                    winningRedRevancha: _winningRedRevancha,
+                    subSorteos: _subSorteos,
                     maxSeleccion: dynamicMaxSel,
                     tieneComplementario: tieneComp,
                     totalBalotasSorteo: totalSorteo,
                   );
 
                   final coberturaWidget = CoberturaGaugeCard(
-                    hasRevanchaData: _hasRevanchaData,
-                    nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                    nombreSorteoSecundario: nombreSorteoSecundario,
-                    coberturaPorcentaje: _coberturaPorcentaje,
-                    coberturaPorcentajeRevancha: _coberturaPorcentajeRevancha,
-                    topHitsCount: _topHitsCount,
-                    topHitsCountRevancha: _topHitsCountRevancha,
+                    subSorteos: _subSorteos,
                     probablesCount: _probablesCount,
                     totalWinningCount: _totalWinningCount,
                   );
@@ -863,16 +813,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 selectedLoteria: _selectedLoteria,
                 probablesCount: _probablesCount,
                 coberturaPorcentaje: _coberturaPorcentaje,
-                winningNums: _selectedResultadosTab == 1 && _winningNumsRevancha.isNotEmpty ? _winningNumsRevancha : _winningNums,
-                winningRed: _selectedResultadosTab == 1 && _winningRedRevancha != null ? _winningRedRevancha : _winningRed,
+                subSorteos: _subSorteos,
                 fechaSorteo: _fechaSorteo,
                 predictionNumeros: _predictionNumeros.isNotEmpty ? _predictionNumeros : _top20List,
                 predictionBalotaroja: _predictionBalotaroja,
-                hasRevanchaData: _hasRevanchaData,
-                winningNumsRevancha: _winningNumsRevancha,
-                winningRedRevancha: _winningRedRevancha,
-                nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                nombreSorteoSecundario: nombreSorteoSecundario,
               ),
               const SizedBox(height: 14),
 
@@ -880,20 +824,13 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               MisJugadasCard(
                 selectedLoteria: _selectedLoteria,
                 misJugadas: _misJugadas.map((j) {
-                  // Usar jugadaShare si existe para evitar "Jugada personalizada"
                   final String displayTitle = j["titulo"] ?? l10n.jugadaShare(j["index"]);
                   return {
                     ...j,
                     "titulo": displayTitle,
                   };
                 }).toList(),
-                winningNums: _winningNums,
-                winningRed: _winningRed,
-                hasRevanchaData: _hasRevanchaData,
-                winningNumsRevancha: _winningNumsRevancha,
-                winningRedRevancha: _winningRedRevancha,
-                nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                nombreSorteoSecundario: nombreSorteoSecundario,
+                subSorteos: _subSorteos,
               ),
               const SizedBox(height: 14),
 
@@ -916,10 +853,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     widget.loteriaData?['tieneComplementario'] == true ||
                     (_winningNums.length > dynamicMaxSel),
                 tabSelector: ResultadosTabSelector(
-                  hasRevanchaData: _hasRevanchaData,
-                  selectedResultadosTab: _selectedResultadosTab,
-                  nombreSorteoPrincipal: _nombreSorteoPrincipal,
-                  nombreSorteoSecundario: nombreSorteoSecundario,
+                  sorteos: _sorteosNombres,
+                  selectedIndex: _selectedResultadosTab,
                   onTabChanged: (val) {
                     setState(() {
                       _selectedResultadosTab = val;
@@ -935,7 +870,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       ),
     ),
   );
-  }
+}
 
   Widget _buildSkeletonDashboard() {
     return Shimmer.fromColors(

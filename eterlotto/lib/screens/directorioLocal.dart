@@ -186,12 +186,15 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        l10n.anunciateHoy,
-                        style: AppTextStyles.mensajeSecundario.copyWith(
-                          fontSize: 12,
+                      Expanded(
+                        child: Text(
+                          l10n.anunciateHoy,
+                          style: AppTextStyles.mensajeSecundario.copyWith(
+                            fontSize: 12,
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.add, color: AppColors.yellow),
                         iconSize: 30,

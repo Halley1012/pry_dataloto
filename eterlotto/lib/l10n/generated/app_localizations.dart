@@ -2090,6 +2090,18 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Mostrar solo loterías principales'**
   String get mostrarLoteriasPrincipales;
+
+  /// No description provided for @saludoUsuario.
+  ///
+  /// In es, this message translates to:
+  /// **'¡Hola, {nombre}! 👋'**
+  String saludoUsuario(String nombre);
+
+  /// No description provided for @subtituloSuerte.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu suerte comienza aquí.'**
+  String get subtituloSuerte;
 }
 
 class _AppLocalizationsDelegate

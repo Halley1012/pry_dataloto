@@ -24,15 +24,6 @@ void showJustifiedDialog(BuildContext context, String title, String content) {
           style: AppTextStyles.mensajeSecundario,
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(
-            l10n.cerrar,
-            style: const TextStyle(color: AppColors.yellow),
-          ),
-        ),
-      ],
     ),
   );
 }

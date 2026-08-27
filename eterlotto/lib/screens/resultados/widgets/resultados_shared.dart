@@ -315,3 +315,26 @@ class LineChartPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+class SubSorteoData {
+  final String nombre;
+  final List<int> winningNums;
+  final int? winningRed;
+  final int? compBall;
+  final double coberturaPorcentaje;
+  final int topHitsCount;
+  final List<int> hitsInTop;
+  final Color color;
+
+  const SubSorteoData({
+    required this.nombre,
+    required this.winningNums,
+    this.winningRed,
+    this.compBall,
+    required this.coberturaPorcentaje,
+    required this.topHitsCount,
+    required this.hitsInTop,
+    required this.color,
+  });
+}
+
