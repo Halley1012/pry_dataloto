@@ -92,9 +92,12 @@
   "usuarioPremium": "Usuário Premium",
   "ganaBeneficios": "Ganhe benefícios",
   "avisoLegal": "Aviso Legal",
+  "aceptoLos": "Aceito os ",
+  "terminosCondicionesAviso": "Termos, Condições e Aviso Legal",
+  "debesAceptarTerminos": "Você deve aceitar os termos e condições para continuar",
   "acercaDe": "Sobre",
   "cerrar": "Fechar",
-  "contenidoAvisoLegal": "Este aplicativo não é oficial nem associado a operadores de loteria ou órgãos reguladores de jogos de azar em nenhum país. Não é um jogo de loteria, mas uma ferramenta de análise estatística e inteligência artificial que gera previsões para que você escolha seus números com mais confiança. Os resultados não garantem prêmios e seu uso é exclusivamente para fins informativos e de entretenimento.",
+  "contenidoAvisoLegal": "O Eterlotto é um aplicativo independente de análise estatística e inteligência artificial. Não é uma loteria, não organiza sorteios e não é afiliado, patrocinado ou endossado pelos operadores das loterias exibidas no aplicativo.\n\nAs previsões, estatísticas e recomendações são geradas a partir da análise de dados históricos e têm caráter exclusivamente informativo e de entretenimento.\n\nNenhum resultado é garantido e as previsões não aumentam nem garantem as chances de ganhar um prêmio.\n\nO Eterlotto não recebe apostas nem participa da venda de bilhetes ou jogos de loteria.",
   "contenidoAcercaDe": "O Eterlotto usa inteligência artificial para analisar padrões históricos de loterias e fornecer previsões informadas. Embora nossas previsões sejam baseadas em dados, não há certeza absoluta de que esses números serão os vencedores, pois a loteria é um jogo de azar. Não garantimos prêmios, apenas ajudamos você a escolher com mais confiança. Use o aplicativo com responsabilidade e apenas para fins de entretenimento. A decisão de usar essas previsões é de sua inteira responsabilidade.",
   "notificacionesIA": "Notificações",
   "marcarTodoComoLeido": "Mark all as read",
@@ -109,6 +112,8 @@
   "confirmarCerrarSesion": "Tem certeza de que deseja sair?",
   "idiomaSistema": "Idioma do Sistema",
   "seleccionarIdioma": "Selecionar Idioma",
+  "confirmarCambioIdioma": "Deseja alterar o idioma do aplicativo?",
+  "si": "Sim",
   "cancelar": "Cancelar",
   "jackpotEstimado": "Jackpot estimado",
   "millonesCOP": "milhões COP",
@@ -660,5 +665,85 @@
       }
     }
   },
-  "subtituloSuerte": "Sua sorte começa aqui."
+  "subtituloSuerte": "Sua sorte começa aqui.",
+  "tituloDescargaExcel": "Baixar Histórico Completo",
+  "mensajeDescargaExcel": "Deseja baixar o arquivo Excel com 100% de todos os sorteios registrados no banco de dados para fazer suas próprias análises?",
+  "descargar": "Baixar",
+  "descargandoHistorico": "Baixando histórico completo do banco de dados...",
+  "planBasicoHazteVip": "Plano Básico (Seja VIP)",
+  "vipSinAnuncios": "VIP Sem Anúncios",
+  "eterlottoVipSinAnuncios": "Eterlotto VIP (Sem Anúncios)",
+  "obtener": "Obter",
+  "activo": "Ativo",
+  "subtituloVip": "Aproveite a melhor experiência sem interrupções",
+  "ceroPublicidadTitulo": "Zero Anúncios",
+  "ceroPublicidadDesc": "Sem banners ou anúncios ao verificar resultados e estatísticas.",
+  "maximaVelocidadTitulo": "Velocidade Máxima",
+  "maximaVelocidadDesc": "Navegação fluida e carregamento instantâneo em todas as telas.",
+  "soporteNuevasFuncionesTitulo": "Suporte e Novos Recursos",
+  "soporteNuevasFuncionesDesc": "Acesso preferencial a futuras ferramentas e algoritmos de IA.",
+  "suscripcionActiva": "Assinatura Ativa",
+  "suscripcionActivaDesc": "Seu plano VIP está ativo. Obrigado pelo seu apoio!",
+  "administrarGooglePlay": "Gerenciar no Google Play",
+  "planMensual": "Plano Mensal",
+  "renovacionAutomatica": "Renovação mensal automática",
+  "suscribirmeAhora": "Assinar Agora",
+  "restaurarCompras": "Restaurar Compras",
+  "terminosSuscripcionGooglePlay": "A assinatura é renovada automaticamente todo mês pelo Google Play, a menos que seja cancelada pelo menos 24 horas antes do final do período atual. Você pode gerenciar ou cancelar sua assinatura nas configurações da sua conta do Google Play a qualquer momento.",
+  "comprasRestauradasExito": "✅ Compras restauradas com sucesso.",
+  "noComprasActivas": "ℹ️ Nenhuma compra ativa anterior encontrada.",
+  "usuariosVipSinAnuncios": "Usuários VIP aproveitam este e todos os recursos sem assistir a anúncios.",
+  "hacermeVip": "Seja VIP 💎",
+  "verVideo": "Ver Vídeo",
+  "descripcionVideoHistorico": "Assista a um vídeo curto para acessar e consultar o histórico completo de resultados.",
+  "descripcionVideoJugadas": "Assista a um vídeo curto para acessar seu histórico completo de jogos.",
+  "descripcionVideoInsight": "Assista a um vídeo curto para desbloquear a análise inteligente com Inteligência Artificial.",
+  "desbloquearAnalisisIA": "Desbloquear Análise IA",
+  "distribucionAciertosTitulo": "Distribuição de acertos",
+  "tusJugadasGuardadasParentesis": "(Seus jogos salvos)",
+  "jugadaSingular": "jogo",
+  "jugadasPlural": "jogos",
+  "ceroAciertos": "0 acertos",
+  "unoDosAciertos": "1 - 2 acertos",
+  "tresCuatroAciertos": "3 - 4 acertos",
+  "cincoAciertos": "5 acertos",
+  "distribucionCalculada": "Distribuição calculada a partir de seus {count} jogo(s).",
+  "@distribucionCalculada": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agregaJugadasDistribucion": "Adicione jogos para visualizar a distribuição de acertos.",
+  "historialCoberturaTitulo": "Histórico de cobertura",
+  "promedioGeneralSorteos": "Média geral: {avg}% (últimos {count} sorteios)",
+  "@promedioGeneralSorteos": {
+    "placeholders": {
+      "avg": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rachaActualTitulo": "Sequência atual",
+  "jugadasConsecutivasAciertos": "jogo(s) consecutivo(s) com acertos",
+  "mejorRachaTitulo": "Melhor sequência",
+  "ultimosNSorteosRegistrados": "Últimos {count} sorteios registrados",
+  "@ultimosNSorteosRegistrados": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotas": "Bolas",
+  "sorteoLabel": "Sorteio",
+  "preparaTusJugadasIA": "Prepare seus jogos com as previsões de IA.",
+  "publicidadLabel": "PUBLICIDADE",
+  "quitarAnuncios": "Remover anúncios",
+  "buscaloAqui": "Procure aqui",
+  "buscarDirectorioHint": "Encontre negócios, serviços e comércios locais..."
 }

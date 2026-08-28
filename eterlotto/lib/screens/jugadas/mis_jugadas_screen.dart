@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:eterlotto/services/api_service.dart';
 import '../../services/cache_service.dart';
@@ -168,27 +169,44 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     if (confirm != true || _userId == null) return;
 
+    final backupList = List<Map<String, dynamic>>.from(_jugadasList);
     final deletedIds = _selectedIds.toSet();
 
     // 1. Eliminación optimista inmediata en UI
     setState(() {
       _jugadasList.removeWhere((j) => deletedIds.contains(j["id"]));
       _selectedIds.clear();
-      _cargando = true;
     });
 
-    // 2. Sincronizar cache de inmediato con la lista restante
+    // 2. Sincronizar cache persistente en SharedPreferences de inmediato
     final uIdStr = _userId ?? "anon";
     await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', _jugadasList);
     await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', _jugadasList);
+    await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
 
-    // 3. Ejecutar eliminación en el backend
-    for (final id in deletedIds) {
-      try {
-        await ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!);
-      } catch (e) {
-        debugPrint("Error al eliminar jugada $id: $e");
+    // 3. Ejecutar eliminación en el backend (en paralelo)
+    final results = await Future.wait(
+      deletedIds.map((id) => ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!)),
+    );
+
+    // Si falló alguna eliminación, hacemos rollback restaurando el estado previo y la caché
+    if (results.any((ok) => !ok)) {
+      if (mounted) {
+        setState(() {
+          _jugadasList = backupList;
+        });
+        await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', backupList);
+        await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', backupList);
+        await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("No se pudieron eliminar algunas jugadas. Se restauraron."),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
+      return;
     }
 
     // 4. Confirmar estado desde el servidor
@@ -478,15 +496,18 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     if (str.isEmpty) return "";
     try {
       if (str.length >= 10 && str[4] == '-' && str[7] == '-') {
-        final parts = str.substring(0, 10).split('-');
+        return str.substring(0, 10);
+      }
+      if (str.length >= 10 && str[2] == '/' && str[5] == '/') {
+        final parts = str.substring(0, 10).split('/');
         if (parts.length == 3) {
-          return "${parts[2]}/${parts[1]}/${parts[0]}";
+          return "${parts[2]}-${parts[1]}-${parts[0]}";
         }
       }
       final parsed = DateTime.parse(str).toLocal();
-      return DateFormat('dd/MM/yyyy').format(parsed);
+      return DateFormat('yyyy-MM-dd').format(parsed);
     } catch (_) {
-      return str;
+      return str.replaceAll('/', '-');
     }
   }
 
@@ -639,144 +660,194 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 ),
                               ),
                             )
-                          : ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemCount: _jugadasList.length,
-                              itemBuilder: (context, index) {
-                                final item = _jugadasList[index];
-                                final id = item["id"] as int? ?? 0;
-                                final isSelected = _selectedIds.contains(id);
-                                final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-                                final (whites, red) = _parsearJugada(item);
-
-                                final int totalBalls = whites.length + (red != null ? 1 : 0);
-                                final double ballSize = totalBalls <= 5
-                                    ? 35.0
-                                    : (totalBalls == 6 ? 33.0 : (totalBalls == 7 ? 30.5 : 27.5));
-                                final double hPadding = totalBalls <= 5
-                                    ? 3.0
-                                    : (totalBalls == 6 ? 2.5 : (totalBalls == 7 ? 2.0 : 1.5));
-
-                                final Color color = [
-                                  Colors.blueAccent,
-                                  Colors.purpleAccent,
-                                  Colors.tealAccent,
-                                  Colors.orangeAccent,
-                                  Colors.greenAccent,
-                                  Colors.pinkAccent,
-                                  Colors.indigoAccent,
-                                  Colors.cyanAccent,
-                                  Colors.deepOrangeAccent,
-                                  Colors.amberAccent,
-                                ][index % 10];
-
-                                return Container(
-                                  key: Key(id.toString()),
-                                  margin: const EdgeInsets.symmetric(vertical: 4.0),
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    gradient: LinearGradient(
-                                      colors: [
-                                        color.withValues(alpha: 0.15),
-                                        Colors.black.withValues(alpha: 0.1),
-                                      ],
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: color.withValues(alpha: 0.2),
-                                        blurRadius: 5,
-                                        offset: const Offset(0, 3),
-                                      ),
-                                    ],
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? AppColors.yellow
-                                          : color.withValues(alpha: 0.3),
-                                      width: isSelected ? 1.8 : 1,
-                                    ),
-                                  ),
-                                  child: Row(
+                          : Container(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF1E1E1E),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.white12, width: 0.8),
+                              ),
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                children: [
+                                  // Encabezado de la tabla
+                                  Row(
                                     children: [
-                                      // 1. Checkbox
                                       SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: Checkbox(
-                                          value: isSelected,
-                                          activeColor: AppColors.yellow,
-                                          checkColor: Colors.black,
-                                          materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
-                                          onChanged: (val) {
-                                            setState(() {
-                                              if (val == true) {
-                                                _selectedIds.add(id);
-                                              } else {
-                                                _selectedIds.remove(id);
-                                              }
-                                            });
-                                          },
+                                        width: 28,
+                                        child: Text(
+                                          "#",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(width: 4), 
-
-                                      // 2. Solo el Número (Sin la palabra "Nro.")
-                                      Text(
-                                        "${index + 1}",
-                                        style: AppTextStyles.mensajeSecundario.copyWith(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold
+                                      const SizedBox(width: 6),
+                                      SizedBox(
+                                        width: 82,
+                                        child: Text(
+                                          l10n?.sorteoLabel ?? "Sorteo",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      // 3. Balotas dinámicas y adaptativas
                                       Expanded(
-                                        child: FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          alignment: Alignment.center,
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment.center,
-                                            children: [
-                                              ...whites.map((n) => Padding(
-                                                padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                child: _build3DBall(
-                                                  n,
-                                                  baseColor: color,
-                                                  size: ballSize,
+                                        child: Center(
+                                          child: Text(
+                                            l10n?.balotas ?? "Balotas",
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 11,
+                                              color: Colors.white38,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Divider(color: Colors.white12, height: 16),
+
+                                  // Filas de jugadas
+                                  ...List.generate(_jugadasList.length, (index) {
+                                    final item = _jugadasList[index];
+                                    final id = item["id"] as int? ?? 0;
+                                    final isSelected = _selectedIds.contains(id);
+                                    final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+                                    final (whites, red) = _parsearJugada(item);
+
+                                    final int totalBalls = whites.length + (red != null ? 1 : 0);
+                                    final double ballSize = totalBalls <= 5
+                                        ? 32.0
+                                        : (totalBalls == 6 ? 30.0 : (totalBalls == 7 ? 27.0 : 24.0));
+                                    final double hPadding = totalBalls <= 5
+                                        ? 2.5
+                                        : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.0));
+
+                                    final Color color = [
+                                      const Color(0xFF1E3A8A), // Blue
+                                      const Color(0xFF4C1D95), // Purple
+                                      const Color(0xFF0F766E), // Teal
+                                      const Color(0xFF9A3412), // Rust / Orange
+                                      const Color(0xFF065F46), // Emerald
+                                      const Color(0xFF831843), // Pink
+                                      const Color(0xFF312E81), // Indigo
+                                      const Color(0xFF155E75), // Cyan
+                                      const Color(0xFF7C2D12), // Deep Orange
+                                      const Color(0xFF78350F), // Amber
+                                    ][index % 10];
+
+                                    return Container(
+                                      key: Key(id.toString()),
+                                      margin: const EdgeInsets.symmetric(vertical: 2.0),
+                                      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? AppColors.yellow.withValues(alpha: 0.12)
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: isSelected
+                                            ? Border.all(color: AppColors.yellow.withValues(alpha: 0.4), width: 1)
+                                            : Border(
+                                                bottom: BorderSide(
+                                                  color: index == _jugadasList.length - 1
+                                                      ? Colors.transparent
+                                                      : Colors.white10,
+                                                  width: 0.6,
                                                 ),
-                                              )),
-                                              if (red != null)
-                                                Padding(
-                                                  padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                  child: _build3DBall(
-                                                    red,
-                                                    baseColor: Colors.redAccent,
-                                                    size: ballSize,
+                                              ),
+                                      ),
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            if (isSelected) {
+                                              _selectedIds.remove(id);
+                                            } else {
+                                              _selectedIds.add(id);
+                                            }
+                                          });
+                                        },
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Row(
+                                          children: [
+                                            // 1. Número (#)
+                                            SizedBox(
+                                              width: 28,
+                                              child: Center(
+                                                child: Text(
+                                                  "${index + 1}",
+                                                  style: GoogleFonts.montserrat(
+                                                    fontSize: 11,
+                                                    color: isSelected ? AppColors.yellow : Colors.white70,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
-                                            ],
-                                          ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+
+                                            // 2. Fecha
+                                            SizedBox(
+                                              width: 82,
+                                              child: Text(
+                                                fechaStr,
+                                                textAlign: TextAlign.center,
+                                                style: GoogleFonts.montserrat(
+                                                  fontSize: 11,
+                                                  color: isSelected ? Colors.white : Colors.white70,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 4),
+
+                                            // 3. Balotas
+                                            Expanded(
+                                              child: Center(
+                                                child: FittedBox(
+                                                  fit: BoxFit.scaleDown,
+                                                  alignment: Alignment.center,
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    children: [
+                                                      ...whites.map((n) => Padding(
+                                                            padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                            child: _build3DBall(
+                                                              n,
+                                                              baseColor: color,
+                                                              size: ballSize,
+                                                            ),
+                                                          )),
+                                                      if (red != null) ...[
+                                                        SizedBox(width: hPadding * 1.5),
+                                                        Padding(
+                                                          padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                          child: _build3DBall(
+                                                            red,
+                                                            baseColor: const Color(0xFFB91C1C),
+                                                            size: ballSize,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(width: 4),
-                                      // 4. Fecha (dd/MM/yyyy con tamaño reducido)
-                                      if (fechaStr.isNotEmpty)
-                                        Text(
-                                          fechaStr,
-                                          style: AppTextStyles.caption.copyWith(
-                                            color: Colors.white70,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                      const SizedBox(width: 4)
-                                    ],
-                                  ),
-                                );
-                              },
+                                    );
+                                  }),
+                                ],
+                              ),
                             ),
                 ],
               ),

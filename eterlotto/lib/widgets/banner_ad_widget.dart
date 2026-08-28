@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../services/ad_service.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
@@ -110,6 +111,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     // Si el usuario tiene suscripción activa, está en los primeros 40s o no ha cargado, 0 px
     final isSubscribed = context.watch<SubscriptionProvider>().isSubscribed;
     if (isSubscribed || !_isAdLoaded || _bannerAd == null) {
@@ -144,7 +146,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        "PUBLICIDAD",
+                        l10n?.publicidadLabel ?? "PUBLICIDAD",
                         style: GoogleFonts.montserrat(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w600,
@@ -169,7 +171,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
                       child: Row(
                         children: [
                           Text(
-                            "Quitar anuncios",
+                            l10n?.quitarAnuncios ?? "Quitar anuncios",
                             style: GoogleFonts.montserrat(
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
