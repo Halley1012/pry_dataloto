@@ -14,7 +14,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/locale_provider.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/screens/subscription_screen.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -160,11 +160,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       children: [
                         Row(
                           children: [
-                            Flexible(child: Text(name ?? l10n.nombre, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
-                            IconButton(onPressed: _editProfile, icon: const Icon(Icons.edit, color: AppColors.yellow, size: 20)),
+                            Flexible(
+                              child: Text(
+                                name ?? l10n.nombre,
+                                style: GoogleFonts.montserrat(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: _editProfile,
+                              icon: const Icon(Icons.edit, color: AppColors.yellow, size: 20),
+                            ),
                           ],
                         ),
-                        Text(email ?? l10n.email, style: const TextStyle(color: Colors.white54, fontSize: 14)),
+                        Text(
+                          email ?? l10n.email,
+                          style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 13),
+                        ),
                         const SizedBox(height: 8),
                         GestureDetector(
                           onTap: () => Navigator.push(
@@ -175,10 +190,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             builder: (context, subProvider, _) {
                               final isSubscribed = subProvider.isSubscribed;
                               return Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
-                                  color: isSubscribed ? Colors.green.withOpacity(0.2) : AppColors.amber.withOpacity(0.15),
-                                  border: Border.all(color: isSubscribed ? Colors.green : AppColors.yellow),
+                                  color: isSubscribed
+                                      ? Colors.green.withValues(alpha: 0.15)
+                                      : AppColors.amber.withValues(alpha: 0.15),
+                                  border: Border.all(
+                                    color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
+                                    width: 1.2,
+                                  ),
                                   borderRadius: BorderRadius.circular(20),
                                 ),
                                 child: Row(
@@ -189,10 +209,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                       color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
                                       size: 14,
                                     ),
-                                    const SizedBox(width: 4),
+                                    const SizedBox(width: 5),
                                     Text(
-                                      isSubscribed ? "VIP Sin Anuncios" : "Plan Básico (Hazte VIP)",
-                                      style: TextStyle(
+                                      isSubscribed
+                                          ? (l10n.vipSinAnuncios)
+                                          : (l10n.planBasicoHazteVip),
+                                      style: GoogleFonts.montserrat(
                                         color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
@@ -217,28 +239,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 builder: (context, subProvider, _) {
                   return _buildOptionItem(
                     Icons.workspace_premium,
-                    "Eterlotto VIP (Sin Anuncios)",
+                    l10n.eterlottoVipSinAnuncios,
                     () => Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
                     ),
-                    color: AppColors.amber.withOpacity(0.12),
+                    color: AppColors.amber.withValues(alpha: 0.12),
                     iconColor: AppColors.amber,
-                    trailingText: subProvider.isSubscribed ? "Activo" : "Obtener",
+                    trailingText: subProvider.isSubscribed ? l10n.activo : l10n.obtener,
                   );
                 },
               ),
               _buildOptionItem(Icons.ads_click, l10n.misAnuncios, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
-              _buildOptionItem(
-                Icons.payment,
-                l10n.metodosPago,
-                () async {
-                  final uri = Uri.parse("https://play.google.com/store/paymentmethods");
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  }
-                },
-              ),
               _buildOptionItem(Icons.settings_outlined, l10n.configuracion, _showConfigMenu),
               _buildOptionItem(Icons.help_outline, l10n.ayudaSoporte, _showHelpMenu),
               _buildOptionItem(Icons.info_outline, l10n.versionApp, () {}, trailingText: _appVersion),
@@ -288,53 +300,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _showLanguageDialog(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final locProvider = Provider.of<LocaleProvider>(context, listen: false);
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(l10n.seleccionarIdioma, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(l10n.seleccionarIdioma,
+            style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
               leading: const Text("🇪🇸", style: TextStyle(fontSize: 22)),
-              title: const Text("Español", style: TextStyle(color: Colors.white)),
-              onTap: () {
-                locProvider.setLocale(const Locale('es'));
-                Navigator.pop(context);
-              },
+              title:
+                  const Text("Español", style: TextStyle(color: Colors.white)),
+              onTap: () => _confirmLanguageChange(context, const Locale('es')),
             ),
             ListTile(
               leading: const Text("🇺🇸", style: TextStyle(fontSize: 22)),
-              title: const Text("English", style: TextStyle(color: Colors.white)),
-              onTap: () {
-                locProvider.setLocale(const Locale('en'));
-                Navigator.pop(context);
-              },
+              title:
+                  const Text("English", style: TextStyle(color: Colors.white)),
+              onTap: () => _confirmLanguageChange(context, const Locale('en')),
             ),
             ListTile(
               leading: const Text("🇧🇷", style: TextStyle(fontSize: 22)),
-              title: const Text("Português", style: TextStyle(color: Colors.white)),
-              onTap: () {
-                locProvider.setLocale(const Locale('pt'));
-                Navigator.pop(context);
-              },
+              title: const Text("Português",
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => _confirmLanguageChange(context, const Locale('pt')),
             ),
             const Divider(color: Colors.white24),
             ListTile(
               leading: const Icon(Icons.settings_suggest, color: Colors.amber),
-              title: Text(l10n.idiomaSistema, style: const TextStyle(color: Colors.white70)),
-              onTap: () {
-                locProvider.clearLocale();
-                Navigator.pop(context);
-              },
+              title: Text(l10n.idiomaSistema,
+                  style: const TextStyle(color: Colors.white70)),
+              onTap: () => _confirmLanguageChange(context, null),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmLanguageChange(
+      BuildContext context, Locale? newLocale) async {
+    final l10n = AppLocalizations.of(context)!;
+    final locProvider = Provider.of<LocaleProvider>(context, listen: false);
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          l10n.seleccionarIdioma,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          l10n.confirmarCambioIdioma,
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.cancelar,
+                style: const TextStyle(color: Colors.white60)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l10n.si,
+                style: const TextStyle(
+                    color: AppColors.yellow, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      if (newLocale != null) {
+        await locProvider.setLocale(newLocale);
+      } else {
+        await locProvider.clearLocale();
+      }
+      if (mounted) {
+        Navigator.pop(context); // Cerrar el diálogo de selección de idioma
+      }
+    }
   }
 
   Future<void> _eliminarCuenta(BuildContext context) async {
@@ -449,11 +503,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: ListTile(
         onTap: onTap,
         leading: Icon(icon, color: iconColor ?? Colors.white70),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 16)),
+        title: Text(
+          title,
+          style: GoogleFonts.montserrat(
+            color: Colors.white,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (trailingText != null) Text(trailingText, style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontWeight: FontWeight.w500)),
+            if (trailingText != null)
+              Text(
+                trailingText,
+                style: GoogleFonts.montserrat(
+                  color: Colors.greenAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             const SizedBox(width: 8),
             const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
           ],

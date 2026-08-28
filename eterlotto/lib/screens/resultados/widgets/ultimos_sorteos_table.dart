@@ -50,7 +50,13 @@ class UltimosSorteosTable extends StatelessWidget {
             children: [
               Expanded(
                 flex: 3,
-                child: Text(l10n.fechaLabel, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)),
+                child: Center(
+                  child: Text(
+                    l10n.sorteoLabel,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38),
+                  ),
+                ),
               ),
               Expanded(
                 flex: 12,
@@ -121,9 +127,12 @@ class UltimosSorteosTable extends StatelessWidget {
                   children: [
                     Expanded(
                       flex: 3,
-                      child: Text(
-                        item["fecha"].toString(),
-                        style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
+                      child: Center(
+                        child: Text(
+                          item["fecha"].toString(),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.montserrat(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white70),
+                        ),
                       ),
                     ),
                     Expanded(

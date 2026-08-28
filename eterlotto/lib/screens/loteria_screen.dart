@@ -805,13 +805,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   String _formatearFecha(String fecha) {
     try {
+      final langCode = mounted ? Localizations.localeOf(context).languageCode : 'es';
       if (fecha.contains('T')) {
         DateTime parsed = DateTime.parse(fecha);
-        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+        return DateFormat('dd MMM yyyy', langCode).format(parsed);
       }
       if (fecha.length >= 10 && fecha.contains('-')) {
         DateTime parsed = DateTime.parse(fecha.substring(0, 10));
-        return DateFormat('dd MMM yyyy', 'es').format(parsed);
+        return DateFormat('dd MMM yyyy', langCode).format(parsed);
       }
       if (fecha.contains('/')) {
         final parts = fecha.split('/');
@@ -820,7 +821,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           final month = int.parse(parts[1]);
           final year = int.parse(parts[2]);
           final parsed = DateTime(year, month, day);
-          return DateFormat('dd MMM yyyy', 'es').format(parsed);
+          return DateFormat('dd MMM yyyy', langCode).format(parsed);
         }
       }
       return fecha;
@@ -1990,8 +1991,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             context: context,
             isPremium: isPremium,
             featureKey: "historico_resultados",
-            featureTitle: "Histórico de Resultados",
-            featureActionDescription: "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
+            featureTitle: l10n?.historicoResultadosTitulo ?? "Histórico de Resultados",
+            featureActionDescription: l10n?.descripcionVideoHistorico ?? "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
             onRewardGranted: () {
               if (!mounted) return;
               Navigator.push(
@@ -2121,7 +2122,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   SizedBox(
                     width: dateWidth,
                     child: Text(
-                      l10n?.fechaLabel ?? "Fecha",
+                      l10n?.sorteoLabel ?? "Sorteo",
                       textAlign: TextAlign.center,
                       style: AppTextStyles.fechasResultado.copyWith(fontSize: dateFontSize),
                     ),
@@ -2259,7 +2260,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         : "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}";
     final String subtituloAlerta = esHoy
         ? (l10n?.noOlvidesRevisar ?? "No olvides revisar tus números y mucha suerte.")
-        : "Prepara tus jugadas con las predicciones de IA.";
+        : (l10n?.preparaTusJugadasIA ?? "Prepara tus jugadas con las predicciones de IA.");
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

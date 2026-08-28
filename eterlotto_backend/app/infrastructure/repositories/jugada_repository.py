@@ -455,6 +455,81 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
                 return results
 
+    @cached(ttl=300)
+    def get_ultimos50_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        loteria_nombre = tabla.replace("resultados_", "")
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
+                cur.execute("""
+                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
+                    FROM loterias
+                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
+                    LIMIT 1;
+                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
+                lot_config = cur.fetchone()
+                max_sel = lot_config[0] if lot_config else None
+                max_rojas_cfg = lot_config[1] if lot_config else 0
+                tiene_comp_cfg = lot_config[2] if lot_config else False
+                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
+                min_roja_val = 0 if is_reintegro else 1
+
+                cur.execute("""
+                    SELECT column_name
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public' AND table_name = %s
+                    ORDER BY ordinal_position;
+                """, (tabla,))
+                cols = [r[0].lower() for r in cur.fetchall()]
+                if not cols:
+                    return []
+
+                balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
+                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
+
+                if max_rojas_cfg > 0 or lot_config is None:
+                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
+                else:
+                    roja_cols = []
+
+                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
+                first_balota = balota_cols[0] if balota_cols else "fecha"
+                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
+
+                query = f"""
+                    SELECT {', '.join(select_cols)}
+                    FROM {tabla} r
+                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
+                    ORDER BY r.fecha DESC
+                    LIMIT 50;
+                """
+                cur.execute(query)
+                rows = cur.fetchall()
+
+                num_balotas = len(balota_cols)
+                num_rojas = len(roja_cols)
+
+                results = []
+                for r in rows:
+                    fecha = r[0]
+                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
+                    if max_sel is not None:
+                        limite = max_sel + (1 if tiene_comp_cfg else 0)
+                        numeros = numeros[:limite]
+
+                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
+                    if max_rojas_cfg > 0:
+                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
+                    else:
+                        balotas_rojas = []
+
+                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
+                    jackpot = r[1 + num_balotas + num_rojas + 1]
+                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+
+                return results
+
     @cached(ttl=600)
     def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         loteria_nombre = tabla.replace("resultados_", "")
@@ -502,8 +577,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
-                    ORDER BY r.fecha DESC
-                    LIMIT 250;
+                    ORDER BY r.fecha DESC;
                 """
                 cur.execute(query)
                 rows = cur.fetchall()

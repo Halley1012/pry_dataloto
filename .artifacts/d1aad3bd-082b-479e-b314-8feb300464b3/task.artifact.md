@@ -1,3 +1,3 @@
-- [ ] Agregar claves de traducción en `app_es.arb`, `app_en.arb` y `app_pt.arb`
-- [ ] Actualizar `home.dart` para usar las nuevas traducciones y mostrar el subtítulo
-- [ ] Verificar los cambios en el Home
+- [x] Agregar claves de traducción en `app_es.arb`, `app_en.arb` y `app_pt.arb`
+- [x] Implementar diálogo de confirmación en `profile_screen.dart`
+- [x] Verificar cambios en la aplicación

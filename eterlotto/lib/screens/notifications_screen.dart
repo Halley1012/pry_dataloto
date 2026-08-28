@@ -10,7 +10,8 @@ import 'resultados_dashboard_screen.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key});
+  final bool showBackButton;
+  const NotificationsScreen({super.key, this.showBackButton = true});
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -64,6 +65,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
+        automaticallyImplyLeading: widget.showBackButton,
         title: Text(l10n?.notificacionesIA ?? "Notificaciones", style: AppTextStyles.h2),
         backgroundColor: AppColors.black,
         elevation: 0,
