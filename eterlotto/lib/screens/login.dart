@@ -336,11 +336,20 @@ class _LoginPageState extends State<LoginPage> {
                                     final data = jsonDecode(res.body);
                                     const storage = FlutterSecureStorage();
                                     if (data['access_token'] != null) {
-                                      await storage.write(key: "auth_token", value: data['access_token']);
-                                      await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
-                                      if (data['user'] != null && data['user']['id'] != null) {
-                                        await storage.write(key: "user_id", value: data['user']['id'].toString());
-                                      }
+                                      await storage.write(key: "auth_token", value: data['access_token'].toString());
+                                      await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());
+                                    }
+
+                                    final userMap = data['user'] is Map ? data['user'] as Map : null;
+                                    if (userMap != null) {
+                                      if (userMap['id'] != null) await storage.write(key: "user_id", value: userMap['id'].toString());
+                                      if (userMap['name'] != null) await storage.write(key: "name", value: userMap['name'].toString());
+                                      if (userMap['email'] != null) await storage.write(key: "email", value: userMap['email'].toString());
+                                      if (userMap['pais_id'] != null) await storage.write(key: "pais_id", value: userMap['pais_id'].toString());
+                                      if (userMap['pais_nombre'] != null) await storage.write(key: "pais_nombre", value: userMap['pais_nombre'].toString());
+                                      if (userMap['departamento_id'] != null) await storage.write(key: "departamento_id", value: userMap['departamento_id'].toString());
+                                      if (userMap['departamento_nombre'] != null) await storage.write(key: "departamento_nombre", value: userMap['departamento_nombre'].toString());
+                                      if (userMap['avatar_url'] != null) await storage.write(key: "avatar_url", value: userMap['avatar_url'].toString());
                                     }
 
                                     if (dialogCtx.mounted) {

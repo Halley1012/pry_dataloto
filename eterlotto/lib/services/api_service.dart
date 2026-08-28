@@ -128,15 +128,24 @@ class ApiService {
           };
         }
 
-        return {'success': false, 'error': 'No access_token in response'};
+        return {'success': false, 'error': 'No access_token in response', 'message': 'No access_token in response'};
       } else {
+        String errorDetail = 'Credenciales inválidas';
+        try {
+          final errBody = jsonDecode(response.body);
+          if (errBody is Map) {
+            errorDetail = errBody['detail']?.toString() ?? errBody['message']?.toString() ?? errorDetail;
+          }
+        } catch (_) {}
         return {
           'success': false,
-          'error': 'Login failed with status ${response.statusCode}',
+          'error': errorDetail,
+          'message': errorDetail,
+          'statusCode': response.statusCode,
         };
       }
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      return {'success': false, 'error': e.toString(), 'message': e.toString()};
     }
   }
 
@@ -1142,28 +1151,44 @@ class ApiService {
   }
 
   static Future<List<Map<String, dynamic>>> getCategorias() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/categorias'),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-      final List<dynamic> data = jsonData['data'];
-
-      return data
-          .map<Map<String, dynamic>>(
-            (e) => {
-              "id": (e['id'] is int)
-                  ? e['id']
-                  : int.tryParse(e['id'].toString()) ?? 0,
-              "nombre": e['nombre']?.toString() ?? '',
-            },
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/categorias'),
+            headers: {"Content-Type": "application/json"},
           )
-          .toList();
-    } else {
-      throw Exception('Error al obtener categorías');
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
+            ? decoded['data']
+            : (decoded is List ? decoded : []);
+
+        final result = data
+            .map<Map<String, dynamic>>(
+              (e) => {
+                "id": (e['id'] is int)
+                    ? e['id']
+                    : int.tryParse(e['id'].toString()) ?? 0,
+                "nombre": e['nombre']?.toString() ?? '',
+              },
+            )
+            .toList();
+
+        if (result.isNotEmpty) {
+          CacheService.setJson('categorias_list_cache', result);
+        }
+        return result;
+      }
+    } catch (_) {}
+
+    // Fallback de caché local
+    final cached = await CacheService.getJson('categorias_list_cache');
+    if (cached is List && cached.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(cached);
     }
+    return [];
   }
 
   // 📢 Obtener anuncios filtrados (por ID)
@@ -1232,83 +1257,21 @@ class ApiService {
 
   // ✅ Obtener lista de países
   static Future<List<Map<String, dynamic>>> getPaises() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/paises'),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-
-      // ⚠️ Algunos endpoints devuelven {"success": true, "data": [...]}
-      // otros solo una lista. Manejamos ambos casos.
-      final List<dynamic> data = (jsonData.containsKey('data'))
-          ? jsonData['data']
-          : jsonData;
-
-      return data
-          .map<Map<String, dynamic>>(
-            (e) => {
-              "id": (e['id'] is int)
-                  ? e['id']
-                  : int.tryParse(e['id'].toString()) ?? 0,
-              "nombre": e['nombre']?.toString() ?? '',
-            },
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/paises'),
+            headers: {"Content-Type": "application/json"},
           )
-          .toList();
-    } else {
-      throw Exception('Error al obtener países (HTTP ${response.statusCode})');
-    }
-  }
+          .timeout(const Duration(seconds: 12));
 
-  // ✅ Obtener departamentos por país (usa el id del país)
-  static Future<List<Map<String, dynamic>>> getDepartamentosPorPais(
-    int paisId,
-  ) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/departamentos/$paisId'),
-      headers: {"Content-Type": "application/json"},
-    );
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
+            ? decoded['data']
+            : (decoded is List ? decoded : []);
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-
-      final List<dynamic> data = (jsonData.containsKey('data'))
-          ? jsonData['data']
-          : jsonData;
-
-      return data
-          .map<Map<String, dynamic>>(
-            (e) => {
-              "id": (e['id'] is int)
-                  ? e['id']
-                  : int.tryParse(e['id'].toString()) ?? 0,
-              "nombre": e['nombre']?.toString() ?? '',
-            },
-          )
-          .toList();
-    } else {
-      throw Exception(
-        'Error al obtener departamentos (HTTP ${response.statusCode})',
-      );
-    }
-  }
-
-  // --- Obtener Departamentos por país ---
-  static Future<List<Map<String, dynamic>>> getDepartamentos({
-    required int paisId,
-  }) async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/departamentos/$paisId'),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
-
-      if (jsonData["success"] == true && jsonData["data"] is List) {
-        final List<dynamic> data = jsonData["data"];
-        return data
+        final result = data
             .map<Map<String, dynamic>>(
               (e) => {
                 "id": (e['id'] is int)
@@ -1318,14 +1281,72 @@ class ApiService {
               },
             )
             .toList();
-      } else {
-        throw Exception('⚠️ Respuesta inesperada del servidor.');
+
+        if (result.isNotEmpty) {
+          CacheService.setJson('paises_list_cache', result);
+        }
+        return result;
       }
-    } else {
-      throw Exception(
-        '❌ Error al obtener departamentos (${response.statusCode}).',
-      );
+    } catch (_) {}
+
+    // Fallback caché
+    final cached = await CacheService.getJson('paises_list_cache');
+    if (cached is List && cached.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(cached);
     }
+    return [];
+  }
+
+  // ✅ Obtener departamentos por país (usa el id del país)
+  static Future<List<Map<String, dynamic>>> getDepartamentosPorPais(
+    int paisId,
+  ) async {
+    return getDepartamentos(paisId: paisId);
+  }
+
+  // --- Obtener Departamentos por país ---
+  static Future<List<Map<String, dynamic>>> getDepartamentos({
+    required int paisId,
+  }) async {
+    final cacheKey = 'departamentos_cache_$paisId';
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/departamentos/$paisId'),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
+            ? decoded['data']
+            : (decoded is List ? decoded : []);
+
+        final result = data
+            .map<Map<String, dynamic>>(
+              (e) => {
+                "id": (e['id'] is int)
+                    ? e['id']
+                    : int.tryParse(e['id'].toString()) ?? 0,
+                "nombre": e['nombre']?.toString() ?? '',
+              },
+            )
+            .toList();
+
+        if (result.isNotEmpty) {
+          CacheService.setJson(cacheKey, result);
+        }
+        return result;
+      }
+    } catch (_) {}
+
+    // Fallback caché
+    final cached = await CacheService.getJson(cacheKey);
+    if (cached is List && cached.isNotEmpty) {
+      return List<Map<String, dynamic>>.from(cached);
+    }
+    return [];
   }
 
   // --- Obtener Ciudades por departamento ---
