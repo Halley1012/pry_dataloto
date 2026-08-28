@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
+import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -157,21 +158,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       : ElevatedButton.icon(
                           onPressed: _loginWithGoogle,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: Colors.black87,
+                            backgroundColor: const Color(0xFF2C2F38),
+                            foregroundColor: AppColors.yellow,
+                            disabledBackgroundColor: const Color(0xFF22252C),
+                            disabledForegroundColor: Colors.white54,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
                             ),
-                            elevation: 2,
+                            elevation: 0,
                           ),
                           icon: const FaIcon(
                             FontAwesomeIcons.google,
                             color: Colors.red,
                             size: 20,
                           ),
-                          label: const Text(
+                          label: Text(
                             "Continuar con Google",
-                            style: TextStyle(
+                            style: AppTextStyles.mensajeImportante.copyWith(
+                              color: AppColors.yellow,
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
