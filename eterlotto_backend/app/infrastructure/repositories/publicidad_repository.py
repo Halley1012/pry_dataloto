@@ -23,13 +23,15 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     usuario_id, categoria_id, pais_id, departamento_id, ciudad_id,
                     titulo, descripcion, imagen_url, telefono, 
                     facebook_url, instagram_url, whatsapp_url, tiktok_url, pagina_url,
-                    direccion, fecha_inicio, fecha_fin, estado, aprobado, pago_confirmado
+                    direccion, es_24_7, hora_apertura, hora_cierre, dias_atencion, estado_texto,
+                    fecha_inicio, fecha_fin, estado, aprobado, pago_confirmado
                 )
                 VALUES (
                     $1, $2, $3, $4, $5,
                     $6, $7, $8, $9,
                     $10, $11, $12, $13, $14,
-                    $15, CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days',
+                    $15, $16, $17, $18, $19, $20,
+                    CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days',
                     TRUE, FALSE, FALSE
                 )
             """,
@@ -47,7 +49,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             data.get("whatsapp_url"),
             data.get("tiktok_url"),
             data.get("pagina_url"),
-            data.get("direccion")
+            data.get("direccion"),
+            bool(data.get("es_24_7", True)),
+            data.get("hora_apertura", "00:00"),
+            data.get("hora_cierre", "23:59"),
+            data.get("dias_atencion", "Todos los días"),
+            data.get("estado_texto", "Abierto 24/7")
             )
             return {"success": True, "message": "Anuncio creado exitosamente. Pendiente de aprobación."}
 
@@ -57,7 +64,10 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
 
     async def list_publicidad_dinamica(self, filters: Dict[str, Any], limit: int, offset: int) -> Tuple[List[Dict[str, Any]], int]:
         pool = db_connection.get_pool()
-        base_query = """
+        user_id = filters.get("user_id")
+        user_fav_sql = f"COALESCE((SELECT TRUE FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id AND pc.user_id = {int(user_id)} LIMIT 1), FALSE)" if user_id else "FALSE"
+
+        base_query = f"""
             SELECT 
                 p.*,
                 pa.nombre AS pais_nombre,
@@ -65,7 +75,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 c.nombre AS categoria_nombre,
                 ci.nombre AS ciudad_nombre,
                 COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
-                COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas
+                COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas,
+                {user_fav_sql} AS is_favorite
             FROM publicidad p
             LEFT JOIN paises pa ON p.pais_id = pa.id
             LEFT JOIN departamentos d ON p.departamento_id = d.id
@@ -138,7 +149,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     ci.nombre AS ciudad_nombre,
                     d.nombre AS departamento_nombre,
                     COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
-                    COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas
+                    COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas,
+                    COALESCE((SELECT TRUE FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id AND pc.user_id = $1 LIMIT 1), FALSE) AS is_favorite
                 FROM publicidad p
                 LEFT JOIN categorias c ON p.categoria_id = c.id
                 LEFT JOIN ciudades ci ON p.ciudad_id = ci.id
@@ -175,11 +187,16 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     whatsapp_url = COALESCE($12, whatsapp_url),
                     tiktok_url = COALESCE($13, tiktok_url),
                     pagina_url = COALESCE($14, pagina_url),
+                    es_24_7 = COALESCE($15, es_24_7),
+                    hora_apertura = COALESCE($16, hora_apertura),
+                    hora_cierre = COALESCE($17, hora_cierre),
+                    dias_atencion = COALESCE($18, dias_atencion),
+                    estado_texto = COALESCE($19, estado_texto),
                     fecha_fin = CASE 
                         WHEN pago_confirmado = FALSE THEN CURRENT_DATE + INTERVAL '15 days'
                         ELSE fecha_fin
                      END
-                WHERE id = $15
+                WHERE id = $20
             """
             await conn.execute(query,
                 data.get("titulo"),
@@ -196,6 +213,11 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 data.get("whatsapp_url"),
                 data.get("tiktok_url"),
                 data.get("pagina_url"),
+                data.get("es_24_7"),
+                data.get("hora_apertura"),
+                data.get("hora_cierre"),
+                data.get("dias_atencion"),
+                data.get("estado_texto"),
                 publicidad_id
             )
             return True

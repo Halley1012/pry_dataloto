@@ -95,6 +95,18 @@ class BusinessCard extends StatelessWidget {
     }
   }
 
+  String _formatLikes(int count) {
+    if (count < 1000) return "$count";
+    if (count < 1000000) {
+      final double k = count / 1000.0;
+      final bool hasDecimal = (count % 1000) >= 100 && count < 10000;
+      return hasDecimal ? "${k.toStringAsFixed(1)}k" : "${k.toInt()}k";
+    }
+    final double m = count / 1000000.0;
+    final bool hasDecimal = (count % 1000000) >= 100000;
+    return hasDecimal ? "${m.toStringAsFixed(1)}M" : "${m.toInt()}M";
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -216,7 +228,7 @@ class BusinessCard extends StatelessWidget {
                                 if (totalLikes != null) ...[
                                   const SizedBox(width: 4),
                                   Text(
-                                    "$totalLikes",
+                                    _formatLikes(totalLikes!),
                                     style: GoogleFonts.montserrat(
                                       color: isFavorite ? Colors.redAccent : AppColors.yellow,
                                       fontSize: 12,
