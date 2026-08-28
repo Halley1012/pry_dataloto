@@ -211,117 +211,139 @@ class _RegistroPageState extends State<RegistroScreen> {
                             color: Colors.white24,
                           ),
                           filled: true,
-                          fillColor: Colors.white10,
+                          fillColor: const Color(0xFF1E1E24),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                           ),
                         ),
                       ),
                       const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        child: LoadingButton(
+                          isLoading: dialogLoading,
+                          text: "Activar Cuenta",
+                          onPressed: () async {
+                            final code = dialogCodeController.text.trim();
+                            if (code.length != 6) {
+                              showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                              return;
+                            }
+
+                            setDialogState(() => dialogLoading = true);
+                            final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
+                            try {
+                              final res = await http.post(
+                                url,
+                                headers: {'Content-Type': 'application/json'},
+                                body: jsonEncode({'email': email, 'code': code}),
+                              ).timeout(const Duration(seconds: 20));
+
+                              setDialogState(() => dialogLoading = false);
+
+                              if (res.statusCode == 200) {
+                                  final data = jsonDecode(res.body);
+                                  const storage = FlutterSecureStorage();
+                                  if (data['access_token'] != null) {
+                                    await storage.write(key: "auth_token", value: data['access_token'].toString());
+                                    await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());
+                                  }
+
+                                  final userMap = data['user'] is Map ? data['user'] as Map : null;
+                                  final finalName = userMap?['name']?.toString() ?? name;
+                                  final finalEmail = userMap?['email']?.toString() ?? email;
+
+                                  await storage.write(key: "name", value: finalName);
+                                  await storage.write(key: "email", value: finalEmail);
+
+                                  if (userMap != null) {
+                                    if (userMap['id'] != null) await storage.write(key: "user_id", value: userMap['id'].toString());
+                                    if (userMap['pais_id'] != null) await storage.write(key: "pais_id", value: userMap['pais_id'].toString());
+                                    if (userMap['pais_nombre'] != null) await storage.write(key: "pais_nombre", value: userMap['pais_nombre'].toString());
+                                    if (userMap['departamento_id'] != null) await storage.write(key: "departamento_id", value: userMap['departamento_id'].toString());
+                                    if (userMap['departamento_nombre'] != null) await storage.write(key: "departamento_nombre", value: userMap['departamento_nombre'].toString());
+                                    if (userMap['avatar_url'] != null) await storage.write(key: "avatar_url", value: userMap['avatar_url'].toString());
+                                  }
+
+                                  final prefs = await SharedPreferences.getInstance();
+                                  await prefs.setString("username", finalName);
+
+                                if (dialogCtx.mounted) {
+                                  Navigator.pop(dialogCtx);
+                                  showEterSnackBar(
+                                    context,
+                                    message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                    isSuccess: true,
+                                  );
+                                  Navigator.pushReplacementNamed(context, '/home');
+                                }
+                              } else {
+                                String errorMsg = "Código incorrecto o expirado";
+                                try {
+                                  final errData = jsonDecode(res.body);
+                                  if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                } catch (_) {}
+                                if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+                              }
+                            } catch (e) {
+                              setDialogState(() => dialogLoading = false);
+                              if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              onPressed: dialogLoading
-                                  ? null
-                                  : () {
-                                      Navigator.pop(dialogCtx);
-                                      Navigator.pushReplacementNamed(context, '/login');
-                                    },
-                              child: Text(
-                                "Más tarde",
-                                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                              ),
+                          TextButton(
+                            onPressed: dialogLoading
+                                ? null
+                                : () {
+                                    Navigator.pop(dialogCtx);
+                                    showEterSnackBar(
+                                      context,
+                                      message: "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
+                                    );
+                                    Navigator.pushReplacementNamed(context, '/login');
+                                  },
+                            child: Text(
+                              "Cancelar",
+                              style: AppTextStyles.caption.copyWith(color: Colors.white54),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: LoadingButton(
-                              isLoading: dialogLoading,
-                              text: "Activar Cuenta",
-                              onPressed: () async {
-                                final code = dialogCodeController.text.trim();
-                                if (code.length != 6) {
-                                  showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
-                                  return;
-                                }
-
-                                setDialogState(() => dialogLoading = true);
-                                final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
-                                try {
-                                  final res = await http.post(
-                                    url,
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: jsonEncode({'email': email, 'code': code}),
-                                  ).timeout(const Duration(seconds: 20));
-
-                                  setDialogState(() => dialogLoading = false);
-
-                                  if (res.statusCode == 200) {
-                                    final data = jsonDecode(res.body);
-                                    const storage = FlutterSecureStorage();
-                                    if (data['access_token'] != null) {
-                                      await storage.write(key: "auth_token", value: data['access_token']);
-                                      await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
-                                      if (data['user'] != null && data['user']['id'] != null) {
-                                        await storage.write(key: "user_id", value: data['user']['id'].toString());
-                                      }
-                                    }
-                                    final prefs = await SharedPreferences.getInstance();
-                                    await prefs.setString("username", name);
-
-                                    if (dialogCtx.mounted) {
-                                      Navigator.pop(dialogCtx);
-                                      showEterSnackBar(
-                                        context,
-                                        message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
-                                        isSuccess: true,
-                                      );
-                                      Navigator.pushReplacementNamed(context, '/home');
-                                    }
-                                  } else {
-                                    String errorMsg = "Código incorrecto o expirado";
+                          TextButton(
+                            onPressed: dialogLoading
+                                ? null
+                                : () async {
+                                    final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
                                     try {
-                                      final errData = jsonDecode(res.body);
-                                      if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                      await http.post(
+                                        url,
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: jsonEncode({'email': email}),
+                                      );
+                                      if (context.mounted) {
+                                        showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                      }
                                     } catch (_) {}
-                                    if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
-                                  }
-                                } catch (e) {
-                                  setDialogState(() => dialogLoading = false);
-                                  if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
-                                }
-                              },
+                                  },
+                            child: Text(
+                              "¿No recibiste el código? Reenviar",
+                              style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: dialogLoading
-                            ? null
-                            : () async {
-                                final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
-                                try {
-                                  await http.post(
-                                    url,
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: jsonEncode({'email': email}),
-                                  );
-                                  if (context.mounted) {
-                                    showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
-                                  }
-                                } catch (_) {}
-                              },
-                        child: Text(
-                          "¿No recibiste el código? Reenviar",
-                          style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
-                        ),
                       ),
                     ],
                   ),
@@ -397,6 +419,9 @@ class _RegistroPageState extends State<RegistroScreen> {
           isSuccess: true,
         );
 
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        if (!mounted) return;
         // Abrir el diálogo para ingresar el código de verificación
         _showEmailVerificationDialog(context, userEmail, userName);
       } else {
@@ -684,9 +709,22 @@ class _RegistroPageState extends State<RegistroScreen> {
                               dropdownColor: AppColors.blackfondo,
                               decoration: InputDecoration(
                                 labelText: l10n.pais,
-                                labelStyle: AppTextStyles.mensajeSecundario,
+                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                                filled: true,
+                                fillColor: const Color(0xFF1E1E24),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                                 ),
                               ),
                               style: AppTextStyles.mensajeSecundario,
@@ -730,9 +768,22 @@ class _RegistroPageState extends State<RegistroScreen> {
                               dropdownColor: const Color(0xFF121212),
                               decoration: InputDecoration(
                                 labelText: l10n.departamentoEstado,
-                                labelStyle: AppTextStyles.mensajeSecundario,
+                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                                filled: true,
+                                fillColor: const Color(0xFF1E1E24),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                                 ),
                               ),
                               style: AppTextStyles.mensajeSecundario,
@@ -914,8 +965,31 @@ class CustomTextFormField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: AppTextStyles.mensajeSecundario,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+        labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+        filled: true,
+        fillColor: const Color(0xFF1E1E24),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
         suffixIcon: suffixIcon,
       ),
     );

@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -12,7 +12,14 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class CrearPublicidadForm extends StatefulWidget {
   final Map<String, dynamic>? publicidad;
-  const CrearPublicidadForm({super.key, this.publicidad});
+  final int? initialPaisId;
+  final int? initialDepartamentoId;
+  const CrearPublicidadForm({
+    super.key,
+    this.publicidad,
+    this.initialPaisId,
+    this.initialDepartamentoId,
+  });
 
   @override
   State<CrearPublicidadForm> createState() => _CrearPublicidadFormState();
@@ -71,7 +78,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
 
     if (widget.publicidad != null) {
       _esEdicion = true;
-      // Precarga después de tener los datos
     }
   }
 
@@ -106,8 +112,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       final categoriasAPI = results[1] as List<Map<String, dynamic>>;
       final maps = results[2] as Map<String, Map<String, String>>;
 
-      if (paisesAPI.isEmpty || categoriasAPI.isEmpty) {
-        throw Exception("Datos vacíos desde el servidor");
+      if (paisesAPI.isEmpty) {
+        throw Exception("No se pudieron cargar los países");
       }
 
       // 2. GUARDAR EN CACHE
@@ -117,7 +123,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       // 3. MAPA RÁPIDO: id → nombre
       final Map<int, String> paisIdToName = {
         for (var p in paisesAPI)
-          p['id'] as int: p['nombre'].toString().toLowerCase(),
+          p['id'] as int: p['nombre'].toString(),
       };
 
       if (!mounted) return;
@@ -126,41 +132,123 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         _categorias = categoriasAPI;
       });
 
-      // 4. PAÍS POR DEFECTO (rápido con mapa)
-      final paisNombre = await _storage.read(key: "pais_nombre");
+      // 4. RESOLVER PAÍS POR DEFECTO DINÁMICAMENTE
       int? paisIdDefault;
 
-      if (paisNombre != null && paisNombre != "Todos") {
-        paisIdDefault = paisIdToName.entries
-            .firstWhere(
-              (e) => e.value.contains(paisNombre.toLowerCase()),
-              orElse: () => const MapEntry(-1, ""),
-            )
-            .key;
-        if (paisIdDefault == -1) paisIdDefault = null;
+      // Prioridad 1: Edición
+      if (_esEdicion && widget.publicidad?['pais_id'] != null) {
+        final pubPId = widget.publicidad!['pais_id'];
+        paisIdDefault = pubPId is int ? pubPId : int.tryParse(pubPId.toString());
       }
 
+      // Prioridad 2: Pasado explícitamente desde la pantalla anterior (Directorio)
+      if (paisIdDefault == null && widget.initialPaisId != null) {
+        if (paisIdToName.containsKey(widget.initialPaisId)) {
+          paisIdDefault = widget.initialPaisId;
+        }
+      }
+
+      // Prioridad 3: Storage pais_id
       if (paisIdDefault == null) {
-        paisIdDefault = paisIdToName.entries
-            .firstWhere(
-              (e) => e.value.contains("colombia"),
-              orElse: () => const MapEntry(-1, ""),
-            )
-            .key;
-        if (paisIdDefault == -1) paisIdDefault = null;
+        final stPaisIdStr = await _storage.read(key: "pais_id");
+        if (stPaisIdStr != null && stPaisIdStr.isNotEmpty) {
+          final stId = int.tryParse(stPaisIdStr);
+          if (stId != null && paisIdToName.containsKey(stId)) {
+            paisIdDefault = stId;
+          }
+        }
+      }
+
+      // Prioridad 4: Storage pais_nombre
+      if (paisIdDefault == null) {
+        final stPaisNombre = await _storage.read(key: "pais_nombre");
+        if (stPaisNombre != null && stPaisNombre.isNotEmpty && stPaisNombre != "Todos") {
+          final normStorage = stPaisNombre.toLowerCase().trim();
+          for (var entry in paisIdToName.entries) {
+            final normApi = entry.value.toLowerCase().trim();
+            if (normApi == normStorage ||
+                normApi.contains(normStorage) ||
+                normStorage.contains(normApi) ||
+                (normStorage.contains("unidos") && normApi.contains("unidos")) ||
+                (normStorage.contains("usa") && normApi.contains("estados unidos"))) {
+              paisIdDefault = entry.key;
+              break;
+            }
+          }
+        }
+      }
+
+      // Prioridad 5: Si nada de lo anterior, tomar el primer país disponible
+      if (paisIdDefault == null && paisesAPI.isNotEmpty) {
+        paisIdDefault = paisesAPI.first['id'] as int;
       }
 
       // 5. CARGAR DEPARTAMENTOS SI HAY PAÍS
       if (paisIdDefault != null) {
         paisSeleccionado = paisIdDefault;
-        final countryName = paisIdToName[paisIdDefault] ?? "colombia";
+        final countryName = paisIdToName[paisIdDefault] ?? "";
         _updatePhoneCodes(countryName);
-        await _cargarDepartamentos(paisIdDefault);
+
+        final deps = await ApiService.getDepartamentos(paisId: paisIdDefault);
+        if (mounted) {
+          setState(() {
+            _departamentos = deps;
+          });
+        }
+
+        int? dptoIdDefault;
+        if (_esEdicion && widget.publicidad?['departamento_id'] != null) {
+          final pubDId = widget.publicidad!['departamento_id'];
+          dptoIdDefault = pubDId is int ? pubDId : int.tryParse(pubDId.toString());
+        }
+
+        if (dptoIdDefault == null && widget.initialDepartamentoId != null) {
+          if (deps.any((d) => d['id'] == widget.initialDepartamentoId)) {
+            dptoIdDefault = widget.initialDepartamentoId;
+          }
+        }
+
+        if (dptoIdDefault == null) {
+          final stDptoIdStr = await _storage.read(key: "departamento_id");
+          if (stDptoIdStr != null && stDptoIdStr.isNotEmpty) {
+            final stDId = int.tryParse(stDptoIdStr);
+            if (stDId != null && deps.any((d) => d['id'] == stDId)) {
+              dptoIdDefault = stDId;
+            }
+          }
+        }
+
+        if (dptoIdDefault == null) {
+          final stDptoNombre = await _storage.read(key: "departamento_nombre");
+          if (stDptoNombre != null && stDptoNombre.isNotEmpty && stDptoNombre != "Todos") {
+            final normDStorage = stDptoNombre.toLowerCase().trim();
+            final foundD = deps.firstWhere(
+              (d) => d['nombre'].toString().toLowerCase().trim() == normDStorage,
+              orElse: () => <String, dynamic>{},
+            );
+            if (foundD.isNotEmpty) {
+              dptoIdDefault = foundD['id'] as int;
+            }
+          }
+        }
+
+        if (dptoIdDefault != null && mounted) {
+          setState(() {
+            departamentoSeleccionado = dptoIdDefault;
+          });
+          if (_mostrarCampoCiudad()) {
+            await _cargarCiudades(dptoIdDefault);
+          }
+        }
       }
 
       // 6. EDICIÓN: Precargar después de tener todo
       if (_esEdicion) {
-        _precargarDatosEdicion(paisIdToName);
+        final Map<int, String> paisIdToNameForEdit = {
+          for (var p in _paises)
+            p['id'] as int: p['nombre'].toString().toLowerCase(),
+        };
+        _precargarDatosEdicion(paisIdToNameForEdit);
       }
 
       if (!mounted) return;
@@ -180,36 +268,58 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       return {'iso': _cachedIsoMap!, 'phone': _cachedPhoneMap!};
     }
 
-    final String jsonString = await rootBundle.loadString(
-      'assets/countries/countries.json',
-    );
-    final List<dynamic> list = jsonDecode(jsonString);
+    try {
+      final String jsonString = await rootBundle.loadString(
+        'assets/countries/countries.json',
+      );
+      final List<dynamic> list = jsonDecode(jsonString);
 
-    final isoMap = <String, String>{};
-    final phoneMap = <String, String>{};
+      final isoMap = <String, String>{};
+      final phoneMap = <String, String>{};
 
-    for (var c in list) {
-      final name = (c['name']?['common'] ?? '').toString().toLowerCase();
-      final iso = (c['cca2'] ?? '').toString().toUpperCase();
-      final root = (c['idd']?['root'] ?? '').toString();
-      final suffixes = c['idd']?['suffixes'] ?? [];
-      final prefix = suffixes.isNotEmpty ? '$root${suffixes[0]}' : root;
+      for (var c in list) {
+        final commonName = (c['name']?['common'] ?? '').toString().toLowerCase().trim();
+        final officialName = (c['name']?['official'] ?? '').toString().toLowerCase().trim();
+        final iso = (c['cca2'] ?? '').toString().toUpperCase().trim();
+        final root = (c['idd']?['root'] ?? '').toString().trim();
+        final suffixes = c['idd']?['suffixes'] ?? [];
+        final prefix = suffixes.isNotEmpty ? '$root${suffixes[0]}' : root;
 
-      if (name.isNotEmpty && iso.isNotEmpty && prefix.isNotEmpty) {
-        isoMap[name] = iso;
-        phoneMap[name] = prefix;
+        if (iso.isNotEmpty && prefix.isNotEmpty) {
+          if (commonName.isNotEmpty) {
+            isoMap[commonName] = iso;
+            phoneMap[commonName] = prefix;
+          }
+          if (officialName.isNotEmpty) {
+            isoMap[officialName] = iso;
+            phoneMap[officialName] = prefix;
+          }
+          final spaCommon = (c['translations']?['spa']?['common'] ?? '').toString().toLowerCase().trim();
+          final spaOfficial = (c['translations']?['spa']?['official'] ?? '').toString().toLowerCase().trim();
+          if (spaCommon.isNotEmpty) {
+            isoMap[spaCommon] = iso;
+            phoneMap[spaCommon] = prefix;
+          }
+          if (spaOfficial.isNotEmpty) {
+            isoMap[spaOfficial] = iso;
+            phoneMap[spaOfficial] = prefix;
+          }
+        }
       }
+
+      _cachedIsoMap = isoMap;
+      _cachedPhoneMap = phoneMap;
+
+      return {'iso': isoMap, 'phone': phoneMap};
+    } catch (_) {
+      return {'iso': {}, 'phone': {}};
     }
-
-    _cachedIsoMap = isoMap;
-    _cachedPhoneMap = phoneMap;
-
-    return {'iso': isoMap, 'phone': phoneMap};
   }
 
   void _updatePhoneCodes(String countryName) {
-    final iso = _cachedIsoMap?[countryName] ?? 'CO';
-    final code = _cachedPhoneMap?[countryName] ?? '+57';
+    final norm = countryName.toLowerCase().trim();
+    final iso = _cachedIsoMap?[norm] ?? PaisHelper.getIsoCode(norm);
+    final code = _cachedPhoneMap?[norm] ?? PaisHelper.getDialCode(norm);
     setState(() {
       _selectedCountryCode = code;
       _selectedWhatsAppCode = code;
@@ -490,7 +600,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: descripcionController,
-                      style: AppTextStyles.mensajeSecundario,
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        decoration: TextDecoration.none,
+                        decorationThickness: 0,
+                        decorationColor: Colors.transparent,
+                      ),
                       decoration: _inputStyle(l10n.descripcion).copyWith(
                         counterText: "$descripcionLength / $descripcionMax",
                       ),
@@ -676,8 +790,31 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
 
   InputDecoration _inputStyle(String label) => InputDecoration(
     labelText: label,
-    labelStyle: AppTextStyles.mensajeSecundario,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+    labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+    floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+    filled: true,
+    fillColor: const Color(0xFF1E1E24),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
+    ),
+    focusedErrorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(30),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+    ),
   );
 
   Widget _buildTextField(
@@ -689,7 +826,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   }) {
     return TextFormField(
       controller: controller,
-      style: AppTextStyles.mensajeSecundario,
+      style: AppTextStyles.mensajeSecundario.copyWith(
+        decoration: TextDecoration.none,
+        decorationThickness: 0,
+        decorationColor: Colors.transparent,
+      ),
       decoration: _inputStyle(label),
       maxLines: maxLines,
       validator: required

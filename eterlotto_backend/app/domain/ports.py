@@ -212,6 +212,14 @@ class PublicidadRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def calificar_publicidad(self, user_id: int, publicidad_id: int, estrellas: int) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def toggle_favorito(self, user_id: int, publicidad_id: int) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
     async def aprobar_publicidad(self, publicidad_id: int) -> bool:
         pass
 

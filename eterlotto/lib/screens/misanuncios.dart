@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/screens/publicidad.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -223,6 +223,8 @@ class _MisAnunciosScreenState extends State<MisAnunciosScreen> {
                                       whatsappUrl: anuncio["whatsapp_url"],
                                       facebookUrl: anuncio["facebook_url"],
                                       instagramUrl: anuncio["instagram_url"],
+                                      isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
+                                      statusText: anuncio["estado_texto"] ?? "Abierto ahora",
                                       onAction: () {},
                                     ),
                                   ],
