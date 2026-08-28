@@ -11,6 +11,7 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:eterlotto/screens/registro.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'resultados/widgets/resultados_shared.dart';
 
 class LoginPage extends StatefulWidget {
@@ -92,6 +93,8 @@ class _LoginPageState extends State<LoginPage> {
           await storage.write(key: "email", value: user!['email'].toString());
         }
 
+        if (!mounted) return;
+
         if (paisId == null || departamentoId == null) {
           // Redirigir a Onboarding de Ubicación
           Navigator.pushReplacement(
@@ -108,16 +111,21 @@ class _LoginPageState extends State<LoginPage> {
           Navigator.pushReplacementNamed(context, "/home");
         }
       } else {
+        if (!mounted) return;
         final errorMsg = response['error'] ?? "Error en inicio de sesión social";
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg.toString())),
+        showEterSnackBar(
+          context,
+          message: errorMsg.toString(),
+          isError: true,
         );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("${l10n.errorConexion}: $e")),
+      showEterSnackBar(
+        context,
+        message: "${l10n.errorConexion}: $e",
+        isError: true,
       );
     }
   }
@@ -126,8 +134,10 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> loginUser() async {
     final l10n = AppLocalizations.of(context)!;
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.ingresaEmailContrasena)),
+      showEterSnackBar(
+        context,
+        message: l10n.ingresaEmailContrasena,
+        isError: true,
       );
       return;
     }
@@ -171,24 +181,32 @@ class _LoginPageState extends State<LoginPage> {
             'Tokens saved: access_token=$accessToken, refresh_token=$refreshToken, user_id=$uId',
           );
 
+          if (!mounted) return;
+
           // Redirigir al Home
           Navigator.pushReplacementNamed(context, "/home");
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(l10n.errorObtenerTokens)),
+          showEterSnackBar(
+            context,
+            message: l10n.errorObtenerTokens,
+            isError: true,
           );
         }
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.credencialesInvalidas)),
+        showEterSnackBar(
+          context,
+          message: l10n.credencialesInvalidas,
+          isError: true,
         );
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      ScaffoldMessenger.of(
+      showEterSnackBar(
         context,
-      ).showSnackBar(SnackBar(content: Text("${l10n.errorConexion}: $e")));
+        message: "${l10n.errorConexion}: $e",
+        isError: true,
+      );
     }
   }
 
@@ -206,8 +224,10 @@ class _LoginPageState extends State<LoginPage> {
 
       if (response.statusCode == 200) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.enviadoEnlace(email))),
+        showEterSnackBar(
+          context,
+          message: l10n.enviadoEnlace(email),
+          isSuccess: true,
         );
       } else {
         String errorMsg = l10n.errorEnviarCorreo;
@@ -219,19 +239,25 @@ class _LoginPageState extends State<LoginPage> {
         } catch (_) {}
         
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMsg)),
+        showEterSnackBar(
+          context,
+          message: errorMsg,
+          isError: true,
         );
       }
     } on TimeoutException catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n.errorConexion)), // O un mensaje de "Servidor lento"
+      showEterSnackBar(
+        context,
+        message: l10n.errorConexion,
+        isError: true,
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("${l10n.errorConexion}: $e")),
+      showEterSnackBar(
+        context,
+        message: "${l10n.errorConexion}: $e",
+        isError: true,
       );
     }
   }
@@ -459,21 +485,24 @@ class _LoginPageState extends State<LoginPage> {
                 child: ElevatedButton.icon(
                   onPressed: isLoading ? null : loginWithGoogle,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Colors.black87,
+                    backgroundColor: const Color(0xFF2C2F38),
+                    foregroundColor: AppColors.yellow,
+                    disabledBackgroundColor: const Color(0xFF22252C),
+                    disabledForegroundColor: Colors.white54,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30),
                     ),
-                    elevation: 2,
+                    elevation: 0,
                   ),
                   icon: const FaIcon(
                     FontAwesomeIcons.google,
                     color: Colors.red,
                     size: 20,
                   ),
-                  label: const Text(
+                  label: Text(
                     "Continuar con Google",
-                    style: TextStyle(
+                    style: AppTextStyles.mensajeImportante.copyWith(
+                      color: isLoading ? Colors.white54 : AppColors.yellow,
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),

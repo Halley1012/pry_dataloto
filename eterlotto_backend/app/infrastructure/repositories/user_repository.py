@@ -76,6 +76,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     COALESCE(u.notificaciones_activas, TRUE) AS notificaciones_activas,
                     u.app_version,
                     u.plataforma,
+                    u.terms_accepted_at,
                     u.created_at,
                     u.updated_at,
                     u.last_login_at
@@ -109,6 +110,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     COALESCE(u.notificaciones_activas, TRUE) AS notificaciones_activas,
                     u.app_version,
                     u.plataforma,
+                    u.terms_accepted_at,
                     u.created_at,
                     u.updated_at,
                     u.last_login_at
@@ -128,7 +130,8 @@ class PostgresUserRepository(UserRepositoryPort):
         departamento_id: Optional[int],
         auth_provider: str = 'email',
         email_verified: bool = False,
-        avatar_url: Optional[str] = None
+        avatar_url: Optional[str] = None,
+        terms_accepted_at: Optional[datetime] = None
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -140,10 +143,10 @@ class PostgresUserRepository(UserRepositoryPort):
                 INSERT INTO users (
                     name, email, password, pais_id, departamento_id,
                     is_premium, auth_provider, email_verified, avatar_url,
-                    activo, created_at, updated_at, last_login_at
+                    activo, terms_accepted_at, created_at, updated_at, last_login_at
                 )
-                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id, auth_provider, email_verified, avatar_url)
+                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, TRUE, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id, auth_provider, email_verified, avatar_url, terms_accepted_at)
 
             return await self.find_by_email(normalized_email) or {}
 
