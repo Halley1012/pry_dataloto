@@ -225,6 +225,7 @@ class _MisAnunciosScreenState extends State<MisAnunciosScreen> {
                                       instagramUrl: anuncio["instagram_url"],
                                       isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
                                       statusText: anuncio["estado_texto"] ?? "Abierto ahora",
+                                      totalLikes: int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0,
                                       onAction: () {},
                                     ),
                                   ],
