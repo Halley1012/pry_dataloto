@@ -113,26 +113,30 @@ class ResendEmailSender(EmailSenderPort):
 
     async def _send_via_resend(self, to_email: str, subject: str, html_content: str, text_content: str) -> bool:
         url = "https://api.resend.com/emails"
+        from_email = config.EMAIL_FROM or "Eterlotto <no-reply@lumieter.com>"
         headers = {
-            "Authorization": f"Bearer {config.RESEND_API_KEY}",
+            "Authorization": f"Bearer {config.RESEND_API_KEY.strip()}",
             "Content-Type": "application/json"
         }
         payload = {
-            "from": config.EMAIL_FROM or "Eterlotto <no-reply@lumieter.com>",
+            "from": from_email,
             "to": [to_email],
             "subject": subject,
             "html": html_content,
             "text": text_content
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        print(f"📧 [Resend] Enviando correo a {to_email} desde '{from_email}'...")
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code in [200, 201]:
-                logger.info(f"📧 Correo enviado con éxito a {to_email} vía Resend (id={response.json().get('id')})")
+                res_data = response.json()
+                print(f"✅ [Resend] Correo enviado exitosamente a {to_email} (id: {res_data.get('id')})")
                 return True
             else:
+                print(f"❌ [Resend Error {response.status_code}]: {response.text}")
                 logger.error(f"❌ Error al enviar correo vía Resend ({response.status_code}): {response.text}")
-                raise RuntimeError(f"Error al enviar correo vía Resend: {response.text}")
+                return False
 
     async def _send_via_smtp(self, to_email: str, subject: str, html_content: str, text_content: str) -> bool:
         msg = EmailMessage()
@@ -151,10 +155,12 @@ class ResendEmailSender(EmailSenderPort):
                     smtp.ehlo()
                     smtp.login(config.EMAIL_USER, config.EMAIL_PASS)
                     smtp.send_message(msg)
+                print(f"✅ [SMTP] Correo enviado a {to_email}")
                 return True
             except Exception as e:
+                print(f"❌ [SMTP Error]: {e}")
                 logger.error(f"❌ Error al enviar correo vía SMTP: {e}")
-                raise e
+                return False
 
         return await asyncio.to_thread(_send_sync)
 
@@ -164,7 +170,7 @@ class ResendEmailSender(EmailSenderPort):
         elif config.EMAIL_USER and config.EMAIL_PASS:
             return await self._send_via_smtp(to_email, subject, html_content, text_content)
         else:
-            logger.warning("⚠️ No se ha configurado RESEND_API_KEY ni credenciales SMTP. Simulando envío de correo...")
+            print(f"⚠️ [Resend/Email Warning] No se encontró RESEND_API_KEY ni credenciales SMTP en las variables de entorno.")
             print(f"📧 [SIMULADO] Para: {to_email} | Asunto: {subject}\n{text_content}")
             return True
 
