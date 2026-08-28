@@ -9,13 +9,29 @@ class AuthUseCases:
         self.user_repo = user_repo
         self.email_sender = email_sender
 
-    async def register_user(self, name: str, email: str, password: str, pais_id: int, departamento_id: int) -> Dict[str, Any]:
+    async def register_user(
+        self,
+        name: str,
+        email: str,
+        password: str,
+        pais_id: int,
+        departamento_id: int,
+        terms_accepted_at: Optional[datetime] = None
+    ) -> Dict[str, Any]:
         existing = await self.user_repo.find_by_email(email)
         if existing:
             raise ValueError("El correo ya está registrado")
 
         hashed_pwd = security.hash_password(password)
-        user_record = await self.user_repo.create(name, email, hashed_pwd, pais_id, departamento_id)
+        terms_dt = terms_accepted_at or datetime.utcnow()
+        user_record = await self.user_repo.create(
+            name=name,
+            email=email,
+            password_hashed=hashed_pwd,
+            pais_id=pais_id,
+            departamento_id=departamento_id,
+            terms_accepted_at=terms_dt
+        )
         return {
             "success": True,
             "message": "Usuario registrado correctamente",
@@ -65,6 +81,7 @@ class AuthUseCases:
                 "telefono": user.get("telefono"),
                 "idioma": user.get("idioma", "es"),
                 "notificaciones_activas": user.get("notificaciones_activas", True),
+                "terms_accepted_at": user.get("terms_accepted_at").isoformat() if user.get("terms_accepted_at") else None,
             }
         }
 
@@ -81,7 +98,8 @@ class AuthUseCases:
         notificaciones_activas: Optional[bool] = None,
         app_version: Optional[str] = None,
         plataforma: Optional[str] = None,
-        avatar_url: Optional[str] = None
+        avatar_url: Optional[str] = None,
+        terms_accepted_at: Optional[datetime] = None
     ) -> Dict[str, Any]:
         user = await self.user_repo.find_by_id(user_id)
         if not user:
@@ -124,6 +142,9 @@ class AuthUseCases:
 
         if avatar_url is not None:
             updates["avatar_url"] = avatar_url
+
+        if terms_accepted_at is not None:
+            updates["terms_accepted_at"] = terms_accepted_at
 
         if not updates:
             raise ValueError("No se enviaron campos para actualizar")
