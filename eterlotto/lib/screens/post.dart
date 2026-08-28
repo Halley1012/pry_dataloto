@@ -7,6 +7,7 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
 class PostScreen extends StatefulWidget {
   final int postId;
@@ -353,7 +354,6 @@ class _PostScreenState extends State<PostScreen> {
     final bool isOwner = currentUserId != null && comment.userId.toString() == currentUserId;
     final bool hasReplies = respuestas.isNotEmpty;
     final bool isExpanded = _expandedReplies.contains(comment.id);
-    final String initialLetter = comment.userName.isNotEmpty ? comment.userName[0].toUpperCase() : "?";
 
     return Container(
       margin: EdgeInsets.only(top: isReply ? 2 : 4, bottom: 2),
@@ -363,10 +363,13 @@ class _PostScreenState extends State<PostScreen> {
         children: [
           Row(
             children: [
-              CircleAvatar(
+              UserBalotaAvatar(
+                userName: comment.userName,
+                userId: comment.userId,
                 radius: isReply ? 11 : 12,
-                backgroundColor: AppColors.getAvatarColor(comment.userName, userId: comment.userId),
-                child: Text(initialLetter, style: TextStyle(color: Colors.white, fontSize: isReply ? 11 : 12, fontWeight: FontWeight.bold)),
+                animateGradient: false,
+                showGlow: false,
+                showBorder: false,
               ),
               const SizedBox(width: 8),
               Flexible(

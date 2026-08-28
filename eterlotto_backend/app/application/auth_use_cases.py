@@ -32,18 +32,99 @@ class AuthUseCases:
             pais_id=pais_id,
             departamento_id=departamento_id,
             terms_accepted_at=terms_dt,
-            is_adult=is_adult
+            is_adult=is_adult,
+            email_verified=False
         )
+
+        # Generar y enviar código de verificación de 6 dígitos
+        code = str(secrets.randbelow(900000) + 100000)
+        expires = datetime.utcnow() + timedelta(hours=24)
+        await self.user_repo.save_email_verification_code(user_record["id"], code, expires)
+
+        if self.email_sender:
+            try:
+                await self.email_sender.send_verification_code(email, code)
+            except Exception as e:
+                print(f"❌ Error al enviar correo de verificación: {e}")
+
         return {
             "success": True,
-            "message": "Usuario registrado correctamente",
+            "requires_verification": True,
+            "email": email,
+            "message": "Hemos enviado un código de 6 dígitos a tu correo para activar tu cuenta",
             "user": user_record
+        }
+
+    async def verify_email(self, email: str, code: str) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+
+        expires = await self.user_repo.find_email_verification_code(user["id"], code.strip())
+        if not expires:
+            raise ValueError("El código de verificación es incorrecto")
+
+        now = datetime.utcnow()
+        if expires.tzinfo is not None:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        if now > expires:
+            raise ValueError("El código de verificación ha expirado. Por favor solicita uno nuevo.")
+
+        await self.user_repo.verify_user_email(user["id"])
+
+        # Generar tokens de acceso inmediato
+        access_token = security.create_access_token(data={"sub": str(user["id"]), "email": user["email"]})
+        refresh_token = security.create_refresh_token(data={"sub": str(user["id"]), "email": user["email"]})
+
+        return {
+            "success": True,
+            "message": "¡Cuenta activada exitosamente! Bienvenido a Eterlotto.",
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "user": {
+                "id": user["id"],
+                "name": user["name"],
+                "email": user["email"],
+                "email_verified": True
+            }
+        }
+
+    async def resend_verification_code(self, email: str) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            raise ValueError("No existe una cuenta registrada con este correo")
+
+        if user.get("email_verified") is True:
+            return {"success": True, "message": "Este correo ya se encuentra verificado."}
+
+        code = str(secrets.randbelow(900000) + 100000)
+        expires = datetime.utcnow() + timedelta(hours=24)
+        await self.user_repo.save_email_verification_code(user["id"], code, expires)
+
+        if self.email_sender:
+            await self.email_sender.send_verification_code(email, code)
+
+        return {
+            "success": True,
+            "message": f"Nuevo código de activación enviado a {email}"
         }
 
     async def login_user(self, email: str, password: str) -> Dict[str, Any]:
         user = await self.user_repo.find_by_email(email)
         if not user or not security.verify_password(password, user["password_hashed"]):
             raise ValueError("Credenciales inválidas")
+
+        # 🔒 Validar si el correo está verificado (solo para login por email)
+        if user.get("email_verified") is False and user.get("auth_provider", "email") == "email":
+            # Reenviar código en segundo plano
+            try:
+                await self.resend_verification_code(email)
+            except Exception:
+                pass
+            raise ValueError("EMAIL_NOT_VERIFIED: Tu cuenta aún no ha sido activada. Ingresa el código de 6 dígitos que enviamos a tu correo.")
 
         # 🔒 Validar si el usuario está activo
         if user.get("activo") is False:
@@ -176,6 +257,10 @@ class AuthUseCases:
         if not user:
             raise ValueError("No existe una cuenta registrada con este correo electrónico")
 
+        # Si el usuario se registró con Google y no tiene contraseña tradicional
+        if user.get("auth_provider") == "google" and not user.get("password_hashed"):
+            raise ValueError("Tu cuenta está vinculada a Google. Por favor inicia sesión usando el botón 'Continuar con Google'.")
+
         # Generar código numérico de 6 dígitos seguro
         code = str(secrets.randbelow(900000) + 100000)
         expires = datetime.utcnow() + timedelta(minutes=15)
@@ -190,6 +275,29 @@ class AuthUseCases:
             await self.email_sender.send_reset_password_code(email, code)
         except Exception as e:
             print(f"❌ Error en Background Task (email de recuperación): {e}")
+
+    async def verify_reset_code(self, email: str, code: str) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+
+        token_info = await self.user_repo.find_password_reset_token(code.strip())
+        if not token_info or token_info[0] != user["id"]:
+            raise ValueError("El código de 6 dígitos es incorrecto")
+
+        _, expires = token_info
+        now = datetime.utcnow()
+        if expires.tzinfo is not None:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        if now > expires:
+            raise ValueError("El código de recuperación ha expirado. Por favor solicita uno nuevo.")
+
+        return {
+            "success": True,
+            "message": "Código verificado correctamente"
+        }
 
     async def reset_password_with_code(self, email: str, code: str, new_password: str) -> Dict[str, Any]:
         user = await self.user_repo.find_by_email(email)

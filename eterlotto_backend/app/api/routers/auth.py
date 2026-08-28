@@ -118,6 +118,51 @@ async def forgot_password(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar solicitud: {str(e)}")
 
+@router.post("/auth/verify-reset-code")
+async def verify_reset_code(
+    request: schemas.VerifyResetCodeRequest,
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
+):
+    try:
+        res = await use_cases.verify_reset_code(
+            email=request.email,
+            code=request.code
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al verificar código: {str(e)}")
+
+@router.post("/auth/verify-email")
+async def verify_email(
+    request: schemas.VerifyEmailCodeRequest,
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
+):
+    try:
+        res = await use_cases.verify_email(
+            email=request.email,
+            code=request.code
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al verificar correo: {str(e)}")
+
+@router.post("/auth/resend-verification-code")
+async def resend_verification_code(
+    request: schemas.ForgotPasswordRequest,
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
+):
+    try:
+        res = await use_cases.resend_verification_code(email=request.email)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al reenviar código: {str(e)}")
+
 @router.post("/auth/reset-password")
 async def reset_password(
     request: schemas.ResetPasswordWithCodeRequest,
