@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import List
+from typing import List, Optional, Dict, Any
 from app.api import schemas, dependencies
 from app.application.publicidad_use_cases import PublicidadUseCases
 

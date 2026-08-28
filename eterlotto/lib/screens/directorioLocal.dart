@@ -186,8 +186,16 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
 
     final cached = await CacheService.getJson(cacheKey);
     if (cached != null && mounted) {
+      final localFavs = await ApiService.getFavoritosLocales();
+      final cachedList = List<Map<String, dynamic>>.from(cached);
+      for (var ad in cachedList) {
+        final int? id = ad["id"] is int ? ad["id"] : int.tryParse(ad["id"]?.toString() ?? "");
+        if (id != null && localFavs.contains(id)) {
+          ad["is_favorite"] = true;
+        }
+      }
       setState(() {
-        anuncios = List<Map<String, dynamic>>.from(cached);
+        anuncios = cachedList;
         cargando = false;
       });
     }
@@ -250,22 +258,11 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
             anuncio["is_destacado"] = res["is_destacado"];
           }
         });
-        final cacheKey = 'publicidades_directorio_${_paisSeleccionadoId}_${_departamentoSeleccionadoId}_${_categoriaSeleccionadaId}_${tituloController.text.trim()}';
+        final cacheKey = 'directorio_anuncios_${_paisSeleccionadoId}_${_departamentoSeleccionadoId}_${_categoriaSeleccionadaId}_${tituloController.text.trim()}';
         CacheService.setJson(cacheKey, anuncios);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          anuncio["is_favorite"] = currentFav;
-          anuncio["total_likes"] = currentLikes;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll("Exception: ", "")),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      // Estado local ya protegido
     }
   }
 
