@@ -250,6 +250,8 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
             anuncio["is_destacado"] = res["is_destacado"];
           }
         });
+        final cacheKey = 'publicidades_directorio_${_paisSeleccionadoId}_${_departamentoSeleccionadoId}_${_categoriaSeleccionadaId}_${tituloController.text.trim()}';
+        CacheService.setJson(cacheKey, anuncios);
       }
     } catch (e) {
       if (mounted) {
@@ -341,17 +343,38 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                           Expanded(flex: 1, child: _buildCategoriaDropdown(l10n)),
                         ],
                       ),
+                      const SizedBox(height: 8),
                       TextField(
                         controller: tituloController,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          color: Colors.white,
+                          decoration: TextDecoration.none,
+                          decorationThickness: 0,
+                          decorationColor: Colors.transparent,
+                        ),
                         decoration: InputDecoration(
-                          labelText: l10n.buscarPorTitulo,
-                          labelStyle: AppTextStyles.mensajeSecundario,
+                          hintText: l10n.buscarPorTitulo,
+                          hintStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
                           prefixIcon: const Icon(
                             Icons.search,
                             color: AppColors.yellow,
                           ),
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                          border: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white24),
+                          ),
+                          enabledBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: Colors.white24),
+                          ),
+                          focusedBorder: const UnderlineInputBorder(
+                            borderSide: BorderSide(color: AppColors.yellow, width: 1.5),
+                          ),
                         ),
-                        style: const TextStyle(color: AppColors.white),
                       ),
                     ],
                   ),

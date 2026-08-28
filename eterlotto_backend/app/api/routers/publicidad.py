@@ -6,13 +6,25 @@ from app.application.publicidad_use_cases import PublicidadUseCases
 router = APIRouter()
 
 @router.get("/publicidad")
-async def listar_publicidad(query: schemas.PublicidadQuery = Depends(), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+async def listar_publicidad(
+    query: schemas.PublicidadQuery = Depends(),
+    current_user: Optional[dict] = Depends(dependencies.get_optional_current_user),
+    use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)
+):
+    user_id = None
+    if current_user and current_user.get("user_id"):
+        try:
+            user_id = int(current_user["user_id"])
+        except (ValueError, TypeError):
+            pass
+
     filters = {
         "pais_id": query.pais_id,
         "departamento_id": query.departamento_id,
         "ciudad_id": query.ciudad_id,
         "categoria_id": query.categoria_id,
-        "titulo": query.titulo
+        "titulo": query.titulo,
+        "user_id": user_id
     }
     try:
         return await use_cases.listar_publicidad(filters, query.limit, query.offset)
