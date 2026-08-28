@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:eterlotto/screens/welcome.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
@@ -10,6 +11,7 @@ import 'package:eterlotto/styles/colores.dart';
 import '../utils/pais_helper.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'resultados/widgets/resultados_shared.dart';
 
 
 
@@ -124,6 +126,214 @@ class _RegistroPageState extends State<RegistroScreen> {
     }
   }
 
+  // Validación de formato de correo y sugerencia de typos
+  String? _validateEmail(String? v) {
+    if (v == null || v.trim().isEmpty) return "El correo es requerido";
+    final email = v.trim().toLowerCase();
+    final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+    if (!emailRegex.hasMatch(email)) {
+      return "Ingresa un correo electrónico válido";
+    }
+    final domain = email.contains('@') ? email.split('@').last : '';
+    final typos = {
+      'gamil.com': 'gmail.com',
+      'gmai.com': 'gmail.com',
+      'gmial.com': 'gmail.com',
+      'gmaill.com': 'gmail.com',
+      'gemail.com': 'gmail.com',
+      'hotmial.com': 'hotmail.com',
+      'hotmai.com': 'hotmail.com',
+      'homail.com': 'hotmail.com',
+      'outlok.com': 'outlook.com',
+      'outloo.com': 'outlook.com',
+      'yahuo.com': 'yahoo.com',
+      'yaho.com': 'yahoo.com',
+    };
+    if (typos.containsKey(domain)) {
+      return "¿Quisiste decir @${typos[domain]}?";
+    }
+    return null;
+  }
+
+  // Diálogo interactivo para ingresar el código OTP de verificación de correo
+  void _showEmailVerificationDialog(BuildContext context, String email, String name) {
+    final TextEditingController dialogCodeController = TextEditingController();
+    bool dialogLoading = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: cardBoxDecoration(),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        "Activa tu Cuenta",
+                        style: AppTextStyles.tituloPrincipal,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Hemos enviado un código de 6 dígitos a $email para verificar tu correo.",
+                        style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: dialogCodeController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        style: AppTextStyles.h2.copyWith(
+                          letterSpacing: 8,
+                          color: AppColors.yellow,
+                          decoration: TextDecoration.none,
+                          decorationThickness: 0,
+                          decorationColor: Colors.transparent,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: "",
+                          hintText: "000000",
+                          hintStyle: AppTextStyles.h2.copyWith(
+                            letterSpacing: 8,
+                            color: Colors.white24,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white10,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: dialogLoading
+                                  ? null
+                                  : () {
+                                      Navigator.pop(dialogCtx);
+                                      Navigator.pushReplacementNamed(context, '/login');
+                                    },
+                              child: Text(
+                                "Más tarde",
+                                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: LoadingButton(
+                              isLoading: dialogLoading,
+                              text: "Activar Cuenta",
+                              onPressed: () async {
+                                final code = dialogCodeController.text.trim();
+                                if (code.length != 6) {
+                                  showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                                  return;
+                                }
+
+                                setDialogState(() => dialogLoading = true);
+                                final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
+                                try {
+                                  final res = await http.post(
+                                    url,
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: jsonEncode({'email': email, 'code': code}),
+                                  ).timeout(const Duration(seconds: 20));
+
+                                  setDialogState(() => dialogLoading = false);
+
+                                  if (res.statusCode == 200) {
+                                    final data = jsonDecode(res.body);
+                                    const storage = FlutterSecureStorage();
+                                    if (data['access_token'] != null) {
+                                      await storage.write(key: "auth_token", value: data['access_token']);
+                                      await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
+                                      if (data['user'] != null && data['user']['id'] != null) {
+                                        await storage.write(key: "user_id", value: data['user']['id'].toString());
+                                      }
+                                    }
+                                    final prefs = await SharedPreferences.getInstance();
+                                    await prefs.setString("username", name);
+
+                                    if (dialogCtx.mounted) {
+                                      Navigator.pop(dialogCtx);
+                                      showEterSnackBar(
+                                        context,
+                                        message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                        isSuccess: true,
+                                      );
+                                      Navigator.pushReplacementNamed(context, '/home');
+                                    }
+                                  } else {
+                                    String errorMsg = "Código incorrecto o expirado";
+                                    try {
+                                      final errData = jsonDecode(res.body);
+                                      if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                    } catch (_) {}
+                                    if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+                                  }
+                                } catch (e) {
+                                  setDialogState(() => dialogLoading = false);
+                                  if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: dialogLoading
+                            ? null
+                            : () async {
+                                final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
+                                try {
+                                  await http.post(
+                                    url,
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: jsonEncode({'email': email}),
+                                  );
+                                  if (context.mounted) {
+                                    showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                  }
+                                } catch (_) {}
+                              },
+                        child: Text(
+                          "¿No recibiste el código? Reenviar",
+                          style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   // Registro de usuario
   void _registerUser() async {
     final form = _formKey.currentState;
@@ -162,9 +372,12 @@ class _RegistroPageState extends State<RegistroScreen> {
 
     setState(() => _isLoading = true);
 
+    final userEmail = _emailController.text.trim();
+    final userName = _nameController.text.trim();
+
     final body = {
-      "name": _nameController.text.trim(),
-      "email": _emailController.text.trim(),
+      "name": userName,
+      "email": userEmail,
       "password": _passwordController.text.trim(),
       "pais_id": _paisSeleccionado,
       "departamento_id": _departamentoSeleccionado,
@@ -178,18 +391,14 @@ class _RegistroPageState extends State<RegistroScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString("username", (body["name"] as String?) ?? "");
-
-        if (!mounted) return;
-
         showEterSnackBar(
           context,
-          message: "¡Registro exitoso! Ya puedes iniciar sesión.",
+          message: "Código de activación enviado a $userEmail",
           isSuccess: true,
         );
 
-        Navigator.pushReplacementNamed(context, '/login');
+        // Abrir el diálogo para ingresar el código de verificación
+        _showEmailVerificationDialog(context, userEmail, userName);
       } else {
         String errorMsg = "Error al registrar usuario";
         try {
@@ -430,9 +639,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                         labelText: l10n.email,
                         keyboardType: TextInputType.emailAddress,
                         readOnly: _esEdicion, // ✅ bloqueado en edición
-                        validator: (v) => v != null && v.contains("@")
-                            ? null
-                            : l10n.correoInvalido,
+                        validator: _validateEmail,
                       ),
                       const SizedBox(height: 16),
 

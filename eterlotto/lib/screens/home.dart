@@ -24,6 +24,7 @@ import 'package:eterlotto/providers/notification_provider.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
+import 'package:eterlotto/widgets/user_balota_avatar.dart';
 import 'package:shimmer/shimmer.dart';
 
 // HomeScreen
@@ -788,43 +789,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppColors.yellow,
-                        width: 2.0,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.yellow.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: AppColors.getAvatarColor(
-                        userName ?? "",
-                        userId: int.tryParse(currentUserId ?? "0"),
-                      ),
-                      backgroundImage: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
-                          ? NetworkImage(avatarUrl!)
-                          : null,
-                      child: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
-                          ? null
-                          : Text(
-                              (userName != null && userName!.isNotEmpty)
-                                  ? userName![0].toUpperCase()
-                                  : "?",
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                    ),
+                  child: UserBalotaAvatar(
+                    avatarUrl: avatarUrl,
+                    userName: userName,
+                    userId: int.tryParse(currentUserId ?? "0"),
+                    radius: 22,
+                    showGlow: true,
+                    showBorder: true,
+                    borderColor: AppColors.yellow,
                   ),
                 ),
               ],
@@ -1215,10 +1187,13 @@ class _HomeScreenState extends State<HomeScreen> {
               children: [
                 Row(
                   children: [
-                    CircleAvatar(
+                    UserBalotaAvatar(
+                      userName: post.userName,
+                      userId: post.userId,
                       radius: 12,
-                      backgroundColor: AppColors.getAvatarColor(post.userName, userId: post.userId),
-                      child: Text(post.userName.isNotEmpty ? post.userName[0].toUpperCase() : "?", style: const TextStyle(color: Colors.white, fontSize: 10)),
+                      animateGradient: false,
+                      showGlow: false,
+                      showBorder: false,
                     ),
                     const SizedBox(width: 8),
                     Text("@${post.userName}", style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12)),
