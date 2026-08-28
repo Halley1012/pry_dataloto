@@ -14,6 +14,7 @@ class RegisterUser(BaseModel):
     pais_id: int
     departamento_id: int
     terms_accepted_at: Optional[datetime] = None
+    is_adult: bool = True
 
 class UpdateUser(BaseModel):
     name: Optional[str] = None
@@ -28,6 +29,7 @@ class UpdateUser(BaseModel):
     plataforma: Optional[str] = None
     avatar_url: Optional[str] = None
     terms_accepted_at: Optional[datetime] = None
+    is_adult: Optional[bool] = None
 
 class JugadaCreate(BaseModel):
     numeros: List[int]

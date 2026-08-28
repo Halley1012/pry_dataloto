@@ -39,6 +39,7 @@ class _RegistroPageState extends State<RegistroScreen> {
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _aceptaTerminos = false;
+  bool _esMayorEdad = false;
 
   // Nuevos estados
   List<dynamic> _paises = [];
@@ -141,6 +142,15 @@ class _RegistroPageState extends State<RegistroScreen> {
       return;
     }
 
+    if (!_esMayorEdad) {
+      showEterSnackBar(
+        context,
+        message: "Debes confirmar que eres mayor de 18 años para registrarte",
+        isError: true,
+      );
+      return;
+    }
+
     if (!_aceptaTerminos) {
       showEterSnackBar(
         context,
@@ -158,6 +168,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       "password": _passwordController.text.trim(),
       "pais_id": _paisSeleccionado,
       "departamento_id": _departamentoSeleccionado,
+      "is_adult": _esMayorEdad,
       "terms_accepted_at": DateTime.now().toUtc().toIso8601String(),
     };
 
@@ -218,10 +229,12 @@ class _RegistroPageState extends State<RegistroScreen> {
 
     final l10n = AppLocalizations.of(context)!;
 
-    if (widget.isSocialOnboarding && !_aceptaTerminos) {
+    if (widget.isSocialOnboarding && (!_esMayorEdad || !_aceptaTerminos)) {
       showEterSnackBar(
         context,
-        message: l10n.debesAceptarTerminos,
+        message: !_esMayorEdad
+            ? "Debes confirmar que eres mayor de 18 años para continuar"
+            : l10n.debesAceptarTerminos,
         isError: true,
       );
       return;
@@ -240,6 +253,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       updateData['departamento_id'] = _departamentoSeleccionado;
     }
     if (widget.isSocialOnboarding) {
+      updateData['is_adult'] = _esMayorEdad;
       updateData['terms_accepted_at'] = DateTime.now().toUtc().toIso8601String();
     }
 
@@ -414,6 +428,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                       CustomTextFormField(
                         controller: _emailController,
                         labelText: l10n.email,
+                        keyboardType: TextInputType.emailAddress,
                         readOnly: _esEdicion, // ✅ bloqueado en edición
                         validator: (v) => v != null && v.contains("@")
                             ? null
@@ -537,9 +552,42 @@ class _RegistroPageState extends State<RegistroScreen> {
                   ),
                 ),
 
-                // 📜 Casilla de Términos y Condiciones (solo en registro / social onboarding)
+                // 📜 Casillas de Mayoría de Edad y Términos (solo en registro / social onboarding)
                 if (!_esEdicion || widget.isSocialOnboarding) ...[
                   const SizedBox(height: 16),
+                  // 🔞 Mayor de 18 años
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: _esMayorEdad,
+                        activeColor: AppColors.yellow,
+                        checkColor: AppColors.blackfondo,
+                        side: const BorderSide(color: Colors.white54, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        onChanged: (val) {
+                          setState(() => _esMayorEdad = val ?? false);
+                        },
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() => _esMayorEdad = !_esMayorEdad);
+                          },
+                          child: Text(
+                            "Declaro que soy mayor de 18 años (+18)",
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 📄 Términos y Condiciones
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -628,6 +676,7 @@ class CustomTextFormField extends StatelessWidget {
   final String? Function(String?)? validator;
   final Widget? suffixIcon;
   final bool readOnly; // 👈 Nuevo
+  final TextInputType? keyboardType;
 
   const CustomTextFormField({
     super.key,
@@ -637,6 +686,7 @@ class CustomTextFormField extends StatelessWidget {
     this.validator,
     this.suffixIcon,
     this.readOnly = false, // 👈 Valor por defecto
+    this.keyboardType,
   });
 
   @override
@@ -646,7 +696,15 @@ class CustomTextFormField extends StatelessWidget {
       obscureText: obscureText,
       readOnly: readOnly, // 👈 lo aplicamos aquí
       validator: validator,
-      style: AppTextStyles.mensajeSecundario,
+      keyboardType: keyboardType,
+      enableSuggestions: false,
+      autocorrect: false,
+      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+      style: AppTextStyles.mensajeSecundario.copyWith(
+        decoration: TextDecoration.none,
+        decorationThickness: 0,
+        decorationColor: Colors.transparent,
+      ),
       decoration: InputDecoration(
         labelText: labelText,
         labelStyle: AppTextStyles.mensajeSecundario,

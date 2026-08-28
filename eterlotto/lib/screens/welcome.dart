@@ -174,10 +174,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                           label: Text(
                             "Continuar con Google",
-                            style: AppTextStyles.mensajeImportante.copyWith(
+                            style: AppTextStyles.button.copyWith(
                               color: AppColors.yellow,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),

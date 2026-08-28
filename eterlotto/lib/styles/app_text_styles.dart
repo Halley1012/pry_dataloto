@@ -75,6 +75,9 @@ class AppTextStyles {
   static final mensajeSecundario = GoogleFonts.montserrat(
     color: Colors.white70,
     fontSize: 14,
+    decoration: TextDecoration.none,
+    decorationThickness: 0,
+    decorationColor: Colors.transparent,
   );
 }
 
@@ -101,10 +104,14 @@ class CustomTextFormField extends StatelessWidget {
     Widget field = TextFormField(
       controller: controller,
       obscureText: obscureText,
+      enableSuggestions: false,
+      autocorrect: false,
+      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
       style: GoogleFonts.montserrat(
         color: Colors.white,
         fontSize: 16,
         fontWeight: FontWeight.w500,
+        decoration: TextDecoration.none,
       ),
       decoration: InputDecoration(
         hintText: hintText,
