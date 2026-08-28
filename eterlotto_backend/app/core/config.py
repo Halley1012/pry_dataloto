@@ -4,9 +4,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY")
 EMAIL_USER = os.getenv("EMAIL_USER")
 EMAIL_PASS = os.getenv("EMAIL_PASS")
-EMAIL_FROM = os.getenv("EMAIL_FROM")
+EMAIL_FROM = os.getenv("EMAIL_FROM", "Eterlotto <no-reply@lumieter.com>")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 SECRET_KEY = os.getenv("SECRET_KEY")

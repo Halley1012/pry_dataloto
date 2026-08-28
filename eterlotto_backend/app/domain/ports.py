@@ -243,6 +243,14 @@ class EmailSenderPort(ABC):
     async def send_reset_password_email(self, email: str, reset_link: str) -> bool:
         pass
 
+    @abstractmethod
+    async def send_reset_password_code(self, email: str, code: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def send_verification_code(self, email: str, code: str) -> bool:
+        pass
+
 
 class NotificationRepositoryPort(ABC):
     @abstractmethod
