@@ -290,7 +290,15 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 24),
                     TextField(
                       controller: dialogEmailController,
-                      style: AppTextStyles.mensajeSecundario,
+                      keyboardType: TextInputType.emailAddress,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        decoration: TextDecoration.none,
+                        decorationThickness: 0,
+                        decorationColor: Colors.transparent,
+                      ),
                       decoration: InputDecoration(
                         labelText: l10n.email,
                         labelStyle: AppTextStyles.mensajeSecundario,
@@ -404,7 +412,14 @@ class _LoginPageState extends State<LoginPage> {
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      style: AppTextStyles.mensajeSecundario,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        decoration: TextDecoration.none,
+                        decorationThickness: 0,
+                        decorationColor: Colors.transparent,
+                      ),
                       decoration: InputDecoration(
                         labelText: l10n.email,
                         labelStyle: AppTextStyles.mensajeSecundario,
@@ -420,7 +435,14 @@ class _LoginPageState extends State<LoginPage> {
                       controller: _passwordController,
                       obscureText:
                           _obscureText, // Use state variable for visibility
-                      style: AppTextStyles.mensajeSecundario,
+                      enableSuggestions: false,
+                      autocorrect: false,
+                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        decoration: TextDecoration.none,
+                        decorationThickness: 0,
+                        decorationColor: Colors.transparent,
+                      ),
                       decoration: InputDecoration(
                         labelText: l10n.contrasena,
                         labelStyle: AppTextStyles.mensajeSecundario,
@@ -501,33 +523,10 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   label: Text(
                     "Continuar con Google",
-                    style: AppTextStyles.mensajeImportante.copyWith(
+                    style: AppTextStyles.button.copyWith(
                       color: isLoading ? Colors.white54 : AppColors.yellow,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 30),
-              InkWell(
-                onTap: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const RegistroScreen()),
-                    );
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const RegistroScreen()),
-                    );
-                  }
-                },
-                child: Text(
-                  l10n.registrarse,
-                  style: AppTextStyles.mensajeImportante,
                 ),
               ),
               const SizedBox(height: 20),
