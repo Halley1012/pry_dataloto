@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../../../widgets/fullscreen_chart_viewer.dart';
 import 'resultados_shared.dart';
 
@@ -30,9 +31,9 @@ class EstadisticasCards extends StatelessWidget {
         if (isMobile) {
           return Column(
             children: [
-              _buildDistribucionAciertosCard(),
+              _buildDistribucionAciertosCard(context),
               const SizedBox(height: 14),
-              _buildRachaActualCard(),
+              _buildRachaActualCard(context),
               const SizedBox(height: 14),
               _buildHistorialCoberturaCard(context),
             ],
@@ -41,9 +42,9 @@ class EstadisticasCards extends StatelessWidget {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(flex: 5, child: _buildDistribucionAciertosCard()),
+              Expanded(flex: 5, child: _buildDistribucionAciertosCard(context)),
               const SizedBox(width: 10),
-              Expanded(flex: 4, child: _buildRachaActualCard()),
+              Expanded(flex: 4, child: _buildRachaActualCard(context)),
               const SizedBox(width: 10),
               Expanded(flex: 5, child: _buildHistorialCoberturaCard(context)),
             ],
@@ -53,7 +54,8 @@ class EstadisticasCards extends StatelessWidget {
     );
   }
 
-  Widget _buildDistribucionAciertosCard() {
+  Widget _buildDistribucionAciertosCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final int totalJugadas = misJugadas.length;
 
     return Container(
@@ -63,10 +65,10 @@ class EstadisticasCards extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Distribución de aciertos",
+            l10n.distribucionAciertosTitulo,
             style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
           ),
-          Text("(Tus jugadas guardadas)", style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54)),
+          Text(l10n.tusJugadasGuardadasParentesis, style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white54)),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -85,7 +87,7 @@ class EstadisticasCards extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text("$totalJugadas", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                        Text(totalJugadas == 1 ? "jugada" : "jugadas", style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white54)),
+                        Text(totalJugadas == 1 ? l10n.jugadaSingular : l10n.jugadasPlural, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white54)),
                       ],
                     ),
                   ),
@@ -97,10 +99,10 @@ class EstadisticasCards extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildDonutLegendItem(Colors.grey, "0 aciertos", "${distribucionAciertos[0]}"),
-                    _buildDonutLegendItem(Colors.blueAccent, "1 - 2 aciertos", "${distribucionAciertos[1] + distribucionAciertos[2]}"),
-                    _buildDonutLegendItem(Colors.amber, "3 - 4 aciertos", "${distribucionAciertos[3] + distribucionAciertos[4]}"),
-                    _buildDonutLegendItem(Colors.greenAccent, "5 aciertos", "${distribucionAciertos[5]}"),
+                    _buildDonutLegendItem(Colors.grey, l10n.ceroAciertos, "${distribucionAciertos[0]}"),
+                    _buildDonutLegendItem(Colors.blueAccent, l10n.unoDosAciertos, "${distribucionAciertos[1] + distribucionAciertos[2]}"),
+                    _buildDonutLegendItem(Colors.amber, l10n.tresCuatroAciertos, "${distribucionAciertos[3] + distribucionAciertos[4]}"),
+                    _buildDonutLegendItem(Colors.greenAccent, l10n.cincoAciertos, "${distribucionAciertos[5]}"),
                   ],
                 ),
               ),
@@ -120,8 +122,8 @@ class EstadisticasCards extends StatelessWidget {
                 Expanded(
                   child: Text(
                     totalJugadas > 0
-                        ? "Distribución calculada a partir de tus $totalJugadas jugada(s)."
-                        : "Agrega jugadas para visualizar la distribución de aciertos.",
+                        ? l10n.distribucionCalculada(totalJugadas)
+                        : l10n.agregaJugadasDistribucion,
                     style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
                   ),
                 ),
@@ -134,6 +136,7 @@ class EstadisticasCards extends StatelessWidget {
   }
 
   Widget _buildHistorialCoberturaCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final double avg = historialCoberturasList.isNotEmpty
         ? historialCoberturasList.reduce((a, b) => a + b) / historialCoberturasList.length
         : 0.8;
@@ -267,6 +270,9 @@ class EstadisticasCards extends StatelessWidget {
       );
     }
 
+    final String titleStr = l10n.historialCoberturaTitulo;
+    final String subtitleStr = l10n.promedioGeneralSorteos((avg * 100).round(), historialCoberturasList.length);
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -282,11 +288,11 @@ class EstadisticasCards extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "Historial de cobertura",
+                      titleStr,
                       style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                     Text(
-                      "Promedio general: ${(avg * 100).round()}% (últimos ${historialCoberturasList.length} sorteos)",
+                      subtitleStr,
                       style: GoogleFonts.montserrat(fontSize: 11, color: const Color(0xFFF59E0B), fontWeight: FontWeight.w600),
                     ),
                   ],
@@ -296,8 +302,8 @@ class EstadisticasCards extends StatelessWidget {
                 onTap: () {
                   FullScreenChartViewer.show(
                     context,
-                    title: "Historial de cobertura",
-                    subtitle: "Promedio general: ${(avg * 100).round()}% (últimos ${historialCoberturasList.length} sorteos)",
+                    title: titleStr,
+                    subtitle: subtitleStr,
                     chartWidget: buildLineChart(isFullScreen: true),
                   );
                 },
@@ -316,7 +322,9 @@ class EstadisticasCards extends StatelessWidget {
     );
   }
 
-  Widget _buildRachaActualCard() {
+  Widget _buildRachaActualCard(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: cardBoxDecoration(),
@@ -324,7 +332,7 @@ class EstadisticasCards extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            "Racha actual",
+            l10n.rachaActualTitulo,
             style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 8),
@@ -334,18 +342,18 @@ class EstadisticasCards extends StatelessWidget {
             style: GoogleFonts.montserrat(fontSize: 32, fontWeight: FontWeight.w900, color: Colors.white),
           ),
           Text(
-            "jugada(s) consecutiva(s) con aciertos",
+            l10n.jugadasConsecutivasAciertos,
             textAlign: TextAlign.center,
             style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white60),
           ),
           const SizedBox(height: 12),
-          Text("Mejor racha", style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white38)),
+          Text(l10n.mejorRachaTitulo, style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white38)),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text("$mejorRachaCount ", style: GoogleFonts.montserrat(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.amber)),
               Text(
-                mejorRachaCount == 1 ? "jugada" : "jugadas",
+                mejorRachaCount == 1 ? l10n.jugadaSingular : l10n.jugadasPlural,
                 style: GoogleFonts.montserrat(fontSize: 11, color: Colors.white70),
               ),
             ],
@@ -373,6 +381,4 @@ class EstadisticasCards extends StatelessWidget {
       ),
     );
   }
-
-
 }

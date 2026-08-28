@@ -595,11 +595,16 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _formatearFecha(String rawDate) {
-    if (rawDate.isEmpty) return "10 Ago 2026";
+    if (rawDate.isEmpty) return "--";
     try {
       final parsed = DateTime.tryParse(rawDate);
       if (parsed != null) {
-        final meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        final langCode = mounted ? Localizations.localeOf(context).languageCode : 'es';
+        final meses = langCode == 'en'
+            ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            : (langCode == 'pt'
+                ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+                : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
         return "${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
       }
     } catch (_) {}
@@ -645,23 +650,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
     }
 
+    final langCode = Localizations.localeOf(context).languageCode;
+    final enPrep = langCode == 'en' ? "in" : (langCode == 'pt' ? "em" : "en");
+    final yConj = langCode == 'en' ? "and" : (langCode == 'pt' ? "e" : "y");
+
     List<String> parts = [];
     for (var s in _subSorteos) {
       if (s.hitsInTop.isNotEmpty) {
-        parts.add("${s.hitsInTop.length} en ${s.nombre} (${s.hitsInTop.join(', ')})");
+        parts.add("${s.hitsInTop.length} $enPrep ${s.nombre} (${s.hitsInTop.join(', ')})");
       } else {
-        parts.add("0 en ${s.nombre}");
+        parts.add("0 $enPrep ${s.nombre}");
       }
     }
 
     String joined;
     if (parts.length == 2) {
-      joined = "${parts[0]} y ${parts[1]}";
+      joined = "${parts[0]} $yConj ${parts[1]}";
     } else {
-      joined = "${parts.sublist(0, parts.length - 1).join(', ')} y ${parts.last}";
+      joined = "${parts.sublist(0, parts.length - 1).join(', ')} $yConj ${parts.last}";
     }
 
-    return "De los $_probablesCount números con mayor probabilidad generados por la IA para $_selectedLoteria, cayeron $joined.";
+    return l10n.insightIACayeron(_probablesCount, _selectedLoteria, joined);
   }
 
   @override

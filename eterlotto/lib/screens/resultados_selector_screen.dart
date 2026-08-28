@@ -31,7 +31,20 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   @override
   void initState() {
     super.initState();
+    CacheService.jugadasChangeNotifier.addListener(_onJugadasChanged);
     cargarLoterias();
+  }
+
+  @override
+  void dispose() {
+    CacheService.jugadasChangeNotifier.removeListener(_onJugadasChanged);
+    super.dispose();
+  }
+
+  void _onJugadasChanged() {
+    if (mounted) {
+      cargarLoterias(forceRefresh: true);
+    }
   }
 
   Future<void> cargarLoterias({bool forceRefresh = false}) async {

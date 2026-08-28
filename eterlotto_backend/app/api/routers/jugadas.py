@@ -179,6 +179,19 @@ def get_ultimos5_dinamico(r_name: str, use_cases: JugadaUseCases = Depends(depen
         memory_cache.set(cache_key, res, ttl=300)
     return res
 
+@router.get("/{r_name}/ultimos50", name="get_loteria_ultimos50_dinamico")
+def get_ultimos50_dinamico(r_name: str, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    cache_key = f"{clean_route}:ultimos50"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    display_name = clean_route.replace('_', ' ').title()
+    res = use_cases.obtener_ultimos50_generico(clean_route, display_name)
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=300)
+    return res
+
 @router.get("/{r_name}/historico_completo", name="get_loteria_historico_completo_dinamico")
 def get_historico_completo_dinamico(r_name: str, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()

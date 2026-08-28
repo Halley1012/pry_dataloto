@@ -270,6 +270,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get avisoLegal => 'Aviso legal';
 
   @override
+  String get aceptoLos => 'Acepto los ';
+
+  @override
+  String get terminosCondicionesAviso => 'Términos, Condiciones y Aviso Legal';
+
+  @override
+  String get debesAceptarTerminos =>
+      'Debes aceptar los términos y condiciones para continuar';
+
+  @override
   String get acercaDe => 'Acerca de';
 
   @override
@@ -277,7 +287,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get contenidoAvisoLegal =>
-      'Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.';
+      'Eterlotto es una aplicación independiente de análisis estadístico e inteligencia artificial. No es una lotería, no organiza sorteos ni está afiliada, patrocinada o respaldada por los operadores de las loterías mostradas en la aplicación.\n\nLas predicciones, estadísticas y recomendaciones se generan a partir del análisis de datos históricos y tienen carácter exclusivamente informativo y de entretenimiento.\n\nNingún resultado está garantizado y las predicciones no aumentan ni aseguran las probabilidades de obtener un premio.\n\nEterlotto no recibe apuestas ni participa en la venta de billetes o juegos de lotería.';
 
   @override
   String get contenidoAcercaDe =>
@@ -321,6 +331,13 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get seleccionarIdioma => 'Seleccionar Idioma';
+
+  @override
+  String get confirmarCambioIdioma =>
+      '¿Deseas cambiar el idioma de la aplicación?';
+
+  @override
+  String get si => 'Sí';
 
   @override
   String get cancelar => 'Cancelar';
@@ -774,7 +791,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get sinResultadosAnalisis => 'Aún no tienes análisis de resultados';
 
   @override
-  String get buscaloAqui => 'Búscalo Aquí';
+  String get buscaloAqui => 'Búscalo aquí';
 
   @override
   String get anunciateHoy => '¡Anúnciate hoy y haz que todos te conozcan!';
@@ -1123,4 +1140,192 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get subtituloSuerte => 'Tu suerte comienza aquí.';
+
+  @override
+  String get tituloDescargaExcel => 'Descargar Histórico Completo';
+
+  @override
+  String get mensajeDescargaExcel =>
+      '¿Deseas descargar el archivo Excel con el 100% de los sorteos registrados en la base de datos para realizar tus propios análisis?';
+
+  @override
+  String get descargar => 'Descargar';
+
+  @override
+  String get descargandoHistorico =>
+      'Descargando histórico completo de la base de datos...';
+
+  @override
+  String get planBasicoHazteVip => 'Plan Básico (Hazte VIP)';
+
+  @override
+  String get vipSinAnuncios => 'VIP Sin Anuncios';
+
+  @override
+  String get eterlottoVipSinAnuncios => 'Eterlotto VIP (Sin Anuncios)';
+
+  @override
+  String get obtener => 'Obtener';
+
+  @override
+  String get activo => 'Activo';
+
+  @override
+  String get subtituloVip =>
+      'Disfruta de la mejor experiencia sin interrupciones';
+
+  @override
+  String get ceroPublicidadTitulo => 'Cero Publicidad';
+
+  @override
+  String get ceroPublicidadDesc =>
+      'Sin banners ni anuncios al consultar resultados y estadísticas.';
+
+  @override
+  String get maximaVelocidadTitulo => 'Máxima Velocidad';
+
+  @override
+  String get maximaVelocidadDesc =>
+      'Navegación fluida y carga instantánea en todas las pantallas.';
+
+  @override
+  String get soporteNuevasFuncionesTitulo => 'Soporte y Nuevas Funciones';
+
+  @override
+  String get soporteNuevasFuncionesDesc =>
+      'Acceso preferencial a futuras herramientas y algoritmos.';
+
+  @override
+  String get suscripcionActiva => 'Suscripción Activa';
+
+  @override
+  String get suscripcionActivaDesc =>
+      'Tu plan VIP está activo. ¡Gracias por tu apoyo!';
+
+  @override
+  String get administrarGooglePlay => 'Administrar en Google Play';
+
+  @override
+  String get planMensual => 'Plan Mensual';
+
+  @override
+  String get renovacionAutomatica => 'Renovación mensual automática';
+
+  @override
+  String get suscribirmeAhora => 'Suscribirme Ahora';
+
+  @override
+  String get restaurarCompras => 'Restaurar compras';
+
+  @override
+  String get terminosSuscripcionGooglePlay =>
+      'La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.';
+
+  @override
+  String get comprasRestauradasExito => '✅ Compras restauradas con éxito.';
+
+  @override
+  String get noComprasActivas =>
+      'ℹ️ No se encontraron compras activas previas.';
+
+  @override
+  String get usuariosVipSinAnuncios =>
+      'Los usuarios VIP disfrutan de esta y todas las funciones sin ver anuncios.';
+
+  @override
+  String get hacermeVip => 'Hacerme VIP 💎';
+
+  @override
+  String get verVideo => 'Ver Video';
+
+  @override
+  String get descripcionVideoHistorico =>
+      'Mira un breve video publicitario para acceder y consultar el historial completo de resultados.';
+
+  @override
+  String get descripcionVideoJugadas =>
+      'Mira un breve video publicitario para acceder a tu historial completo de jugadas.';
+
+  @override
+  String get descripcionVideoInsight =>
+      'Mira un breve video publicitario para desbloquear el análisis inteligente con Inteligencia Artificial.';
+
+  @override
+  String get desbloquearAnalisisIA => 'Desbloquear Análisis IA';
+
+  @override
+  String get distribucionAciertosTitulo => 'Distribución de aciertos';
+
+  @override
+  String get tusJugadasGuardadasParentesis => '(Tus jugadas guardadas)';
+
+  @override
+  String get jugadaSingular => 'jugada';
+
+  @override
+  String get jugadasPlural => 'jugadas';
+
+  @override
+  String get ceroAciertos => '0 aciertos';
+
+  @override
+  String get unoDosAciertos => '1 - 2 aciertos';
+
+  @override
+  String get tresCuatroAciertos => '3 - 4 aciertos';
+
+  @override
+  String get cincoAciertos => '5 aciertos';
+
+  @override
+  String distribucionCalculada(int count) {
+    return 'Distribución calculada a partir de tus $count jugada(s).';
+  }
+
+  @override
+  String get agregaJugadasDistribucion =>
+      'Agrega jugadas para visualizar la distribución de aciertos.';
+
+  @override
+  String get historialCoberturaTitulo => 'Historial de cobertura';
+
+  @override
+  String promedioGeneralSorteos(int avg, int count) {
+    return 'Promedio general: $avg% (últimos $count sorteos)';
+  }
+
+  @override
+  String get rachaActualTitulo => 'Racha actual';
+
+  @override
+  String get jugadasConsecutivasAciertos =>
+      'jugada(s) consecutiva(s) con aciertos';
+
+  @override
+  String get mejorRachaTitulo => 'Mejor racha';
+
+  @override
+  String ultimosNSorteosRegistrados(int count) {
+    return 'Últimos $count sorteos registrados';
+  }
+
+  @override
+  String get balotas => 'Balotas';
+
+  @override
+  String get sorteoLabel => 'Sorteo';
+
+  @override
+  String get preparaTusJugadasIA =>
+      'Prepara tus jugadas con las predicciones de IA.';
+
+  @override
+  String get publicidadLabel => 'PUBLICIDAD';
+
+  @override
+  String get quitarAnuncios => 'Quitar anuncios';
+
+  @override
+  String get buscarDirectorioHint =>
+      'Encuentra negocios, servicios y comercios...';
 }

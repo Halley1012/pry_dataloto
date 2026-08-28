@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/screens/welcome.dart';
@@ -7,7 +8,9 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/styles/colores.dart';
 import '../utils/pais_helper.dart';
+import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+
 
 
 class RegistroScreen extends StatefulWidget {
@@ -35,6 +38,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _aceptaTerminos = false;
 
   // Nuevos estados
   List<dynamic> _paises = [];
@@ -124,7 +128,25 @@ class _RegistroPageState extends State<RegistroScreen> {
     final form = _formKey.currentState;
     if (form == null || !form.validate()) return;
 
+    final l10n = AppLocalizations.of(context)!;
+
     if (_paisSeleccionado == null || _departamentoSeleccionado == null) {
+      showEterSnackBar(
+        context,
+        message: _paisSeleccionado == null
+            ? l10n.seleccionaPais
+            : l10n.seleccionaDepartamento,
+        isError: true,
+      );
+      return;
+    }
+
+    if (!_aceptaTerminos) {
+      showEterSnackBar(
+        context,
+        message: l10n.debesAceptarTerminos,
+        isError: true,
+      );
       return;
     }
 
@@ -136,30 +158,74 @@ class _RegistroPageState extends State<RegistroScreen> {
       "password": _passwordController.text.trim(),
       "pais_id": _paisSeleccionado,
       "departamento_id": _departamentoSeleccionado,
+      "terms_accepted_at": DateTime.now().toUtc().toIso8601String(),
     };
 
     try {
-      final response = await ApiService.post("/register", body);
+      final response = await ApiService.post("/register", body, withAuth: false);
 
-      if (response.statusCode == 200) {
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString("username", (body["name"] as String?) ?? "");
 
         if (!mounted) return;
+
+        showEterSnackBar(
+          context,
+          message: "¡Registro exitoso! Ya puedes iniciar sesión.",
+          isSuccess: true,
+        );
+
         Navigator.pushReplacementNamed(context, '/login');
       } else {
-        // Error silencioso
+        String errorMsg = "Error al registrar usuario";
+        try {
+          final data = jsonDecode(response.body);
+          if (data is Map) {
+            if (data["detail"] != null) {
+              errorMsg = data["detail"].toString();
+            } else if (data["message"] != null) {
+              errorMsg = data["message"].toString();
+            }
+          }
+        } catch (_) {}
+
+        if (!mounted) return;
+
+        showEterSnackBar(
+          context,
+          message: errorMsg,
+          isError: true,
+        );
       }
     } catch (e) {
-      // Error silencioso
+      if (!mounted) return;
+      showEterSnackBar(
+        context,
+        message: "${l10n.errorConexion}: $e",
+        isError: true,
+      );
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Actualizar usuario (edición)
+  // Actualizar usuario (edición u onboarding social)
   void _updateUser() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final l10n = AppLocalizations.of(context)!;
+
+    if (widget.isSocialOnboarding && !_aceptaTerminos) {
+      showEterSnackBar(
+        context,
+        message: l10n.debesAceptarTerminos,
+        isError: true,
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -172,6 +238,9 @@ class _RegistroPageState extends State<RegistroScreen> {
     }
     if (_departamentoSeleccionado != null) {
       updateData['departamento_id'] = _departamentoSeleccionado;
+    }
+    if (widget.isSocialOnboarding) {
+      updateData['terms_accepted_at'] = DateTime.now().toUtc().toIso8601String();
     }
 
     if (updateData.isEmpty) {
@@ -214,6 +283,13 @@ class _RegistroPageState extends State<RegistroScreen> {
       }
 
       if (!mounted) return;
+
+      showEterSnackBar(
+        context,
+        message: "Perfil actualizado correctamente",
+        isSuccess: true,
+      );
+
       if (widget.isSocialOnboarding) {
         Navigator.pushNamedAndRemoveUntil(context, "/home", (route) => false);
       } else {
@@ -221,7 +297,11 @@ class _RegistroPageState extends State<RegistroScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      // Error silencioso
+      showEterSnackBar(
+        context,
+        message: "Error al actualizar perfil: $e",
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -457,7 +537,59 @@ class _RegistroPageState extends State<RegistroScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 30),
+                // 📜 Casilla de Términos y Condiciones (solo en registro / social onboarding)
+                if (!_esEdicion || widget.isSocialOnboarding) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Checkbox(
+                        value: _aceptaTerminos,
+                        activeColor: AppColors.yellow,
+                        checkColor: AppColors.blackfondo,
+                        side: const BorderSide(color: Colors.white54, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        onChanged: (val) {
+                          setState(() => _aceptaTerminos = val ?? false);
+                        },
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            showJustifiedDialog(
+                              context,
+                              l10n.avisoLegal,
+                              l10n.contenidoAvisoLegal,
+                            );
+                          },
+                          child: Text.rich(
+                            TextSpan(
+                              text: l10n.aceptoLos,
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white70,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: l10n.terminosCondicionesAviso,
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.yellow,
+                                    fontWeight: FontWeight.bold,
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: AppColors.yellow,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+
+                const SizedBox(height: 24),
 
                 LoadingButton(
                   isLoading: _isLoading,

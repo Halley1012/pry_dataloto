@@ -487,8 +487,8 @@ class InsightIaCard extends StatelessWidget {
                           context: context,
                           isPremium: isPremium,
                           featureKey: "tendencias_ia",
-                          featureTitle: "Tendencias y Aciertos IA",
-                          featureActionDescription: "Mira un breve video publicitario para ver el desglose completo de números probables y aciertos de la IA.",
+                          featureTitle: l10n.tendenciasIA,
+                          featureActionDescription: l10n.descripcionVideoInsight,
                           onRewardGranted: () => _showProbablesDialog(context),
                         );
                       },

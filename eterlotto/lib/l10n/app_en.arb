@@ -92,9 +92,12 @@
   "usuarioPremium": "Premium User",
   "ganaBeneficios": "Earn benefits",
   "avisoLegal": "Legal Notice",
+  "aceptoLos": "I accept the ",
+  "terminosCondicionesAviso": "Terms, Conditions and Legal Notice",
+  "debesAceptarTerminos": "You must accept the terms and conditions to continue",
   "acercaDe": "About",
   "cerrar": "Close",
-  "contenidoAvisoLegal": "This app is not official nor associated with lottery operators or gambling regulatory bodies in any country. It is not a lottery game, but a statistical analysis and artificial intelligence tool that generates predictions to help you choose your numbers with greater confidence. Results do not guarantee prizes and its use is solely for informational and entertainment purposes.",
+  "contenidoAvisoLegal": "Eterlotto is an independent statistical analysis and artificial intelligence application. It is not a lottery, does not organize draws, and is not affiliated with, sponsored by, or endorsed by the operators of the lotteries displayed in the application.\n\nPredictions, statistics, and recommendations are generated from historical data analysis and are strictly for informational and entertainment purposes.\n\nNo results are guaranteed, and predictions do not increase or guarantee the chances of winning a prize.\n\nEterlotto does not accept bets or participate in the sale of tickets or lottery games.",
   "contenidoAcercaDe": "Eterlotto uses artificial intelligence to analyze historical lottery patterns and provide informed predictions. Although our predictions are data-based, there is no absolute certainty that these numbers will win, as lottery is a game of chance. We do not guarantee prizes, we only help you choose with greater confidence. Use the app responsibly and only for entertainment purposes. The decision to use these predictions is under your own responsibility.",
   "notificacionesIA": "Notifications",
   "marcarTodoComoLeido": "Mark all as read",
@@ -109,6 +112,8 @@
   "confirmarCerrarSesion": "Are you sure you want to log out?",
   "idiomaSistema": "System Language",
   "seleccionarIdioma": "Select Language",
+  "confirmarCambioIdioma": "Do you want to change the app language?",
+  "si": "Yes",
   "cancelar": "Cancel",
   "jackpotEstimado": "Estimated Jackpot",
   "millonesCOP": "million COP",
@@ -634,5 +639,85 @@
       }
     }
   },
-  "subtituloSuerte": "Your luck starts here."
+  "subtituloSuerte": "Your luck starts here.",
+  "tituloDescargaExcel": "Download Complete History",
+  "mensajeDescargaExcel": "Do you want to download the Excel file with 100% of all historical draws registered in the database to perform your own analysis?",
+  "descargar": "Download",
+  "descargandoHistorico": "Downloading complete history from the database...",
+  "planBasicoHazteVip": "Basic Plan (Go VIP)",
+  "vipSinAnuncios": "Ad-Free VIP",
+  "eterlottoVipSinAnuncios": "Eterlotto VIP (Ad-Free)",
+  "obtener": "Get",
+  "activo": "Active",
+  "subtituloVip": "Enjoy the best ad-free experience without interruptions",
+  "ceroPublicidadTitulo": "Zero Ads",
+  "ceroPublicidadDesc": "No banners or ads when checking results and statistics.",
+  "maximaVelocidadTitulo": "Maximum Speed",
+  "maximaVelocidadDesc": "Smooth navigation and instant loading across all screens.",
+  "soporteNuevasFuncionesTitulo": "Support & New Features",
+  "soporteNuevasFuncionesDesc": "Priority access to upcoming tools and AI algorithms.",
+  "suscripcionActiva": "Active Subscription",
+  "suscripcionActivaDesc": "Your VIP plan is active. Thank you for your support!",
+  "administrarGooglePlay": "Manage on Google Play",
+  "planMensual": "Monthly Plan",
+  "renovacionAutomatica": "Automatic monthly renewal",
+  "suscribirmeAhora": "Subscribe Now",
+  "restaurarCompras": "Restore Purchases",
+  "terminosSuscripcionGooglePlay": "Subscription automatically renews monthly through Google Play unless canceled at least 24 hours before the end of the current period. You can manage or cancel your subscription in your Google Play account settings anytime.",
+  "comprasRestauradasExito": "✅ Purchases restored successfully.",
+  "noComprasActivas": "ℹ️ No previous active purchases found.",
+  "usuariosVipSinAnuncios": "VIP users enjoy this and all features without watching ads.",
+  "hacermeVip": "Go VIP 💎",
+  "verVideo": "Watch Video",
+  "descripcionVideoHistorico": "Watch a short video ad to access and consult the complete results history.",
+  "descripcionVideoJugadas": "Watch a short video ad to access your complete plays history.",
+  "descripcionVideoInsight": "Watch a short video ad to unlock smart analysis with Artificial Intelligence.",
+  "desbloquearAnalisisIA": "Unlock AI Analysis",
+  "distribucionAciertosTitulo": "Hit distribution",
+  "tusJugadasGuardadasParentesis": "(Your saved plays)",
+  "jugadaSingular": "play",
+  "jugadasPlural": "plays",
+  "ceroAciertos": "0 hits",
+  "unoDosAciertos": "1 - 2 hits",
+  "tresCuatroAciertos": "3 - 4 hits",
+  "cincoAciertos": "5 hits",
+  "distribucionCalculada": "Distribution calculated from your {count} play(s).",
+  "@distribucionCalculada": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agregaJugadasDistribucion": "Add plays to view the hit distribution.",
+  "historialCoberturaTitulo": "Coverage history",
+  "promedioGeneralSorteos": "Overall average: {avg}% (last {count} draws)",
+  "@promedioGeneralSorteos": {
+    "placeholders": {
+      "avg": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rachaActualTitulo": "Current streak",
+  "jugadasConsecutivasAciertos": "consecutive play(s) with hits",
+  "mejorRachaTitulo": "Best streak",
+  "ultimosNSorteosRegistrados": "Latest {count} registered draws",
+  "@ultimosNSorteosRegistrados": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotas": "Balls",
+  "sorteoLabel": "Draw",
+  "preparaTusJugadasIA": "Prepare your plays with AI predictions.",
+  "publicidadLabel": "ADVERTISEMENT",
+  "quitarAnuncios": "Remove ads",
+  "buscaloAqui": "Find it here",
+  "buscarDirectorioHint": "Find businesses, services, and local shops..."
 }

@@ -31,7 +31,20 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   @override
   void initState() {
     super.initState();
+    CacheService.jugadasChangeNotifier.addListener(_onJugadasChanged);
     cargarLoterias();
+  }
+
+  @override
+  void dispose() {
+    CacheService.jugadasChangeNotifier.removeListener(_onJugadasChanged);
+    super.dispose();
+  }
+
+  void _onJugadasChanged() {
+    if (mounted) {
+      cargarLoterias(forceRefresh: true);
+    }
   }
 
   /// ⚡ Carga súper rápida con caché a 0ms + peticiones en paralelo (Future.wait)

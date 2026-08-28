@@ -566,6 +566,7 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
+      CacheService.invalidarCachesDeJugadas(specificRoute: "mloto");
       return true;
     } else {
       throw Exception(
@@ -668,6 +669,7 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
+      CacheService.invalidarCachesDeJugadas(specificRoute: "bloto");
       return true;
     } else {
       throw Exception(
@@ -780,7 +782,11 @@ class ApiService {
         Uri.parse("$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"),
         headers: {"Content-Type": "application/json"},
       ).timeout(const Duration(seconds: 10));
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        return true;
+      }
+      return false;
     } catch (e) {
       debugPrint("⚠️ Error al borrar jugada ($route/$jugadaId): $e");
       return false;
@@ -1535,13 +1541,39 @@ class ApiService {
     }
   }
 
-  /// 📜 Obtener histórico completo de resultados de una lotería
+  /// 📜 Obtener los 50 sorteos más recientes para visualización rápida en pantalla
+  static Future<List<Map<String, dynamic>>> getHistorico50(String route) async {
+    final cleanRoute = route.trim().toLowerCase();
+    try {
+      final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos50");
+      final response = await http
+          .get(uri, headers: await _getHeaders(withAuth: false))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
+          return List<Map<String, dynamic>>.from(decoded["resultados"]);
+        }
+      }
+    } catch (_) {}
+
+    // Fallback garantizado: consultar getHistoricoCompleto y tomar los primeros 50
+    try {
+      final fullList = await getHistoricoCompleto(cleanRoute);
+      return fullList.take(50).toList();
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+  }
+
+  /// 📜 Obtener histórico completo de resultados de una lotería (para exportación)
   static Future<List<Map<String, dynamic>>> getHistoricoCompleto(String route) async {
     final cleanRoute = route.trim().toLowerCase();
     final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 15));
+        .timeout(const Duration(seconds: 20));
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);

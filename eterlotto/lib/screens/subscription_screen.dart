@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../providers/subscription_provider.dart';
 import '../styles/colores.dart';
 
@@ -21,6 +22,7 @@ class SubscriptionScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final subProvider = context.watch<SubscriptionProvider>();
     final isSubscribed = subProvider.isSubscribed;
     final product = subProvider.monthlyProduct;
@@ -79,7 +81,7 @@ class SubscriptionScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                "Disfruta de la mejor experiencia sin interrupciones",
+                l10n?.subtituloVip ?? "Disfruta de la mejor experiencia sin interrupciones",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
                   fontSize: 14,
@@ -104,22 +106,22 @@ class SubscriptionScreen extends StatelessWidget {
                     _buildBenefitItem(
                       icon: Icons.block,
                       iconColor: Colors.redAccent,
-                      title: "Cero Publicidad",
-                      subtitle: "Sin banners ni anuncios al consultar resultados y estadísticas.",
+                      title: l10n?.ceroPublicidadTitulo ?? "Cero Publicidad",
+                      subtitle: l10n?.ceroPublicidadDesc ?? "Sin banners ni anuncios al consultar resultados y estadísticas.",
                     ),
                     const Divider(color: Colors.white12, height: 28),
                     _buildBenefitItem(
                       icon: Icons.flash_on,
                       iconColor: AppColors.yellow,
-                      title: "Máxima Velocidad",
-                      subtitle: "Navegación fluida y carga instantánea en todas las pantallas.",
+                      title: l10n?.maximaVelocidadTitulo ?? "Máxima Velocidad",
+                      subtitle: l10n?.maximaVelocidadDesc ?? "Navegación fluida y carga instantánea en todas las pantallas.",
                     ),
                     const Divider(color: Colors.white12, height: 28),
                     _buildBenefitItem(
                       icon: Icons.auto_awesome,
                       iconColor: Colors.amberAccent,
-                      title: "Soporte y Nuevas Funciones",
-                      subtitle: "Acceso preferencial a futuras herramientas y algoritmos.",
+                      title: l10n?.soporteNuevasFuncionesTitulo ?? "Soporte y Nuevas Funciones",
+                      subtitle: l10n?.soporteNuevasFuncionesDesc ?? "Acceso preferencial a futuras herramientas y algoritmos.",
                     ),
                   ],
                 ),
@@ -144,7 +146,7 @@ class SubscriptionScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Suscripción Activa",
+                              l10n?.suscripcionActiva ?? "Suscripción Activa",
                               style: GoogleFonts.montserrat(
                                 color: Colors.green,
                                 fontWeight: FontWeight.bold,
@@ -152,7 +154,7 @@ class SubscriptionScreen extends StatelessWidget {
                               ),
                             ),
                             Text(
-                              "Tu plan VIP está activo. ¡Gracias por tu apoyo!",
+                              l10n?.suscripcionActivaDesc ?? "Tu plan VIP está activo. ¡Gracias por tu apoyo!",
                               style: GoogleFonts.montserrat(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -169,7 +171,7 @@ class SubscriptionScreen extends StatelessWidget {
                   onPressed: _openGooglePlaySubscriptions,
                   icon: const Icon(Icons.manage_accounts, color: Colors.white70),
                   label: Text(
-                    "Administrar en Google Play",
+                    l10n?.administrarGooglePlay ?? "Administrar en Google Play",
                     style: GoogleFonts.montserrat(color: Colors.white70),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -197,7 +199,7 @@ class SubscriptionScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Plan Mensual",
+                              l10n?.planMensual ?? "Plan Mensual",
                               style: GoogleFonts.montserrat(
                                 color: Colors.white,
                                 fontSize: 16,
@@ -206,7 +208,7 @@ class SubscriptionScreen extends StatelessWidget {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              "Renovación mensual automática",
+                              l10n?.renovacionAutomatica ?? "Renovación mensual automática",
                               style: GoogleFonts.montserrat(
                                 color: Colors.white54,
                                 fontSize: 12,
@@ -260,7 +262,7 @@ class SubscriptionScreen extends StatelessWidget {
                     child: subProvider.isLoading
                         ? const CircularProgressIndicator(color: Color(0xFF121212))
                         : Text(
-                            "Suscribirme Ahora",
+                            l10n?.suscribirmeAhora ?? "Suscribirme Ahora",
                             style: GoogleFonts.montserrat(
                               color: const Color(0xFF121212),
                               fontSize: 16,
@@ -282,15 +284,15 @@ class SubscriptionScreen extends StatelessWidget {
                               SnackBar(
                                 content: Text(
                                   subProvider.isSubscribed
-                                      ? "✅ Compras restauradas con éxito."
-                                      : "ℹ️ No se encontraron compras activas previas.",
+                                      ? (l10n?.comprasRestauradasExito ?? "✅ Compras restauradas con éxito.")
+                                      : (l10n?.noComprasActivas ?? "ℹ️ No se encontraron compras activas previas."),
                                 ),
                               ),
                             );
                           }
                         },
                   child: Text(
-                    "Restaurar compras",
+                    l10n?.restaurarCompras ?? "Restaurar compras",
                     style: GoogleFonts.montserrat(
                       color: Colors.white60,
                       fontSize: 13,
@@ -304,7 +306,8 @@ class SubscriptionScreen extends StatelessWidget {
 
               // 📜 Términos y Condiciones Legales (Obligatorio en Google Play)
               Text(
-                "La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.",
+                l10n?.terminosSuscripcionGooglePlay ??
+                    "La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
                   fontSize: 11,

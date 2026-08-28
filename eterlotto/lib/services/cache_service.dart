@@ -6,6 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class CacheService {
   static const String _prefix = "cache_dataloto_";
 
+  /// 🔔 Notificador global para reactividad en tiempo real entre pestañas (IndexedStack)
+  static final ValueNotifier<int> jugadasChangeNotifier = ValueNotifier<int>(0);
+
+  /// Emite una señal para que todas las pantallas vivas en memoria recarguen sus datos
+  static void notificarCambioJugadas() {
+    jugadasChangeNotifier.value++;
+  }
+
   /// Guarda una respuesta JSON o Lista de JSONs en SharedPreferences local
   static Future<void> setJson(String key, dynamic data) async {
     try {
@@ -29,6 +37,38 @@ class CacheService {
       // Ignorar errores de lectura
     }
     return null;
+  }
+
+  /// Elimina una clave específica de la caché local
+  static Future<void> deleteKey(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_prefix$key');
+    } catch (_) {}
+  }
+
+  /// ⚡ Invalida activamente todos los caches de selectores (Resultados, Mis Jugadas, Info)
+  /// y notifica inmediatamente a todas las pantallas activas para que se auto-sincronicen sin pull-to-refresh.
+  static Future<void> invalidarCachesDeJugadas({String? specificRoute}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((k) {
+        final rawKey = k.replaceFirst(_prefix, '');
+        return rawKey.startsWith('mis_jugadas_selector') ||
+               rawKey.startsWith('resultados_selector') ||
+               rawKey.startsWith('mis_jugadas_info') ||
+               rawKey.startsWith('user_jugadas_') ||
+               (specificRoute != null && rawKey.contains(specificRoute.toLowerCase()));
+      }).toList();
+
+      for (final k in keys) {
+        await prefs.remove(k);
+      }
+    } catch (e) {
+      debugPrint("⚠️ Error invalidando caches de jugadas: $e");
+    } finally {
+      notificarCambioJugadas();
+    }
   }
 
   /// ⚡ Registra de forma optimista e instantánea (0ms) una lotería con jugada en el caché del selector
@@ -69,6 +109,8 @@ class CacheService {
       }
     } catch (e) {
       debugPrint("⚠️ Error al registrar jugada optimista: $e");
+    } finally {
+      notificarCambioJugadas();
     }
   }
 
