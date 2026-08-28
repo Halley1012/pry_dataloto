@@ -210,140 +210,256 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  // Función para enviar correo de recuperación
-  Future<void> _sendResetEmail(String email) async {
-    final l10n = AppLocalizations.of(context)!;
-    final url = Uri.parse('${ApiService.baseUrl}/auth/forgot-password');
-    
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 25));
-
-      if (response.statusCode == 200) {
-        if (!mounted) return;
-        showEterSnackBar(
-          context,
-          message: l10n.enviadoEnlace(email),
-          isSuccess: true,
-        );
-      } else {
-        String errorMsg = l10n.errorEnviarCorreo;
-        try {
-          final body = jsonDecode(response.body);
-          if (body['detail'] != null) {
-            errorMsg = body['detail'].toString();
-          }
-        } catch (_) {}
-        
-        if (!mounted) return;
-        showEterSnackBar(
-          context,
-          message: errorMsg,
-          isError: true,
-        );
-      }
-    } on TimeoutException catch (_) {
-      if (!mounted) return;
-      showEterSnackBar(
-        context,
-        message: l10n.errorConexion,
-        isError: true,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      showEterSnackBar(
-        context,
-        message: "${l10n.errorConexion}: $e",
-        isError: true,
-      );
-    }
-  }
-
-  // Diálogo animado de "Olvidé mi contraseña"
+  // Diálogo interactivo de 2 pasos para recuperar contraseña con código PIN
   void _showFancyForgotPasswordDialog(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final TextEditingController dialogEmailController = TextEditingController();
+    final TextEditingController dialogEmailController = TextEditingController(text: _emailController.text.trim());
+    final TextEditingController dialogCodeController = TextEditingController();
+    final TextEditingController dialogNewPasswordController = TextEditingController();
+    final TextEditingController dialogConfirmPasswordController = TextEditingController();
+
+    int step = 1; // 1: Pedir correo, 2: Pedir código y nueva contraseña
     bool dialogLoading = false;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
 
     showDialog(
       context: context,
-      builder: (context) {
+      barrierDismissible: !dialogLoading,
+      builder: (dialogCtx) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (context, setDialogState) {
             return Dialog(
               backgroundColor: Colors.transparent,
               insetPadding: const EdgeInsets.symmetric(horizontal: 20),
               child: Container(
                 padding: const EdgeInsets.all(24),
                 decoration: cardBoxDecoration(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      l10n.recuperarContrasena,
-                      style: AppTextStyles.tituloPrincipal,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 24),
-                    TextField(
-                      controller: dialogEmailController,
-                      keyboardType: TextInputType.emailAddress,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
-                      style: AppTextStyles.mensajeSecundario.copyWith(
-                        decoration: TextDecoration.none,
-                        decorationThickness: 0,
-                        decorationColor: Colors.transparent,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        step == 1 ? l10n.recuperarContrasena : "Nueva Contraseña",
+                        style: AppTextStyles.tituloPrincipal,
+                        textAlign: TextAlign.center,
                       ),
-                      decoration: InputDecoration(
-                        labelText: l10n.email,
-                        labelStyle: AppTextStyles.mensajeSecundario,
-                        prefixIcon: const Icon(Icons.email_outlined, color: AppColors.yellow),
-                        filled: true,
-                        fillColor: Colors.white10,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: BorderSide.none,
-                        ),
+                      const SizedBox(height: 12),
+                      Text(
+                        step == 1
+                            ? "Ingresa tu correo para recibir un código de seguridad de 6 dígitos."
+                            : "Ingresa el código de 6 dígitos enviado a ${dialogEmailController.text.trim()} y tu nueva contraseña.",
+                        style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 32),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextButton(
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            onPressed: dialogLoading ? null : () => Navigator.pop(context),
-                            child: Text(
-                              l10n.cancelarButton,
-                              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                      const SizedBox(height: 24),
+
+                      if (step == 1) ...[
+                        TextField(
+                          controller: dialogEmailController,
+                          keyboardType: TextInputType.emailAddress,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                          style: AppTextStyles.mensajeSecundario.copyWith(
+                            decoration: TextDecoration.none,
+                            decorationThickness: 0,
+                            decorationColor: Colors.transparent,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: l10n.email,
+                            labelStyle: AppTextStyles.mensajeSecundario,
+                            prefixIcon: const Icon(Icons.email_outlined, color: AppColors.yellow),
+                            filled: true,
+                            fillColor: Colors.white10,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: LoadingButton(
-                            isLoading: dialogLoading,
-                            text: l10n.enviarButton,
-                            onPressed: () async {
-                              if (dialogEmailController.text.trim().isEmpty) return;
-                              setState(() => dialogLoading = true);
-                              await _sendResetEmail(dialogEmailController.text.trim());
-                              setState(() => dialogLoading = false);
-                              if (context.mounted) Navigator.pop(context);
-                            },
+                      ] else ...[
+                        // Campo de código OTP de 6 dígitos
+                        TextField(
+                          controller: dialogCodeController,
+                          keyboardType: TextInputType.number,
+                          maxLength: 6,
+                          textAlign: TextAlign.center,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                          style: AppTextStyles.h2.copyWith(
+                            letterSpacing: 8,
+                            color: AppColors.yellow,
+                            decoration: TextDecoration.none,
+                            decorationThickness: 0,
+                            decorationColor: Colors.transparent,
+                          ),
+                          decoration: InputDecoration(
+                            counterText: "",
+                            hintText: "000000",
+                            hintStyle: AppTextStyles.h2.copyWith(
+                              letterSpacing: 8,
+                              color: Colors.white24,
+                            ),
+                            filled: true,
+                            fillColor: Colors.white10,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Nueva contraseña
+                        TextField(
+                          controller: dialogNewPasswordController,
+                          obscureText: obscureNewPassword,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                          style: AppTextStyles.mensajeSecundario.copyWith(
+                            decoration: TextDecoration.none,
+                            decorationThickness: 0,
+                            decorationColor: Colors.transparent,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: "Nueva contraseña",
+                            labelStyle: AppTextStyles.mensajeSecundario,
+                            prefixIcon: const Icon(Icons.lock_outline, color: AppColors.yellow),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureNewPassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.white54,
+                              ),
+                              onPressed: () {
+                                setDialogState(() => obscureNewPassword = !obscureNewPassword);
+                              },
+                            ),
+                            filled: true,
+                            fillColor: Colors.white10,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Confirmar contraseña
+                        TextField(
+                          controller: dialogConfirmPasswordController,
+                          obscureText: obscureConfirmPassword,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                          style: AppTextStyles.mensajeSecundario.copyWith(
+                            decoration: TextDecoration.none,
+                            decorationThickness: 0,
+                            decorationColor: Colors.transparent,
+                          ),
+                          decoration: InputDecoration(
+                            labelText: "Confirmar contraseña",
+                            labelStyle: AppTextStyles.mensajeSecundario,
+                            prefixIcon: const Icon(Icons.lock_outline, color: AppColors.yellow),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                                color: Colors.white54,
+                              ),
+                              onPressed: () {
+                                setDialogState(() => obscureConfirmPassword = !obscureConfirmPassword);
+                              },
+                            ),
+                            filled: true,
+                            fillColor: Colors.white10,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(30),
+                              borderSide: BorderSide.none,
+                            ),
                           ),
                         ),
                       ],
-                    ),
-                  ],
+
+                      const SizedBox(height: 28),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: dialogLoading ? null : () => Navigator.pop(dialogCtx),
+                              child: Text(
+                                l10n.cancelarButton,
+                                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: LoadingButton(
+                              isLoading: dialogLoading,
+                              text: step == 1 ? "Enviar Código" : "Guardar",
+                              onPressed: () async {
+                                final email = dialogEmailController.text.trim();
+                                if (step == 1) {
+                                  if (email.isEmpty || !email.contains('@')) {
+                                    showEterSnackBar(context, message: "Ingresa un correo electrónico válido", isError: true);
+                                    return;
+                                  }
+                                  setDialogState(() => dialogLoading = true);
+                                  final success = await _requestResetCode(email);
+                                  setDialogState(() => dialogLoading = false);
+                                  if (success) {
+                                    setDialogState(() => step = 2);
+                                  }
+                                } else {
+                                  final code = dialogCodeController.text.trim();
+                                  final newPwd = dialogNewPasswordController.text.trim();
+                                  final confirmPwd = dialogConfirmPasswordController.text.trim();
+
+                                  if (code.length != 6) {
+                                    showEterSnackBar(context, message: "El código debe tener 6 dígitos", isError: true);
+                                    return;
+                                  }
+                                  if (newPwd.length < 6) {
+                                    showEterSnackBar(context, message: "La contraseña debe tener al menos 6 caracteres", isError: true);
+                                    return;
+                                  }
+                                  if (newPwd != confirmPwd) {
+                                    showEterSnackBar(context, message: "Las contraseñas no coinciden", isError: true);
+                                    return;
+                                  }
+
+                                  setDialogState(() => dialogLoading = true);
+                                  final success = await _submitNewPassword(email, code, newPwd);
+                                  setDialogState(() => dialogLoading = false);
+                                  if (success && dialogCtx.mounted) {
+                                    Navigator.pop(dialogCtx);
+                                    _emailController.text = email;
+                                    _passwordController.text = newPwd;
+                                  }
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      if (step == 2) ...[
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: dialogLoading ? null : () => setDialogState(() => step = 1),
+                          child: Text(
+                            "¿No recibiste el código? Volver a enviar",
+                            style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -351,6 +467,78 @@ class _LoginPageState extends State<LoginPage> {
         );
       },
     );
+  }
+
+  // Solicitar código PIN de recuperación
+  Future<bool> _requestResetCode(String email) async {
+    final url = Uri.parse('${ApiService.baseUrl}/auth/forgot-password');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message: "Código de 6 dígitos enviado a $email",
+            isSuccess: true,
+          );
+        }
+        return true;
+      } else {
+        String errorMsg = "Error al solicitar código";
+        try {
+          final data = jsonDecode(response.body);
+          if (data['detail'] != null) errorMsg = data['detail'].toString();
+        } catch (_) {}
+        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+        return false;
+      }
+    } catch (e) {
+      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+      return false;
+    }
+  }
+
+  // Restablecer contraseña con código PIN
+  Future<bool> _submitNewPassword(String email, String code, String newPassword) async {
+    final url = Uri.parse('${ApiService.baseUrl}/auth/reset-password');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+          'new_password': newPassword,
+        }),
+      ).timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message: "¡Contraseña actualizada! Ya puedes iniciar sesión.",
+            isSuccess: true,
+          );
+        }
+        return true;
+      } else {
+        String errorMsg = "Código inválido o expirado";
+        try {
+          final data = jsonDecode(response.body);
+          if (data['detail'] != null) errorMsg = data['detail'].toString();
+        } catch (_) {}
+        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+        return false;
+      }
+    } catch (e) {
+      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+      return false;
+    }
   }
 
   @override
