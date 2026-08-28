@@ -1234,15 +1234,22 @@ class ApiService {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
 
+        List<Map<String, dynamic>> resultList = [];
         if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
           final List<dynamic> data = decoded['data'];
-          return List<Map<String, dynamic>>.from(data);
+          resultList = List<Map<String, dynamic>>.from(data);
         } else if (decoded is List) {
-          // En caso de que el backend devuelva una lista directa
-          return List<Map<String, dynamic>>.from(decoded);
-        } else {
-          return [];
+          resultList = List<Map<String, dynamic>>.from(decoded);
         }
+
+        final localFavs = await getFavoritosLocales();
+        for (var ad in resultList) {
+          final int? id = ad["id"] is int ? ad["id"] : int.tryParse(ad["id"]?.toString() ?? "");
+          if (id != null && localFavs.contains(id)) {
+            ad["is_favorite"] = true;
+          }
+        }
+        return resultList;
       } else {
         throw Exception(
           "Error ${response.statusCode}: ${response.reasonPhrase}",
@@ -1495,25 +1502,68 @@ class ApiService {
     }
   }
 
-  // ⭐ Toggle Favorito en anuncio
+  static const String _favsStorageKey = "usuario_publicidades_favoritas";
+
+  // ⭐ Obtener conjunto de IDs favoritos guardados localmente
+  static Future<Set<int>> getFavoritosLocales() async {
+    try {
+      final str = await _storage.read(key: _favsStorageKey);
+      if (str != null && str.isNotEmpty) {
+        final list = jsonDecode(str) as List<dynamic>;
+        return list.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e > 0).toSet();
+      }
+    } catch (_) {}
+    return {};
+  }
+
+  // ⭐ Guardar o remover favorito localmente
+  static Future<void> guardarFavoritoLocal(int publicidadId, bool isFavorite) async {
+    try {
+      final favs = await getFavoritosLocales();
+      if (isFavorite) {
+        favs.add(publicidadId);
+      } else {
+        favs.remove(publicidadId);
+      }
+      await _storage.write(key: _favsStorageKey, value: jsonEncode(favs.toList()));
+    } catch (_) {}
+  }
+
+  // ⭐ Toggle Favorito en anuncio (con persistencia local instantánea)
   static Future<Map<String, dynamic>> toggleFavoritoPublicidad(int id) async {
-    await ensureValidSession();
-    final token = await getToken();
-    if (token == null) {
-      throw Exception('Debes iniciar sesión para guardar favoritos');
+    final localFavs = await getFavoritosLocales();
+    final bool willBeFav = !localFavs.contains(id);
+    await guardarFavoritoLocal(id, willBeFav);
+
+    try {
+      final token = await getToken();
+      if (token != null && token.isNotEmpty) {
+        final response = await http.post(
+          Uri.parse('$baseUrl/publicidad/$id/favorito'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        ).timeout(const Duration(seconds: 8));
+
+        if (response.statusCode == 200) {
+          final res = json.decode(response.body);
+          if (res is Map<String, dynamic> && res["is_favorite"] != null) {
+            await guardarFavoritoLocal(id, res["is_favorite"] == true);
+          }
+          return res;
+        }
+      }
+    } catch (e) {
+      debugPrint("⚠️ Toggle favorito remoto pendiente de sync: $e");
     }
-    final response = await http.post(
-      Uri.parse('$baseUrl/publicidad/$id/favorito'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception('Error al actualizar favorito');
-    }
+
+    return {
+      "success": true,
+      "is_favorite": willBeFav,
+      "total_votos": null,
+      "is_destacado": null,
+    };
   }
 
   // ⭐ Calificar anuncio con estrellas
