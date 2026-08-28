@@ -31,6 +31,26 @@ class PostgresUserRepository(UserRepositoryPort):
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_adult BOOLEAN DEFAULT TRUE;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS app_version VARCHAR(20);
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS plataforma VARCHAR(20);
+
+                -- Columnas para Horario y Estado en Publicidad
+                ALTER TABLE publicidad ADD COLUMN IF NOT EXISTS es_24_7 BOOLEAN DEFAULT TRUE;
+                ALTER TABLE publicidad ADD COLUMN IF NOT EXISTS hora_apertura VARCHAR(10) DEFAULT '00:00';
+                ALTER TABLE publicidad ADD COLUMN IF NOT EXISTS hora_cierre VARCHAR(10) DEFAULT '23:59';
+                ALTER TABLE publicidad ADD COLUMN IF NOT EXISTS dias_atencion VARCHAR(50) DEFAULT 'Todos los días';
+                ALTER TABLE publicidad ADD COLUMN IF NOT EXISTS estado_texto VARCHAR(50) DEFAULT 'Abierto 24/7';
+            """)
+
+            # Crear tabla de calificaciones / likes de publicidad
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS publicidad_calificaciones (
+                    id SERIAL PRIMARY KEY,
+                    publicidad_id INT NOT NULL REFERENCES publicidad(id) ON DELETE CASCADE,
+                    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    estrellas INT DEFAULT 5,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(publicidad_id, user_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_pub_calificaciones_pub_id ON publicidad_calificaciones (publicidad_id);
             """)
 
             # 2. Crear tabla histórica de suscripciones / compras

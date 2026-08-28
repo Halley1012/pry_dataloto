@@ -1227,7 +1227,7 @@ class ApiService {
       // 📬 3. Enviar solicitud HTTP
       final response = await http.get(
         uri,
-        headers: {"Content-Type": "application/json"},
+        headers: await _getHeaders(withAuth: true),
       );
 
       // ✅ 4. Validar estado de la respuesta
