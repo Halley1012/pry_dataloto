@@ -231,8 +231,11 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     if (publicidadId == null) return;
 
     final currentFav = anuncio["is_favorite"] == true;
+    final currentLikes = int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0;
+
     setState(() {
       anuncio["is_favorite"] = !currentFav;
+      anuncio["total_likes"] = !currentFav ? currentLikes + 1 : (currentLikes > 0 ? currentLikes - 1 : 0);
     });
 
     try {
@@ -240,6 +243,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       if (res["success"] == true && mounted) {
         setState(() {
           anuncio["is_favorite"] = res["is_favorite"] ?? !currentFav;
+          if (res["total_votos"] != null) {
+            anuncio["total_likes"] = res["total_votos"];
+          }
           if (res["is_destacado"] != null) {
             anuncio["is_destacado"] = res["is_destacado"];
           }
@@ -249,6 +255,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       if (mounted) {
         setState(() {
           anuncio["is_favorite"] = currentFav;
+          anuncio["total_likes"] = currentLikes;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -399,6 +406,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                           isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
                           statusText: anuncio["estado_texto"] ?? "Abierto ahora",
                           isFavorite: anuncio["is_favorite"] == true,
+                          totalLikes: int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0,
                           onAction: () => _toggleFavorito(anuncio, index),
                         ),
                       );

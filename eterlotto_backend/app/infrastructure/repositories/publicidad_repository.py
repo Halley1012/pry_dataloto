@@ -63,7 +63,9 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 pa.nombre AS pais_nombre,
                 d.nombre AS departamento_nombre,
                 c.nombre AS categoria_nombre,
-                ci.nombre AS ciudad_nombre
+                ci.nombre AS ciudad_nombre,
+                COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
+                COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas
             FROM publicidad p
             LEFT JOIN paises pa ON p.pais_id = pa.id
             LEFT JOIN departamentos d ON p.departamento_id = d.id
@@ -134,7 +136,9 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     p.*, 
                     c.nombre AS categoria_nombre,
                     ci.nombre AS ciudad_nombre,
-                    d.nombre AS departamento_nombre
+                    d.nombre AS departamento_nombre,
+                    COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
+                    COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas
                 FROM publicidad p
                 LEFT JOIN categorias c ON p.categoria_id = c.id
                 LEFT JOIN ciudades ci ON p.ciudad_id = ci.id
