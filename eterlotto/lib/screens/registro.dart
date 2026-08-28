@@ -219,109 +219,108 @@ class _RegistroPageState extends State<RegistroScreen> {
                         ),
                       ),
                       const SizedBox(height: 28),
+                      SizedBox(
+                        width: double.infinity,
+                        child: LoadingButton(
+                          isLoading: dialogLoading,
+                          text: "Activar Cuenta",
+                          onPressed: () async {
+                            final code = dialogCodeController.text.trim();
+                            if (code.length != 6) {
+                              showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                              return;
+                            }
+
+                            setDialogState(() => dialogLoading = true);
+                            final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
+                            try {
+                              final res = await http.post(
+                                url,
+                                headers: {'Content-Type': 'application/json'},
+                                body: jsonEncode({'email': email, 'code': code}),
+                              ).timeout(const Duration(seconds: 20));
+
+                              setDialogState(() => dialogLoading = false);
+
+                              if (res.statusCode == 200) {
+                                final data = jsonDecode(res.body);
+                                const storage = FlutterSecureStorage();
+                                if (data['access_token'] != null) {
+                                  await storage.write(key: "auth_token", value: data['access_token']);
+                                  await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
+                                  if (data['user'] != null && data['user']['id'] != null) {
+                                    await storage.write(key: "user_id", value: data['user']['id'].toString());
+                                  }
+                                }
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setString("username", name);
+
+                                if (dialogCtx.mounted) {
+                                  Navigator.pop(dialogCtx);
+                                  showEterSnackBar(
+                                    context,
+                                    message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                    isSuccess: true,
+                                  );
+                                  Navigator.pushReplacementNamed(context, '/home');
+                                }
+                              } else {
+                                String errorMsg = "Código incorrecto o expirado";
+                                try {
+                                  final errData = jsonDecode(res.body);
+                                  if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                } catch (_) {}
+                                if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+                              }
+                            } catch (e) {
+                              setDialogState(() => dialogLoading = false);
+                              if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Expanded(
-                            child: TextButton(
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                              ),
-                              onPressed: dialogLoading
-                                  ? null
-                                  : () {
-                                      Navigator.pop(dialogCtx);
-                                      Navigator.pushReplacementNamed(context, '/login');
-                                    },
-                              child: Text(
-                                "Más tarde",
-                                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                              ),
+                          TextButton(
+                            onPressed: dialogLoading
+                                ? null
+                                : () {
+                                    Navigator.pop(dialogCtx);
+                                    showEterSnackBar(
+                                      context,
+                                      message: "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
+                                    );
+                                    Navigator.pushReplacementNamed(context, '/login');
+                                  },
+                            child: Text(
+                              "Cancelar",
+                              style: AppTextStyles.caption.copyWith(color: Colors.white54),
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 2,
-                            child: LoadingButton(
-                              isLoading: dialogLoading,
-                              text: "Activar Cuenta",
-                              onPressed: () async {
-                                final code = dialogCodeController.text.trim();
-                                if (code.length != 6) {
-                                  showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
-                                  return;
-                                }
-
-                                setDialogState(() => dialogLoading = true);
-                                final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
-                                try {
-                                  final res = await http.post(
-                                    url,
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: jsonEncode({'email': email, 'code': code}),
-                                  ).timeout(const Duration(seconds: 20));
-
-                                  setDialogState(() => dialogLoading = false);
-
-                                  if (res.statusCode == 200) {
-                                    final data = jsonDecode(res.body);
-                                    const storage = FlutterSecureStorage();
-                                    if (data['access_token'] != null) {
-                                      await storage.write(key: "auth_token", value: data['access_token']);
-                                      await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
-                                      if (data['user'] != null && data['user']['id'] != null) {
-                                        await storage.write(key: "user_id", value: data['user']['id'].toString());
-                                      }
-                                    }
-                                    final prefs = await SharedPreferences.getInstance();
-                                    await prefs.setString("username", name);
-
-                                    if (dialogCtx.mounted) {
-                                      Navigator.pop(dialogCtx);
-                                      showEterSnackBar(
-                                        context,
-                                        message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
-                                        isSuccess: true,
-                                      );
-                                      Navigator.pushReplacementNamed(context, '/home');
-                                    }
-                                  } else {
-                                    String errorMsg = "Código incorrecto o expirado";
+                          TextButton(
+                            onPressed: dialogLoading
+                                ? null
+                                : () async {
+                                    final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
                                     try {
-                                      final errData = jsonDecode(res.body);
-                                      if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                      await http.post(
+                                        url,
+                                        headers: {'Content-Type': 'application/json'},
+                                        body: jsonEncode({'email': email}),
+                                      );
+                                      if (context.mounted) {
+                                        showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                      }
                                     } catch (_) {}
-                                    if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
-                                  }
-                                } catch (e) {
-                                  setDialogState(() => dialogLoading = false);
-                                  if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
-                                }
-                              },
+                                  },
+                            child: Text(
+                              "¿No recibiste el código? Reenviar",
+                              style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: dialogLoading
-                            ? null
-                            : () async {
-                                final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
-                                try {
-                                  await http.post(
-                                    url,
-                                    headers: {'Content-Type': 'application/json'},
-                                    body: jsonEncode({'email': email}),
-                                  );
-                                  if (context.mounted) {
-                                    showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
-                                  }
-                                } catch (_) {}
-                              },
-                        child: Text(
-                          "¿No recibiste el código? Reenviar",
-                          style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
-                        ),
                       ),
                     ],
                   ),
@@ -397,6 +396,9 @@ class _RegistroPageState extends State<RegistroScreen> {
           isSuccess: true,
         );
 
+        await Future.delayed(const Duration(milliseconds: 800));
+
+        if (!mounted) return;
         // Abrir el diálogo para ingresar el código de verificación
         _showEmailVerificationDialog(context, userEmail, userName);
       } else {
