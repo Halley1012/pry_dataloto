@@ -3,7 +3,6 @@ import 'package:eterlotto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'screens/home.dart';
-import 'screens/loteria_screen.dart';
 import 'screens/login.dart';
 import 'screens/registro.dart';
 import 'screens/splash_screen.dart';
@@ -135,6 +134,46 @@ class EterlottoApp extends StatelessWidget {
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xFF1E1E24),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              labelStyle: GoogleFonts.montserrat(
+                color: Colors.white60,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+              hintStyle: GoogleFonts.montserrat(
+                color: Colors.white38,
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+              ),
+              floatingLabelStyle: GoogleFonts.montserrat(
+                color: AppColors.yellow,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+              ),
+              errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
+              ),
+              focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(30),
+                borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
               ),
             ),
           ),

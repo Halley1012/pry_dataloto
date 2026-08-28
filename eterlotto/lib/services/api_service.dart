@@ -1495,6 +1495,52 @@ class ApiService {
     }
   }
 
+  // ⭐ Toggle Favorito en anuncio
+  static Future<Map<String, dynamic>> toggleFavoritoPublicidad(int id) async {
+    await ensureValidSession();
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('Debes iniciar sesión para guardar favoritos');
+    }
+    final response = await http.post(
+      Uri.parse('$baseUrl/publicidad/$id/favorito'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Error al actualizar favorito');
+    }
+  }
+
+  // ⭐ Calificar anuncio con estrellas
+  static Future<Map<String, dynamic>> calificarPublicidad(
+    int id,
+    int estrellas,
+  ) async {
+    await ensureValidSession();
+    final token = await getToken();
+    if (token == null) {
+      throw Exception('Debes iniciar sesión para calificar');
+    }
+    final response = await http.post(
+      Uri.parse('$baseUrl/publicidad/$id/calificar'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: json.encode({"estrellas": estrellas}),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    } else {
+      throw Exception('Error al calificar');
+    }
+  }
+
 /////////////////////////// Loterias ////////////////////////////
 
   /// 📋 Listar loterías disponibles (por país o todas)
