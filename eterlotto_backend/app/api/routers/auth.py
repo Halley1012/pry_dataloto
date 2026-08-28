@@ -106,17 +106,34 @@ async def forgot_password(
     use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
 ):
     try:
-        # 1. Generar token y guardarlo en DB (Operación rápida)
-        token = await use_cases.request_password_reset(request.email)
+        # 1. Generar token OTP y guardarlo en DB
+        code = await use_cases.request_password_reset(request.email)
         
-        # 2. Programar envío de email en segundo plano (Operación lenta)
-        background_tasks.add_task(use_cases.send_password_reset_email_task, request.email, token)
+        # 2. Programar envío de email en segundo plano
+        background_tasks.add_task(use_cases.send_password_reset_email_task, request.email, code)
         
-        return {"success": True, "msg": f"Correo de recuperación enviado a {request.email}"}
+        return {"success": True, "msg": f"Código de recuperación enviado a {request.email}"}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al procesar solicitud: {str(e)}")
+
+@router.post("/auth/reset-password")
+async def reset_password(
+    request: schemas.ResetPasswordWithCodeRequest,
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
+):
+    try:
+        res = await use_cases.reset_password_with_code(
+            email=request.email,
+            code=request.code,
+            new_password=request.new_password
+        )
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al restablecer contraseña: {str(e)}")
 
 @router.post("/users/fcm_token")
 async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):

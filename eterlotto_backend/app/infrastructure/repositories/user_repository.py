@@ -47,6 +47,19 @@ class PostgresUserRepository(UserRepositoryPort):
                 );
                 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions (user_id);
             """)
+
+            # 3. Crear tabla de tokens / códigos de recuperación de contraseña
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    token VARCHAR(255) NOT NULL,
+                    expires TIMESTAMP WITH TIME ZONE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens (token);
+                CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
+            """)
             cls._schema_ensured = True
         except Exception as e:
             print(f"⚠️ Error en ensure_schema de PostgresUserRepository: {e}")
