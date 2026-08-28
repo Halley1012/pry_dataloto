@@ -64,7 +64,7 @@ class HeaderCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        "Sorteo: $fechaSorteo",
+                        l10n.sorteoFechaLabel(fechaSorteo),
                         style: GoogleFonts.montserrat(
                           fontSize: 11,
                           color: Colors.white54,

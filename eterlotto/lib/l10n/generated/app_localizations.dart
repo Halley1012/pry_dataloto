@@ -610,6 +610,24 @@ abstract class AppLocalizations {
   /// **'Aviso legal'**
   String get avisoLegal;
 
+  /// No description provided for @aceptoLos.
+  ///
+  /// In es, this message translates to:
+  /// **'Acepto los '**
+  String get aceptoLos;
+
+  /// No description provided for @terminosCondicionesAviso.
+  ///
+  /// In es, this message translates to:
+  /// **'Términos, Condiciones y Aviso Legal'**
+  String get terminosCondicionesAviso;
+
+  /// No description provided for @debesAceptarTerminos.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes aceptar los términos y condiciones para continuar'**
+  String get debesAceptarTerminos;
+
   /// No description provided for @acercaDe.
   ///
   /// In es, this message translates to:
@@ -625,7 +643,7 @@ abstract class AppLocalizations {
   /// No description provided for @contenidoAvisoLegal.
   ///
   /// In es, this message translates to:
-  /// **'Esta app no es oficial ni está asociada con operadores de loterías ni con entidades reguladoras de juegos de azar en ningún país. No es un juego de lotería, sino una herramienta de análisis estadístico e inteligencia artificial que genera predicciones para que elijas tus números con más confianza. Los resultados no garantizan premios y su uso es únicamente con fines informativos y de entretenimiento.'**
+  /// **'Eterlotto es una aplicación independiente de análisis estadístico e inteligencia artificial. No es una lotería, no organiza sorteos ni está afiliada, patrocinada o respaldada por los operadores de las loterías mostradas en la aplicación.\n\nLas predicciones, estadísticas y recomendaciones se generan a partir del análisis de datos históricos y tienen carácter exclusivamente informativo y de entretenimiento.\n\nNingún resultado está garantizado y las predicciones no aumentan ni aseguran las probabilidades de obtener un premio.\n\nEterlotto no recibe apuestas ni participa en la venta de billetes o juegos de lotería.'**
   String get contenidoAvisoLegal;
 
   /// No description provided for @contenidoAcercaDe.
@@ -711,6 +729,18 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Seleccionar Idioma'**
   String get seleccionarIdioma;
+
+  /// No description provided for @confirmarCambioIdioma.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Deseas cambiar el idioma de la aplicación?'**
+  String get confirmarCambioIdioma;
+
+  /// No description provided for @si.
+  ///
+  /// In es, this message translates to:
+  /// **'Sí'**
+  String get si;
 
   /// No description provided for @cancelar.
   ///
@@ -1506,7 +1536,7 @@ abstract class AppLocalizations {
   /// No description provided for @buscaloAqui.
   ///
   /// In es, this message translates to:
-  /// **'Búscalo Aquí'**
+  /// **'Búscalo aquí'**
   String get buscaloAqui;
 
   /// No description provided for @anunciateHoy.
@@ -2102,6 +2132,336 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Tu suerte comienza aquí.'**
   String get subtituloSuerte;
+
+  /// No description provided for @tituloDescargaExcel.
+  ///
+  /// In es, this message translates to:
+  /// **'Descargar Histórico Completo'**
+  String get tituloDescargaExcel;
+
+  /// No description provided for @mensajeDescargaExcel.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Deseas descargar el archivo Excel con el 100% de los sorteos registrados en la base de datos para realizar tus propios análisis?'**
+  String get mensajeDescargaExcel;
+
+  /// No description provided for @descargar.
+  ///
+  /// In es, this message translates to:
+  /// **'Descargar'**
+  String get descargar;
+
+  /// No description provided for @descargandoHistorico.
+  ///
+  /// In es, this message translates to:
+  /// **'Descargando histórico completo de la base de datos...'**
+  String get descargandoHistorico;
+
+  /// No description provided for @planBasicoHazteVip.
+  ///
+  /// In es, this message translates to:
+  /// **'Plan Básico (Hazte VIP)'**
+  String get planBasicoHazteVip;
+
+  /// No description provided for @vipSinAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'VIP Sin Anuncios'**
+  String get vipSinAnuncios;
+
+  /// No description provided for @eterlottoVipSinAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Eterlotto VIP (Sin Anuncios)'**
+  String get eterlottoVipSinAnuncios;
+
+  /// No description provided for @obtener.
+  ///
+  /// In es, this message translates to:
+  /// **'Obtener'**
+  String get obtener;
+
+  /// No description provided for @activo.
+  ///
+  /// In es, this message translates to:
+  /// **'Activo'**
+  String get activo;
+
+  /// No description provided for @subtituloVip.
+  ///
+  /// In es, this message translates to:
+  /// **'Disfruta de la mejor experiencia sin interrupciones'**
+  String get subtituloVip;
+
+  /// No description provided for @ceroPublicidadTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Cero Publicidad'**
+  String get ceroPublicidadTitulo;
+
+  /// No description provided for @ceroPublicidadDesc.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin banners ni anuncios al consultar resultados y estadísticas.'**
+  String get ceroPublicidadDesc;
+
+  /// No description provided for @maximaVelocidadTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Máxima Velocidad'**
+  String get maximaVelocidadTitulo;
+
+  /// No description provided for @maximaVelocidadDesc.
+  ///
+  /// In es, this message translates to:
+  /// **'Navegación fluida y carga instantánea en todas las pantallas.'**
+  String get maximaVelocidadDesc;
+
+  /// No description provided for @soporteNuevasFuncionesTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Soporte y Nuevas Funciones'**
+  String get soporteNuevasFuncionesTitulo;
+
+  /// No description provided for @soporteNuevasFuncionesDesc.
+  ///
+  /// In es, this message translates to:
+  /// **'Acceso preferencial a futuras herramientas y algoritmos.'**
+  String get soporteNuevasFuncionesDesc;
+
+  /// No description provided for @suscripcionActiva.
+  ///
+  /// In es, this message translates to:
+  /// **'Suscripción Activa'**
+  String get suscripcionActiva;
+
+  /// No description provided for @suscripcionActivaDesc.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu plan VIP está activo. ¡Gracias por tu apoyo!'**
+  String get suscripcionActivaDesc;
+
+  /// No description provided for @administrarGooglePlay.
+  ///
+  /// In es, this message translates to:
+  /// **'Administrar en Google Play'**
+  String get administrarGooglePlay;
+
+  /// No description provided for @planMensual.
+  ///
+  /// In es, this message translates to:
+  /// **'Plan Mensual'**
+  String get planMensual;
+
+  /// No description provided for @renovacionAutomatica.
+  ///
+  /// In es, this message translates to:
+  /// **'Renovación mensual automática'**
+  String get renovacionAutomatica;
+
+  /// No description provided for @suscribirmeAhora.
+  ///
+  /// In es, this message translates to:
+  /// **'Suscribirme Ahora'**
+  String get suscribirmeAhora;
+
+  /// No description provided for @restaurarCompras.
+  ///
+  /// In es, this message translates to:
+  /// **'Restaurar compras'**
+  String get restaurarCompras;
+
+  /// No description provided for @terminosSuscripcionGooglePlay.
+  ///
+  /// In es, this message translates to:
+  /// **'La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.'**
+  String get terminosSuscripcionGooglePlay;
+
+  /// No description provided for @comprasRestauradasExito.
+  ///
+  /// In es, this message translates to:
+  /// **'✅ Compras restauradas con éxito.'**
+  String get comprasRestauradasExito;
+
+  /// No description provided for @noComprasActivas.
+  ///
+  /// In es, this message translates to:
+  /// **'ℹ️ No se encontraron compras activas previas.'**
+  String get noComprasActivas;
+
+  /// No description provided for @usuariosVipSinAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Los usuarios VIP disfrutan de esta y todas las funciones sin ver anuncios.'**
+  String get usuariosVipSinAnuncios;
+
+  /// No description provided for @hacermeVip.
+  ///
+  /// In es, this message translates to:
+  /// **'Hacerme VIP 💎'**
+  String get hacermeVip;
+
+  /// No description provided for @verVideo.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver Video'**
+  String get verVideo;
+
+  /// No description provided for @descripcionVideoHistorico.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para acceder y consultar el historial completo de resultados.'**
+  String get descripcionVideoHistorico;
+
+  /// No description provided for @descripcionVideoJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para acceder a tu historial completo de jugadas.'**
+  String get descripcionVideoJugadas;
+
+  /// No description provided for @descripcionVideoInsight.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para desbloquear el análisis inteligente con Inteligencia Artificial.'**
+  String get descripcionVideoInsight;
+
+  /// No description provided for @desbloquearAnalisisIA.
+  ///
+  /// In es, this message translates to:
+  /// **'Desbloquear Análisis IA'**
+  String get desbloquearAnalisisIA;
+
+  /// No description provided for @distribucionAciertosTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Distribución de aciertos'**
+  String get distribucionAciertosTitulo;
+
+  /// No description provided for @tusJugadasGuardadasParentesis.
+  ///
+  /// In es, this message translates to:
+  /// **'(Tus jugadas guardadas)'**
+  String get tusJugadasGuardadasParentesis;
+
+  /// No description provided for @jugadaSingular.
+  ///
+  /// In es, this message translates to:
+  /// **'jugada'**
+  String get jugadaSingular;
+
+  /// No description provided for @jugadasPlural.
+  ///
+  /// In es, this message translates to:
+  /// **'jugadas'**
+  String get jugadasPlural;
+
+  /// No description provided for @ceroAciertos.
+  ///
+  /// In es, this message translates to:
+  /// **'0 aciertos'**
+  String get ceroAciertos;
+
+  /// No description provided for @unoDosAciertos.
+  ///
+  /// In es, this message translates to:
+  /// **'1 - 2 aciertos'**
+  String get unoDosAciertos;
+
+  /// No description provided for @tresCuatroAciertos.
+  ///
+  /// In es, this message translates to:
+  /// **'3 - 4 aciertos'**
+  String get tresCuatroAciertos;
+
+  /// No description provided for @cincoAciertos.
+  ///
+  /// In es, this message translates to:
+  /// **'5 aciertos'**
+  String get cincoAciertos;
+
+  /// No description provided for @distribucionCalculada.
+  ///
+  /// In es, this message translates to:
+  /// **'Distribución calculada a partir de tus {count} jugada(s).'**
+  String distribucionCalculada(int count);
+
+  /// No description provided for @agregaJugadasDistribucion.
+  ///
+  /// In es, this message translates to:
+  /// **'Agrega jugadas para visualizar la distribución de aciertos.'**
+  String get agregaJugadasDistribucion;
+
+  /// No description provided for @historialCoberturaTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Historial de cobertura'**
+  String get historialCoberturaTitulo;
+
+  /// No description provided for @promedioGeneralSorteos.
+  ///
+  /// In es, this message translates to:
+  /// **'Promedio general: {avg}% (últimos {count} sorteos)'**
+  String promedioGeneralSorteos(int avg, int count);
+
+  /// No description provided for @rachaActualTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Racha actual'**
+  String get rachaActualTitulo;
+
+  /// No description provided for @jugadasConsecutivasAciertos.
+  ///
+  /// In es, this message translates to:
+  /// **'jugada(s) consecutiva(s) con aciertos'**
+  String get jugadasConsecutivasAciertos;
+
+  /// No description provided for @mejorRachaTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor racha'**
+  String get mejorRachaTitulo;
+
+  /// No description provided for @ultimosNSorteosRegistrados.
+  ///
+  /// In es, this message translates to:
+  /// **'Últimos {count} sorteos registrados'**
+  String ultimosNSorteosRegistrados(int count);
+
+  /// No description provided for @balotas.
+  ///
+  /// In es, this message translates to:
+  /// **'Balotas'**
+  String get balotas;
+
+  /// No description provided for @sorteoLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Sorteo'**
+  String get sorteoLabel;
+
+  /// No description provided for @preparaTusJugadasIA.
+  ///
+  /// In es, this message translates to:
+  /// **'Prepara tus jugadas con las predicciones de IA.'**
+  String get preparaTusJugadasIA;
+
+  /// No description provided for @publicidadLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'PUBLICIDAD'**
+  String get publicidadLabel;
+
+  /// No description provided for @quitarAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Quitar anuncios'**
+  String get quitarAnuncios;
+
+  /// No description provided for @buscarDirectorioHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Encuentra negocios, servicios y comercios...'**
+  String get buscarDirectorioHint;
 }
 
 class _AppLocalizationsDelegate

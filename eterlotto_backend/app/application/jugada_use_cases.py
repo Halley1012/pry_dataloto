@@ -242,6 +242,27 @@ class JugadaUseCases:
             resultados.append(item)
         return {"resultados": resultados}
 
+    def obtener_ultimos50_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
+        tabla = f"resultados_{loteria_nombre}"
+        rows = self.jugada_repo.get_ultimos50_resultados_generico(tabla, display_name)
+        if not rows:
+            return {"error": f"No hay resultados registrados para {loteria_nombre}"}
+        resultados = []
+        for row in rows:
+            fecha = row[0]
+            numeros = _normalize_numeros(row[1])
+            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+            jackpot = row[4] if len(row) > 4 else None
+            item = {
+                "fecha": _format_fecha(fecha),
+                "numeros": numeros + balotaroja,
+                "sorteo": row[3] if len(row) > 3 and row[3] else display_name
+            }
+            if jackpot:
+                item["jackpot"] = jackpot
+            resultados.append(item)
+        return {"resultados": resultados}
+
     def obtener_historico_completo_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
         tabla = f"resultados_{loteria_nombre}"
         rows = self.jugada_repo.get_historico_completo_generico(tabla, display_name)

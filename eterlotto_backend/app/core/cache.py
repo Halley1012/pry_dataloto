@@ -41,6 +41,26 @@ class MemoryTTLCache:
 memory_cache = MemoryTTLCache(default_ttl=300)
 
 
+def invalidate_cache(pattern: Optional[str] = None):
+    """
+    Invalida activamente el caché en memoria RAM.
+    - Si se proporciona `pattern`, elimina todas las claves que coincidan con la subcadena.
+    - Si `pattern` es None, limpia completamente todo el caché del backend.
+    """
+    if pattern:
+        memory_cache.clear_pattern(pattern)
+    else:
+        memory_cache.clear()
+
+
+def invalidate_keys(*keys: str):
+    """
+    Elimina claves de caché específicas por nombre exacto.
+    """
+    for key in keys:
+        memory_cache.delete(key)
+
+
 def cached(ttl: int = 300, prefix: Optional[str] = None):
     """
     Decorador estilo @Cacheable de Java / Spring Boot.
@@ -53,7 +73,6 @@ def cached(ttl: int = 300, prefix: Optional[str] = None):
         if inspect.iscoroutinefunction(func):
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
-                # Limpiar 'self' o 'cls' si es método de clase
                 clean_args = args[1:] if args and hasattr(args[0], '__class__') and not isinstance(args[0], (str, int, float, bool, list, dict)) else args
                 key = f"{func_name}:{clean_args}:{sorted(kwargs.items())}"
                 cached_val = memory_cache.get(key)
@@ -68,7 +87,6 @@ def cached(ttl: int = 300, prefix: Optional[str] = None):
         else:
             @functools.wraps(func)
             def sync_wrapper(*args, **kwargs):
-                # Limpiar 'self' o 'cls' si es método de clase
                 clean_args = args[1:] if args and hasattr(args[0], '__class__') and not isinstance(args[0], (str, int, float, bool, list, dict)) else args
                 key = f"{func_name}:{clean_args}:{sorted(kwargs.items())}"
                 cached_val = memory_cache.get(key)
@@ -81,4 +99,3 @@ def cached(ttl: int = 300, prefix: Optional[str] = None):
                 return result
             return sync_wrapper
     return decorator
-

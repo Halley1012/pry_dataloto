@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../styles/colores.dart';
 import '../screens/subscription_screen.dart';
 
@@ -288,113 +289,116 @@ class AdService {
     // Mostrar diálogo explicativo al usuario
     final bool? proceed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: BorderSide(color: AppColors.amber.withValues(alpha: 0.3)),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppColors.amber.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+      builder: (ctx) {
+        final l10n = AppLocalizations.of(ctx);
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: AppColors.amber.withValues(alpha: 0.3)),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.card_giftcard, color: AppColors.amber, size: 22),
               ),
-              child: const Icon(Icons.card_giftcard, color: AppColors.amber, size: 22),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                featureTitle,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  featureTitle,
+                  style: GoogleFonts.montserrat(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                featureActionDescription,
                 style: GoogleFonts.montserrat(
-                  color: Colors.white,
+                  color: Colors.white70,
+                  fontSize: 13,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF282828),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.workspace_premium, color: AppColors.amber, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        l10n?.usuariosVipSinAnuncios ?? "Los usuarios VIP disfrutan de esta y todas las funciones sin ver anuncios.",
+                        style: GoogleFonts.montserrat(
+                          color: Colors.white60,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                l10n?.cancelar ?? "Cancelar",
+                style: GoogleFonts.montserrat(color: Colors.white38),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx, false);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
+                );
+              },
+              child: Text(
+                l10n?.hacermeVip ?? "Hacerme VIP 💎",
+                style: GoogleFonts.montserrat(
+                  color: AppColors.amber,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
                 ),
               ),
             ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              featureActionDescription,
-              style: GoogleFonts.montserrat(
-                color: Colors.white70,
-                fontSize: 13,
-                height: 1.4,
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.play_circle_fill, color: Color(0xFF121212), size: 18),
+              label: Text(
+                l10n?.verVideo ?? "Ver Video",
+                style: GoogleFonts.montserrat(
+                  color: const Color(0xFF121212),
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF282828),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.workspace_premium, color: AppColors.amber, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Los usuarios VIP disfrutan de esta y todas las funciones sin ver anuncios.",
-                      style: GoogleFonts.montserrat(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                ],
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.yellow,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              "Cancelar",
-              style: GoogleFonts.montserrat(color: Colors.white38),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx, false);
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SubscriptionScreen()),
-              );
-            },
-            child: Text(
-              "Hacerme VIP 💎",
-              style: GoogleFonts.montserrat(
-                color: AppColors.amber,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.play_circle_fill, color: Color(0xFF121212), size: 18),
-            label: Text(
-              "Ver Video",
-              style: GoogleFonts.montserrat(
-                color: const Color(0xFF121212),
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.yellow,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
 
     if (proceed != true) return;

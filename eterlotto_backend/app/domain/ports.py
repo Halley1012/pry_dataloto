@@ -129,6 +129,10 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def get_ultimos50_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        pass
+
+    @abstractmethod
     def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 

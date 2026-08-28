@@ -4,7 +4,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
-import 'package:eterlotto/widgets/carrusel.dart';
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/screens/loteria_screen.dart';
@@ -44,6 +43,7 @@ class _HomeScreenState extends State<HomeScreen> {
   String? currentUserId;
   String? pais;
   String? userName;
+  String? avatarUrl;
   List<dynamic> _loterias = [];
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
@@ -69,6 +69,7 @@ class _HomeScreenState extends State<HomeScreen> {
         storage.read(key: 'pais_id'),
         storage.read(key: 'pais_nombre'),
         storage.read(key: 'name'),
+        storage.read(key: 'avatar_url'),
       ]);
 
       String? userIdStr = keys[0];
@@ -79,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
       final nameStr = keys[3];
+      final avatarUrlStr = keys[4];
 
       String paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
           ? rawPaisId
@@ -100,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
             currentUserId = userIdStr;
             pais = paisNombreStr ?? "Colombia";
             userName = nameStr;
+            avatarUrl = avatarUrlStr;
             _loterias = List<dynamic>.from(cachedLoterias);
             _filteredLoterias = List<dynamic>.from(_loterias);
             if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
@@ -196,6 +199,8 @@ class _HomeScreenState extends State<HomeScreen> {
               fontWeight: FontWeight.bold,
               fontSize: 22,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
           Text(
@@ -205,6 +210,8 @@ class _HomeScreenState extends State<HomeScreen> {
               fontSize: 14,
               fontWeight: FontWeight.w400,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
@@ -215,7 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final langCode = Localizations.localeOf(context).languageCode;
     final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 18.0, 16.0, 12.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 12.0),
       child: Row(
         children: [
           Text(
@@ -490,7 +497,6 @@ class _HomeScreenState extends State<HomeScreen> {
         BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: l10n?.explorar ?? "Explorar"),
         BottomNavigationBarItem(icon: const Icon(Icons.bookmark_outline), activeIcon: const Icon(Icons.bookmark), label: l10n?.misJugadas ?? "Mis Jugadas"),
         BottomNavigationBarItem(icon: const Icon(Icons.analytics_outlined), activeIcon: const Icon(Icons.analytics), label: l10n?.resultados ?? "Resultados"),
-        BottomNavigationBarItem(icon: const Icon(Icons.person_outline), activeIcon: const Icon(Icons.person), label: l10n?.perfil ?? "Perfil"),
       ],
     );
   }
@@ -692,66 +698,139 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeaderRow(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(left: 3.0, right: 1.0, top: 0.0, bottom: 0.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: 55,
-            child: Image.asset(
-              "assets/images/eterlotto_gold_trans.png",
-              fit: BoxFit.contain,
-              alignment: Alignment.centerLeft,
-            ),
-          ),
-          Row(
-            children: [
-              Consumer<NotificationProvider>(
-                builder: (context, provider, child) {
-                  return Stack(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications_outlined, color: AppColors.yellow, size: 28),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const NotificationsScreen()),
-                          );
-                        },
-                      ),
-                      if (provider.unreadCount > 0)
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(
-                              color: Colors.red,
-                              shape: BoxShape.circle,
-                            ),
-                            constraints: const BoxConstraints(
-                              minWidth: 16,
-                              minHeight: 16,
-                            ),
-                            child: Text(
-                              '${provider.unreadCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
+      padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 4.0),
+      child: SizedBox(
+        height: 52,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Logo Eterlotto más grande y adaptativo a cualquier tamaño de pantalla
+            Flexible(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Image.asset(
+                  "assets/images/eterlotto_gold_trans.png",
+                  height: 48,
+                  fit: BoxFit.contain,
+                ),
               ),
-            ],
-          ),
-        ],
+            ),
+            // Acciones: Campanita de Notificaciones + Avatar de Perfil
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Consumer<NotificationProvider>(
+                  builder: (context, provider, child) {
+                    return SizedBox(
+                      width: 42,
+                      height: 42,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          IconButton(
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 42, minHeight: 42),
+                            icon: const Icon(
+                              Icons.notifications_outlined,
+                              color: AppColors.yellow,
+                              size: 28,
+                            ),
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                              );
+                            },
+                          ),
+                          if (provider.unreadCount > 0)
+                            Positioned(
+                              right: 3,
+                              top: 3,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
+                                ),
+                                child: Text(
+                                  '${provider.unreadCount}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProfileScreen(
+                          onProfileUpdated: () {
+                            _loadUserAndData(forceRefresh: true);
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.yellow,
+                        width: 2.0,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.yellow.withValues(alpha: 0.35),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundColor: AppColors.getAvatarColor(
+                        userName ?? "",
+                        userId: int.tryParse(currentUserId ?? "0"),
+                      ),
+                      backgroundImage: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
+                          ? NetworkImage(avatarUrl!)
+                          : null,
+                      child: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
+                          ? null
+                          : Text(
+                              (userName != null && userName!.isNotEmpty)
+                                  ? userName![0].toUpperCase()
+                                  : "?",
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -803,11 +882,6 @@ class _HomeScreenState extends State<HomeScreen> {
             const LoteriasPais(),
             const MisJugadasSelectorScreen(),
             const ResultadosSelectorScreen(),
-            ProfileScreen(
-              onTabChange: (index) {
-                setState(() => _selectedIndex = index);
-              },
-            ),
           ],
         ),
       ),
@@ -982,7 +1056,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: SizedBox(height: 30),
             ),
             SliverToBoxAdapter(
-              child: _buildPublicidadSection(),
+              child: _buildBuscaloAquiSection(),
             ),
             SliverToBoxAdapter(
               child: _buildComunidadSection(),
@@ -996,52 +1070,67 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPublicidadSection() {
+  Widget _buildBuscaloAquiSection() {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: cargando && anuncios.isEmpty
-          ? Shimmer.fromColors(
-              baseColor: const Color(0xFF1A1A1A),
-              highlightColor: const Color(0xFF2C2C2C),
-              child: Container(
-                height: 140,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  l10n?.buscaloAqui ?? "Búscalo aquí",
+                  style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-            )
-          : anuncios.isEmpty
-          ? const SizedBox.shrink()
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                          child: Text(
-                            AppLocalizations.of(context)?.anunciosDestacados ?? "Anuncios destacados",
-                            style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DirectorioLocalScreen())),
-                        icon: const Icon(Icons.search, color: AppColors.yellow, size: 24),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 10),
-                InfiniteAdsCarousel(key: ValueKey(anuncios.length), anuncios: anuncios),
-              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const DirectorioLocalScreen()),
             ),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white12, width: 0.8),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 6,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.search, color: AppColors.yellow, size: 22),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      l10n?.buscarDirectorioHint ?? "Encuentra negocios, servicios y comercios...",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        color: Colors.white54,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
