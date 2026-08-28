@@ -6,6 +6,7 @@ import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -39,6 +40,18 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   final whatsappController = TextEditingController();
   final tiktokController = TextEditingController();
   final paginaController = TextEditingController();
+
+  // --- Horarios de Atención ---
+  bool _esAtencion24Horas = true;
+  TimeOfDay _horaApertura = const TimeOfDay(hour: 8, minute: 0);
+  TimeOfDay _horaCierre = const TimeOfDay(hour: 20, minute: 0);
+  String _diasAtencion = "Lunes a Sábado";
+  final List<String> _opcionesDias = [
+    "Todos los días",
+    "Lunes a Sábado",
+    "Lunes a Viernes",
+    "Fines de semana",
+  ];
 
   // --- Variables de selección ---
   int? paisSeleccionado;
@@ -421,6 +434,26 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     ciudadSeleccionada = pub["ciudad_id"];
     categoriaSeleccionada = pub["categoria_id"];
 
+    // Horarios de Atención en edición
+    if (pub["es_24_7"] != null) {
+      _esAtencion24Horas = pub["es_24_7"] == true;
+    }
+    if (pub["hora_apertura"] != null && pub["hora_apertura"].toString().contains(":")) {
+      final parts = pub["hora_apertura"].toString().split(":");
+      final h = int.tryParse(parts[0]) ?? 8;
+      final m = int.tryParse(parts[1]) ?? 0;
+      _horaApertura = TimeOfDay(hour: h, minute: m);
+    }
+    if (pub["hora_cierre"] != null && pub["hora_cierre"].toString().contains(":")) {
+      final parts = pub["hora_cierre"].toString().split(":");
+      final h = int.tryParse(parts[0]) ?? 20;
+      final m = int.tryParse(parts[1]) ?? 0;
+      _horaCierre = TimeOfDay(hour: h, minute: m);
+    }
+    if (pub["dias_atencion"] != null && pub["dias_atencion"].toString().isNotEmpty) {
+      _diasAtencion = pub["dias_atencion"].toString();
+    }
+
     // Actualizar códigos de país
     final countryName = paisIdToName[paisSeleccionado] ?? "colombia";
     _updatePhoneCodes(countryName);
@@ -466,6 +499,9 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       final codigoLimpio = _selectedWhatsAppCode.replaceAll('+', '');
       final whatsappFinal = '$codigoLimpio$numeroWhatsAppLimpio';
 
+      final horaAperturaStr = "${_horaApertura.hour.toString().padLeft(2, '0')}:${_horaApertura.minute.toString().padLeft(2, '0')}";
+      final horaCierreStr = "${_horaCierre.hour.toString().padLeft(2, '0')}:${_horaCierre.minute.toString().padLeft(2, '0')}";
+
       final data = {
         "pais_id": paisSeleccionado,
         "departamento_id": departamentoSeleccionado,
@@ -481,6 +517,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "tiktok_url": tiktokController.text.trim(),
         "pagina_url": paginaController.text.trim(),
         "direccion": direccionController.text.trim(),
+        "es_24_7": _esAtencion24Horas,
+        "hora_apertura": _esAtencion24Horas ? "00:00" : horaAperturaStr,
+        "hora_cierre": _esAtencion24Horas ? "23:59" : horaCierreStr,
+        "dias_atencion": _esAtencion24Horas ? "Todos los días" : _diasAtencion,
+        "estado_texto": _esAtencion24Horas ? "Abierto 24/7" : "Abierto ahora",
       };
 
       dynamic response;
@@ -544,6 +585,10 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       _selectedWhatsAppCode = '+57';
       _initialCountryCode = 'CO';
       descripcionLength = 0;
+      _esAtencion24Horas = true;
+      _horaApertura = const TimeOfDay(hour: 8, minute: 0);
+      _horaCierre = const TimeOfDay(hour: 20, minute: 0);
+      _diasAtencion = "Lunes a Sábado";
     });
   }
 
@@ -695,6 +740,130 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       (val) => setState(() => categoriaSeleccionada = val),
                       l10n,
                     ),
+
+                    // --- SECCIÓN HORARIOS DE ATENCIÓN ---
+                    const SizedBox(height: 24),
+                    Text("Horario de Atención", style: AppTextStyles.caption),
+                    const SizedBox(height: 12),
+                    
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E24),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _esAtencion24Horas
+                              ? const Color(0xFF00E676).withValues(alpha: 0.4)
+                              : Colors.white12,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.access_time_filled,
+                                color: _esAtencion24Horas ? const Color(0xFF00E676) : Colors.white54,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                "Atención 24 Horas (24/7)",
+                                style: GoogleFonts.montserrat(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Switch(
+                            value: _esAtencion24Horas,
+                            activeThumbColor: const Color(0xFF00E676),
+                            activeTrackColor: const Color(0xFF00E676).withValues(alpha: 0.3),
+                            inactiveThumbColor: Colors.white54,
+                            inactiveTrackColor: Colors.white12,
+                            onChanged: (val) => setState(() => _esAtencion24Horas = val),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    if (!_esAtencion24Horas) ...[
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _buildTimePickerTile(
+                              label: "Apertura",
+                              time: _horaApertura,
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: _horaApertura,
+                                  builder: (context, child) => Theme(
+                                    data: ThemeData.dark().copyWith(
+                                      colorScheme: const ColorScheme.dark(
+                                        primary: AppColors.yellow,
+                                        surface: Color(0xFF1E1E24),
+                                      ),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                                if (picked != null) {
+                                  setState(() => _horaApertura = picked);
+                                }
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildTimePickerTile(
+                              label: "Cierre",
+                              time: _horaCierre,
+                              onTap: () async {
+                                final picked = await showTimePicker(
+                                  context: context,
+                                  initialTime: _horaCierre,
+                                  builder: (context, child) => Theme(
+                                    data: ThemeData.dark().copyWith(
+                                      colorScheme: const ColorScheme.dark(
+                                        primary: AppColors.yellow,
+                                        surface: Color(0xFF1E1E24),
+                                      ),
+                                    ),
+                                    child: child!,
+                                  ),
+                                );
+                                if (picked != null) {
+                                  setState(() => _horaCierre = picked);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        value: _diasAtencion,
+                        decoration: _inputStyle("Días de atención"),
+                        dropdownColor: AppColors.blackfondo,
+                        style: AppTextStyles.mensajeSecundario,
+                        items: _opcionesDias
+                            .map((d) => DropdownMenuItem(
+                                  value: d,
+                                  child: Text(d, style: AppTextStyles.mensajeSecundario),
+                                ))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _diasAtencion = val);
+                        },
+                      ),
+                    ],
+
                     const SizedBox(height: 24),
                     Text(l10n.redesSociales, style: AppTextStyles.caption),
                     const SizedBox(height: 16),
@@ -864,6 +1033,53 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           .toList(),
       onChanged: onChanged,
       validator: (v) => v == null ? l10n.seleccionaCampo(label) : null,
+    );
+  }
+
+  Widget _buildTimePickerTile({
+    required String label,
+    required TimeOfDay time,
+    required VoidCallback onTap,
+  }) {
+    final formattedTime = time.format(context);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E24),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.white12, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: GoogleFonts.montserrat(
+                color: Colors.white54,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  formattedTime,
+                  style: GoogleFonts.montserrat(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Icon(Icons.schedule, color: AppColors.yellow, size: 18),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
