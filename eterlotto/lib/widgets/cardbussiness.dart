@@ -25,6 +25,7 @@ class BusinessCard extends StatelessWidget {
   final bool isDestacado;
   final String? statusText; // Ej: "Abierto 24/7" o "Abierto ahora"
   final bool isFavorite;
+  final int? totalLikes;
 
   const BusinessCard({
     super.key,
@@ -44,6 +45,7 @@ class BusinessCard extends StatelessWidget {
     this.isDestacado = false,
     this.statusText,
     this.isFavorite = false,
+    this.totalLikes,
   });
 
   Future<void> _launchUrl(String? url) async {
@@ -203,10 +205,26 @@ class BusinessCard extends StatelessWidget {
                           ),
                           GestureDetector(
                             onTap: onAction,
-                            child: Icon(
-                              isFavorite ? Icons.favorite : Icons.favorite_border,
-                              color: isFavorite ? Colors.redAccent : AppColors.yellow,
-                              size: 22,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isFavorite ? Icons.favorite : Icons.favorite_border,
+                                  color: isFavorite ? Colors.redAccent : AppColors.yellow,
+                                  size: 20,
+                                ),
+                                if (totalLikes != null) ...[
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "$totalLikes",
+                                    style: GoogleFonts.montserrat(
+                                      color: isFavorite ? Colors.redAccent : AppColors.yellow,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
                         ],
