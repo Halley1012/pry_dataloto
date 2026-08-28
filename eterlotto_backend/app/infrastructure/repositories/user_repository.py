@@ -28,6 +28,7 @@ class PostgresUserRepository(UserRepositoryPort):
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS idioma VARCHAR(10) DEFAULT 'es';
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS notificaciones_activas BOOLEAN DEFAULT TRUE;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMP WITH TIME ZONE;
+                ALTER TABLE users ADD COLUMN IF NOT EXISTS is_adult BOOLEAN DEFAULT TRUE;
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS app_version VARCHAR(20);
                 ALTER TABLE users ADD COLUMN IF NOT EXISTS plataforma VARCHAR(20);
             """)
@@ -77,6 +78,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     u.app_version,
                     u.plataforma,
                     u.terms_accepted_at,
+                    COALESCE(u.is_adult, TRUE) AS is_adult,
                     u.created_at,
                     u.updated_at,
                     u.last_login_at
@@ -111,6 +113,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     u.app_version,
                     u.plataforma,
                     u.terms_accepted_at,
+                    COALESCE(u.is_adult, TRUE) AS is_adult,
                     u.created_at,
                     u.updated_at,
                     u.last_login_at
@@ -131,7 +134,8 @@ class PostgresUserRepository(UserRepositoryPort):
         auth_provider: str = 'email',
         email_verified: bool = False,
         avatar_url: Optional[str] = None,
-        terms_accepted_at: Optional[datetime] = None
+        terms_accepted_at: Optional[datetime] = None,
+        is_adult: bool = True
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -143,10 +147,10 @@ class PostgresUserRepository(UserRepositoryPort):
                 INSERT INTO users (
                     name, email, password, pais_id, departamento_id,
                     is_premium, auth_provider, email_verified, avatar_url,
-                    activo, terms_accepted_at, created_at, updated_at, last_login_at
+                    activo, terms_accepted_at, is_adult, created_at, updated_at, last_login_at
                 )
-                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, TRUE, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id, auth_provider, email_verified, avatar_url, terms_accepted_at)
+                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7, $8, TRUE, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """, normalized_name, normalized_email, password_hashed, pais_id, departamento_id, auth_provider, email_verified, avatar_url, terms_accepted_at, is_adult)
 
             return await self.find_by_email(normalized_email) or {}
 
