@@ -174,24 +174,48 @@ class AuthUseCases:
     async def request_password_reset(self, email: str) -> str:
         user = await self.user_repo.find_by_email(email)
         if not user:
-            raise ValueError("Usuario no encontrado")
+            raise ValueError("No existe una cuenta registrada con este correo electrónico")
 
-        token = secrets.token_urlsafe(32)
-        expires = datetime.utcnow() + timedelta(hours=1)
+        # Generar código numérico de 6 dígitos seguro
+        code = str(secrets.randbelow(900000) + 100000)
+        expires = datetime.utcnow() + timedelta(minutes=15)
 
-        await self.user_repo.save_password_reset_token(user["id"], token, expires)
-        return token
+        await self.user_repo.save_password_reset_token(user["id"], code, expires)
+        return code
 
-    async def send_password_reset_email_task(self, email: str, token: str) -> None:
+    async def send_password_reset_email_task(self, email: str, code: str) -> None:
         if not self.email_sender:
             return
-            
-        reset_link = f"{config.FRONTEND_URL}/reset-password?token={token}"
         try:
-            await self.email_sender.send_reset_password_email(email, reset_link)
+            await self.email_sender.send_reset_password_code(email, code)
         except Exception as e:
-            # En tareas de fondo es vital capturar errores para no tumbar el worker
-            print(f"❌ Error en Background Task (email): {e}")
+            print(f"❌ Error en Background Task (email de recuperación): {e}")
+
+    async def reset_password_with_code(self, email: str, code: str, new_password: str) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_email(email)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+
+        token_info = await self.user_repo.find_password_reset_token(code.strip())
+        if not token_info or token_info[0] != user["id"]:
+            raise ValueError("El código de 6 dígitos es incorrecto o no existe")
+
+        user_id, expires = token_info
+        now = datetime.utcnow()
+        if expires.tzinfo is not None:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        if now > expires:
+            raise ValueError("El código de recuperación ha expirado. Por favor solicita uno nuevo.")
+
+        hashed_pwd = security.hash_password(new_password)
+        await self.user_repo.update_password(user_id, hashed_pwd)
+
+        return {
+            "success": True,
+            "message": "Contraseña actualizada exitosamente. Ya puedes iniciar sesión con tu nueva contraseña."
+        }
 
     async def social_login(self, provider: str, token: str) -> Dict[str, Any]:
         if provider.lower() != "google":

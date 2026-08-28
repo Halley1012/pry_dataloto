@@ -59,6 +59,15 @@ class TransactionRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+class ResetPasswordWithCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+    new_password: str
+
+class VerifyEmailCodeRequest(BaseModel):
+    email: EmailStr
+    code: str
+
 class CommentCreate(BaseModel):
     content: str
     parent_id: Optional[int] = None
