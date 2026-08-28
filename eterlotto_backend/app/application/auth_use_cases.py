@@ -88,6 +88,12 @@ class AuthUseCases:
                 "id": user["id"],
                 "name": user["name"],
                 "email": user["email"],
+                "pais_id": user.get("pais_id"),
+                "pais_nombre": user.get("pais_nombre"),
+                "departamento_id": user.get("departamento_id"),
+                "departamento_nombre": user.get("departamento_nombre"),
+                "avatar_url": user.get("avatar_url"),
+                "auth_provider": user.get("auth_provider", "email"),
                 "email_verified": True
             }
         }

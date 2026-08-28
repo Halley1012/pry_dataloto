@@ -243,17 +243,31 @@ class _RegistroPageState extends State<RegistroScreen> {
                               setDialogState(() => dialogLoading = false);
 
                               if (res.statusCode == 200) {
-                                final data = jsonDecode(res.body);
-                                const storage = FlutterSecureStorage();
-                                if (data['access_token'] != null) {
-                                  await storage.write(key: "auth_token", value: data['access_token']);
-                                  await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
-                                  if (data['user'] != null && data['user']['id'] != null) {
-                                    await storage.write(key: "user_id", value: data['user']['id'].toString());
+                                  final data = jsonDecode(res.body);
+                                  const storage = FlutterSecureStorage();
+                                  if (data['access_token'] != null) {
+                                    await storage.write(key: "auth_token", value: data['access_token'].toString());
+                                    await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());
                                   }
-                                }
-                                final prefs = await SharedPreferences.getInstance();
-                                await prefs.setString("username", name);
+
+                                  final userMap = data['user'] is Map ? data['user'] as Map : null;
+                                  final finalName = userMap?['name']?.toString() ?? name;
+                                  final finalEmail = userMap?['email']?.toString() ?? email;
+
+                                  await storage.write(key: "name", value: finalName);
+                                  await storage.write(key: "email", value: finalEmail);
+
+                                  if (userMap != null) {
+                                    if (userMap['id'] != null) await storage.write(key: "user_id", value: userMap['id'].toString());
+                                    if (userMap['pais_id'] != null) await storage.write(key: "pais_id", value: userMap['pais_id'].toString());
+                                    if (userMap['pais_nombre'] != null) await storage.write(key: "pais_nombre", value: userMap['pais_nombre'].toString());
+                                    if (userMap['departamento_id'] != null) await storage.write(key: "departamento_id", value: userMap['departamento_id'].toString());
+                                    if (userMap['departamento_nombre'] != null) await storage.write(key: "departamento_nombre", value: userMap['departamento_nombre'].toString());
+                                    if (userMap['avatar_url'] != null) await storage.write(key: "avatar_url", value: userMap['avatar_url'].toString());
+                                  }
+
+                                  final prefs = await SharedPreferences.getInstance();
+                                  await prefs.setString("username", finalName);
 
                                 if (dialogCtx.mounted) {
                                   Navigator.pop(dialogCtx);
