@@ -16,7 +16,8 @@ class AuthUseCases:
         password: str,
         pais_id: int,
         departamento_id: int,
-        terms_accepted_at: Optional[datetime] = None
+        terms_accepted_at: Optional[datetime] = None,
+        is_adult: bool = True
     ) -> Dict[str, Any]:
         existing = await self.user_repo.find_by_email(email)
         if existing:
@@ -30,7 +31,8 @@ class AuthUseCases:
             password_hashed=hashed_pwd,
             pais_id=pais_id,
             departamento_id=departamento_id,
-            terms_accepted_at=terms_dt
+            terms_accepted_at=terms_dt,
+            is_adult=is_adult
         )
         return {
             "success": True,
@@ -82,6 +84,7 @@ class AuthUseCases:
                 "idioma": user.get("idioma", "es"),
                 "notificaciones_activas": user.get("notificaciones_activas", True),
                 "terms_accepted_at": user.get("terms_accepted_at").isoformat() if user.get("terms_accepted_at") else None,
+                "is_adult": user.get("is_adult", True),
             }
         }
 
@@ -99,7 +102,8 @@ class AuthUseCases:
         app_version: Optional[str] = None,
         plataforma: Optional[str] = None,
         avatar_url: Optional[str] = None,
-        terms_accepted_at: Optional[datetime] = None
+        terms_accepted_at: Optional[datetime] = None,
+        is_adult: Optional[bool] = None
     ) -> Dict[str, Any]:
         user = await self.user_repo.find_by_id(user_id)
         if not user:
@@ -145,6 +149,9 @@ class AuthUseCases:
 
         if terms_accepted_at is not None:
             updates["terms_accepted_at"] = terms_accepted_at
+
+        if is_adult is not None:
+            updates["is_adult"] = is_adult
 
         if not updates:
             raise ValueError("No se enviaron campos para actualizar")

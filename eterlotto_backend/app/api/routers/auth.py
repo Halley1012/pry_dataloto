@@ -15,7 +15,8 @@ async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases 
             password=new_user.password,
             pais_id=new_user.pais_id,
             departamento_id=new_user.departamento_id,
-            terms_accepted_at=new_user.terms_accepted_at
+            terms_accepted_at=new_user.terms_accepted_at,
+            is_adult=new_user.is_adult
         )
         return res
     except ValueError as e:
@@ -39,7 +40,8 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
             app_version=user_update.app_version,
             plataforma=user_update.plataforma,
             avatar_url=user_update.avatar_url,
-            terms_accepted_at=user_update.terms_accepted_at
+            terms_accepted_at=user_update.terms_accepted_at,
+            is_adult=user_update.is_adult
         )
         return res
     except ValueError as e:

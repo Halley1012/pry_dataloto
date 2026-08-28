@@ -23,7 +23,8 @@ class UserRepositoryPort(ABC):
         auth_provider: str = 'email',
         email_verified: bool = False,
         avatar_url: Optional[str] = None,
-        terms_accepted_at: Optional[datetime] = None
+        terms_accepted_at: Optional[datetime] = None,
+        is_adult: bool = True
     ) -> Dict[str, Any]:
         pass
 
