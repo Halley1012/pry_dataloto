@@ -193,39 +193,51 @@ class _LoginPageState extends State<LoginPage> {
           );
         }
       } else {
-        showEterSnackBar(
-          context,
-          message: l10n.credencialesInvalidas,
-          isError: true,
-        );
+        final errorMsg = response['message']?.toString() ?? l10n.credencialesInvalidas;
+        if (errorMsg.contains("EMAIL_NOT_VERIFIED")) {
+          showEterSnackBar(
+            context,
+            message: "Tu cuenta no ha sido activada. Ingresa el código de activación enviado a tu correo.",
+            isError: true,
+          );
+          _showEmailVerificationDialog(context, _emailController.text.trim());
+        } else {
+          showEterSnackBar(
+            context,
+            message: errorMsg,
+            isError: true,
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
-      showEterSnackBar(
-        context,
-        message: "${l10n.errorConexion}: $e",
-        isError: true,
-      );
+      final errorStr = e.toString();
+      if (errorStr.contains("EMAIL_NOT_VERIFIED")) {
+        showEterSnackBar(
+          context,
+          message: "Tu cuenta no ha sido activada. Ingresa el código de activación enviado a tu correo.",
+          isError: true,
+        );
+        _showEmailVerificationDialog(context, _emailController.text.trim());
+      } else {
+        showEterSnackBar(
+          context,
+          message: "${l10n.errorConexion}: $e",
+          isError: true,
+        );
+      }
     }
   }
 
-  // Diálogo interactivo de 2 pasos para recuperar contraseña con código PIN
-  void _showFancyForgotPasswordDialog(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    final TextEditingController dialogEmailController = TextEditingController(text: _emailController.text.trim());
+  // Diálogo interactivo para activar cuenta si no ha sido verificada
+  void _showEmailVerificationDialog(BuildContext context, String email) {
     final TextEditingController dialogCodeController = TextEditingController();
-    final TextEditingController dialogNewPasswordController = TextEditingController();
-    final TextEditingController dialogConfirmPasswordController = TextEditingController();
-
-    int step = 1; // 1: Pedir correo, 2: Pedir código y nueva contraseña
     bool dialogLoading = false;
-    bool obscureNewPassword = true;
-    bool obscureConfirmPassword = true;
 
     showDialog(
       context: context,
-      barrierDismissible: !dialogLoading,
+      barrierDismissible: false,
       builder: (dialogCtx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
@@ -240,20 +252,213 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        step == 1 ? l10n.recuperarContrasena : "Nueva Contraseña",
+                        "Activa tu Cuenta",
                         style: AppTextStyles.tituloPrincipal,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        step == 1
-                            ? "Ingresa tu correo para recibir un código de seguridad de 6 dígitos."
-                            : "Ingresa el código de 6 dígitos enviado a ${dialogEmailController.text.trim()} y tu nueva contraseña.",
+                        "Hemos enviado un código de 6 dígitos a $email para verificar tu correo.",
+                        style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: dialogCodeController,
+                        keyboardType: TextInputType.number,
+                        maxLength: 6,
+                        textAlign: TextAlign.center,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        style: AppTextStyles.h2.copyWith(
+                          letterSpacing: 8,
+                          color: AppColors.yellow,
+                          decoration: TextDecoration.none,
+                          decorationThickness: 0,
+                          decorationColor: Colors.transparent,
+                        ),
+                        decoration: InputDecoration(
+                          counterText: "",
+                          hintText: "000000",
+                          hintStyle: AppTextStyles.h2.copyWith(
+                            letterSpacing: 8,
+                            color: Colors.white24,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white10,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                              ),
+                              onPressed: dialogLoading ? null : () => Navigator.pop(dialogCtx),
+                              child: Text(
+                                "Cancelar",
+                                style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: LoadingButton(
+                              isLoading: dialogLoading,
+                              text: "Activar Cuenta",
+                              onPressed: () async {
+                                final code = dialogCodeController.text.trim();
+                                if (code.length != 6) {
+                                  showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                                  return;
+                                }
+
+                                setDialogState(() => dialogLoading = true);
+                                final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
+                                try {
+                                  final res = await http.post(
+                                    url,
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: jsonEncode({'email': email, 'code': code}),
+                                  ).timeout(const Duration(seconds: 20));
+
+                                  setDialogState(() => dialogLoading = false);
+
+                                  if (res.statusCode == 200) {
+                                    final data = jsonDecode(res.body);
+                                    const storage = FlutterSecureStorage();
+                                    if (data['access_token'] != null) {
+                                      await storage.write(key: "auth_token", value: data['access_token']);
+                                      await storage.write(key: "refresh_token", value: data['refresh_token'] ?? "");
+                                      if (data['user'] != null && data['user']['id'] != null) {
+                                        await storage.write(key: "user_id", value: data['user']['id'].toString());
+                                      }
+                                    }
+
+                                    if (dialogCtx.mounted) {
+                                      Navigator.pop(dialogCtx);
+                                      showEterSnackBar(
+                                        context,
+                                        message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                        isSuccess: true,
+                                      );
+                                      Navigator.pushReplacementNamed(context, '/home');
+                                    }
+                                  } else {
+                                    String errorMsg = "Código incorrecto o expirado";
+                                    try {
+                                      final errData = jsonDecode(res.body);
+                                      if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                    } catch (_) {}
+                                    if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+                                  }
+                                } catch (e) {
+                                  setDialogState(() => dialogLoading = false);
+                                  if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                                }
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: dialogLoading
+                            ? null
+                            : () async {
+                                final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
+                                try {
+                                  await http.post(
+                                    url,
+                                    headers: {'Content-Type': 'application/json'},
+                                    body: jsonEncode({'email': email}),
+                                  );
+                                  if (context.mounted) {
+                                    showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                  }
+                                } catch (_) {}
+                              },
+                        child: Text(
+                          "¿No recibiste el código? Reenviar",
+                          style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Diálogo interactivo de 3 pasos: Correo -> Validar PIN -> Nueva Contraseña
+  void _showFancyForgotPasswordDialog(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final TextEditingController dialogEmailController = TextEditingController(text: _emailController.text.trim());
+    final TextEditingController dialogCodeController = TextEditingController();
+    final TextEditingController dialogNewPasswordController = TextEditingController();
+    final TextEditingController dialogConfirmPasswordController = TextEditingController();
+
+    int step = 1; // 1: Correo, 2: Validar Código PIN, 3: Nueva Contraseña
+    bool dialogLoading = false;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+
+    showDialog(
+      context: context,
+      barrierDismissible: !dialogLoading,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            String titleText = l10n.recuperarContrasena;
+            String subtitleText = "Ingresa tu correo para recibir un código de seguridad de 6 dígitos.";
+            String buttonText = "Enviar Código";
+
+            if (step == 2) {
+              titleText = "Verificar Código";
+              subtitleText = "Ingresa el código de 6 dígitos enviado a ${dialogEmailController.text.trim()}";
+              buttonText = "Verificar Código";
+            } else if (step == 3) {
+              titleText = "Nueva Contraseña";
+              subtitleText = "Código verificado ✅. Ingresa tu nueva contraseña para completar el cambio.";
+              buttonText = "Guardar Contraseña";
+            }
+
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: cardBoxDecoration(),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        titleText,
+                        style: AppTextStyles.tituloPrincipal,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        subtitleText,
                         style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
 
+                      // PASO 1: Ingreso de correo
                       if (step == 1) ...[
                         TextField(
                           controller: dialogEmailController,
@@ -278,8 +483,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                         ),
-                      ] else ...[
-                        // Campo de código OTP de 6 dígitos
+                      ]
+                      // PASO 2: Validación del PIN de 6 dígitos
+                      else if (step == 2) ...[
                         TextField(
                           controller: dialogCodeController,
                           keyboardType: TextInputType.number,
@@ -310,8 +516,9 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        // Nueva contraseña
+                      ]
+                      // PASO 3: Ingreso de Nueva Contraseña
+                      else if (step == 3) ...[
                         TextField(
                           controller: dialogNewPasswordController,
                           obscureText: obscureNewPassword,
@@ -345,7 +552,6 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // Confirmar contraseña
                         TextField(
                           controller: dialogConfirmPasswordController,
                           obscureText: obscureConfirmPassword,
@@ -401,9 +607,11 @@ class _LoginPageState extends State<LoginPage> {
                             flex: 2,
                             child: LoadingButton(
                               isLoading: dialogLoading,
-                              text: step == 1 ? "Enviar Código" : "Guardar",
+                              text: buttonText,
                               onPressed: () async {
                                 final email = dialogEmailController.text.trim();
+
+                                // ACCIÓN PASO 1: Enviar código al correo
                                 if (step == 1) {
                                   if (email.isEmpty || !email.contains('@')) {
                                     showEterSnackBar(context, message: "Ingresa un correo electrónico válido", isError: true);
@@ -415,15 +623,27 @@ class _LoginPageState extends State<LoginPage> {
                                   if (success) {
                                     setDialogState(() => step = 2);
                                   }
-                                } else {
+                                }
+                                // ACCIÓN PASO 2: Validar el PIN de 6 dígitos antes de pedir contraseña
+                                else if (step == 2) {
+                                  final code = dialogCodeController.text.trim();
+                                  if (code.length != 6) {
+                                    showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                                    return;
+                                  }
+                                  setDialogState(() => dialogLoading = true);
+                                  final isValid = await _verifyResetCode(email, code);
+                                  setDialogState(() => dialogLoading = false);
+                                  if (isValid) {
+                                    setDialogState(() => step = 3);
+                                  }
+                                }
+                                // ACCIÓN PASO 3: Guardar la nueva contraseña
+                                else if (step == 3) {
                                   final code = dialogCodeController.text.trim();
                                   final newPwd = dialogNewPasswordController.text.trim();
                                   final confirmPwd = dialogConfirmPasswordController.text.trim();
 
-                                  if (code.length != 6) {
-                                    showEterSnackBar(context, message: "El código debe tener 6 dígitos", isError: true);
-                                    return;
-                                  }
                                   if (newPwd.length < 6) {
                                     showEterSnackBar(context, message: "La contraseña debe tener al menos 6 caracteres", isError: true);
                                     return;
@@ -467,6 +687,43 @@ class _LoginPageState extends State<LoginPage> {
         );
       },
     );
+  }
+
+  // Validar código PIN de 6 dígitos con el backend
+  Future<bool> _verifyResetCode(String email, String code) async {
+    final url = Uri.parse('${ApiService.baseUrl}/auth/verify-reset-code');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+        }),
+      ).timeout(const Duration(seconds: 15));
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message: "Código verificado correctamente ✅",
+            isSuccess: true,
+          );
+        }
+        return true;
+      } else {
+        String errorMsg = "Código incorrecto o expirado";
+        try {
+          final data = jsonDecode(response.body);
+          if (data['detail'] != null) errorMsg = data['detail'].toString();
+        } catch (_) {}
+        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+        return false;
+      }
+    } catch (e) {
+      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+      return false;
+    }
   }
 
   // Solicitar código PIN de recuperación

@@ -60,6 +60,19 @@ class PostgresUserRepository(UserRepositoryPort):
                 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens (token);
                 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user_id ON password_reset_tokens (user_id);
             """)
+
+            # 4. Crear tabla de códigos de verificación de correo
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS email_verification_codes (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    code VARCHAR(10) NOT NULL,
+                    expires TIMESTAMP WITH TIME ZONE NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE INDEX IF NOT EXISTS idx_email_verification_codes_user ON email_verification_codes (user_id);
+                CREATE INDEX IF NOT EXISTS idx_email_verification_codes_code ON email_verification_codes (code);
+            """)
             cls._schema_ensured = True
         except Exception as e:
             print(f"⚠️ Error en ensure_schema de PostgresUserRepository: {e}")
@@ -261,3 +274,29 @@ class PostgresUserRepository(UserRepositoryPort):
             async with conn.transaction():
                 await conn.execute("UPDATE users SET password = $1 WHERE id = $2", new_password_hashed, user_id)
                 await conn.execute("DELETE FROM password_reset_tokens WHERE user_id = $1", user_id)
+
+    async def save_email_verification_code(self, user_id: int, code: str, expires: datetime) -> None:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            # Eliminar códigos previos no usados
+            await conn.execute("DELETE FROM email_verification_codes WHERE user_id = $1", user_id)
+            await conn.execute(
+                "INSERT INTO email_verification_codes(user_id, code, expires) VALUES ($1, $2, $3)",
+                user_id, code, expires
+            )
+
+    async def find_email_verification_code(self, user_id: int, code: str) -> Optional[datetime]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT expires FROM email_verification_codes WHERE user_id = $1 AND code = $2",
+                user_id, code
+            )
+            return row['expires'] if row else None
+
+    async def verify_user_email(self, user_id: int) -> None:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute("UPDATE users SET email_verified = TRUE WHERE id = $1", user_id)
+                await conn.execute("DELETE FROM email_verification_codes WHERE user_id = $1", user_id)

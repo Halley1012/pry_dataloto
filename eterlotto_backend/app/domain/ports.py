@@ -53,6 +53,18 @@ class UserRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def save_email_verification_code(self, user_id: int, code: str, expires: datetime) -> None:
+        pass
+
+    @abstractmethod
+    async def find_email_verification_code(self, user_id: int, code: str) -> Optional[datetime]:
+        pass
+
+    @abstractmethod
+    async def verify_user_email(self, user_id: int) -> None:
+        pass
+
+    @abstractmethod
     async def set_premium(
         self,
         user_id: int,

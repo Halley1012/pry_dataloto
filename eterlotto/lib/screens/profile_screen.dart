@@ -16,6 +16,7 @@ import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/screens/subscription_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -140,18 +141,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Header Perfil
               Row(
                 children: [
-                  CircleAvatar(
+                  UserBalotaAvatar(
+                    avatarUrl: avatarUrl,
+                    userName: name,
+                    userId: int.tryParse(userId ?? "0"),
                     radius: 45,
-                    backgroundColor: AppColors.getAvatarColor(name ?? "", userId: int.tryParse(userId ?? "0")),
-                    backgroundImage: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
-                        ? NetworkImage(avatarUrl!)
-                        : null,
-                    child: (avatarUrl != null && avatarUrl!.trim().isNotEmpty)
-                        ? null
-                        : Text(
-                            (name != null && name!.isNotEmpty) ? name![0].toUpperCase() : "?",
-                            style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
-                          ),
+                    showGlow: true,
+                    showBorder: true,
+                    borderColor: AppColors.yellow,
                   ),
                   const SizedBox(width: 20),
                   Expanded(
