@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'colores.dart';
 
 class AppTextStyles {
   /// Encabezados grandes (ej. pantallas principales)
@@ -116,15 +117,24 @@ class CustomTextFormField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: GoogleFonts.montserrat(
-          color: Colors.white54,
-          fontSize: 16,
-          fontWeight: FontWeight.w500,
+          color: Colors.white38,
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
         ),
         filled: true,
-        fillColor: const Color(0xFF1E1E1E),
+        fillColor: const Color(0xFF1E1E24),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
         ),
       ),
       validator: validator,

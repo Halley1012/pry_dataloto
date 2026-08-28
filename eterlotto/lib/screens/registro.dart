@@ -211,10 +211,19 @@ class _RegistroPageState extends State<RegistroScreen> {
                             color: Colors.white24,
                           ),
                           filled: true,
-                          fillColor: Colors.white10,
+                          fillColor: const Color(0xFF1E1E24),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
-                            borderSide: BorderSide.none,
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                           ),
                         ),
                       ),
@@ -700,9 +709,22 @@ class _RegistroPageState extends State<RegistroScreen> {
                               dropdownColor: AppColors.blackfondo,
                               decoration: InputDecoration(
                                 labelText: l10n.pais,
-                                labelStyle: AppTextStyles.mensajeSecundario,
+                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                                filled: true,
+                                fillColor: const Color(0xFF1E1E24),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                                 ),
                               ),
                               style: AppTextStyles.mensajeSecundario,
@@ -746,9 +768,22 @@ class _RegistroPageState extends State<RegistroScreen> {
                               dropdownColor: const Color(0xFF121212),
                               decoration: InputDecoration(
                                 labelText: l10n.departamentoEstado,
-                                labelStyle: AppTextStyles.mensajeSecundario,
+                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                                filled: true,
+                                fillColor: const Color(0xFF1E1E24),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
                                 ),
                               ),
                               style: AppTextStyles.mensajeSecundario,
@@ -930,8 +965,31 @@ class CustomTextFormField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: AppTextStyles.mensajeSecundario,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(30)),
+        labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+        filled: true,
+        fillColor: const Color(0xFF1E1E24),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(30),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
         suffixIcon: suffixIcon,
       ),
     );

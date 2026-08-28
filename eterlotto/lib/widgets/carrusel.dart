@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/cardbussiness.dart'; // Asume que BusinessCard está aquí
 import 'dart:async';
 
@@ -113,6 +113,8 @@ class _InfiniteAdsCarouselState extends State<InfiniteAdsCarousel> {
                       whatsappUrl: anuncio["whatsapp_url"],
                       facebookUrl: anuncio["facebook_url"],
                       instagramUrl: anuncio["instagram_url"],
+                      isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
+                      statusText: anuncio["estado_texto"] ?? "Abierto ahora",
                       onAction: widget.onAction ?? () {},
                     ),
                   ),
