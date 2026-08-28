@@ -13,6 +13,7 @@ class RegisterUser(BaseModel):
     password: str
     pais_id: int
     departamento_id: int
+    terms_accepted_at: Optional[datetime] = None
 
 class UpdateUser(BaseModel):
     name: Optional[str] = None
@@ -26,6 +27,7 @@ class UpdateUser(BaseModel):
     app_version: Optional[str] = None
     plataforma: Optional[str] = None
     avatar_url: Optional[str] = None
+    terms_accepted_at: Optional[datetime] = None
 
 class JugadaCreate(BaseModel):
     numeros: List[int]

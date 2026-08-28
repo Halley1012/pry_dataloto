@@ -32,48 +32,38 @@ void showAcercaDeDialog(BuildContext context) {
   showJustifiedDialog(context, l10n.acercaDe, l10n.contenidoAcercaDe);
 }
 
-/// 🎨 SnackBar estilizado con la identidad visual de Eterlotto
+/// 🎨 SnackBar estilizado con la identidad visual de Eterlotto (igual al diseño oficial)
 void showEterSnackBar(
   BuildContext context, {
   required String message,
   bool isError = false,
   bool isSuccess = false,
-  Duration duration = const Duration(seconds: 4),
+  Duration duration = const Duration(seconds: 3),
 }) {
-  final Color accentColor = isError
-      ? Colors.redAccent
-      : (isSuccess ? AppColors.yellow : Colors.white70);
+  final Color backgroundColor = isError
+      ? const Color(0xFFD32F2F) // Rojo para errores y validaciones
+      : AppColors.amber;         // Amarillo/Ámbar de Eterlotto para alertas y éxitos
 
-  final IconData iconData = isError
-      ? Icons.error_outline
-      : (isSuccess ? Icons.check_circle_outline : Icons.info_outline);
+  final Color textColor = isError
+      ? Colors.white
+      : const Color(0xFF1E1E1E);
 
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       duration: duration,
-      backgroundColor: AppColors.darkGray,
+      backgroundColor: backgroundColor,
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: accentColor.withValues(alpha: 0.8), width: 1.2),
+        borderRadius: BorderRadius.circular(14),
       ),
-      content: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(iconData, color: accentColor, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: AppTextStyles.mensajeSecundario.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+      content: Text(
+        message,
+        style: AppTextStyles.mensajeImportante.copyWith(
+          color: textColor,
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     ),
   );
