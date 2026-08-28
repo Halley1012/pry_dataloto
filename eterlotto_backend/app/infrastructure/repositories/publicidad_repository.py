@@ -208,6 +208,76 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             """, publicidad_id, user_id)
             return result == "DELETE 1"
 
+    async def calificar_publicidad(self, user_id: int, publicidad_id: int, estrellas: int) -> Dict[str, Any]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO publicidad_calificaciones (publicidad_id, user_id, estrellas, created_at)
+                VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+                ON CONFLICT (publicidad_id, user_id)
+                DO UPDATE SET estrellas = EXCLUDED.estrellas, created_at = CURRENT_TIMESTAMP
+            """, publicidad_id, user_id, estrellas)
+
+            stats = await conn.fetchrow("""
+                SELECT 
+                    COALESCE(AVG(estrellas), 0.0) AS promedio,
+                    COUNT(*) AS total_votos
+                FROM publicidad_calificaciones
+                WHERE publicidad_id = $1
+            """, publicidad_id)
+
+            promedio = float(stats["promedio"]) if stats else 0.0
+            total_votos = int(stats["total_votos"]) if stats else 0
+
+            return {
+                "success": True,
+                "promedio": round(promedio, 1),
+                "total_votos": total_votos,
+                "is_destacado": promedio >= 4.5 and total_votos >= 3
+            }
+
+    async def toggle_favorito(self, user_id: int, publicidad_id: int) -> Dict[str, Any]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            existe = await conn.fetchrow("""
+                SELECT estrellas FROM publicidad_calificaciones 
+                WHERE publicidad_id = $1 AND user_id = $2
+            """, publicidad_id, user_id)
+
+            if existe:
+                await conn.execute("""
+                    DELETE FROM publicidad_calificaciones 
+                    WHERE publicidad_id = $1 AND user_id = $2
+                """, publicidad_id, user_id)
+                is_fav = False
+            else:
+                await conn.execute("""
+                    INSERT INTO publicidad_calificaciones (publicidad_id, user_id, estrellas, created_at)
+                    VALUES ($1, $2, 5, CURRENT_TIMESTAMP)
+                    ON CONFLICT (publicidad_id, user_id)
+                    DO UPDATE SET estrellas = 5, created_at = CURRENT_TIMESTAMP
+                """, publicidad_id, user_id)
+                is_fav = True
+
+            stats = await conn.fetchrow("""
+                SELECT 
+                    COALESCE(AVG(estrellas), 0.0) AS promedio,
+                    COUNT(*) AS total_votos
+                FROM publicidad_calificaciones
+                WHERE publicidad_id = $1
+            """, publicidad_id)
+
+            promedio = float(stats["promedio"]) if stats else 0.0
+            total_votos = int(stats["total_votos"]) if stats else 0
+
+            return {
+                "success": True,
+                "is_favorite": is_fav,
+                "promedio": round(promedio, 1),
+                "total_votos": total_votos,
+                "is_destacado": promedio >= 4.5 and total_votos >= 3
+            }
+
     async def aprobar_publicidad(self, publicidad_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:

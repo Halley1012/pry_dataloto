@@ -44,6 +44,14 @@ class PublicidadUseCases:
             raise ValueError("Anuncio no encontrado o no autorizado")
         return {"success": True}
 
+    async def calificar_publicidad(self, user_id: int, publicidad_id: int, estrellas: int) -> Dict[str, Any]:
+        if estrellas < 1 or estrellas > 5:
+            raise ValueError("Las estrellas deben ser entre 1 y 5")
+        return await self.publicidad_repo.calificar_publicidad(user_id, publicidad_id, estrellas)
+
+    async def toggle_favorito(self, user_id: int, publicidad_id: int) -> Dict[str, Any]:
+        return await self.publicidad_repo.toggle_favorito(user_id, publicidad_id)
+
     async def aprobar_publicidad(self, publicidad_id: int) -> Dict[str, Any]:
         success = await self.publicidad_repo.aprobar_publicidad(publicidad_id)
         if not success:

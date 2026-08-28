@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/screens/publicidad.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -51,48 +52,107 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     tituloController.addListener(_onSearchChanged);
   }
 
-  Future<void> _inicializarFiltros() async {
+  Future<void> _inicializarFiltros({bool forceRefresh = false}) async {
     try {
+      if (forceRefresh) {
+        _paisesFuture = ApiService.getPaises();
+        _categoriasFuture = ApiService.getCategorias();
+      }
+
       final results = await Future.wait([
+        _storage.read(key: "user_id"),
         _storage.read(key: "pais_id"),
         _storage.read(key: "pais_nombre"),
         _paisesFuture,
         _categoriasFuture,
       ]);
 
-      final paisIdStr = results[0] as String?;
-      final paisNombre = results[1] as String?;
-      final paisesData = results[2] as List<Map<String, dynamic>>;
+      final userIdStr = results[0] as String?;
+      String? paisIdStr = results[1] as String?;
+      String? paisNombre = results[2] as String?;
+      final paisesData = results[3] as List<Map<String, dynamic>>;
 
-      if (paisIdStr != null) {
-        _paisSeleccionadoId = int.tryParse(paisIdStr);
-      } else if (paisNombre != null && paisNombre != "Todos") {
-        final seleccionado = paisesData.firstWhere(
-          (p) =>
-              p['nombre'].toString().toLowerCase() == paisNombre.toLowerCase(),
+      // 🔍 Si falta pais_id en storage, consultar perfil del usuario
+      if ((paisIdStr == null || paisIdStr.isEmpty) && userIdStr != null && userIdStr.isNotEmpty) {
+        try {
+          final profileRes = await ApiService.get("/users/$userIdStr");
+          if (profileRes.statusCode == 200) {
+            final profileData = jsonDecode(profileRes.body);
+            if (profileData is Map) {
+              final remotePaisId = profileData["pais_id"]?.toString();
+              final remotePaisNombre = profileData["pais_nombre"]?.toString();
+              if (remotePaisId != null) {
+                paisIdStr = remotePaisId;
+                await _storage.write(key: "pais_id", value: remotePaisId);
+              }
+              if (remotePaisNombre != null) {
+                paisNombre = remotePaisNombre;
+                await _storage.write(key: "pais_nombre", value: remotePaisNombre);
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      int? matchedPaisId;
+      String? matchedPaisNombre;
+
+      if (paisIdStr != null && paisIdStr.isNotEmpty) {
+        final pId = int.tryParse(paisIdStr);
+        final found = paisesData.firstWhere(
+          (p) => p['id'] == pId,
           orElse: () => <String, dynamic>{},
         );
-        if (seleccionado.isNotEmpty) {
-          _paisSeleccionadoId = int.tryParse(seleccionado['id'].toString());
+        if (found.isNotEmpty) {
+          matchedPaisId = pId;
+          matchedPaisNombre = found['nombre'].toString();
         }
       }
+
+      if (matchedPaisId == null && paisNombre != null && paisNombre.isNotEmpty && paisNombre != "Todos") {
+        final normStorage = paisNombre.toLowerCase().trim();
+        final found = paisesData.firstWhere(
+          (p) {
+            final normApi = p['nombre'].toString().toLowerCase().trim();
+            return normApi == normStorage ||
+                normApi.contains(normStorage) ||
+                normStorage.contains(normApi) ||
+                (normStorage.contains("unidos") && normApi.contains("unidos")) ||
+                (normStorage.contains("usa") && normApi.contains("estados unidos"));
+          },
+          orElse: () => <String, dynamic>{},
+        );
+        if (found.isNotEmpty) {
+          matchedPaisId = int.tryParse(found['id'].toString());
+          matchedPaisNombre = found['nombre'].toString();
+        }
+      }
+
+      // 🇨🇴 Por defecto si no coincide, seleccionar Colombia
+      if (matchedPaisId == null && paisesData.isNotEmpty) {
+        final col = paisesData.firstWhere(
+          (p) => p['nombre'].toString().toLowerCase().contains("colombia"),
+          orElse: () => paisesData.first,
+        );
+        matchedPaisId = int.tryParse(col['id'].toString()) ?? 5;
+        matchedPaisNombre = col['nombre'].toString();
+      }
+
+      if (matchedPaisId != null) {
+        _paisSeleccionadoId = matchedPaisId;
+        _departamentosFuture = ApiService.getDepartamentosPorPais(matchedPaisId);
+      }
+
+      _departamentoSeleccionadoId = null;
+      _categoriaSeleccionadaId = null;
 
       if (!mounted) return;
 
       setState(() {
-        paisController.text = paisNombre ?? "Todos";
+        paisController.text = matchedPaisNombre ?? "Colombia";
         departamentoController.text = "Todos";
         categoriaController.text = "Todas las categorías";
-
-        if (_paisSeleccionadoId != null) {
-          _departamentosFuture = ApiService.getDepartamentosPorPais(
-            _paisSeleccionadoId!,
-          );
-        }
       });
-
-      _departamentoSeleccionadoId = null;
-      _categoriaSeleccionadaId = null;
 
       await buscarAnuncios("");
     } catch (e) {
@@ -164,19 +224,60 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     return anuncio["departamento_nombre"] as String? ?? "";
   }
 
+  Future<void> _toggleFavorito(Map<String, dynamic> anuncio, int index) async {
+    final rawId = anuncio["id"];
+    if (rawId == null) return;
+    final int? publicidadId = rawId is int ? rawId : int.tryParse(rawId.toString());
+    if (publicidadId == null) return;
+
+    final currentFav = anuncio["is_favorite"] == true;
+    setState(() {
+      anuncio["is_favorite"] = !currentFav;
+    });
+
+    try {
+      final res = await ApiService.toggleFavoritoPublicidad(publicidadId);
+      if (res["success"] == true && mounted) {
+        setState(() {
+          anuncio["is_favorite"] = res["is_favorite"] ?? !currentFav;
+          if (res["is_destacado"] != null) {
+            anuncio["is_destacado"] = res["is_destacado"];
+          }
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          anuncio["is_favorite"] = currentFav;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll("Exception: ", "")),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: CustomScrollView(
-        slivers: [
-          CustomSliverAppBar(
-            title: l10n.buscaloAqui,
-            pinned: true,
-            floating: true,
-            snap: true,
-          ),
+      body: RefreshIndicator(
+        onRefresh: () => _inicializarFiltros(forceRefresh: true),
+        color: AppColors.yellow,
+        backgroundColor: const Color(0xFF1E1E1E),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            CustomSliverAppBar(
+              title: l10n.buscaloAqui,
+              pinned: true,
+              floating: true,
+              snap: true,
+            ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
@@ -203,7 +304,10 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                           await Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const CrearPublicidadForm(),
+                              builder: (_) => CrearPublicidadForm(
+                                initialPaisId: _paisSeleccionadoId,
+                                initialDepartamentoId: _departamentoSeleccionadoId,
+                              ),
                             ),
                           );
                           if (mounted) buscarAnuncios(tituloController.text.trim());
@@ -280,33 +384,22 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                     itemBuilder: (context, index) {
                       final anuncio = anuncios[index];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16.0,
-                          vertical: 8.0,
-                        ),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 4.0),
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(20.0),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(20.0),
-                            child: BusinessCard(
-                              paginaweb: anuncio["pagina_url"] ?? "",
-                              title: anuncio["titulo"] ?? "",
-                              logo: anuncio["imagen_url"] ?? "",
-                              description: anuncio["descripcion"] ?? "",
-                              address: anuncio["direccion"] ?? "",
-                              city: _getLocation(anuncio),
-                              contact: anuncio["telefono"] ?? "",
-                              whatsappUrl: anuncio["whatsapp_url"],
-                              facebookUrl: anuncio["facebook_url"],
-                              instagramUrl: anuncio["instagram_url"],
-                              onAction: () {},
-                            ),
-                          ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: BusinessCard(
+                          paginaweb: anuncio["pagina_url"] ?? "",
+                          title: anuncio["titulo"] ?? "",
+                          logo: anuncio["imagen_url"] ?? "",
+                          description: anuncio["descripcion"] ?? "",
+                          address: anuncio["direccion"] ?? "",
+                          city: _getLocation(anuncio),
+                          contact: anuncio["telefono"] ?? "",
+                          whatsappUrl: anuncio["whatsapp_url"],
+                          facebookUrl: anuncio["facebook_url"],
+                          instagramUrl: anuncio["instagram_url"],
+                          isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
+                          statusText: anuncio["estado_texto"] ?? "Abierto ahora",
+                          isFavorite: anuncio["is_favorite"] == true,
+                          onAction: () => _toggleFavorito(anuncio, index),
                         ),
                       );
                     },
@@ -316,6 +409,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
               ),
             ),
         ],
+      ),
       ),
     );
   }
@@ -419,13 +513,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
             child: CircularProgressIndicator(color: AppColors.yellow),
           );
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return Text(
-            l10n.noHayDepartamentosDisponibles,
-            style: AppTextStyles.mensajeSecundario,
-          );
-        }
-        final departamentosData = snapshot.data!;
+        final departamentosData = (snapshot.hasData && snapshot.data != null)
+            ? snapshot.data!
+            : <Map<String, dynamic>>[];
         final departamentos =
             departamentosData.map((m) => m['nombre'].toString()).toList();
         final depsConTodas = [l10n.todos, ...departamentos];
@@ -490,13 +580,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
             child: CircularProgressIndicator(color: AppColors.yellow),
           );
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return Text(
-            l10n.noHayCategoriasDisponibles,
-            style: const TextStyle(color: Colors.white70),
-          );
-        }
-        final categoriasData = snapshot.data!;
+        final categoriasData = (snapshot.hasData && snapshot.data != null)
+            ? snapshot.data!
+            : <Map<String, dynamic>>[];
         final categorias =
             categoriasData.map((m) => m['nombre'].toString()).toList();
         final catsConTodas = [l10n.todasCategorias, ...categorias];

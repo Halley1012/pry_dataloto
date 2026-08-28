@@ -78,6 +78,72 @@ class PaisHelper {
     return "🌐";
   }
 
+  static String getIsoCode(String nombre) {
+    final n = nombre.toLowerCase().trim();
+    if (n.contains("estados unidos") || n.contains("usa") || n.contains("eeuu") || n.contains("ee.uu") || n.contains("united states")) {
+      return "US";
+    }
+    if (n.contains("españa") || n.contains("espana") || n.contains("spain")) return "ES";
+    if (n.contains("méxico") || n.contains("mexico")) return "MX";
+    if (n.contains("brasil") || n.contains("brazil")) return "BR";
+    if (n.contains("argentina")) return "AR";
+    if (n.contains("colombia")) return "CO";
+    if (n.contains("perú") || n.contains("peru")) return "PE";
+    if (n.contains("chile")) return "CL";
+    if (n.contains("venezuela")) return "VE";
+    if (n.contains("ecuador")) return "EC";
+    if (n.contains("bolivia")) return "BO";
+    if (n.contains("uruguay")) return "UY";
+    if (n.contains("paraguay")) return "PY";
+    if (n.contains("panamá") || n.contains("panama")) return "PA";
+    if (n.contains("costa rica")) return "CR";
+    if (n.contains("guatemala")) return "GT";
+    if (n.contains("dominicana")) return "DO";
+    if (n.contains("puerto rico")) return "PR";
+    if (n.contains("canadá") || n.contains("canada")) return "CA";
+    if (n.contains("reino unido") || n.contains("inglaterra") || n.contains("uk")) return "GB";
+    if (n.contains("francia") || n.contains("france")) return "FR";
+    if (n.contains("italia") || n.contains("italy")) return "IT";
+    if (n.contains("alemania") || n.contains("germany")) return "DE";
+    if (n.contains("honduras")) return "HN";
+    if (n.contains("el salvador")) return "SV";
+    if (n.contains("nicaragua")) return "NI";
+    return "CO";
+  }
+
+  static String getDialCode(String nombre) {
+    final n = nombre.toLowerCase().trim();
+    if (n.contains("estados unidos") || n.contains("usa") || n.contains("eeuu") || n.contains("ee.uu") || n.contains("united states")) {
+      return "+1";
+    }
+    if (n.contains("españa") || n.contains("espana") || n.contains("spain")) return "+34";
+    if (n.contains("méxico") || n.contains("mexico")) return "+52";
+    if (n.contains("brasil") || n.contains("brazil")) return "+55";
+    if (n.contains("argentina")) return "+54";
+    if (n.contains("colombia")) return "+57";
+    if (n.contains("perú") || n.contains("peru")) return "+51";
+    if (n.contains("chile")) return "+56";
+    if (n.contains("venezuela")) return "+58";
+    if (n.contains("ecuador")) return "+593";
+    if (n.contains("bolivia")) return "+591";
+    if (n.contains("uruguay")) return "+598";
+    if (n.contains("paraguay")) return "+595";
+    if (n.contains("panamá") || n.contains("panama")) return "+507";
+    if (n.contains("costa rica")) return "+506";
+    if (n.contains("guatemala")) return "+502";
+    if (n.contains("dominicana")) return "+1";
+    if (n.contains("puerto rico")) return "+1";
+    if (n.contains("canadá") || n.contains("canada")) return "+1";
+    if (n.contains("reino unido") || n.contains("inglaterra") || n.contains("uk")) return "+44";
+    if (n.contains("francia") || n.contains("france")) return "+33";
+    if (n.contains("italia") || n.contains("italy")) return "+39";
+    if (n.contains("alemania") || n.contains("germany")) return "+49";
+    if (n.contains("honduras")) return "+504";
+    if (n.contains("el salvador")) return "+503";
+    if (n.contains("nicaragua")) return "+505";
+    return "+57";
+  }
+
   static String getNombreTraducido(String nombre, String langCode) {
     final n = nombre.toLowerCase().trim();
     if (langCode == 'en') {

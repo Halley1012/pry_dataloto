@@ -17,6 +17,8 @@ import 'package:eterlotto/screens/subscription_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -250,12 +252,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _buildOptionItem(Icons.ads_click, l10n.misAnuncios, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MisAnunciosScreen()))),
               _buildOptionItem(Icons.settings_outlined, l10n.configuracion, _showConfigMenu),
               _buildOptionItem(Icons.help_outline, l10n.ayudaSoporte, _showHelpMenu),
-              _buildOptionItem(Icons.info_outline, l10n.versionApp, () {}, trailingText: _appVersion),
               
-              const SizedBox(height: 20),
-              _buildOptionItem(Icons.logout, l10n.cerrarSesion, _showLogoutDialog, color: Colors.redAccent.withOpacity(0.1), iconColor: Colors.redAccent),
+              const SizedBox(height: 16),
+              _buildOptionItem(Icons.logout, l10n.cerrarSesion, _showLogoutDialog, color: Colors.redAccent.withValues(alpha: 0.1), iconColor: Colors.redAccent),
               
-              const SizedBox(height: 50),
+              const SizedBox(height: 30),
+              _buildBrandAndSocialSection(),
+              const SizedBox(height: 36),
             ],
           ),
         ),
@@ -523,6 +526,122 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 8),
             const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 14),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrandAndSocialSection() {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildSocialIconButton(
+              icon: FontAwesomeIcons.instagram,
+              tooltip: 'Instagram',
+              url: 'https://instagram.com/lumieter.studios',
+            ),
+            const SizedBox(width: 16),
+            _buildSocialIconButton(
+              icon: FontAwesomeIcons.globe,
+              tooltip: 'Sitio Web',
+              url: 'https://lumieter.com',
+            ),
+            const SizedBox(width: 16),
+            _buildSocialIconButton(
+              icon: FontAwesomeIcons.envelope,
+              tooltip: 'Contacto',
+              url: 'mailto:lumieter.studios@gmail.com',
+            ),
+            const SizedBox(width: 16),
+            _buildSocialIconButton(
+              icon: FontAwesomeIcons.xTwitter,
+              tooltip: 'X (Twitter)',
+              url: 'https://x.com/lumieter',
+            ),
+          ],
+        ),
+        const SizedBox(height: 14),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              "Desarrollado con ",
+              style: GoogleFonts.montserrat(
+                color: Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const Icon(Icons.favorite, color: Colors.redAccent, size: 13),
+            Text(
+              " por ",
+              style: GoogleFonts.montserrat(
+                color: Colors.white54,
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            Text(
+              "Lumieter Studios",
+              style: GoogleFonts.montserrat(
+                color: AppColors.amber,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        Text(
+          "Eterlotto v$_appVersion",
+          style: GoogleFonts.montserrat(
+            color: Colors.white38,
+            fontSize: 11,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSocialIconButton({
+    required dynamic icon,
+    required String tooltip,
+    required String url,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: () async {
+            final uri = Uri.parse(url);
+            try {
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            } catch (_) {}
+          },
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.amber.withValues(alpha: 0.25),
+                width: 1,
+              ),
+            ),
+            child: FaIcon(
+              icon,
+              size: 16,
+              color: AppColors.amber,
+            ),
+          ),
         ),
       ),
     );

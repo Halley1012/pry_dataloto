@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
@@ -153,12 +155,54 @@ class _HomeScreenState extends State<HomeScreen> {
         }
       }
 
+      String? finalName = nameStr;
+      String? finalAvatar = avatarUrlStr;
+
+      // 🔍 Recuperar de SharedPreferences si falta en storage
+      if (finalName == null || finalName.isEmpty) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final spName = prefs.getString("username");
+          if (spName != null && spName.isNotEmpty) {
+            finalName = spName;
+            await storage.write(key: 'name', value: spName);
+          }
+        } catch (_) {}
+      }
+
+      // 🔍 Si falta nombre o avatar y tenemos userId, consultar al backend
+      if (((finalName == null || finalName.isEmpty) || finalAvatar == null) && userIdStr != null && userIdStr.isNotEmpty) {
+        try {
+          final profileRes = await ApiService.get("/users/$userIdStr");
+          if (profileRes.statusCode == 200) {
+            final profileData = jsonDecode(profileRes.body);
+            if (profileData is Map) {
+              final remoteName = profileData["name"]?.toString();
+              final remoteAvatar = profileData["avatar_url"]?.toString();
+              if (remoteName != null && remoteName.isNotEmpty) {
+                finalName = remoteName;
+                await storage.write(key: 'name', value: remoteName);
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setString("username", remoteName);
+              }
+              if (remoteAvatar != null && remoteAvatar.isNotEmpty) {
+                finalAvatar = remoteAvatar;
+                await storage.write(key: 'avatar_url', value: remoteAvatar);
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint("⚠️ Error consultando perfil de usuario: $e");
+        }
+      }
+
       if (!mounted) return;
 
       setState(() {
         currentUserId = userIdStr;
         pais = paisNombreStr ?? "Colombia";
-        userName = nameStr;
+        userName = finalName;
+        avatarUrl = finalAvatar;
         posts = rawPosts;
         anuncios = List<Map<String, dynamic>>.from(resultados[1]);
         _loterias = loteriasRes;

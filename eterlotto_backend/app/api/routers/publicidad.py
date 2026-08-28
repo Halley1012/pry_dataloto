@@ -65,3 +65,23 @@ async def actualizar_publicidad(id: int, request: dict, current_user: dict = Dep
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/publicidad/{id}/favorito")
+async def toggle_favorito_publicidad(id: int, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+    user_id = int(current_user["user_id"])
+    try:
+        return await use_cases.toggle_favorito(user_id, id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/publicidad/{id}/calificar")
+async def calificar_publicidad(id: int, request: dict, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+    user_id = int(current_user["user_id"])
+    estrellas = int(request.get("estrellas", 5))
+    try:
+        return await use_cases.calificar_publicidad(user_id, id, estrellas)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -1,42 +1,43 @@
-# Plan de Implementación: Confirmación de Cambio de Idioma
+# Plan de Implementación: Solución de Error de Compilación Gradle
 
-Añadir un diálogo de confirmación cuando el usuario intenta cambiar el idioma de la aplicación, evitando cambios accidentales y mejorando la experiencia del usuario.
+Este plan detalla los pasos para resolver el error `PackageAndroidArtifact$IncrementalSplitterRunnable` que está impidiendo la compilación de la aplicación. Este error suele estar relacionado con archivos corruptos en la caché de compilación o conflictos en el empaquetado del APK.
 
 ## User Review Required
 
 > [!IMPORTANT]
-> El diálogo de confirmación se mostrará en el idioma *actual* de la aplicación antes de aplicar el cambio.
+> Se realizarán acciones de limpieza profunda en el proyecto. Esto borrará la carpeta `build` y las cachés temporales de Gradle, por lo que la siguiente compilación tardará un poco más de lo habitual.
 
 ## Cambios Propuestos
 
-### [Localización]
+### [Limpieza y Reconstrucción]
 
-Añadir cadenas de texto para la confirmación en los archivos `.arb`.
+1.  **Ejecutar `flutter clean`**: Borrar la carpeta de compilación actual.
+2.  **Limpiar Caché de Gradle**: Borrar la carpeta `.gradle` dentro del directorio `android` para forzar a Gradle a reevaluar todas las dependencias.
+3.  **Actualizar Dependencias**: Ejecutar `flutter pub get` para asegurar que todas las librerías estén correctamente descargadas.
 
-#### [MODIFY] [app_es.arb](file:///D:/pry_dataloto/eterlotto/lib/l10n/app_es.arb)
-*   Añadir `"confirmarCambioIdioma": "¿Deseas cambiar el idioma de la aplicación?"`
-*   Añadir `"si": "Sí"`
+### [Ajustes de Configuración (Si la limpieza no funciona)]
 
-#### [MODIFY] [app_en.arb](file:///D:/pry_dataloto/eterlotto/lib/l10n/app_en.arb)
-*   Añadir `"confirmarCambioIdioma": "Do you want to change the app language?"`
-*   Añadir `"si": "Yes"`
+Si el error persiste después de la limpieza, se realizarán los siguientes ajustes en `android/app/build.gradle.kts`:
 
-#### [MODIFY] [app_pt.arb](file:///D:/pry_dataloto/eterlotto/lib/l10n/app_pt.arb)
-*   Añadir `"confirmarCambioIdioma": "Deseja alterar o idioma do aplicativo?"`
-*   Añadir `"si": "Sim"`
+#### [MODIFY] [build.gradle.kts](file:///D:/pry_dataloto/eterlotto/android/app/build.gradle.kts)
+*   Añadir `packagingOptions` para excluir archivos duplicados de `META-INF` que suelen causar este error específico.
 
-### [Pantallas]
+```kotlin
+android {
+    // ...
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
+}
+```
 
-#### [MODIFY] [profile_screen.dart](file:///D:/pry_dataloto/eterlotto/lib/screens/profile_screen.dart)
-*   Actualizar `_showLanguageDialog` para que cada opción de idioma llame a una nueva función de confirmación.
-*   Implementar `_confirmLanguageChange` que muestra un `AlertDialog` con el estilo de la aplicación.
+## Plan de Verificación
 
-## Verificación Plan
+### Verificación Automatizada
+*   Ejecutar `flutter run` para comprobar si la aplicación compila y se inicia correctamente en el dispositivo.
 
-### Manual Verification
-1.  Ir al perfil del usuario.
-2.  Tocar en el selector de idioma.
-3.  Seleccionar un idioma (ej. English).
-4.  Verificar que aparezca el diálogo: "¿Deseas cambiar el idioma de la aplicación?".
-5.  Si se presiona "Cancelar", el idioma no debe cambiar.
-6.  Si se presiona "Sí", el idioma debe cambiar y la UI actualizarse.
+### Verificación Manual
+*   Confirmar que el proceso `assembleDebug` finaliza con éxito.
