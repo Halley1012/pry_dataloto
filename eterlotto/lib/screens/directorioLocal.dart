@@ -232,6 +232,44 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     return anuncio["departamento_nombre"] as String? ?? "";
   }
 
+  String _getScheduleStatus(Map<String, dynamic> anuncio) {
+    final bool es24_7 = anuncio["es_24_7"] == true;
+    if (es24_7) {
+      return "Abierto 24/7";
+    }
+
+    final horaApertura = anuncio["hora_apertura"]?.toString();
+    final horaCierre = anuncio["hora_cierre"]?.toString();
+
+    if (horaApertura != null &&
+        horaCierre != null &&
+        horaApertura.contains(":") &&
+        horaCierre.contains(":")) {
+      try {
+        final now = DateTime.now();
+        final apParts = horaApertura.split(":");
+        final ciParts = horaCierre.split(":");
+
+        final apHour = int.parse(apParts[0]);
+        final apMin = int.parse(apParts[1]);
+        final ciHour = int.parse(ciParts[0]);
+        final ciMin = int.parse(ciParts[1]);
+
+        final currentMinutes = now.hour * 60 + now.minute;
+        final apMinutes = apHour * 60 + apMin;
+        final ciMinutes = ciHour * 60 + ciMin;
+
+        if (currentMinutes >= apMinutes && currentMinutes <= ciMinutes) {
+          return "Abierto ahora";
+        } else {
+          return "Cerrado";
+        }
+      } catch (_) {}
+    }
+
+    return anuncio["estado_texto"] ?? "Abierto ahora";
+  }
+
   Future<void> _toggleFavorito(Map<String, dynamic> anuncio, int index) async {
     final rawId = anuncio["id"];
     if (rawId == null) return;
@@ -424,7 +462,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                           facebookUrl: anuncio["facebook_url"],
                           instagramUrl: anuncio["instagram_url"],
                           isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
-                          statusText: anuncio["estado_texto"] ?? "Abierto ahora",
+                          statusText: _getScheduleStatus(anuncio),
                           isFavorite: anuncio["is_favorite"] == true,
                           totalLikes: int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0,
                           onAction: () => _toggleFavorito(anuncio, index),
