@@ -33,10 +33,16 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _checkAuth() async {
     try {
-      final splashDelay = Future.delayed(const Duration(seconds: 2));
+      final splashDelay = Future.delayed(const Duration(milliseconds: 1500));
 
-      final accessToken = await storage.read(key: "auth_token");
-      final refreshToken = await storage.read(key: "refresh_token");
+      final accessToken = await storage.read(key: "auth_token").timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+      final refreshToken = await storage.read(key: "refresh_token").timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
 
       // Si no existe ningún token guardado, el usuario nunca ha iniciado sesión o hizo logout explícito
       if (accessToken == null && refreshToken == null) {
@@ -48,7 +54,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // Validar o refrescar la sesión si hay conexión (con timeout estricto para evitar bloqueos)
       final hasSession = await ApiService.ensureValidSession().timeout(
-        const Duration(milliseconds: 2500),
+        const Duration(milliseconds: 2000),
         onTimeout: () => (accessToken != null || refreshToken != null),
       );
 

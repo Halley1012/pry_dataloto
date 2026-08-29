@@ -102,23 +102,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo
+              // Logo adaptativo
               Image.asset(
                 "assets/images/logo_letras_.png",
                 fit: BoxFit.contain,
-                height: 400,
+                height: MediaQuery.of(context).size.height * 0.28,
               ),
-              const SizedBox(height: 1),
+              const SizedBox(height: 16),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a Eterlotto!", style: AppTextStyles.h2),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               Text(
                 l10n?.descripcionBienvenida ?? "Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.",
                 textAlign: TextAlign.center,
                 style: AppTextStyles.mensajeSecundario,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 28),
 
               // Botón Iniciar sesión
               ConstrainedBox(
