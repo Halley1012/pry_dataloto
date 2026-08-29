@@ -166,10 +166,16 @@ class SubscriptionProvider extends ChangeNotifier {
   /// Iniciar flujo de compra de la suscripción mensual en Google Play
   Future<bool> buyMonthlySubscription() async {
     if (_monthlyProduct == null) {
-      debugPrint('⚠️ Producto no disponible para compra.');
-      // Intentar recargar
+      debugPrint('⚠️ Producto no disponible para compra. Intentando recargar...');
+      _isLoading = true;
+      notifyListeners();
       await loadProducts();
-      if (_monthlyProduct == null) return false;
+      _isLoading = false;
+      if (_monthlyProduct == null) {
+        _errorMessage = 'El plan de suscripción aún no está disponible desde Google Play en este dispositivo. Por favor verifica tu conexión o inténtalo en unos minutos.';
+        notifyListeners();
+        return false;
+      }
     }
 
     _isLoading = true;

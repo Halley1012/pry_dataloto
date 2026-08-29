@@ -24,6 +24,16 @@ async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al registrar usuario: {str(e)}")
 
+@router.get("/users/{user_id}")
+async def get_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+    try:
+        res = await use_cases.get_user_profile(user_id)
+        return res
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener usuario: {str(e)}")
+
 @router.put("/users/{user_id}")
 async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
     try:

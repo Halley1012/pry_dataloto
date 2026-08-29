@@ -293,40 +293,48 @@ class BusinessCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Badge de Estado (Abierto ahora / Abierto 24/7)
+                // Badge de Estado (Abierto ahora / Abierto 24/7 / Cerrado)
                 if (statusText != null && statusText!.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF091F17),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF00E676).withValues(alpha: 0.35),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 7,
-                          height: 7,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF00E676),
-                            shape: BoxShape.circle,
+                  Builder(
+                    builder: (context) {
+                      final isClosed = statusText!.toLowerCase().contains("cerrado");
+                      final badgeColor = isClosed ? const Color(0xFFFF5252) : const Color(0xFF00E676);
+                      final bgColor = isClosed ? const Color(0xFF260D0D) : const Color(0xFF091F17);
+
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: bgColor,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: badgeColor.withValues(alpha: 0.35),
+                            width: 1,
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          statusText!,
-                          style: GoogleFonts.montserrat(
-                            color: const Color(0xFF00E676),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: badgeColor,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              statusText!,
+                              style: GoogleFonts.montserrat(
+                                color: badgeColor,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   )
                 else
                   const SizedBox.shrink(),
