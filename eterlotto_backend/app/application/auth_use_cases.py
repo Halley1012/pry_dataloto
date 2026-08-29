@@ -250,6 +250,13 @@ class AuthUseCases:
             "user": updated_user
         }
 
+    async def get_user_profile(self, user_id: int) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_id(user_id)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+        user.pop("password_hashed", None)
+        return user
+
     async def delete_user(self, user_id: int) -> Dict[str, Any]:
         deleted_info = await self.user_repo.delete(user_id)
         return {

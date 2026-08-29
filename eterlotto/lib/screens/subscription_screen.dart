@@ -6,8 +6,23 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../providers/subscription_provider.dart';
 import '../styles/colores.dart';
 
-class SubscriptionScreen extends StatelessWidget {
+class SubscriptionScreen extends StatefulWidget {
   const SubscriptionScreen({super.key});
+
+  @override
+  State<SubscriptionScreen> createState() => _SubscriptionScreenState();
+}
+
+class _SubscriptionScreenState extends State<SubscriptionScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<SubscriptionProvider>().loadProducts();
+      }
+    });
+  }
 
   Future<void> _openUrl(String urlString) async {
     final uri = Uri.parse(urlString);
