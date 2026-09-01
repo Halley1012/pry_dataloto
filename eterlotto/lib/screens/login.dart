@@ -13,6 +13,9 @@ import 'package:eterlotto/screens/registro.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'resultados/widgets/resultados_shared.dart';
+import 'package:provider/provider.dart';
+import '../providers/subscription_provider.dart';
+import '../utils/secure_storage_helper.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -24,7 +27,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
   bool _obscureText = true; // State for password visibility
 
   bool isLoading = false;
@@ -182,6 +185,8 @@ class _LoginPageState extends State<LoginPage> {
           );
 
           if (!mounted) return;
+
+          context.read<SubscriptionProvider>().refreshSubscriptionStatus();
 
           // Redirigir al Home
           Navigator.pushReplacementNamed(context, "/home");
@@ -343,7 +348,7 @@ class _LoginPageState extends State<LoginPage> {
 
                                   if (res.statusCode == 200) {
                                     final data = jsonDecode(res.body);
-                                    const storage = FlutterSecureStorage();
+                                    final storage = AppSecureStorage.instance;
                                     if (data['access_token'] != null) {
                                       await storage.write(key: "auth_token", value: data['access_token'].toString());
                                       await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());

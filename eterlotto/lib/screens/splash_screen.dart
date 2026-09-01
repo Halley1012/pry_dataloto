@@ -6,6 +6,8 @@ import 'package:eterlotto/screens/registro.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 
+import '../utils/secure_storage_helper.dart';
+
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -15,7 +17,7 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
   late AnimationController _controller;
 
   @override
@@ -29,14 +31,28 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
     _checkAuth();
+
+    // 🛡️ Temporizador de seguridad: Si por cualquier motivo tarda más de 3.5s, forzar navegación a /welcome
+    Future.delayed(const Duration(milliseconds: 3500), () {
+      if (mounted) {
+        debugPrint('🛡️ Safety timeout activado en SplashScreen -> navegando a /welcome');
+        Navigator.pushReplacementNamed(context, '/welcome');
+      }
+    });
   }
 
   Future<void> _checkAuth() async {
     try {
-      final splashDelay = Future.delayed(const Duration(seconds: 2));
+      final splashDelay = Future.delayed(const Duration(milliseconds: 1500));
 
-      final accessToken = await storage.read(key: "auth_token");
-      final refreshToken = await storage.read(key: "refresh_token");
+      final accessToken = await storage.read(key: "auth_token").timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+      final refreshToken = await storage.read(key: "refresh_token").timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
 
       // Si no existe ningún token guardado, el usuario nunca ha iniciado sesión o hizo logout explícito
       if (accessToken == null && refreshToken == null) {
@@ -48,7 +64,7 @@ class _SplashScreenState extends State<SplashScreen>
 
       // Validar o refrescar la sesión si hay conexión (con timeout estricto para evitar bloqueos)
       final hasSession = await ApiService.ensureValidSession().timeout(
-        const Duration(milliseconds: 2500),
+        const Duration(milliseconds: 2000),
         onTimeout: () => (accessToken != null || refreshToken != null),
       );
 

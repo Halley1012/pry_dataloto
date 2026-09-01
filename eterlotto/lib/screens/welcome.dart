@@ -4,8 +4,10 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:provider/provider.dart';
+import '../providers/subscription_provider.dart';
 import '../services/api_service.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/screens/registro.dart';
 import 'package:eterlotto/screens/login.dart';
 
@@ -18,7 +20,7 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isLoading = false;
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
 
   Future<void> _loginWithGoogle() async {
     final l10n = AppLocalizations.of(context)!;
@@ -73,6 +75,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           );
         } else {
+          if (mounted) {
+            context.read<SubscriptionProvider>().refreshSubscriptionStatus();
+          }
           Navigator.pushReplacementNamed(context, "/home");
         }
       } else {
@@ -102,23 +107,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Logo
+              // Logo adaptativo
               Image.asset(
                 "assets/images/logo_letras_.png",
                 fit: BoxFit.contain,
-                height: 400,
+                height: MediaQuery.of(context).size.height * 0.28,
               ),
-              const SizedBox(height: 1),
+              const SizedBox(height: 16),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a Eterlotto!", style: AppTextStyles.h2),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
               Text(
                 l10n?.descripcionBienvenida ?? "Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.",
                 textAlign: TextAlign.center,
                 style: AppTextStyles.mensajeSecundario,
               ),
-              const SizedBox(height: 40),
+              const SizedBox(height: 28),
 
               // Botón Iniciar sesión
               ConstrainedBox(

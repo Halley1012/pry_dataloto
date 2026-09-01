@@ -9,6 +9,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import '../utils/pais_helper.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class CrearPublicidadForm extends StatefulWidget {
@@ -78,7 +79,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   int descripcionLength = 0;
   final int descripcionMax = 90;
 
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
   bool _esEdicion = false;
 
   @override

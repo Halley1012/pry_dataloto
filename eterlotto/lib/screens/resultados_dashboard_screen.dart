@@ -17,6 +17,7 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -66,13 +67,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     super.initState();
     ScreenSecurityHelper.enableSecureScreen();
     _selectedLoteria = widget.loteriaNombreInicial;
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
     _cargarDatosReales();
   }
 
   @override
   void dispose() {
     ScreenSecurityHelper.disableSecureScreen();
+    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
     super.dispose();
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.resultados ||
+        module == RefreshModules.jugadas ||
+        module == 'all') {
+      if (mounted) {
+        debugPrint("🔄 [ResultadosDashboardScreen] Auto-refrescando $_selectedLoteria por ciclo de vida / TTL");
+        _cargarDatosReales(forceRefresh: false);
+      }
+    }
   }
 
   String _getRouteForLoteria(String name) {
@@ -268,6 +283,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       };
 
       CacheService.setJson(cacheKey, payload);
+      DataRefreshManager.instance.markUpdated(RefreshModules.resultados);
 
       if (mounted) {
         _procesarDatosCargados(payload);

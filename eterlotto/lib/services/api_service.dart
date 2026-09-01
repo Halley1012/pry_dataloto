@@ -1,15 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
 
+import '../utils/secure_storage_helper.dart';
+
 class ApiService {
   static const String baseUrl = "https://pry-dataloto.onrender.com";
-  static final _storage = const FlutterSecureStorage();
+  static final _storage = AppSecureStorage.instance;
 
   /// Headers dinámicos, con o sin token
   static Future<Map<String, String>> _getHeaders({bool withAuth = true}) async {
@@ -102,12 +103,6 @@ class ApiService {
             await _storage.write(key: "idioma", value: idioma.toString());
           }
 
-          final isPremium = user?["is_premium"] == true;
-          await _storage.write(
-            key: "is_premium_subscribed",
-            value: isPremium ? "true" : "false",
-          );
-
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
 
@@ -124,7 +119,7 @@ class ApiService {
             'departamento_nombre': departamentoNombre,
             'avatar_url': avatarUrl,
             'auth_provider': authProvider,
-            'is_premium': isPremium,
+            'is_premium': user?['is_premium'] == true,
           };
         }
 
@@ -214,12 +209,6 @@ class ApiService {
           }
           final authProvider = user?["auth_provider"] ?? provider;
           await _storage.write(key: "auth_provider", value: authProvider.toString());
-
-          final isPremium = user?["is_premium"] == true;
-          await _storage.write(
-            key: "is_premium_subscribed",
-            value: isPremium ? "true" : "false",
-          );
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -929,59 +918,130 @@ class ApiService {
   }
 
 
-  /// GET genérico
-  static Future<http.Response> get(String endpoint) async {
-    final headers = await _getHeaders();
-    return http.get(Uri.parse("$baseUrl$endpoint"), headers: headers);
-  }
-
-  /// POST genérico con auto-retry si el token expiró
-  static Future<http.Response> post(
-    String endpoint,
-    Map<String, dynamic> body, {
+  /// GET genérico con timeout, auto-retry y soporte para forceRefresh
+  static Future<http.Response> get(
+    String endpoint, {
     bool withAuth = true,
+    bool forceRefresh = false,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
-    var response = await http.post(
-      Uri.parse("$baseUrl$endpoint"),
-      headers: headers,
-      body: jsonEncode(body),
-    );
+    if (forceRefresh) {
+      headers["Cache-Control"] = "no-cache";
+      headers["Pragma"] = "no-cache";
+    }
+
+    var response = await http
+        .get(Uri.parse("$baseUrl$endpoint"), headers: headers)
+        .timeout(timeout);
 
     if (withAuth && response.statusCode == 401) {
       final refreshed = await refreshAccessToken();
       if (refreshed) {
         headers = await _getHeaders(withAuth: true);
-        response = await http.post(
-          Uri.parse("$baseUrl$endpoint"),
-          headers: headers,
-          body: jsonEncode(body),
-        );
+        if (forceRefresh) {
+          headers["Cache-Control"] = "no-cache";
+          headers["Pragma"] = "no-cache";
+        }
+        response = await http
+            .get(Uri.parse("$baseUrl$endpoint"), headers: headers)
+            .timeout(timeout);
       }
     }
 
     return response;
   }
 
-  /// DELETE genérico con auto-retry si el token expiró
-  static Future<http.Response> delete(
-    String endpoint, {
+  /// POST genérico con auto-retry si el token expiró y timeout
+  static Future<http.Response> post(
+    String endpoint,
+    Map<String, dynamic> body, {
     bool withAuth = true,
+    Duration timeout = const Duration(seconds: 15),
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
-    var response = await http.delete(
-      Uri.parse("$baseUrl$endpoint"),
-      headers: headers,
-    );
+    var response = await http
+        .post(
+          Uri.parse("$baseUrl$endpoint"),
+          headers: headers,
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
 
     if (withAuth && response.statusCode == 401) {
       final refreshed = await refreshAccessToken();
       if (refreshed) {
         headers = await _getHeaders(withAuth: true);
-        response = await http.delete(
+        response = await http
+            .post(
+              Uri.parse("$baseUrl$endpoint"),
+              headers: headers,
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+      }
+    }
+
+    return response;
+  }
+
+  /// PUT genérico con auto-retry y timeout
+  static Future<http.Response> put(
+    String endpoint,
+    Map<String, dynamic> body, {
+    bool withAuth = true,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    var headers = await _getHeaders(withAuth: withAuth);
+    var response = await http
+        .put(
           Uri.parse("$baseUrl$endpoint"),
           headers: headers,
-        );
+          body: jsonEncode(body),
+        )
+        .timeout(timeout);
+
+    if (withAuth && response.statusCode == 401) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        headers = await _getHeaders(withAuth: true);
+        response = await http
+            .put(
+              Uri.parse("$baseUrl$endpoint"),
+              headers: headers,
+              body: jsonEncode(body),
+            )
+            .timeout(timeout);
+      }
+    }
+
+    return response;
+  }
+
+  /// DELETE genérico con auto-retry si el token expiró y timeout
+  static Future<http.Response> delete(
+    String endpoint, {
+    bool withAuth = true,
+    Duration timeout = const Duration(seconds: 15),
+  }) async {
+    var headers = await _getHeaders(withAuth: withAuth);
+    var response = await http
+        .delete(
+          Uri.parse("$baseUrl$endpoint"),
+          headers: headers,
+        )
+        .timeout(timeout);
+
+    if (withAuth && response.statusCode == 401) {
+      final refreshed = await refreshAccessToken();
+      if (refreshed) {
+        headers = await _getHeaders(withAuth: true);
+        response = await http
+            .delete(
+              Uri.parse("$baseUrl$endpoint"),
+              headers: headers,
+            )
+            .timeout(timeout);
       }
     }
 
@@ -1715,17 +1775,20 @@ class ApiService {
         return {'success': false, 'error': 'Usuario no autenticado'};
       }
 
-      final response = await post("/subscriptions/confirm", {
-        "user_id": int.parse(userIdStr.toString()),
-        "product_id": productId,
-        "purchase_token": purchaseToken,
-        "order_id": orderId,
-        "status": "active",
-      });
+      final response = await post(
+        "/subscriptions/confirm",
+        {
+          "user_id": int.parse(userIdStr.toString()),
+          "product_id": productId,
+          "purchase_token": purchaseToken,
+          "order_id": orderId,
+          "status": "active",
+        },
+        withAuth: true,
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        await _storage.write(key: "is_premium_subscribed", value: "true");
         return {'success': true, 'data': data};
       } else {
         return {
@@ -1738,21 +1801,16 @@ class ApiService {
     }
   }
 
-  /// 💎 Consultar estado VIP del usuario desde la base de datos
+  /// 💎 Consultar estado VIP del usuario desde la base de datos (fuente de verdad)
   static Future<bool> checkSubscriptionStatus() async {
     try {
       final userIdStr = await getUserId();
       if (userIdStr == null) return false;
 
-      final response = await get("/subscriptions/status/$userIdStr");
+      final response = await get("/subscriptions/status/$userIdStr", withAuth: false);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final bool isPremium = data["is_premium"] == true;
-        await _storage.write(
-          key: "is_premium_subscribed",
-          value: isPremium ? "true" : "false",
-        );
-        return isPremium;
+        return data["is_premium"] == true;
       }
       return false;
     } catch (e) {

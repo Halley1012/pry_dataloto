@@ -19,6 +19,7 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import '../utils/secure_storage_helper.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -31,7 +32,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
   String? name;
   String? email;
   String? userId;
@@ -61,6 +62,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserData() async {
     final userData = await storage.readAll();
     if (mounted) {
+      context.read<SubscriptionProvider>().refreshSubscriptionStatus();
       setState(() {
         name = userData['name'] ?? "Usuario";
         email = userData['email'] ?? "correo@ejemplo.com";
@@ -85,6 +87,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: Text(l10n.cancelar, style: const TextStyle(color: AppColors.yellow))),
           TextButton(
             onPressed: () async {
+              context.read<SubscriptionProvider>().reset();
               await storage.deleteAll();
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();

@@ -10,7 +10,9 @@
     <application
         android:label="Eterlotto IA"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:allowBackup="false"
+        android:fullBackupContent="false">
 
         <!-- 💰 Google AdMob App ID (Reemplazar con ID real de AdMob en producción) -->
         <meta-data

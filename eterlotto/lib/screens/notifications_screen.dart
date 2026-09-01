@@ -7,7 +7,7 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'resultados_dashboard_screen.dart';
 
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/secure_storage_helper.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBackButton;
@@ -20,7 +20,7 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _selectedFilterIndex = 0; // 0: Mi País, 1: Internacionales, 2: Todas
   String? _userPaisId;
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
 
   @override
   void initState() {

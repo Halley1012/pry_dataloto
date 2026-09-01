@@ -14,16 +14,6 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        context.read<SubscriptionProvider>().loadProducts();
-      }
-    });
-  }
-
   Future<void> _openUrl(String urlString) async {
     final uri = Uri.parse(urlString);
     if (await canLaunchUrl(uri)) {
@@ -41,7 +31,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final subProvider = context.watch<SubscriptionProvider>();
     final isSubscribed = subProvider.isSubscribed;
     final product = subProvider.monthlyProduct;
-    final priceString = product?.price ?? "\$1.99 / mes";
+    final priceString = product?.price ??
+        (subProvider.isLoading
+            ? "Cargando..."
+            : "Consultando...");
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -312,6 +305,96 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       color: Colors.white60,
                       fontSize: 13,
                       decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 8),
+
+                // 🔍 Botón de Diagnóstico de Google Play
+                TextButton.icon(
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: const Color(0xFF1E1E1E),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (ctx) => Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Diagnóstico Google Play",
+                                  style: GoogleFonts.montserrat(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, color: Colors.white60),
+                                  onPressed: () => Navigator.pop(ctx),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF121212),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.white12),
+                              ),
+                              child: SelectableText(
+                                subProvider.diagnosticInfo,
+                                style: GoogleFonts.firaCode(
+                                  color: Colors.amberAccent,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () async {
+                                  Navigator.pop(ctx);
+                                  await subProvider.loadProducts();
+                                },
+                                icon: const Icon(Icons.refresh, color: Colors.black),
+                                label: Text(
+                                  "Reintentar sincronización",
+                                  style: GoogleFonts.montserrat(
+                                    color: Colors.black,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.amber,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.info_outline, size: 16, color: Colors.white38),
+                  label: Text(
+                    "Ver estado de Google Play",
+                    style: GoogleFonts.montserrat(
+                      color: Colors.white38,
+                      fontSize: 12,
                     ),
                   ),
                 ),

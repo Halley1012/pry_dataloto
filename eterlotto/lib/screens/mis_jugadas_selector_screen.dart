@@ -12,6 +12,9 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
+import 'package:eterlotto/services/data_refresh_manager.dart';
+import '../utils/secure_storage_helper.dart';
+
 class MisJugadasSelectorScreen extends StatefulWidget {
   const MisJugadasSelectorScreen({super.key});
 
@@ -20,7 +23,7 @@ class MisJugadasSelectorScreen extends StatefulWidget {
 }
 
 class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
@@ -32,18 +35,30 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   void initState() {
     super.initState();
     CacheService.jugadasChangeNotifier.addListener(_onJugadasChanged);
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
     cargarLoterias();
   }
 
   @override
   void dispose() {
     CacheService.jugadasChangeNotifier.removeListener(_onJugadasChanged);
+    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
     super.dispose();
   }
 
   void _onJugadasChanged() {
     if (mounted) {
       cargarLoterias(forceRefresh: true);
+    }
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.jugadas || module == 'all') {
+      if (mounted) {
+        debugPrint("🔄 [MisJugadasSelectorScreen] Auto-refrescando jugadas por ciclo de vida / TTL");
+        cargarLoterias(forceRefresh: false);
+      }
     }
   }
 
@@ -119,6 +134,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           CacheService.setJson(cacheKey, jugadasLoterias);
           CacheService.setJson('mis_jugadas_info_cache', infoMap);
         }
+        DataRefreshManager.instance.markUpdated(RefreshModules.jugadas);
       }
     } catch (e) {
       debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");

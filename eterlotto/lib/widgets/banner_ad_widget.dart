@@ -13,6 +13,9 @@ class BannerAdWidget extends StatefulWidget {
   final AdSize adSize;
   final bool showHeader;
 
+  // 📸 MODO CAPTURAS / PLAY CONSOLE: Cambia a 'false' cuando desees volver a mostrar el banner
+  static const bool hideBanner = true;
+
   const BannerAdWidget({
     super.key,
     this.adSize = AdSize.banner,
@@ -34,6 +37,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (BannerAdWidget.hideBanner) return;
     final isSubscribed = Provider.of<SubscriptionProvider>(context).isSubscribed;
     if (!isSubscribed) {
       _scheduleBannerLoad();
@@ -43,6 +47,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _scheduleBannerLoad() {
+    if (BannerAdWidget.hideBanner) return;
     if (_bannerAd != null || _isAdLoaded) return;
 
     final sessionElapsed = AdService.instance.sessionDuration;
@@ -111,6 +116,9 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   Widget build(BuildContext context) {
+    if (BannerAdWidget.hideBanner) {
+      return const SizedBox.shrink();
+    }
     final l10n = AppLocalizations.of(context);
     // Si el usuario tiene suscripción activa, está en los primeros 40s o no ha cargado, 0 px
     final isSubscribed = context.watch<SubscriptionProvider>().isSubscribed;
