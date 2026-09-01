@@ -29,7 +29,9 @@ async def confirmation(request: Request, use_cases: TransactionUseCases = Depend
         res = await use_cases.confirmar_transaccion(data)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al actualizar: {e}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/response")
 async def response(status: str = None, ref_payco: str = None):
@@ -45,3 +47,4 @@ async def response(status: str = None, ref_payco: str = None):
     </html>
     """
     return HTMLResponse(content=html_content)
+

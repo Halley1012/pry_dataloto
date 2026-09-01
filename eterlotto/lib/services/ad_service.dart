@@ -11,7 +11,7 @@ class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
-  // ⚙️ Configuración: true para desarrollo/pruebas, false cuando pongas tus IDs reales
+  // ⚙️ Configuración: 'true' para Internal Testing / Desarrollo. Cambiar a 'false' SÓLO al enviar a Producción real.
   static const bool isTestMode = true;
 
   // 🔹 IDs de Producción (Reemplazar cuando crees los bloques en Google AdMob)

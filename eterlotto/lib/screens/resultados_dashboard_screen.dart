@@ -171,15 +171,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     try {
       // Phase 1: Fetch ultimos5 to determine target draw date
-      final resSorteos = await http.get(Uri.parse("https://pry-dataloto.onrender.com/$route/ultimos5")).catchError((_) => http.Response('{}', 500));
-
-      List<Map<String, dynamic>> sorteosList = [];
-      if (resSorteos.statusCode == 200) {
-        final body = jsonDecode(resSorteos.body);
-        if (body["resultados"] != null) {
-          sorteosList = List<Map<String, dynamic>>.from(body["resultados"]);
-        }
-      }
+      final sorteosList = await ApiService.getUltimosResultados(route);
 
       // Determinar la fecha exacta del sorteo evaluado
       String targetDrawDate = "";
@@ -235,11 +227,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       // 2. Si no coincide la fecha de la caché previa, consultar al backend pasando la fecha exacta del sorteo (?fecha=$targetDrawDate)
       if (top20.isEmpty) {
-        final String predUrl = targetDrawDate.isNotEmpty
-            ? "https://pry-dataloto.onrender.com/$route?fecha=$targetDrawDate"
-            : "https://pry-dataloto.onrender.com/$route";
+        final String endpoint = targetDrawDate.isNotEmpty
+            ? "/$route?fecha=$targetDrawDate"
+            : "/$route";
 
-        final resPrediccion = await http.get(Uri.parse(predUrl)).catchError((_) => http.Response('{}', 500));
+        final resPrediccion = await ApiService.get(endpoint, withAuth: false).catchError((_) => http.Response('{}', 500));
         if (resPrediccion.statusCode == 200) {
           final body = jsonDecode(resPrediccion.body);
           if (body["jackpot"] != null) {

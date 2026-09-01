@@ -145,6 +145,8 @@ class BusinessCard extends StatelessWidget {
                           logo,
                           width: 110,
                           height: 110,
+                          cacheWidth: 330, // 110 * 3 (densidad de pixeles aprox)
+                          cacheHeight: 330,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) => Container(
                             width: 110,

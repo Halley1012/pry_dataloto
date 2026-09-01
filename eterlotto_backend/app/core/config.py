@@ -22,4 +22,6 @@ EPAYCO_PUBLIC_KEY = os.getenv("EPAYCO_PUBLIC_KEY")
 EPAYCO_PRIVATE_KEY = os.getenv("EPAYCO_PRIVATE_KEY")
 EPAYCO_URL = "https://secure.epayco.co/"
 APP_BASE_URL = os.getenv("APP_BASE_URL", "https://pry-dataloto.onrender.com")
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+CORS_ORIGINS = [os.getenv("FRONTEND_URL", "http://localhost:3000"), "https://pry-dataloto.onrender.com"]
+if os.getenv("CORS_ORIGINS"):
+    CORS_ORIGINS.extend(os.getenv("CORS_ORIGINS").split(","))

@@ -1,29 +1,29 @@
 # --- Framework principal ---
-fastapi
-uvicorn[standard]
+fastapi==0.139.2
+uvicorn[standard]==0.51.0
 
 # --- Validación y utilidades ---
-pydantic
-python-multipart
-email-validator
+pydantic==2.13.4
+python-multipart==0.0.32
+email-validator==2.3.0
 
 # --- PostgreSQL drivers ---
-psycopg2-binary
-asyncpg
+psycopg2-binary==2.9.12
+asyncpg==0.31.0
 
 # --- ORM + migraciones ---
-sqlalchemy[asyncio]
-alembic
+sqlalchemy[asyncio]==2.0.51
+alembic==1.18.5
 
 # --- Seguridad y autenticación ---
-passlib[bcrypt]
-bcrypt<4.0   # 👈 aquí sí limitamos porque ya sabemos que >4 rompe
-python-jose[cryptography]
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+python-jose[cryptography]==3.5.0
 
 # --- Archivos y requests asíncronos ---
-aiofiles
-httpx
+aiofiles==25.1.0
+httpx==0.28.1
 
 # --- Logging mejorado (opcional) ---
-loguru
-requests
+loguru==0.7.3
+requests==2.34.2

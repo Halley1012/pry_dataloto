@@ -1265,7 +1265,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       showBorder: false,
                     ),
                     const SizedBox(width: 8),
-                    Text("@${post.userName}", style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12)),
+                    Flexible(
+                      child: Text(
+                        "@${post.userName}",
+                        style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     const Text("•", style: TextStyle(color: Colors.white38, fontSize: 12)),
                     const SizedBox(width: 6),
