@@ -1,0 +1,8 @@
+- [x] Rediseñar `BusinessCard` en `cardbussiness.dart`
+- [x] Implementar layout horizontal (Imagen izquierda, Info derecha)
+- [x] Añadir badges de "Destacado" y "Estado" sobre la imagen
+- [x] Añadir icono de favorito (corazón)
+- [x] Ajustar estilos de texto y espaciado
+- [x] Posicionar iconos de redes sociales en la parte inferior derecha
+- [x] Actualizar `directorioLocal.dart` para soportar nuevos atributos de `BusinessCard`
+- [x] Verificar funcionamiento de botones y enlaces

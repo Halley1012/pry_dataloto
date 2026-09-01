@@ -26,6 +26,41 @@ class LottoAmericaScraper:
         }
         self.draw_days = (0, 2, 5) # Lunes, Miércoles, Sábados
 
+    def update_jackpot(self, engine, loteria, jackpot, fecha_str):
+        if not jackpot or not fecha_str:
+            return
+        fecha = None
+        try:
+            fecha = datetime.strptime(fecha_str.strip(), "%a, %b %d, %Y").date()
+        except Exception:
+            try:
+                fecha = pd.to_datetime(fecha_str).date()
+            except Exception as ex:
+                print(f"Error parsing date {fecha_str} for {loteria}: {ex}")
+        
+        if not fecha:
+            return
+        
+        from sqlalchemy import text
+        try:
+            with engine.connect() as conn:
+                print(f"Updating jackpot for {loteria}: {jackpot} (Fecha: {fecha})")
+                conn.execute(text("""
+                    INSERT INTO loterias_jackpots (loteria, fecha, jackpot, updated_at)
+                    VALUES (:loteria, :fecha, :jackpot, CURRENT_TIMESTAMP)
+                    ON CONFLICT (loteria, fecha) DO UPDATE
+                    SET jackpot = EXCLUDED.jackpot,
+                        updated_at = EXCLUDED.updated_at;
+                """), {"loteria": loteria, "fecha": fecha, "jackpot": jackpot})
+                
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = :loteria AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """), {"loteria": loteria})
+                conn.commit()
+        except Exception as e:
+            print(f"Error updating jackpot for {loteria} in DB: {e}")
+
     def run(self, max_pages=None):
         print("🚀 Iniciando Scraping de Lotto America...")
         df_final = pd.DataFrame()
@@ -121,8 +156,26 @@ class LottoAmericaScraper:
             engine = get_engine()
             df_final.to_sql('resultados_lotto_america', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"✅ ¡DataFrame de Lotto America guardado exitosamente! Total filas: {len(df_final)}")
+
+            # Scrape and save jackpot for Lotto America from powerball.com/lotto-america
+            print("💰 Scrapeando jackpot para Lotto America...")
+            r_main = requests.get("https://www.powerball.com/lotto-america", headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}, timeout=15)
+            if r_main.status_code == 200:
+                soup_main = BeautifulSoup(r_main.text, "html.parser")
+                date_el = soup_main.find(class_="title-date")
+                fecha_str = date_el.get_text(strip=True) if date_el else None
+                jackpot_el = soup_main.find(class_="game-jackpot-number")
+                jackpot = jackpot_el.get_text(strip=True) if jackpot_el else None
+                
+                if jackpot and fecha_str:
+                    self.update_jackpot(engine, "lotto_america", jackpot, fecha_str)
+                else:
+                    print("⚠️ No se encontró jackpot o fecha en powerball.com/lotto-america")
+            else:
+                print(f"⚠️ Error consultando powerball.com/lotto-america: Status {r_main.status_code}")
         except Exception as e:
-            print(f"❌ Error al guardar datos de Lotto America en BD: {e}")
+            print(f"❌ Error al guardar datos o jackpot de Lotto America en BD: {e}")
+
 
 if __name__ == "__main__":
     LottoAmericaScraper().run()
