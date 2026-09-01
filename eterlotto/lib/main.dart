@@ -23,6 +23,7 @@ import 'screens/estadisticas_dashboard_screen.dart';
 import 'screens/subscription_screen.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 
 // 🔑 Navigator key global y Provider de Idioma global
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -33,6 +34,9 @@ void main() {
     () async {
       // Inicializar bindings y configuraciones dentro de la misma zona
       WidgetsFlutterBinding.ensureInitialized();
+
+      // Inicializar gestor central de ciclo de vida y refresco inteligente con TTL
+      DataRefreshManager.instance.initialize();
 
       // Bloquear la app en vertical
       await SystemChrome.setPreferredOrientations([

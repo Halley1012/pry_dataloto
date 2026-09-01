@@ -1,18 +1,27 @@
 from datetime import datetime, timedelta
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
-from app.api import schemas
+from app.api import schemas, dependencies
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 user_repo = PostgresUserRepository()
 
 @router.post("/confirm")
-async def confirm_subscription(req: schemas.SubscriptionConfirmRequest):
+async def confirm_subscription(
+    req: schemas.SubscriptionConfirmRequest,
+    current_user: dict = Depends(dependencies.get_current_user)
+):
     """
     Confirma y activa el estado VIP/Premium del usuario en la base de datos tras una compra en Google Play.
+    El usuario se extrae de forma 100% segura desde su token JWT Bearer.
     """
     try:
-        user = await user_repo.find_by_id(req.user_id)
+        user_id = current_user.get("id") or req.user_id
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Usuario no autenticado")
+
+        user = await user_repo.find_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
@@ -20,7 +29,7 @@ async def confirm_subscription(req: schemas.SubscriptionConfirmRequest):
         expires_at = datetime.utcnow() + timedelta(days=35)
 
         res = await user_repo.set_premium(
-            user_id=req.user_id,
+            user_id=user_id,
             is_premium=True,
             expires_at=expires_at,
             order_id=req.order_id,
@@ -43,6 +52,7 @@ async def confirm_subscription(req: schemas.SubscriptionConfirmRequest):
 async def get_subscription_status(user_id: int):
     """
     Consulta el estado VIP/Premium del usuario en la base de datos.
+    Si ya venció, actualiza automáticamente la base de datos a is_premium = False.
     """
     try:
         user = await user_repo.find_by_id(user_id)
@@ -52,10 +62,17 @@ async def get_subscription_status(user_id: int):
         is_premium = user.get("is_premium", False)
         expires_at = user.get("premium_expires_at")
 
-        # Si tiene fecha de expiración, comprobar que no haya vencido
+        # Si tiene fecha de expiración, comprobar si ya venció
         if is_premium and expires_at:
-            if isinstance(expires_at, datetime) and expires_at < datetime.now(expires_at.tzinfo):
+            now_tz = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.utcnow()
+            if expires_at < now_tz:
                 is_premium = False
+                # Sincronizar en base de datos para que quede en False
+                await user_repo.set_premium(
+                    user_id=user_id,
+                    is_premium=False,
+                    expires_at=expires_at
+                )
 
         return {
             "success": True,

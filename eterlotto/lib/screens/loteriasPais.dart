@@ -11,6 +11,8 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../utils/secure_storage_helper.dart';
+
 class LoteriasPais extends StatefulWidget {
   const LoteriasPais({super.key});
 
@@ -24,7 +26,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   final TextEditingController _searchController = TextEditingController();
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
   String? _userCountry;
 
   bool _isLoading = true;
