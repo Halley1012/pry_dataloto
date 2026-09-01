@@ -304,9 +304,13 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 "is_destacado": promedio >= 4.5 and total_votos >= 3
             }
 
-    async def aprobar_publicidad(self, publicidad_id: int) -> bool:
+    async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            is_admin = await conn.fetchval("SELECT is_super_admin FROM users WHERE id = $1", admin_user_id)
+            if not is_admin:
+                raise PermissionError("Permisos insuficientes para aprobar publicidad")
+                
             result = await conn.execute("""
                 UPDATE publicidad
                 SET aprobado = TRUE, pago_confirmado = TRUE

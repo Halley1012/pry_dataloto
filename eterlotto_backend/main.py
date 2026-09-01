@@ -5,7 +5,7 @@ from app.core import config
 from app.infrastructure import db_connection
 from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
-from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications, subscriptions
+from app.api.routers import auth, jugadas, posts, publicidad, metadata, notifications, subscriptions
 
 from contextlib import asynccontextmanager
 
@@ -56,7 +56,6 @@ async def readyz():
 app.include_router(auth.router)
 app.include_router(posts.router)
 app.include_router(publicidad.router)
-app.include_router(transacciones.router)
 app.include_router(metadata.router)
 app.include_router(notifications.router)
 app.include_router(jugadas.router)

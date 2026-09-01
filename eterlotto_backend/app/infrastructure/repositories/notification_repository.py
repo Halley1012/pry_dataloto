@@ -41,20 +41,25 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 rows = await conn.fetch(query_no_user, limit)
             return [dict(r) for r in rows]
 
-    async def mark_as_read(self, notification_id: int) -> bool:
+    async def mark_as_read(self, notification_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            result = await conn.execute("UPDATE notificaciones SET leido = TRUE WHERE id = $1", notification_id)
+            # We must only mark it as read if it belongs to the user OR if we want to store global reads.
+            # But the table only has a single 'leido' boolean!
+            # If it's a global notification (usuario_id IS NULL), marking it read marks it for EVERYONE.
+            # For now, only allow marking personal notifications as read to fix the IDOR.
+            result = await conn.execute(
+                "UPDATE notificaciones SET leido = TRUE WHERE id = $1 AND usuario_id = $2", 
+                notification_id, user_id
+            )
             return result == "UPDATE 1"
 
-    async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+    async def delete_notification(self, notification_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            if user_id:
-                result = await conn.execute(
-                    "DELETE FROM notificaciones WHERE id = $1 AND (usuario_id = $2 OR usuario_id IS NULL)",
-                    notification_id, user_id
-                )
-            else:
-                result = await conn.execute("DELETE FROM notificaciones WHERE id = $1", notification_id)
+            # Only allow deleting personal notifications
+            result = await conn.execute(
+                "DELETE FROM notificaciones WHERE id = $1 AND usuario_id = $2",
+                notification_id, user_id
+            )
             return result == "DELETE 1"

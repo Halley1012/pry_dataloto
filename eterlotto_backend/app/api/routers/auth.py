@@ -27,7 +27,13 @@ async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases 
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/users/{user_id}")
-async def get_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def get_user(
+    user_id: int, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para ver este perfil")
     try:
         res = await use_cases.get_user_profile(user_id)
         return res
@@ -39,7 +45,14 @@ async def get_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def update_user(
+    user_id: int, 
+    user_update: schemas.UpdateUser, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para editar este perfil")
     try:
         res = await use_cases.update_user_profile(
             user_id=user_id,
@@ -66,7 +79,13 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def delete_user(
+    user_id: int, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para eliminar este perfil")
     try:
         res = await use_cases.delete_user(user_id)
         return res

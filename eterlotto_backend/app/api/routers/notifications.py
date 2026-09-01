@@ -22,23 +22,25 @@ async def list_notifications(
 @router.post("/{notification_id}/read")
 async def mark_read(
     notification_id: int,
+    current_user: dict = Depends(dependencies.get_current_user),
     use_cases: NotificationUseCases = Depends(dependencies.get_notification_use_cases)
 ):
-    success = await use_cases.marcar_como_leida(notification_id)
+    user_id = int(current_user["user_id"])
+    success = await use_cases.marcar_como_leida(notification_id, user_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Notificación no encontrada")
+        raise HTTPException(status_code=404, detail="Notificación no encontrada o acceso denegado")
     return {"success": True}
 
 @router.delete("/{notification_id}")
 async def delete_notification(
     notification_id: int,
-    current_user: Optional[dict] = Depends(dependencies.get_optional_current_user),
+    current_user: dict = Depends(dependencies.get_current_user),
     use_cases: NotificationUseCases = Depends(dependencies.get_notification_use_cases)
 ):
-    user_id = int(current_user["user_id"]) if current_user and current_user.get("user_id") else None
+    user_id = int(current_user["user_id"])
     success = await use_cases.eliminar_notificacion(notification_id, user_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Notificación no encontrada o no pudo eliminarse")
+        raise HTTPException(status_code=404, detail="Notificación no encontrada o acceso denegado")
     return {"success": True, "message": "Notificación eliminada exitosamente"}
 
 
