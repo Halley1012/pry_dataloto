@@ -29,15 +29,19 @@ async def listar_publicidad(
     try:
         return await use_cases.listar_publicidad(filters, query.limit, query.offset)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar la publicidad: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.post("/publicidad")
-async def crear_publicidad(request: dict, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+async def crear_publicidad(request: schemas.PublicidadCreate, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
     user_id = int(current_user["user_id"])
     try:
-        return await use_cases.crear_publicidad(user_id, request)
+        return await use_cases.crear_publicidad(user_id, request.dict(exclude_unset=True))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
 
 @router.delete("/publicidad/{publicidad_id}")
 async def eliminar_publicidad(publicidad_id: int, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -54,7 +58,9 @@ async def aprobar_publicidad(publicidad_id: int, use_cases: PublicidadUseCases =
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al aprobar anuncio: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/mis_publicidades")
 async def listar_mis_publicidades(current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -66,7 +72,9 @@ async def listar_mis_publicidades(current_user: dict = Depends(dependencies.get_
     try:
         return await use_cases.listar_mis_publicidades(user_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
 
 @router.put("/publicidad/{id}")
 async def actualizar_publicidad(id: int, request: dict, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -76,7 +84,9 @@ async def actualizar_publicidad(id: int, request: dict, current_user: dict = Dep
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
 
 @router.post("/publicidad/{id}/favorito")
 async def toggle_favorito_publicidad(id: int, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -84,7 +94,9 @@ async def toggle_favorito_publicidad(id: int, current_user: dict = Depends(depen
     try:
         return await use_cases.toggle_favorito(user_id, id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
 
 @router.post("/publicidad/{id}/calificar")
 async def calificar_publicidad(id: int, request: dict, current_user: dict = Depends(dependencies.get_current_user), use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -95,5 +107,8 @@ async def calificar_publicidad(id: int, request: dict, current_user: dict = Depe
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
+
 

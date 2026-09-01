@@ -62,3 +62,4 @@ async def delete_comment(comment_id: int, current_user: dict = Depends(dependenc
 @router.get("/posts/{post_id}/comments", response_model=List[schemas.CommentResponse])
 async def get_comments(post_id: int, use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
     return await use_cases.listar_comentarios(post_id)
+

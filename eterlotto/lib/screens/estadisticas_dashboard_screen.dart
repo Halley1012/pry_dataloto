@@ -342,8 +342,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
               const SizedBox(width: 8),
               Expanded(
                 child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: 4,
+                  runSpacing: 4,
                   children: [20, 50, 100, 0].map((cant) {
                     final isSel = limiteFiltro == cant;
                     final texto = cant == 0 ? (l10n?.todas ?? "Todos") : "$cant";
@@ -355,7 +355,10 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                       labelStyle: TextStyle(
                         color: isSel ? Colors.black : Colors.white70,
                         fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                      visualDensity: VisualDensity.compact,
                       onSelected: (_) {
                         setState(() => limiteFiltro = cant);
                       },
@@ -374,8 +377,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                 const SizedBox(width: 8),
                 Expanded(
                   child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: 4,
+                    runSpacing: 4,
                     children: listaSorteosDisponibles.map((tipo) {
                       final isSel = filtroSorteo == tipo;
                       return ChoiceChip(
@@ -386,7 +389,10 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                         labelStyle: TextStyle(
                           color: isSel ? Colors.black : Colors.white70,
                           fontWeight: FontWeight.bold,
+                          fontSize: 12,
                         ),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+                        visualDensity: VisualDensity.compact,
                         onSelected: (_) {
                           setState(() => filtroSorteo = tipo);
                         },

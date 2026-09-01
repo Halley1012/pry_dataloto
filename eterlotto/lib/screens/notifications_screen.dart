@@ -98,8 +98,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
           final filteredList = _getFilteredNotifications(provider.notifications);
 
-          return Column(
-            children: [
+          return SafeArea(
+            child: Column(
+              children: [
               _buildFilterChips(),
               Expanded(
                 child: provider.notifications.isEmpty
@@ -153,6 +154,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           ),
               ),
             ],
+            ),
           );
         },
       ),
