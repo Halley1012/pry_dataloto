@@ -1,0 +1,723 @@
+{
+  "@@locale": "es",
+  "tituloApp": "Eterlotto",
+  "iniciarSesion": "Iniciar Sesión",
+  "registrarse": "Registrarse",
+  "bienvenido": "¡Bienvenido a Eterlotto!",
+  "descripcionBienvenida": "Estamos emocionados de ayudarte con predicciones inteligentes y hacer que disfrutes al máximo la emoción de cada sorteo.",
+  "prediccionesInteligentes": "Predicciones Inteligentes",
+  "ultimosResultados": "Últimos 5 resultados",
+  "ultimosResultadosBaloto": "Últimos 5 resultados Baloto",
+  "ultimosResultadosRevancha": "Últimos 5 resultados Baloto Revancha",
+  "verMasResultados": "Ver historial completo de resultados",
+  "historicoResultadosTitulo": "Historial de Resultados",
+  "ultimos50Resultados": "Historial de sorteos de {loteria}",
+  "@ultimos50Resultados": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "tusNumerosSuerte": "Tus números de la suerte",
+  "generar": "Generar",
+  "guardar": "Guardar",
+  "misJugadas": "Mis jugadas",
+  "estadisticas": "Estadísticas",
+  "estadisticasAvanzadas": "Estadísticas Avanzadas y Gráficas",
+  "seleccionaNumeros": "Selecciona tus números",
+  "sorteosEvaluados": "Sorteos Evaluados",
+  "numerosCalientes": "Números Calientes",
+  "numerosFrios": "Números Fríos",
+  "frecuenciaHistorica": "Frecuencia Histórica",
+  "ausenciaSorteos": "Días / Sorteios Sin Salir",
+  "parImpar": "Distribución Par vs Impar",
+  "bajosAltos": "Bajos vs Altos",
+  "sumaCombinacion": "Suma de la Combinación",
+  "parejasFrecuentes": "Parejas Más Frecuentes",
+  "scoreProbabilidadIA": "Score de Probabilidad IA",
+  "comparacionIA": "Comportamiento Histórico vs IA",
+  "idioma": "Idioma",
+  "cambiarIdioma": "Cambiar Idioma",
+  "email": "Correo Electrónico",
+  "contrasena": "Contraseña",
+  "olvidoContrasena": "¿Olvidó la contraseña?",
+  "ingresar": "Ingresar",
+  "iniciaSesionParaContinuar": "Inicia sesión para continuar",
+  "nombre": "Nombre",
+  "crearCuenta": "Crear cuenta",
+  "notificaciones": "Notificaciones",
+  "configuracion": "Configuración",
+  "cerrarSesion": "Cerrar sesión",
+  "perfil": "Perfil",
+  "inicio": "Inicio",
+  "resultados": "Resultados",
+  "misAnuncios": "Mis anuncios",
+  "metodosPago": "Métodos de pago",
+  "invitarAmigos": "Invitar amigos",
+  "ayudaSoporte": "Ayuda y soporte",
+  "eliminarCuenta": "Eliminar cuenta",
+  "pais": "País",
+  "departamentoEstado": "Departamento / Estado",
+  "editarPerfil": "Editar Perfil",
+  "guardarCambios": "Guardar Cambios",
+  "miPais": "Mi País",
+  "internacionales": "Internacionales",
+  "todas": "Todas",
+  "sinNotificaciones": "No tienes notificaciones aún",
+  "explorar": "Explorar",
+  "buscarLoteria": "Buscar lotería...",
+  "populares": "Populares",
+  "verTodas": "Ver todas",
+  "proximoSorteo": "Próximo sorteo",
+  "todasLasLoterias": "Todas las loterías",
+  "comentarios": "Comentarios",
+  "responder": "Responder",
+  "respuesta": "respuesta",
+  "respuestas": "respuestas",
+  "sinPosts": "No hay posts aún",
+  "anunciosDestacados": "Anuncios destacados",
+  "derechosReservados": "© 2025 Eterlotto. Todos los derechos reservados.",
+  "version": "Versión",
+  "sinNotificacionesCategoria": "Sin notificaciones para tu país",
+  "verTodasNotificaciones": "Ver todas las notificaciones",
+  "explorarLoterias": "Explorar Loterías",
+  "buscarLoteriaOPais": "Buscar lotería o país...",
+  "buscarPorLoteriaOPais": "Buscar por lotería o país...",
+  "proximoSorteoConFecha": "Próximo sorteo:",
+  "verTodasLoteriasMundo": "Ver todas las loterías del mundo",
+  "analisisYResultados": "Análisis y Resultados",
+  "aunNoTienesJugadas": "Aún no tienes jugadas",
+  "empiezaAGuardarNumeros": "Empieza a guardar tus números favoritos desde la sección Explorar.",
+  "usuarioPremium": "Usuario Premium",
+  "ganaBeneficios": "Gana beneficios",
+  "avisoLegal": "Aviso legal",
+  "aceptoLos": "Acepto los ",
+  "terminosCondicionesAviso": "Términos, Condiciones y Aviso Legal",
+  "debesAceptarTerminos": "Debes aceptar los términos y condiciones para continuar",
+  "acercaDe": "Acerca de",
+  "cerrar": "Cerrar",
+  "contenidoAvisoLegal": "Eterlotto es una aplicación independiente de análisis estadístico e inteligencia artificial. No es una lotería, no organiza sorteos ni está afiliada, patrocinada o respaldada por los operadores de las loterías mostradas en la aplicación.\n\nLas predicciones, estadísticas y recomendaciones se generan a partir del análisis de datos históricos y tienen carácter exclusivamente informativo y de entretenimiento.\n\nNingún resultado está garantizado y las predicciones no aumentan ni aseguran las probabilidades de obtener un premio.\n\nEterlotto no recibe apuestas ni participa en la venta de billetes o juegos de lotería.",
+  "contenidoAcercaDe": "Eterlotto utiliza inteligencia artificial para analizar patrones históricos de loterías y ofrecer predicciones informadas. Aunque nuestras predicciones se basan en datos, no hay certeza absoluta de que esos números sean los ganadores, ya que la lotería es un juego de azar. No garantizamos premios, solo te ayudamos a elegir con más confianza. Usa la app con responsabilidad y solo con fines de entretenimiento. La decisión de utilizar estas predicciones queda bajo tu propia responsabilidad.",
+  "notificacionesIA": "Notificaciones",
+  "marcarTodoComoLeido": "Marcar todo como leído",
+  "seleccionarTodo": "Seleccionar todo",
+  "desmarcarTodo": "Desmarcar todo",
+  "eliminar": "Eliminar",
+  "imprimirPDF": "Imprimir PDF",
+  "historialJugadas": "Historial de Jugadas",
+  "guardadasCantidad": "guardada(s)",
+  "noTienesJugadasGuardadas": "No tienes jugadas guardadas aún",
+  "eliminarJugadas": "Eliminar jugadas",
+  "confirmarCerrarSesion": "¿Estás seguro de que deseas salir?",
+  "idiomaSistema": "Idioma del Sistema",
+  "seleccionarIdioma": "Seleccionar Idioma",
+  "confirmarCambioIdioma": "¿Deseas cambiar el idioma de la aplicación?",
+  "si": "Sí",
+  "cancelar": "Cancelar",
+  "jackpotEstimado": "Jackpot estimado",
+  "millonesCOP": "millones COP",
+  "millonesUSD": "millones USD",
+  "resumenRapido": "Resumen rápido",
+  "verEstadisticasCompletas": "Ver estadísticas completas ›",
+  "masCaliente": "Más caliente",
+  "masFrio": "Más frío",
+  "prediccionIAHoy": "Predicción IA para hoy",
+  "basadaEnAnalisisDe": "Basada en análisis de {count} sorteos",
+  "@basadaEnAnalisisDe": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "indiceAfinidadHistorica": "Índice de afinidad histórica",
+  "tuJugadaSeleccionada": "Tu Jugada Seleccionada",
+  "balotasPrincipales": "{count} balotas principales",
+  "@balotasPrincipales": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotaRoja": "1 balota roja",
+  "tocaNumerosModificar": "Toca los números abajo para modificar",
+  "numeroSuerteSugerido": "Número de la suerte sugerido por IA",
+  "jugada": "Jugada",
+  "notaTendenciasEstadisticas": "Nota: son solo tendencias estadísticas, no garantías absolutas.",
+  "generarJugada": "Generar Jugada",
+  "guardarJugada": "Guardar Jugada",
+  "guardando": "Guardando...",
+  "jugadaGuardadaExito": "¡Jugada guardada con éxito! 🎉",
+  "errorGuardarJugada": "Error al guardar la jugada",
+  "iniciaSesionParaContinuar": "Inicia sesión para continuar",
+  "cargandoPrediccion": "Cargando predicción... Intenta de nuevo",
+  "debesSeleccionarBalotas": "Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada.",
+  "jugadaYaExiste": "Esta jugada ya se encuentra en tus jugadas guardadas",
+  "balotasRojas": "Balotas Rojas",
+  "numerosOrdenadosProbabilidad": "Números ordenados de mayor a menor probabilidad.",
+  "tocaNumeroSeleccionar": "Toca un número para seleccionarlo",
+  "ultimoSorteo": "Último sorteo",
+  "sinNumeros": "Sin números",
+  "noticiasAlertas": "Noticias / Alertas",
+  "hoyEsSorteo": "Hoy es el sorteo de {loteria}",
+  "@hoyEsSorteo": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noOlvidesRevisar": "No olvides revisar tus números y mucha suerte.",
+  "paresImpares": "Pares - Impares",
+  "analizados": "Analizados",
+  "veces": "veces",
+  "versionApp": "Versión de la app",
+  "tocaParaVerMas": "Toca para ver más",
+  "filtrosAnalisis": "Filtros de Análisis",
+  "sorteos": "Sorteos",
+  "tipo": "Tipo",
+  "numerosCalientesFrios": "Números Calientes y Fríos 🔥❄️",
+  "masFrecuentes": "Más Frecuentes",
+  "menosFrecuentes": "Menos Frecuentes",
+  "ausenciaSorteosTitle": "Días / Sorteos Sin Salir (Ausencia)",
+  "balotasMayorTiempo": "Balotas con mayor tiempo sin aparecer:",
+  "apariciones": "apariciones",
+  "pareja": "Pareja",
+  "altaConsistenciaIA": "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.",
+  "moderadaConsistenciaIA": "⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.",
+  "variabilidadConsistenciaIA": "📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.",
+  "comportamientoHistoricoVsIA": "Comportamiento Histórico vs IA ⚡",
+  "numerosMayorTendencia": "Números de mayor tendencia histórica:",
+  "prediccionActualIA": "Predicción actual del modelo IA:",
+  "coberturaIA": "Cobertura IA",
+  "verTodasNotificacionesButton": "Ver todas las notificaciones",
+  "sinNotificacionesAun": "No tienes notificaciones aún",
+  "miPaisFilter": "Mi País",
+  "internacionalesFilter": "Internacionales",
+  "todasFilter": "Todas",
+  "marcarLeido": "Marcar como leído",
+  "errorConexion": "Error de conexión",
+  "credencialesInvalidas": "Credenciales inválidas",
+  "errorObtenerTokens": "Error al obtener tokens",
+  "ingresaEmailContrasena": "⚠️ Ingresa email y contraseña",
+  "enviadoEnlace": "Se ha enviado un enlace a {email}",
+  "@enviadoEnlace": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "recuperarContrasena": "Recuperar Contraseña",
+  "cancelarButton": "Cancelar",
+  "enviarButton": "Enviar",
+  "noDisponible": "No disponible por el momento...",
+  "estadisticasLoteria": "Estadísticas {loteria}",
+  "@estadisticasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "rangoBalotas": "Rango Balotas",
+  "powerballRoja": "Powerball Roja",
+  "starBall": "Star Ball",
+  "megaBall": "Mega Ball",
+  "cashBall": "Cash Ball",
+  "errorCargarEstadisticas": "No fue posible conectar con el servidor para obtener las estadísticas.",
+  "promedioSumaHistorica": "Promedio de suma histórica: {valor}",
+  "@promedioSumaHistorica": {
+    "placeholders": {
+      "valor": {
+        "type": "String"
+      }
+    }
+  },
+  "coberturaResultado": "Cobertura del resultado",
+  "numerosEnTopIA": "Números en el Top {count} de la IA",
+  "@numerosEnTopIA": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hitsDeAciertos": "{hits} de {total} aciertos",
+  "@hitsDeAciertos": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "excelenteResultado": "¡Excelente resultado! 🎯",
+  "buenDesempeno": "Buen desempeño 📊",
+  "insightsIA": "Insights IA",
+  "resultadoReal": "Resultado real",
+  "tendenciasIA": "Tendencias IA",
+  "noHayTendencias": "No hay tendencias detalladas guardadas para este sorteo.",
+  "sorteoDel": "Sorteo del {fecha}",
+  "@sorteoDel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "revancha": "Revancha",
+  "ultimos5ResultadosNombre": "Últimos 5 resultados {nombre}",
+  "@thisLoteriaResultados": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "ultimosSorteos": "Últimos sorteos",
+  "reciente": "Reciente",
+  "prediccionesNoDisponibles": "Las predicciones de la IA para este sorteo pasado no están disponibles en el historial.",
+  "insightIACayeron": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, cayeron {hits}.",
+  "@insightIACayeron": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIANoCoincidencias": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, no hubo coincidencias en este sorteo.",
+  "@insightIANoCoincidencias": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIACayeronDual": "De los {count} números con mayor probabilidad generados por la IA para {loteria}, cayeron {bText} y {rText}.",
+  "@insightIACayeronDual": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "bText": {
+        "type": "String"
+      },
+      "rText": {
+        "type": "String"
+      }
+    }
+  },
+  "aciertoIA": "Acierto IA",
+  "balotasPrincipalesTitle": "Balotas Principales",
+  "balotasRojasEspeciales": "Balotas Rojas / Especiales",
+  "resultadosLoteria": "Resultados - {loteria}",
+  "@resultadosLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "sorteoFechaLabel": "Sorteo: {fecha}",
+  "@sorteoFechaLabel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "numerosGanadores": "Números ganadores",
+  "comparacionJugadas": "Comparación Mis Jugadas vs Resultado",
+  "aciertosLabel": "Aciertos",
+  "balotaLabel": "Balota",
+  "sinAciertoLabel": "Sin acierto",
+  "tusJugadasVsGanadores": "Tus jugadas guardadas vs Números ganadores del sorteo",
+  "noRealizasteJugadas": "No realizaste jugadas para este sorteo.",
+  "cantidadAciertos": "{count} acierto(s)",
+  "@cantidadAciertos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaLabel": "Fecha",
+  "aciertosSimple": "Aciertos",
+  "coberturaIndividualDetalle": "{hits} de {total} números ganadores están en los {top} más probables",
+  "@coberturaIndividualDetalle": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "top": {
+        "type": "int"
+      }
+    }
+  },
+  "nEnBaloto": "{count} en Baloto ({nums})",
+  "ceroEnBaloto": "0 en Baloto",
+  "nEnRevancha": "{count} en Revancha ({nums})",
+  "ceroEnRevancha": "0 en Revancha",
+  "nNumeros": "{count} números",
+  "@nNumeros": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errorEnviarCorreo": "Error: No se pudo enviar el correo",
+  "usuarioRequerido": "Usuario requerido",
+  "correoInvalido": "Correo inválido",
+  "contrasenaMinima": "Mínimo 6 caracteres",
+  "seleccionaPais": "Selecciona un país",
+  "seleccionaDepartamento": "Selecciona un departamento",
+  "yaTienesCuenta": "¿Ya tienes cuenta? Inicia sesión",
+  "actualizaTusDatos": "Actualiza tus datos",
+  "registroUsuario": "Registro de usuario",
+  "modificaInformacion": "Modifica tu información",
+  "confirmarEliminarCuenta": "¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.",
+  "error": "Error",
+  "sinResultadosAnalisis": "Aún no tienes análisis de resultados",
+  "buscaloAqui": "Búscalo Aquí",
+  "anunciateHoy": "¡Anúnciate hoy y haz que todos te conozcan!",
+  "crearNuevaPublicidad": "Crear nueva publicidad",
+  "buscarPorTitulo": "Buscar por título",
+  "noHayAnunciosFiltros": "No hay anuncios disponibles \npara los filtros seleccionados.",
+  "todos": "Todos",
+  "todasCategorias": "Todas las categorías",
+  "noHayPaisesDisponibles": "No hay países disponibles",
+  "noHayDepartamentosDisponibles": "No hay departamentos disponibles",
+  "noHayCategoriasDisponibles": "No hay categorías disponibles",
+  "estadoProvincia": "Estado / Provincia",
+  "categoria": "Categoría",
+  "presionaOtraVezSalir": "Presiona otra vez para salir",
+  "tusJugadasHoy": "Tus jugadas para hoy",
+  "errorCargarJugadas": "Error al cargar jugadas",
+  "errorAgregarJugada": "Error al agregar jugada",
+  "nro": "Nro.",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "Mis Anuncios",
+  "noHasPublicadoAnuncios": "No has publicado ningún anuncio todavía.\n¡Crea el primero ahora!",
+  "eliminarAnuncio": "Eliminar anuncio",
+  "confirmarEliminarAnuncio": "¿Estás seguro de eliminar este anuncio?",
+  "editar": "Editar",
+  "eliminar": "Eliminar",
+  "crearPublicidad": "Crear Publicidad",
+  "editarAnuncio": "Editar Anuncio",
+  "crearNuevoAnuncio": "Crear nuevo anuncio",
+  "promocionaNegocioStyle": "Promociona tu negocio con estilo",
+  "titulo": "Título",
+  "descripcion": "Descripción",
+  "descripcionObligatoria": "Descripción obligatoria",
+  "telefono": "Teléfono",
+  "telefonoObligatorio": "Teléfono obligatorio",
+  "direccion": "Dirección",
+  "imagenUrl": "Imagen URL",
+  "ciudad": "Ciudad",
+  "redesSociales": "Redes sociales",
+  "paginaWeb": "Página Web",
+  "whatsappObligatorio": "WhatsApp obligatorio",
+  "anuncioActualizado": "Anuncio actualizado",
+  "anuncioCreado": "Anuncio creado",
+  "errorGuardar": "Error al guardar",
+  "campoRequerido": "{campo} requerido",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Selecciona {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "Mis Jugadas de {loteria} - Eterlotto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "No hay jugadas para compartir",
+  "buenaSuerteDataLoto": "¡Buena suerte con Eterlotto!",
+  "tiqueteDataloto": "ETERLOTTO - TICKET {loteria}",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Reporte de Jugadas Guardadas ({count} jugada(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Fecha Guardado",
+  "balotasLoteria": "Balotas {loteria}",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "¡Muchos éxitos en tu juego! - Generado desde Eterlotto App",
+  "jugadaShare": "Jugada #{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "No hay jugadas seleccionadas para imprimir",
+  "generaGuardaJugadas": "Genera y guarda tus jugadas desde la pantalla principal de {loteria}",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "¿Seguro que deseas eliminar {count} jugada(s)?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "Se eliminaron {count} jugada(s) correctamente.",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Superbalota: {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "Mis Jugadas - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Tiquete_{loteria}_Eterlotto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / día",
+  "postEliminado": "Post eliminado correctamente",
+  "errorEliminarPost": "Error al eliminar el post: {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Editar Post",
+  "crearPost": "Crear Post",
+  "todosCamposObligatorios": "Todos los campos son obligatorios",
+  "errorGuardarPost": "Error al guardar el post",
+  "contenido": "Contenido",
+  "publicar": "Publicar",
+  "escribeComentario": "Escribe un comentario",
+  "errorEnviarComentario": "Error al enviar comentario: {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Comentario eliminado",
+  "errorEliminarComentario": "Error al eliminar: {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioReportado": "Comentario de @{usuario} reportado.",
+  "@comentarioReportado": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "respondiendoA": "Respondiendo a @{usuario}",
+  "@respondiendoA": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "escribeRespuesta": "Escribe tu respuesta...",
+  "escribeComentarioHint": "Escribe un comentario...",
+  "noHayComentarios": "No hay comentarios aún. ¡Sé el primero en comentar!",
+  "opcionPago": "Opción de Pago",
+  "completaDatosPago": "Completa tus datos de pago",
+  "nombreTarjeta": "Nombre en la tarjeta",
+  "numeroTarjeta": "Número de tarjeta",
+  "ingresaNombre": "Ingresa el nombre",
+  "tarjetaInvalida": "Número de tarjeta inválido",
+  "fechaInvalida": "Fecha inválida",
+  "cvvInvalido": "CVV inválido",
+  "pagar": "Pagar",
+  "pagoExito": "✅ Pago realizado con éxito",
+  "pagarEpayco": "Pagar con ePayco",
+  "errorAnuncios": "Error al cargar los anuncios.",
+  "numerosLabel": "Números",
+  "descripcionHistoricoResultados": "Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.",
+  "cargarMasSorteos": "Cargar 50 más ({count} restantes)",
+  "@cargarMasSorteos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "verTodosSorteos": "Ver todos",
+  "descripcionMisJugadasBanner": "Aquí encontrarás todas tus jugadas y el próximo sorteo de cada lotería",
+  "descripcionResultadosBanner": "Aquí encontrarás los últimos resultados oficiales, el historial de sorteos y el análisis de predicciones de cada lotería",
+  "descripcionExplorarBanner": "Aquí podrás explorar las loterías disponibles por país y generar predicciones inteligentes para tus próximas jugadas",
+  "mostrarLoteriasPrincipales": "Mostrar solo loterías principales",
+  "saludoUsuario": "¡Hola, {nombre}! 👋",
+  "@saludoUsuario": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "subtituloSuerte": "Tu suerte comienza aquí.",
+  "tituloDescargaExcel": "Descargar Histórico Completo",
+  "mensajeDescargaExcel": "¿Deseas descargar el archivo Excel con el 100% de los sorteos registrados en la base de datos para realizar tus propios análisis?",
+  "descargar": "Descargar",
+  "descargandoHistorico": "Descargando histórico completo de la base de datos...",
+  "planBasicoHazteVip": "Plan Básico (Hazte VIP)",
+  "vipSinAnuncios": "VIP Sin Anuncios",
+  "eterlottoVipSinAnuncios": "Eterlotto VIP (Sin Anuncios)",
+  "obtener": "Obtener",
+  "activo": "Activo",
+  "subtituloVip": "Disfruta de la mejor experiencia sin interrupciones",
+  "ceroPublicidadTitulo": "Cero Publicidad",
+  "ceroPublicidadDesc": "Sin banners ni anuncios al consultar resultados y estadísticas.",
+  "maximaVelocidadTitulo": "Máxima Velocidad",
+  "maximaVelocidadDesc": "Navegación fluida y carga instantánea en todas las pantallas.",
+  "soporteNuevasFuncionesTitulo": "Soporte y Nuevas Funciones",
+  "soporteNuevasFuncionesDesc": "Acceso preferencial a futuras herramientas y algoritmos.",
+  "suscripcionActiva": "Suscripción Activa",
+  "suscripcionActivaDesc": "Tu plan VIP está activo. ¡Gracias por tu apoyo!",
+  "administrarGooglePlay": "Administrar en Google Play",
+  "planMensual": "Plan Mensual",
+  "renovacionAutomatica": "Renovación mensual automática",
+  "suscribirmeAhora": "Suscribirme Ahora",
+  "restaurarCompras": "Restaurar compras",
+  "terminosSuscripcionGooglePlay": "La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.",
+  "comprasRestauradasExito": "✅ Compras restauradas con éxito.",
+  "noComprasActivas": "ℹ️ No se encontraron compras activas previas.",
+  "usuariosVipSinAnuncios": "Los usuarios VIP disfrutan de esta y todas las funciones sin ver anuncios.",
+  "hacermeVip": "Hacerme VIP 💎",
+  "verVideo": "Ver Video",
+  "descripcionVideoHistorico": "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
+  "descripcionVideoJugadas": "Mira un breve video publicitario para acceder a tu historial completo de jugadas.",
+  "descripcionVideoInsight": "Mira un breve video publicitario para desbloquear el análisis inteligente con Inteligencia Artificial.",
+  "desbloquearAnalisisIA": "Desbloquear Análisis IA",
+  "distribucionAciertosTitulo": "Distribución de aciertos",
+  "tusJugadasGuardadasParentesis": "(Tus jugadas guardadas)",
+  "jugadaSingular": "jugada",
+  "jugadasPlural": "jugadas",
+  "ceroAciertos": "0 aciertos",
+  "unoDosAciertos": "1 - 2 aciertos",
+  "tresCuatroAciertos": "3 - 4 aciertos",
+  "cincoAciertos": "5 aciertos",
+  "distribucionCalculada": "Distribución calculada a partir de tus {count} jugada(s).",
+  "@distribucionCalculada": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agregaJugadasDistribucion": "Agrega jugadas para visualizar la distribución de aciertos.",
+  "historialCoberturaTitulo": "Historial de cobertura",
+  "promedioGeneralSorteos": "Promedio general: {avg}% (últimos {count} sorteos)",
+  "@promedioGeneralSorteos": {
+    "placeholders": {
+      "avg": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rachaActualTitulo": "Racha actual",
+  "jugadasConsecutivasAciertos": "jugada(s) consecutiva(s) con aciertos",
+  "mejorRachaTitulo": "Mejor racha",
+  "ultimosNSorteosRegistrados": "Últimos {count} sorteos registrados",
+  "@ultimosNSorteosRegistrados": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotas": "Balotas",
+  "sorteoLabel": "Sorteo",
+  "preparaTusJugadasIA": "Prepara tus jugadas con las predicciones de IA.",
+  "publicidadLabel": "PUBLICIDAD",
+  "quitarAnuncios": "Quitar anuncios",
+  "buscaloAqui": "Búscalo aquí",
+  "buscarDirectorioHint": "Encuentra negocios, servicios y comercios..."
+}

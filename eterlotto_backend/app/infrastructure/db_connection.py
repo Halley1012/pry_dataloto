@@ -1,0 +1,141 @@
+import os
+import psycopg2
+import psycopg2.extras
+import psycopg2.pool
+import asyncpg
+from contextlib import contextmanager
+from typing import Optional
+from app.core import config
+
+pool: Optional[asyncpg.Pool] = None
+_sync_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
+
+def get_sync_pool() -> Optional[psycopg2.pool.ThreadedConnectionPool]:
+    global _sync_pool
+    if _sync_pool is None:
+        try:
+            dsn = config.DATABASE_URL
+            if dsn:
+                _sync_pool = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=20,
+                    dsn=dsn,
+                    sslmode="require"
+                )
+            else:
+                host = os.getenv("PGHOST")
+                port = os.getenv("PGPORT", "5432")
+                db = os.getenv("PGDATABASE")
+                user = os.getenv("PGUSER")
+                pwd = os.getenv("PGPASSWORD")
+                if host and db and user and pwd:
+                    _sync_pool = psycopg2.pool.ThreadedConnectionPool(
+                        minconn=1,
+                        maxconn=20,
+                        host=host,
+                        port=port,
+                        dbname=db,
+                        user=user,
+                        password=pwd,
+                        sslmode="require"
+                    )
+        except Exception as e:
+            print(f"⚠️ No se pudo inicializar ThreadedConnectionPool: {e}")
+            _sync_pool = None
+    return _sync_pool
+
+@contextmanager
+def get_connection():
+    """
+    Context manager de conexión síncrona optimizado y tolerante a fallos.
+    - Reutiliza conexiones existentes de ThreadedConnectionPool.
+    - Valida que la conexión no esté cerrada antes de entregarla.
+    - Si el pool se agota por ráfagas masivas, hace fallback a conexión directa.
+    - Libera y cierra correctamente los recursos en el bloque finally.
+    """
+    sync_p = get_sync_pool()
+    conn = None
+    from_pool = False
+
+    if sync_p is not None:
+        try:
+            conn = sync_p.getconn()
+            # Verificar si la conexión del pool sigue activa
+            if conn.closed != 0:
+                try:
+                    sync_p.putconn(conn, close=True)
+                except Exception:
+                    pass
+                conn = sync_p.getconn()
+            from_pool = True
+        except Exception:
+            # Pool agotado o error al obtener conexión del pool
+            conn = None
+            from_pool = False
+
+    if conn is None:
+        dsn = config.DATABASE_URL
+        if dsn:
+            conn = psycopg2.connect(dsn, sslmode="require")
+        else:
+            host = os.getenv("PGHOST")
+            port = os.getenv("PGPORT", "5432")
+            db = os.getenv("PGDATABASE")
+            user = os.getenv("PGUSER")
+            pwd = os.getenv("PGPASSWORD")
+            conn = psycopg2.connect(
+                host=host, port=port, dbname=db, user=user, password=pwd,
+                sslmode="require"
+            )
+
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        if from_pool and sync_p is not None:
+            try:
+                sync_p.putconn(conn)
+            except Exception:
+                pass
+        elif conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+async def init_pool():
+    global pool
+    if not config.DATABASE_URL:
+        raise RuntimeError("DATABASE_URL no configurada en variables de entorno")
+    
+    # Pool asíncrono optimizado para Transaction Pooler (PgBouncer/Supavisor)
+    pool = await asyncpg.create_pool(
+        dsn=config.DATABASE_URL,
+        min_size=1,
+        max_size=10,
+        statement_cache_size=0,  # Obligatorio para PgBouncer/Supabase en modo Transaction
+        max_queries=50000,
+        max_inactive_connection_lifetime=300,
+        command_timeout=60
+    )
+    # Inicializar también el pool síncrono
+    get_sync_pool()
+
+async def close_pool():
+    global pool, _sync_pool
+    if pool:
+        await pool.close()
+    if _sync_pool:
+        _sync_pool.closeall()
+
+def get_pool() -> asyncpg.Pool:
+    global pool
+    if pool is None:
+        raise RuntimeError("El pool de base de datos no ha sido inicializado")
+    return pool
