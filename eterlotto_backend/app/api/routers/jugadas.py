@@ -256,3 +256,4 @@ def get_prediccion_dinamico(r_name: str, fecha: Optional[str] = None, use_cases:
     return res
 
 
+

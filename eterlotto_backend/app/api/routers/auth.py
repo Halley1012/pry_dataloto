@@ -35,8 +35,8 @@ async def get_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.put("/users/{user_id}")
 async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -62,8 +62,8 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -74,8 +74,8 @@ async def delete_user(user_id: int, use_cases: AuthUseCases = Depends(dependenci
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/login")
 async def login(req: schemas.User, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -86,8 +86,8 @@ async def login(req: schemas.User, use_cases: AuthUseCases = Depends(dependencie
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor"))
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/refresh")
 async def refresh(
@@ -137,8 +137,8 @@ async def forgot_password(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/verify-reset-code")
 async def verify_reset_code(
@@ -155,8 +155,8 @@ async def verify_reset_code(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/verify-email")
 async def verify_email(
@@ -173,8 +173,8 @@ async def verify_email(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/resend-verification-code")
 async def resend_verification_code(
@@ -188,8 +188,8 @@ async def resend_verification_code(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/reset-password")
 async def reset_password(
@@ -207,8 +207,8 @@ async def reset_password(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/users/fcm_token")
 async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -220,8 +220,8 @@ async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases
         return res
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor"))
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/social-login")
 async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -232,6 +232,7 @@ async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCa
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 
