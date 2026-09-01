@@ -13,8 +13,8 @@ class BannerAdWidget extends StatefulWidget {
   final AdSize adSize;
   final bool showHeader;
 
-  // 📸 MODO CAPTURAS / PLAY CONSOLE: Cambia a 'false' cuando desees volver a mostrar el banner
-  static const bool hideBanner = true;
+  // 📸 MODO CAPTURAS / PLAY CONSOLE: Cambia a 'true' para ocultar el banner al tomar capturas
+  static const bool hideBanner = false;
 
   const BannerAdWidget({
     super.key,

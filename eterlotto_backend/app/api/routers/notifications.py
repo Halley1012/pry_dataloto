@@ -14,7 +14,9 @@ async def list_notifications(
         user_id = int(current_user["user_id"]) if current_user and current_user.get("user_id") else None
         return await use_cases.obtener_notificaciones(user_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
 
 @router.patch("/{notification_id}/read")
 @router.post("/{notification_id}/read")
@@ -38,4 +40,5 @@ async def delete_notification(
     if not success:
         raise HTTPException(status_code=404, detail="Notificación no encontrada o no pudo eliminarse")
     return {"success": True, "message": "Notificación eliminada exitosamente"}
+
 

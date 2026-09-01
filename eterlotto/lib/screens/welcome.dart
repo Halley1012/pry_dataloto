@@ -101,18 +101,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo adaptativo
-              Image.asset(
-                "assets/images/logo_letras_.png",
-                fit: BoxFit.contain,
-                height: MediaQuery.of(context).size.height * 0.28,
-              ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo adaptativo
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
+                  child: Image.asset(
+                    "assets/images/logo_letras_.png",
+                    fit: BoxFit.contain,
+                    width: MediaQuery.of(context).size.width * 0.6,
+                  ),
+                ),
               const SizedBox(height: 16),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a Eterlotto!", style: AppTextStyles.h2),
@@ -200,6 +204,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -6,9 +6,21 @@ import 'dart:convert';
 import 'package:url_launcher/url_launcher.dart';
 import '../styles/colores.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import '../services/api_service.dart';
 
 class OpcionPagoScreen extends StatefulWidget {
-  const OpcionPagoScreen({super.key});
+  final double amount;
+  final String email;
+  final String name;
+  final String reference;
+
+  const OpcionPagoScreen({
+    super.key,
+    required this.amount,
+    required this.email,
+    required this.name,
+    required this.reference,
+  });
 
   @override
   State<OpcionPagoScreen> createState() => _OpcionPagoScreenState();
@@ -49,14 +61,14 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
 
   Future<void> createTransaction() async {
     final response = await http.post(
-      Uri.parse('http://localhost:8000/create_transaction'),
+      Uri.parse('${ApiService.baseUrl}/pagos/create_transaction'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        "amount": 5000,
+        "amount": widget.amount,
         "currency": "COP",
-        "email": "cliente@correo.com",
-        "name": "Michael",
-        "reference": "ORD12345"
+        "email": widget.email,
+        "name": widget.name,
+        "reference": widget.reference
       }),
     );
 
@@ -86,9 +98,13 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
         ),
         backgroundColor: Colors.amber,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Form(
           key: _formKey,
           child: ListView(
             children: [
@@ -194,6 +210,9 @@ class _OpcionPagoScreenState extends State<OpcionPagoScreen> {
             ],
           ),
         ),
+      ),
+      ),
+      ),
       ),
     );
   }

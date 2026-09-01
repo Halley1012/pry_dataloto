@@ -133,6 +133,8 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
             widget.avatarUrl!,
             width: diameter,
             height: diameter,
+            cacheWidth: (diameter * 3).toInt(),
+            cacheHeight: (diameter * 3).toInt(),
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => _buildBalota(diameter, initial, 0.0),
           ),
