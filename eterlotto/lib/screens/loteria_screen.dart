@@ -21,9 +21,10 @@ import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:provider/provider.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 
-/// Configuración de reglas y límites de cada lotería
 /// Configuración de reglas y límites de cada lotería
 class LoteriaConfig {
   final String nombre;
@@ -191,7 +192,7 @@ class LoteriaScreen extends StatefulWidget {
 }
 
 class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateMixin {
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
   late LoteriaConfig config;
 
   int? balotaRojaSeleccionada;
@@ -250,15 +251,31 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
+
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
   }
 
   @override
   void dispose() {
     ScreenSecurityHelper.disableSecureScreen();
+    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
     _bounceController.dispose();
     _shineController.dispose();
     _jugadasController.dispose();
     super.dispose();
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.prediccion ||
+        module == RefreshModules.loterias ||
+        module == RefreshModules.jugadas ||
+        module == 'all') {
+      if (mounted) {
+        debugPrint("🔄 [LoteriaScreen] Auto-refrescando ${config.nombre} por ciclo de vida / TTL");
+        _cargarDataOptimizado(force: false);
+      }
+    }
   }
 
   Future<void> _cargarDataOptimizado({bool force = false}) async {

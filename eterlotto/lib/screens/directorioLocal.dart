@@ -10,6 +10,7 @@ import 'package:eterlotto/widgets/cardbussiness.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class DirectorioLocalScreen extends StatefulWidget {
@@ -28,7 +29,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   final departamentoController = TextEditingController();
   final paisController = TextEditingController();
 
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
 
   List<Map<String, dynamic>> anuncios = [];
 

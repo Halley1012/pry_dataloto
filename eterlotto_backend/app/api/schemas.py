@@ -147,7 +147,7 @@ class SocialLoginRequest(BaseModel):
     token: str
 
 class SubscriptionConfirmRequest(BaseModel):
-    user_id: int
+    user_id: Optional[int] = None
     product_id: str
     purchase_token: Optional[str] = None
     order_id: Optional[str] = None
