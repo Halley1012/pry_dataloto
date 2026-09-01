@@ -30,7 +30,7 @@ async def confirmation(request: Request, use_cases: TransactionUseCases = Depend
         return res
     except Exception as e:
         import logging
-        logging.error("Internal error: {e}")
+        logging.error(f"Internal error: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/response")
@@ -47,4 +47,5 @@ async def response(status: str = None, ref_payco: str = None):
     </html>
     """
     return HTMLResponse(content=html_content)
+
 
