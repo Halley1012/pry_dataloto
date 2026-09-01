@@ -52,11 +52,18 @@ async def eliminar_publicidad(publicidad_id: int, current_user: dict = Depends(d
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.put("/publicidad/{publicidad_id}/aprobar")
-async def aprobar_publicidad(publicidad_id: int, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+async def aprobar_publicidad(
+    publicidad_id: int, 
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)
+):
     try:
-        return await use_cases.aprobar_publicidad(publicidad_id)
+        user_id = int(current_user["user_id"])
+        return await use_cases.aprobar_publicidad(publicidad_id, admin_user_id=user_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         import logging
         logging.error(f"Internal error: {e}")

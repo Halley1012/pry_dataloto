@@ -52,8 +52,8 @@ class PublicidadUseCases:
     async def toggle_favorito(self, user_id: int, publicidad_id: int) -> Dict[str, Any]:
         return await self.publicidad_repo.toggle_favorito(user_id, publicidad_id)
 
-    async def aprobar_publicidad(self, publicidad_id: int) -> Dict[str, Any]:
-        success = await self.publicidad_repo.aprobar_publicidad(publicidad_id)
+    async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> Dict[str, Any]:
+        success = await self.publicidad_repo.aprobar_publicidad(publicidad_id, admin_user_id)
         if not success:
             raise ValueError("Anuncio no encontrado")
         return {"success": True, "message": "Anuncio aprobado ✅"}

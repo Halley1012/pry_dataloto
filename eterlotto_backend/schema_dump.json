@@ -1,0 +1,1355 @@
+{
+  "users": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('users_id_seq'::regclass)"
+      },
+      {
+        "column_name": "instance_id",
+        "data_type": "uuid",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "id",
+        "data_type": "uuid",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "name",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "aud",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "password",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "role",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "pais_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "departamento_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "encrypted_password",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": "now()"
+      },
+      {
+        "column_name": "email_confirmed_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "invited_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "fcm_token",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_premium",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "confirmation_token",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "premium_expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "confirmation_sent_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "recovery_token",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "google_order_id",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "recovery_sent_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "activo",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "email_change_token_new",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "email_change",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "last_login_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "rol",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'user'::character varying"
+      },
+      {
+        "column_name": "email_change_sent_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "auth_provider",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'email'::character varying"
+      },
+      {
+        "column_name": "last_sign_in_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "raw_app_meta_data",
+        "data_type": "jsonb",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email_verified",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "raw_user_meta_data",
+        "data_type": "jsonb",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "avatar_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_super_admin",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "telefono",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "idioma",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'es'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "notificaciones_activas",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "updated_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "terms_accepted_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "phone",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": "NULL::character varying"
+      },
+      {
+        "column_name": "phone_confirmed_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "app_version",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "plataforma",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "phone_change",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": "''::character varying"
+      },
+      {
+        "column_name": "is_adult",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "phone_change_token",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "''::character varying"
+      },
+      {
+        "column_name": "phone_change_sent_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "confirmed_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "email_change_token_current",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "''::character varying"
+      },
+      {
+        "column_name": "email_change_confirm_status",
+        "data_type": "smallint",
+        "is_nullable": "YES",
+        "column_default": "0"
+      },
+      {
+        "column_name": "banned_until",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "reauthentication_token",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "''::character varying"
+      },
+      {
+        "column_name": "reauthentication_sent_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_sso_user",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false"
+      },
+      {
+        "column_name": "deleted_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "is_anonymous",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "false"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "constraint_name": "users_departamento_id_fkey",
+        "column_name": "departamento_id",
+        "foreign_table_name": "departamentos",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      },
+      {
+        "constraint_name": "users_pais_id_fkey",
+        "column_name": "pais_id",
+        "foreign_table_name": "paises",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "users_pkey",
+        "indexdef": "CREATE UNIQUE INDEX users_pkey ON auth.users USING btree (id)"
+      },
+      {
+        "indexname": "users_instance_id_idx",
+        "indexdef": "CREATE INDEX users_instance_id_idx ON auth.users USING btree (instance_id)"
+      },
+      {
+        "indexname": "users_instance_id_email_idx",
+        "indexdef": "CREATE INDEX users_instance_id_email_idx ON auth.users USING btree (instance_id, lower((email)::text))"
+      },
+      {
+        "indexname": "confirmation_token_idx",
+        "indexdef": "CREATE UNIQUE INDEX confirmation_token_idx ON auth.users USING btree (confirmation_token) WHERE ((confirmation_token)::text !~ '^[0-9 ]*$'::text)"
+      },
+      {
+        "indexname": "recovery_token_idx",
+        "indexdef": "CREATE UNIQUE INDEX recovery_token_idx ON auth.users USING btree (recovery_token) WHERE ((recovery_token)::text !~ '^[0-9 ]*$'::text)"
+      },
+      {
+        "indexname": "email_change_token_current_idx",
+        "indexdef": "CREATE UNIQUE INDEX email_change_token_current_idx ON auth.users USING btree (email_change_token_current) WHERE ((email_change_token_current)::text !~ '^[0-9 ]*$'::text)"
+      },
+      {
+        "indexname": "email_change_token_new_idx",
+        "indexdef": "CREATE UNIQUE INDEX email_change_token_new_idx ON auth.users USING btree (email_change_token_new) WHERE ((email_change_token_new)::text !~ '^[0-9 ]*$'::text)"
+      },
+      {
+        "indexname": "reauthentication_token_idx",
+        "indexdef": "CREATE UNIQUE INDEX reauthentication_token_idx ON auth.users USING btree (reauthentication_token) WHERE ((reauthentication_token)::text !~ '^[0-9 ]*$'::text)"
+      },
+      {
+        "indexname": "users_email_partial_key",
+        "indexdef": "CREATE UNIQUE INDEX users_email_partial_key ON auth.users USING btree (email) WHERE (is_sso_user = false)"
+      },
+      {
+        "indexname": "users_phone_key",
+        "indexdef": "CREATE UNIQUE INDEX users_phone_key ON auth.users USING btree (phone)"
+      },
+      {
+        "indexname": "users_is_anonymous_idx",
+        "indexdef": "CREATE INDEX users_is_anonymous_idx ON auth.users USING btree (is_anonymous)"
+      },
+      {
+        "indexname": "idx_users_email",
+        "indexdef": "CREATE INDEX idx_users_email ON auth.users USING btree (email)"
+      },
+      {
+        "indexname": "idx_users_created_at_desc",
+        "indexdef": "CREATE INDEX idx_users_created_at_desc ON auth.users USING btree (created_at DESC)"
+      },
+      {
+        "indexname": "idx_users_last_sign_in_at_desc",
+        "indexdef": "CREATE INDEX idx_users_last_sign_in_at_desc ON auth.users USING btree (last_sign_in_at DESC)"
+      },
+      {
+        "indexname": "idx_users_name",
+        "indexdef": "CREATE INDEX idx_users_name ON auth.users USING btree (((raw_user_meta_data ->> 'name'::text))) WHERE ((raw_user_meta_data ->> 'name'::text) IS NOT NULL)"
+      },
+      {
+        "indexname": "users_email_key",
+        "indexdef": "CREATE UNIQUE INDEX users_email_key ON public.users USING btree (email)"
+      },
+      {
+        "indexname": "users_pkey",
+        "indexdef": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+      },
+      {
+        "indexname": "idx_users_pais_departamento",
+        "indexdef": "CREATE INDEX idx_users_pais_departamento ON public.users USING btree (pais_id, departamento_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "users_email_change_confirm_status_check",
+        "def": "CHECK (((email_change_confirm_status >= 0) AND (email_change_confirm_status <= 2)))"
+      },
+      {
+        "name": "users_phone_key",
+        "def": "UNIQUE (phone)"
+      },
+      {
+        "name": "users_pkey",
+        "def": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "users_departamento_id_fkey",
+        "def": "FOREIGN KEY (departamento_id) REFERENCES departamentos(id)"
+      },
+      {
+        "name": "users_email_key",
+        "def": "UNIQUE (email)"
+      },
+      {
+        "name": "users_pais_id_fkey",
+        "def": "FOREIGN KEY (pais_id) REFERENCES paises(id)"
+      },
+      {
+        "name": "users_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 8
+  },
+  "user_subscriptions": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('user_subscriptions_id_seq'::regclass)"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "product_id",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "purchase_token",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "order_id",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "status",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'active'::character varying"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "expires_at",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [
+      {
+        "indexname": "user_subscriptions_pkey",
+        "indexdef": "CREATE UNIQUE INDEX user_subscriptions_pkey ON public.user_subscriptions USING btree (id)"
+      },
+      {
+        "indexname": "idx_user_subscriptions_user_id",
+        "indexdef": "CREATE INDEX idx_user_subscriptions_user_id ON public.user_subscriptions USING btree (user_id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "user_subscriptions_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 8
+  },
+  "jugadas": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('jugadas_id_seq'::regclass)"
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "loteria_route",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "numeros",
+        "data_type": "ARRAY",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "fecha_sorteo",
+        "data_type": "date",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "fecha_guardado",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "expira",
+        "data_type": "timestamp with time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "loteria_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreign_keys": [
+      {
+        "constraint_name": "jugadas_loteria_id_fkey",
+        "column_name": "loteria_id",
+        "foreign_table_name": "loterias",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "jugadas_pkey1",
+        "indexdef": "CREATE UNIQUE INDEX jugadas_pkey1 ON public.jugadas USING btree (id)"
+      },
+      {
+        "indexname": "idx_jugadas_loteria_id",
+        "indexdef": "CREATE INDEX idx_jugadas_loteria_id ON public.jugadas USING btree (loteria_id)"
+      },
+      {
+        "indexname": "idx_jugadas_expira",
+        "indexdef": "CREATE INDEX idx_jugadas_expira ON public.jugadas USING btree (expira)"
+      },
+      {
+        "indexname": "idx_jugadas_user_loteria",
+        "indexdef": "CREATE INDEX idx_jugadas_user_loteria ON public.jugadas USING btree (user_id, loteria_route)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "jugadas_loteria_id_fkey",
+        "def": "FOREIGN KEY (loteria_id) REFERENCES loterias(id) ON DELETE CASCADE"
+      },
+      {
+        "name": "jugadas_pkey1",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 137
+  },
+  "publicidad": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('publicidad_id_seq'::regclass)"
+      },
+      {
+        "column_name": "usuario_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "titulo",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "descripcion",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "imagen_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "categoria_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "telefono",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "facebook_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "instagram_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "whatsapp_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "tiktok_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "pagina_url",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "fecha_inicio",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "fecha_fin",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "estado",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "aprobado",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "pago_confirmado",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "fecha_creacion",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "direccion",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "ciudad_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "pais_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "departamento_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "es_24_7",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "hora_apertura",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'00:00'::character varying"
+      },
+      {
+        "column_name": "hora_cierre",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'23:59'::character varying"
+      },
+      {
+        "column_name": "dias_atencion",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'Todos los d\u00edas'::character varying"
+      },
+      {
+        "column_name": "estado_texto",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "'Abierto 24/7'::character varying"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "constraint_name": "publicidad_ciudad_id_fkey",
+        "column_name": "ciudad_id",
+        "foreign_table_name": "ciudades",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      },
+      {
+        "constraint_name": "publicidad_departamento_id_fkey",
+        "column_name": "departamento_id",
+        "foreign_table_name": "departamentos",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      },
+      {
+        "constraint_name": "publicidad_pais_id_fkey",
+        "column_name": "pais_id",
+        "foreign_table_name": "paises",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      },
+      {
+        "constraint_name": "publicidad_usuario_id_fkey",
+        "column_name": "usuario_id",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "publicidad_pkey",
+        "indexdef": "CREATE UNIQUE INDEX publicidad_pkey ON public.publicidad USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "publicidad_ciudad_id_fkey",
+        "def": "FOREIGN KEY (ciudad_id) REFERENCES ciudades(id)"
+      },
+      {
+        "name": "publicidad_departamento_id_fkey",
+        "def": "FOREIGN KEY (departamento_id) REFERENCES departamentos(id)"
+      },
+      {
+        "name": "publicidad_pais_id_fkey",
+        "def": "FOREIGN KEY (pais_id) REFERENCES paises(id)"
+      },
+      {
+        "name": "publicidad_pkey",
+        "def": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "publicidad_usuario_id_fkey",
+        "def": "FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE CASCADE"
+      }
+    ],
+    "row_count": 3
+  },
+  "posts": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('posts_id_seq'::regclass)"
+      },
+      {
+        "column_name": "title",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "content",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [
+      {
+        "indexname": "posts_pkey",
+        "indexdef": "CREATE UNIQUE INDEX posts_pkey ON public.posts USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "posts_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 48
+  },
+  "comments": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('comments_id_seq'::regclass)"
+      },
+      {
+        "column_name": "post_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "user_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "content",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "constraint_name": "comments_post_id_fkey",
+        "column_name": "post_id",
+        "foreign_table_name": "posts",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "CASCADE"
+      },
+      {
+        "constraint_name": "comments_user_id_fkey",
+        "column_name": "user_id",
+        "foreign_table_name": "users",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "CASCADE"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "comments_pkey",
+        "indexdef": "CREATE UNIQUE INDEX comments_pkey ON public.comments USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "comments_pkey",
+        "def": "PRIMARY KEY (id)"
+      },
+      {
+        "name": "comments_post_id_fkey",
+        "def": "FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE"
+      },
+      {
+        "name": "comments_user_id_fkey",
+        "def": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
+      }
+    ],
+    "row_count": 1
+  },
+  "notificaciones": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('notificaciones_id_seq'::regclass)"
+      },
+      {
+        "column_name": "usuario_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "loteria_id",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "fecha_sorteo",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "mensaje",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "tipo",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "leido",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "created_at",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [
+      {
+        "indexname": "notificaciones_pkey",
+        "indexdef": "CREATE UNIQUE INDEX notificaciones_pkey ON public.notificaciones USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "notificaciones_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 44
+  },
+  "loterias": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('loterias_id_seq'::regclass)"
+      },
+      {
+        "column_name": "nombre",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "tipo",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "pais_id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "activa",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "true"
+      },
+      {
+        "column_name": "route",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "max_seleccion",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": "5"
+      },
+      {
+        "column_name": "max_balotas_blancas",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": "45"
+      },
+      {
+        "column_name": "max_balotas_rojas",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": "0"
+      },
+      {
+        "column_name": "superbalota_nombre",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": "NULL::character varying"
+      },
+      {
+        "column_name": "has_revancha",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "total_balotas_sorteo",
+        "data_type": "integer",
+        "is_nullable": "YES",
+        "column_default": "5"
+      },
+      {
+        "column_name": "tiene_complementario",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      },
+      {
+        "column_name": "tiene_reintegro",
+        "data_type": "boolean",
+        "is_nullable": "YES",
+        "column_default": "false"
+      }
+    ],
+    "foreign_keys": [
+      {
+        "constraint_name": "loterias_pais_id_fkey",
+        "column_name": "pais_id",
+        "foreign_table_name": "paises",
+        "foreign_column_name": "id",
+        "update_rule": "NO ACTION",
+        "delete_rule": "NO ACTION"
+      }
+    ],
+    "indexes": [
+      {
+        "indexname": "loterias_pkey",
+        "indexdef": "CREATE UNIQUE INDEX loterias_pkey ON public.loterias USING btree (id)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "loterias_pais_id_fkey",
+        "def": "FOREIGN KEY (pais_id) REFERENCES paises(id)"
+      },
+      {
+        "name": "loterias_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 35
+  },
+  "categorias": {
+    "columns": [
+      {
+        "column_name": "id",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "nextval('categorias_id_seq'::regclass)"
+      },
+      {
+        "column_name": "nombre",
+        "data_type": "character varying",
+        "is_nullable": "NO",
+        "column_default": null
+      },
+      {
+        "column_name": "slug",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "icono",
+        "data_type": "character varying",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "activa",
+        "data_type": "boolean",
+        "is_nullable": "NO",
+        "column_default": "true"
+      },
+      {
+        "column_name": "orden",
+        "data_type": "integer",
+        "is_nullable": "NO",
+        "column_default": "0"
+      },
+      {
+        "column_name": "fecha_creacion",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP"
+      },
+      {
+        "column_name": "fecha_actualizacion",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "NO",
+        "column_default": "CURRENT_TIMESTAMP"
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [
+      {
+        "indexname": "categorias_pkey",
+        "indexdef": "CREATE UNIQUE INDEX categorias_pkey ON public.categorias USING btree (id)"
+      },
+      {
+        "indexname": "categorias_nombre_key",
+        "indexdef": "CREATE UNIQUE INDEX categorias_nombre_key ON public.categorias USING btree (nombre)"
+      },
+      {
+        "indexname": "uq_categorias_nombre",
+        "indexdef": "CREATE UNIQUE INDEX uq_categorias_nombre ON public.categorias USING btree (lower((nombre)::text))"
+      },
+      {
+        "indexname": "uq_categorias_slug",
+        "indexdef": "CREATE UNIQUE INDEX uq_categorias_slug ON public.categorias USING btree (slug)"
+      }
+    ],
+    "constraints": [
+      {
+        "name": "categorias_nombre_key",
+        "def": "UNIQUE (nombre)"
+      },
+      {
+        "name": "categorias_pkey",
+        "def": "PRIMARY KEY (id)"
+      }
+    ],
+    "row_count": 60
+  },
+  "resultados_colorloto": {
+    "columns": [
+      {
+        "column_name": "fecha",
+        "data_type": "timestamp without time zone",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "amarillo",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "azul",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "rojo",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "verde",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "blanco",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "negro",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [],
+    "constraints": [],
+    "row_count": 171
+  },
+  "resultados_colorloto2": {
+    "columns": [
+      {
+        "column_name": "fecha",
+        "data_type": "date",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "color",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "column_default": null
+      },
+      {
+        "column_name": "numero",
+        "data_type": "bigint",
+        "is_nullable": "YES",
+        "column_default": null
+      }
+    ],
+    "foreign_keys": [],
+    "indexes": [],
+    "constraints": [],
+    "row_count": 1266
+  },
+  "resultados_baloto": {
+    "columns": [],
+    "foreign_keys": [],
+    "indexes": [],
+    "constraints": [],
+    "row_count": 0,
+    "error": "Table does not exist"
+  },
+  "resultados_miloto": {
+    "columns": [],
+    "foreign_keys": [],
+    "indexes": [],
+    "constraints": [],
+    "row_count": 0,
+    "error": "Table does not exist"
+  }
+}

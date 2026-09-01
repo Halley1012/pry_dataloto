@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, date
-from app.domain.models import User, Jugada, Post, Comment, Publicidad, Transaction
+from app.domain.models import User, Jugada, Post, Comment, Publicidad
 
 class UserRepositoryPort(ABC):
     @abstractmethod
@@ -220,7 +220,7 @@ class PublicidadRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def aprobar_publicidad(self, publicidad_id: int) -> bool:
+    async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> bool:
         pass
 
     @abstractmethod
@@ -282,9 +282,15 @@ class NotificationRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def mark_as_read(self, notification_id: int) -> bool:
+    async def mark_as_read(self, notification_id: int, user_id: int) -> bool:
         pass
 
     @abstractmethod
     async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+        pass
+
+
+class GooglePlayPort(ABC):
+    @abstractmethod
+    async def verify_subscription_token(self, package_name: str, product_id: str, purchase_token: str) -> Dict[str, Any]:
         pass
