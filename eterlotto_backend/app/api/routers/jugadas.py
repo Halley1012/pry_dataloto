@@ -255,3 +255,4 @@ def get_prediccion_dinamico(r_name: str, fecha: Optional[str] = None, use_cases:
         memory_cache.set(cache_key, res, ttl=300)
     return res
 
+

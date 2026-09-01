@@ -18,7 +18,9 @@ def listar_categorias(use_cases: PublicidadUseCases = Depends(dependencies.get_p
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar categorías: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/paises")
 def listar_paises(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -32,7 +34,9 @@ def listar_paises(use_cases: PublicidadUseCases = Depends(dependencies.get_publi
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar países: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/departamentos/{pais_id}")
 def listar_departamentos_por_pais(pais_id: int, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -46,7 +50,9 @@ def listar_departamentos_por_pais(pais_id: int, use_cases: PublicidadUseCases = 
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar departamentos: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/departamentos1")
 def listar_departamentos(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -60,7 +66,9 @@ def listar_departamentos(use_cases: PublicidadUseCases = Depends(dependencies.ge
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar departamentos: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/ciudades")
 def listar_ciudades(departamento_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -74,7 +82,9 @@ def listar_ciudades(departamento_id: Optional[int] = None, use_cases: Publicidad
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar ciudades: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/loterias", response_model=List[schemas.LoteriaOut])
 def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -88,4 +98,7 @@ def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor"))
+

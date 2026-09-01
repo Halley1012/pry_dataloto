@@ -166,15 +166,30 @@ class _SplashScreenState extends State<SplashScreen>
         child: Stack(
           alignment: Alignment.center,
           children: [
-            Image.asset("assets/images/logo_letras_.png", height: 300, ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 400),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                child: Image.asset(
+                  "assets/images/logo_letras_.png", 
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
             Shimmer.fromColors(
               baseColor: Colors.transparent,
               highlightColor: Colors.white.withValues(alpha: 0.6),
               period: const Duration(seconds: 2),
-              child: Image.asset(
-                "assets/images/logo_letras_.png",
-                height: 300,
-                color: Colors.black,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 400),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40.0),
+                  child: Image.asset(
+                    "assets/images/logo_letras_.png",
+                    fit: BoxFit.contain,
+                    color: Colors.black,
+                  ),
+                ),
               ),
             ),
           ],

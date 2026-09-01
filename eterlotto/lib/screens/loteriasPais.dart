@@ -647,12 +647,12 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   Widget _resolveScreen(dynamic loteria) {
     if (loteria is Map<String, dynamic>) {
       return LoteriaScreen(
-        loteriaNombre: loteria["nombre"] ?? "Baloto",
+        loteriaNombre: loteria["nombre"] ?? "Lotería",
         loteriaRoute: loteria["route"]?.toString(),
         loteriaData: loteria,
       );
     }
-    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Baloto");
+    return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Lotería");
   }
 
   Widget _buildSkeletonList() {

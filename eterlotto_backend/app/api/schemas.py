@@ -59,6 +59,27 @@ class TransactionRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+class PublicidadCreate(BaseModel):
+    titulo: str
+    descripcion: str
+    categoria_id: int
+    pais_id: int
+    departamento_id: int
+    ciudad_id: Optional[int] = None
+    imagen_url: Optional[str] = None
+    telefono: Optional[str] = None
+    facebook_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    whatsapp_url: Optional[str] = None
+    tiktok_url: Optional[str] = None
+    pagina_url: Optional[str] = None
+    direccion: Optional[str] = None
+    es_24_7: Optional[bool] = False
+    hora_apertura: Optional[str] = None
+    hora_cierre: Optional[str] = None
+    dias_atencion: Optional[str] = None
+    estado_texto: Optional[str] = None
+
 class ResetPasswordWithCodeRequest(BaseModel):
     email: EmailStr
     code: str

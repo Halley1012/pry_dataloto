@@ -892,174 +892,185 @@ class _LoginPageState extends State<LoginPage> {
         title: Text(l10n.iniciarSesion, style: AppTextStyles.h2),
         centerTitle: true,
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                l10n.bienvenido,
-                style: AppTextStyles.h2,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                l10n.iniciaSesionParaContinuar,
-                style: AppTextStyles.mensajeSecundario,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.90,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  l10n.bienvenido,
+                  style: AppTextStyles.h2,
+                  textAlign: TextAlign.center,
                 ),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
-                      style: AppTextStyles.mensajeSecundario.copyWith(
-                        decoration: TextDecoration.none,
-                        decorationThickness: 0,
-                        decorationColor: Colors.transparent,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: l10n.email,
-                        labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
-                        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E24),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                const SizedBox(height: 10),
+                Text(
+                  l10n.iniciaSesionParaContinuar,
+                  style: AppTextStyles.mensajeSecundario,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 40),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 400,
+                  ),
+                  child: Column(
+                    children: [
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          decoration: TextDecoration.none,
+                          decorationThickness: 0,
+                          decorationColor: Colors.transparent,
                         ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _passwordController,
-                      obscureText:
-                          _obscureText, // Use state variable for visibility
-                      enableSuggestions: false,
-                      autocorrect: false,
-                      spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
-                      style: AppTextStyles.mensajeSecundario.copyWith(
-                        decoration: TextDecoration.none,
-                        decorationThickness: 0,
-                        decorationColor: Colors.transparent,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: l10n.contrasena,
-                        labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
-                        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
-                        filled: true,
-                        fillColor: const Color(0xFF1E1E24),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(30),
-                          borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
-                        ),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscureText
-                                ? Icons.visibility_off
-                                : Icons.visibility,
-                            color: AppColors.yellow,
+                        decoration: InputDecoration(
+                          labelText: l10n.email,
+                          labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                          floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E24),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
                           ),
-                          onPressed: () {
-                            setState(() {
-                              _obscureText = !_obscureText; // Toggle visibility
-                            });
-                          },
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText:
+                            _obscureText, // Use state variable for visibility
+                        enableSuggestions: false,
+                        autocorrect: false,
+                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          decoration: TextDecoration.none,
+                          decorationThickness: 0,
+                          decorationColor: Colors.transparent,
+                        ),
+                        decoration: InputDecoration(
+                          labelText: l10n.contrasena,
+                          labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
+                          floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E24),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscureText
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                              color: AppColors.yellow,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscureText = !_obscureText; // Toggle visibility
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 30),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: LoadingButton(
+                    isLoading: isLoading,
+                    text: l10n.ingresar,
+                    onPressed: loginUser,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () => _showFancyForgotPasswordDialog(context),
+                  child: Text(
+                    l10n.olvidoContrasena,
+                    style: AppTextStyles.mensajeSecundario.copyWith(
+                      color: AppColors.yellow,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 30),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: Row(
+                    children: [
+                      const Expanded(child: Divider(color: Colors.white24)),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Text(
+                          "o",
+                          style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+                        ),
+                      ),
+                      const Expanded(child: Divider(color: Colors.white24)),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 400),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      onPressed: isLoading ? null : loginWithGoogle,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2C2F38),
+                        foregroundColor: AppColors.yellow,
+                        disabledBackgroundColor: const Color(0xFF22252C),
+                        disabledForegroundColor: Colors.white54,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const FaIcon(
+                        FontAwesomeIcons.google,
+                        color: Colors.red,
+                        size: 20,
+                      ),
+                      label: Text(
+                        "Continuar con Google",
+                        style: AppTextStyles.button.copyWith(
+                          color: isLoading ? Colors.white54 : AppColors.yellow,
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-              LoadingButton(
-                isLoading: isLoading,
-                text: l10n.ingresar,
-                onPressed: loginUser,
-              ),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: () => _showFancyForgotPasswordDialog(context),
-                child: Text(
-                  l10n.olvidoContrasena,
-                  style: AppTextStyles.mensajeSecundario.copyWith(
-                    color: AppColors.yellow,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-              const SizedBox(height: 30),
-              Row(
-                children: [
-                  const Expanded(child: Divider(color: Colors.white24)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Text(
-                      "o",
-                      style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                    ),
-                  ),
-                  const Expanded(child: Divider(color: Colors.white24)),
-                ],
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: isLoading ? null : loginWithGoogle,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2C2F38),
-                    foregroundColor: AppColors.yellow,
-                    disabledBackgroundColor: const Color(0xFF22252C),
-                    disabledForegroundColor: Colors.white54,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                    elevation: 0,
-                  ),
-                  icon: const FaIcon(
-                    FontAwesomeIcons.google,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                  label: Text(
-                    "Continuar con Google",
-                    style: AppTextStyles.button.copyWith(
-                      color: isLoading ? Colors.white54 : AppColors.yellow,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-            ],
+                const SizedBox(height: 20),
+              ],
+            ),
           ),
         ),
       ),

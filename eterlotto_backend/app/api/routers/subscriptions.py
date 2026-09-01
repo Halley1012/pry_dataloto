@@ -46,7 +46,9 @@ async def confirm_subscription(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al registrar suscripción: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
 
 @router.get("/status/{user_id}")
 async def get_subscription_status(user_id: int):
@@ -83,4 +85,7 @@ async def get_subscription_status(user_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al consultar estado de suscripción: {str(e)}")
+        import logging
+        logging.error("Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")}")
+

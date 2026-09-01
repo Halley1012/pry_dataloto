@@ -7,7 +7,24 @@ from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepo
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
 from app.api.routers import auth, jugadas, posts, publicidad, transacciones, metadata, notifications, subscriptions
 
-app = FastAPI(title="Eterlotto Backend")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    await db_connection.init_pool()
+    try:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await PostgresUserRepository.ensure_schema(conn)
+            await PostgresJugadaRepository.ensure_schema(conn)
+    except Exception as e:
+        print(f"⚠️ Advertencia inicializando esquema en startup: {e}")
+    yield
+    # Shutdown
+    await db_connection.close_pool()
+
+app = FastAPI(title="Eterlotto Backend", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,33 +34,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup():
-    await db_connection.init_pool()
+# Liveness Probe (Proceso vivo)
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
+
+# Readiness Probe (Conexión a BD lista)
+@app.get("/readyz")
+async def readyz():
     try:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            await PostgresUserRepository.ensure_schema(conn)
-            await PostgresJugadaRepository.ensure_schema(conn)
+            await conn.execute("SELECT 1")
+        return {"status": "ready"}
     except Exception as e:
-        print(f"⚠️ Advertencia inicializando esquema en startup: {e}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Database unready")
 
-@app.on_event("shutdown")
-async def shutdown():
-    await db_connection.close_pool()
-
-# Ruta raíz para verificar el estado de la API
-@app.get("/")
-def root():
-    return {
-        "message": "Backend Miloto funcionando 🚀",
-        "endpoints": ["/healthz", "/mloto", "/mloto/historico", "/login", "/register", "/test"]
-    }
-
-# Endpoint de prueba solicitado por el usuario
-@app.get("/test")
-def test_endpoint():
-    return {"message": "hola mundo michael"}
 
 # Registrar los routers del adaptador de entrada (API)
 app.include_router(auth.router)

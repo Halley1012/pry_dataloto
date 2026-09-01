@@ -621,13 +621,17 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       ),
       body: _isLoading
           ? _buildSkeletonLoader()
-          : Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+          : SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: Form(
+                    key: _formKey,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
                     Text(
                       _esEdicion ? l10n.editarAnuncio.toLowerCase() : l10n.crearNuevoAnuncio,
                       style: AppTextStyles.h2,
@@ -929,6 +933,9 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                   ],
                 ),
               ),
+            ),
+            ),
+            ),
             ),
     );
   }
