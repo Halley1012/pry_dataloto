@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:eterlotto/models/notification_model.dart';
 import 'package:eterlotto/services/notification_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 
 class NotificationProvider with ChangeNotifier {
   List<NotificationModel> _notifications = [];
@@ -13,6 +14,14 @@ class NotificationProvider with ChangeNotifier {
 
   NotificationProvider() {
     _loadFromCache();
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.home || module == 'all') {
+      fetchNotifications();
+    }
   }
 
   Future<void> _loadFromCache() async {

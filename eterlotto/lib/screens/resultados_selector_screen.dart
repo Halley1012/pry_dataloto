@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -13,6 +12,9 @@ import 'package:shimmer/shimmer.dart';
 
 
 
+import 'package:eterlotto/services/data_refresh_manager.dart';
+import '../utils/secure_storage_helper.dart';
+
 class ResultadosSelectorScreen extends StatefulWidget {
   const ResultadosSelectorScreen({super.key});
 
@@ -24,7 +26,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
-  final _storage = const FlutterSecureStorage();
+  final _storage = AppSecureStorage.instance;
   String? _userCountry;
   bool _isLoading = true;
 
@@ -32,18 +34,30 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   void initState() {
     super.initState();
     CacheService.jugadasChangeNotifier.addListener(_onJugadasChanged);
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
     cargarLoterias();
   }
 
   @override
   void dispose() {
     CacheService.jugadasChangeNotifier.removeListener(_onJugadasChanged);
+    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
     super.dispose();
   }
 
   void _onJugadasChanged() {
     if (mounted) {
       cargarLoterias(forceRefresh: true);
+    }
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.resultados || module == 'all') {
+      if (mounted) {
+        debugPrint("🔄 [ResultadosSelectorScreen] Auto-refrescando resultados por ciclo de vida / TTL");
+        cargarLoterias(forceRefresh: false);
+      }
     }
   }
 
@@ -137,6 +151,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         if (finalLoterias.isNotEmpty) {
           CacheService.setJson(cacheKey, finalLoterias);
         }
+        DataRefreshManager.instance.markUpdated(RefreshModules.resultados);
       }
     } catch (e) {
       debugPrint("❌ Error en cargarLoterias (Resultados): $e");

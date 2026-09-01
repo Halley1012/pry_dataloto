@@ -4,8 +4,10 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:provider/provider.dart';
+import '../providers/subscription_provider.dart';
 import '../services/api_service.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/screens/registro.dart';
 import 'package:eterlotto/screens/login.dart';
 
@@ -18,7 +20,7 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isLoading = false;
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
 
   Future<void> _loginWithGoogle() async {
     final l10n = AppLocalizations.of(context)!;
@@ -73,6 +75,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           );
         } else {
+          if (mounted) {
+            context.read<SubscriptionProvider>().refreshSubscriptionStatus();
+          }
           Navigator.pushReplacementNamed(context, "/home");
         }
       } else {

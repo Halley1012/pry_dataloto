@@ -9,6 +9,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
+import '../utils/secure_storage_helper.dart';
+
 class PostScreen extends StatefulWidget {
   final int postId;
   final String postTitle;
@@ -28,7 +30,7 @@ class PostScreen extends StatefulWidget {
 class _PostScreenState extends State<PostScreen> {
   final _commentController = TextEditingController();
   final FocusNode _commentFocusNode = FocusNode();
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
 
   bool isLoading = false;
   List<Comment> comments = [];

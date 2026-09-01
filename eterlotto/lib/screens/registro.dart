@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:eterlotto/screens/welcome.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
+import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -253,7 +254,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
                               if (res.statusCode == 200) {
                                   final data = jsonDecode(res.body);
-                                  const storage = FlutterSecureStorage();
+                                  final storage = AppSecureStorage.instance;
                                   if (data['access_token'] != null) {
                                     await storage.write(key: "auth_token", value: data['access_token'].toString());
                                     await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());
@@ -504,7 +505,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
       // Actualizamos almacenamiento local
       final updatedUser = result['user'];
-      const storage = FlutterSecureStorage();
+      final storage = AppSecureStorage.instance;
 
       if (updatedUser != null) {
         await storage.write(key: 'name', value: updatedUser['name']);
@@ -573,7 +574,7 @@ class _RegistroPageState extends State<RegistroScreen> {
           icon: const Icon(Icons.arrow_back, size: 30),
           onPressed: () async {
             if (widget.isSocialOnboarding) {
-              const storage = FlutterSecureStorage();
+              final storage = AppSecureStorage.instance;
               await storage.deleteAll();
               if (context.mounted) {
                 Navigator.pushAndRemoveUntil(
@@ -599,7 +600,7 @@ class _RegistroPageState extends State<RegistroScreen> {
         onPopInvokedWithResult: (didPop, result) async {
           if (didPop) return;
           if (widget.isSocialOnboarding) {
-            const storage = FlutterSecureStorage();
+            final storage = AppSecureStorage.instance;
             await storage.deleteAll();
             if (context.mounted) {
               Navigator.pushAndRemoveUntil(

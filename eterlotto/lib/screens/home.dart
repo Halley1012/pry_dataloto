@@ -27,7 +27,10 @@ import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 import 'package:shimmer/shimmer.dart';
+import '../providers/subscription_provider.dart';
+import '../utils/secure_storage_helper.dart';
 
 // HomeScreen
 class HomeScreen extends StatefulWidget {
@@ -38,7 +41,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final storage = const FlutterSecureStorage();
+  final storage = AppSecureStorage.instance;
   bool cargando = false;
   List<Map<String, dynamic>> anuncios = [];
   bool isLoading = false;
@@ -56,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
     _loadUserAndData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -64,8 +68,28 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
+    super.dispose();
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if (module == RefreshModules.home || module == 'all') {
+      if (mounted) {
+        debugPrint("🔄 [HomeScreen] Auto-refrescando datos por notificación de ciclo de vida / TTL");
+        _loadUserAndData(forceRefresh: false);
+      }
+    }
+  }
+
   Future<void> _loadUserAndData({bool forceRefresh = false}) async {
     try {
+      if (mounted) {
+        context.read<SubscriptionProvider>().refreshSubscriptionStatus();
+      }
+
       // 1. Leer credenciales de storage en paralelo
       final keys = await Future.wait([
         storage.read(key: 'user_id'),
@@ -215,6 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // 💾 Guardar en caché local
       CacheService.setJson('home_loterias_$paisIdStr', resultados[2]);
       CacheService.setJson('home_anuncios_$paisIdStr', resultados[1]);
+      DataRefreshManager.instance.markUpdated(RefreshModules.home);
     } catch (e) {
       debugPrint("❌ Error al cargar la página principal: $e");
       if (!mounted) return;

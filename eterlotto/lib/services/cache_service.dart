@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/secure_storage_helper.dart';
 
 class CacheService {
   static const String _prefix = "cache_dataloto_";
@@ -14,29 +14,69 @@ class CacheService {
     jugadasChangeNotifier.value++;
   }
 
-  /// Guarda una respuesta JSON o Lista de JSONs en SharedPreferences local
+  /// Guarda una respuesta JSON o Lista de JSONs en SharedPreferences local con timestamp
   static Future<void> setJson(String key, dynamic data) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final encoded = jsonEncode(data);
+      final envelope = {
+        '__ts': DateTime.now().millisecondsSinceEpoch,
+        'payload': data,
+      };
+      final encoded = jsonEncode(envelope);
       await prefs.setString('$_prefix$key', encoded);
     } catch (_) {
       // Ignorar errores de escritura de caché
     }
   }
 
-  /// Recupera una respuesta JSON o Lista de JSONs de la caché local
-  static Future<dynamic> getJson(String key) async {
+  /// Recupera una respuesta JSON o Lista de JSONs de la caché local.
+  /// Si se especifica [maxAge], retorna `null` si el caché ha expirado.
+  static Future<dynamic> getJson(String key, {Duration? maxAge}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('$_prefix$key');
       if (raw != null && raw.isNotEmpty) {
-        return jsonDecode(raw);
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('__ts') && decoded.containsKey('payload')) {
+          if (maxAge != null) {
+            final int ts = decoded['__ts'] as int;
+            final savedAt = DateTime.fromMillisecondsSinceEpoch(ts);
+            if (DateTime.now().difference(savedAt) >= maxAge) {
+              return null; // Expirado
+            }
+          }
+          return decoded['payload'];
+        }
+        // Compatibilidad con registros legacy sin envelope
+        return decoded;
       }
     } catch (_) {
       // Ignorar errores de lectura
     }
     return null;
+  }
+
+  /// Obtiene la fecha y hora en que se guardó la caché para una clave dada
+  static Future<DateTime?> getCacheTimestamp(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_prefix$key');
+      if (raw != null && raw.isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map<String, dynamic> && decoded.containsKey('__ts')) {
+          final int ts = decoded['__ts'] as int;
+          return DateTime.fromMillisecondsSinceEpoch(ts);
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Comprueba si una clave de caché ha expirado según el [maxAge] indicado
+  static Future<bool> isKeyExpired(String key, Duration maxAge) async {
+    final timestamp = await getCacheTimestamp(key);
+    if (timestamp == null) return true;
+    return DateTime.now().difference(timestamp) >= maxAge;
   }
 
   /// Elimina una clave específica de la caché local
@@ -74,7 +114,7 @@ class CacheService {
   /// ⚡ Registra de forma optimista e instantánea (0ms) una lotería con jugada en el caché del selector
   static Future<void> registrarJugadaOptimista(String route) async {
     try {
-      const storage = FlutterSecureStorage();
+      final storage = AppSecureStorage.instance;
       final uId = await storage.read(key: 'user_id');
       final cacheKey = 'mis_jugadas_selector_${uId ?? "anon"}';
 
