@@ -13,6 +13,7 @@ import '../utils/pais_helper.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'resultados/widgets/resultados_shared.dart';
+import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
 
 
@@ -628,6 +629,20 @@ class _RegistroPageState extends State<RegistroScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                if (_esEdicion) ...[
+                  Center(
+                    child: UserBalotaAvatar(
+                      avatarUrl: widget.user?['avatar_url'],
+                      userName: widget.user?['name']?.toString() ?? '',
+                      userId: widget.userId ?? 0,
+                      radius: 50,
+                      showGlow: true,
+                      showBorder: true,
+                      borderColor: AppColors.yellow,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                ],
                 Text(
                   _esEdicion 
                       ? l10n.actualizaTusDatos 
