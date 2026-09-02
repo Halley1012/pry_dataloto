@@ -76,6 +76,23 @@ class UserRepositoryPort(ABC):
     ) -> Dict[str, Any]:
         pass
 
+    @abstractmethod
+    async def find_user_id_by_purchase_token(self, purchase_token: str) -> Optional[int]:
+        pass
+
+    @abstractmethod
+    async def update_subscription_state(
+        self,
+        user_id: int,
+        is_premium: bool,
+        expires_at: Optional[datetime] = None,
+        purchase_token: Optional[str] = None,
+        product_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pass
+
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod

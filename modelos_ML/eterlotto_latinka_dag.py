@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_latinka',
     default_args=default_args,
     description='Ejecuta scraping y predicción de La Tinka usando main_latinka.py',
-    schedule='0 3 * * 1,4', # Jueves y Lunes a las 3:00 AM (tras sorteos de Miércoles y Domingo)
+    schedule='0 3 * * *', # Jueves y Lunes a las 3:00 AM (tras sorteos de Miércoles y Domingo)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'latinka', 'tinka', 'peru', 'pe', 'ml']

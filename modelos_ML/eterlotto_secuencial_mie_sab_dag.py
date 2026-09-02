@@ -109,7 +109,7 @@ with DAG(
     'eterlotto_ejecucion_secuencial_mie_sab',
     default_args=default_args,
     description='Ejecuta secuencialmente scraping y predicción de Mega Millions, MiLoto y Millionaire for Life',
-    schedule='0 3 * * 2 - 6',  # Miércoles y Sábados a las 3:00 AM
+    schedule='0 3 * * *',  # Miércoles y Sábados a las 3:00 AM
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'secuencial', 'mie_sab'],

@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_eurodreams',
     default_args=default_args,
     description='Ejecuta scraping y predicción de EuroDreams usando main_eurodreams.py',
-    schedule='0 3 * * 2,5', # Martes y Viernes a las 3:00 AM (tras sorteos de Lunes y Jueves)
+    schedule='0 3 * * *', # Martes y Viernes a las 3:00 AM (tras sorteos de Lunes y Jueves)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'eurodreams', 'spain', 'europe', 'ml']

@@ -47,6 +47,54 @@ class SubscriptionUseCases:
             "expires_at": res.get("expires_at") if res else expires_at
         }
 
+    async def process_rtdn_notification(
+        self,
+        purchase_token: str,
+        product_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
+        if not user_id:
+            return {
+                "success": True,
+                "ignored": True,
+                "reason": "purchase_token_not_found"
+            }
+
+        resolved_product_id = product_id or "eterlotto_monthly_sub"
+        if resolved_product_id not in self.ALLOWED_PRODUCTS:
+            raise ValueError("Producto de suscripción no autorizado")
+
+        google_data = await self.google_play.verify_subscription_token(
+            package_name="com.lumieter.eterlotto",
+            product_id=resolved_product_id,
+            purchase_token=purchase_token
+        )
+
+        is_valid = bool(google_data.get("is_valid", False))
+        is_active = bool(google_data.get("is_active", False))
+        expires_at = google_data.get("expiry_time")
+        is_premium = is_valid and is_active
+        status = "active" if is_premium else "expired"
+
+        result = await self.user_repo.update_subscription_state(
+            user_id=user_id,
+            is_premium=is_premium,
+            expires_at=expires_at,
+            purchase_token=purchase_token,
+            product_id=resolved_product_id,
+            order_id=None,
+            status=status
+        )
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "is_premium": is_premium,
+            "status": status,
+            "expires_at": expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at,
+            "updated": result.get("success", True)
+        }
+
     async def get_subscription_status(self, user_id: int) -> Dict[str, Any]:
         user = await self.user_repo.find_by_id(user_id)
         if not user:
