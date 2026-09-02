@@ -259,7 +259,6 @@ class LaTinkaScraper:
             # --- VALIDATION ---
             try:
                 from sqlalchemy import text
-                import pandas as pd
                 with engine.connect() as conn:
                     max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_latinka")).scalar()
                 if max_db_fecha:
