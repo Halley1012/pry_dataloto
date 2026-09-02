@@ -173,3 +173,4 @@ class SubscriptionConfirmRequest(BaseModel):
     purchase_token: Optional[str] = None
     order_id: Optional[str] = None
     status: Optional[str] = "active"
+
