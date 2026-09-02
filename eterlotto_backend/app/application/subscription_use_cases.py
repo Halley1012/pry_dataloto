@@ -70,6 +70,12 @@ class SubscriptionUseCases:
             purchase_token=purchase_token
         )
 
+        raw_state = google_data.get("raw_state")
+        if raw_state == "ERROR":
+            # No revocar VIP por un fallo temporal de comunicación con Google.
+            # Lanzamos error para que Pub/Sub reintente la entrega.
+            raise RuntimeError("No fue posible verificar la suscripción con Google Play")
+
         is_valid = bool(google_data.get("is_valid", False))
         is_active = bool(google_data.get("is_active", False))
         expires_at = google_data.get("expiry_time")
@@ -100,23 +106,33 @@ class SubscriptionUseCases:
         if not user:
             raise ValueError("Usuario no encontrado")
 
-        is_premium = user.get("is_premium", False)
+        is_premium = bool(user.get("is_premium", False))
         expires_at = user.get("premium_expires_at")
 
-        if is_premium and expires_at:
-            now_tz = datetime.now(expires_at.tzinfo) if expires_at.tzinfo else datetime.utcnow()
-            if expires_at < now_tz:
+        if expires_at:
+            now_tz = (
+                datetime.now(expires_at.tzinfo)
+                if expires_at.tzinfo
+                else datetime.utcnow()
+            )
+
+            if expires_at <= now_tz:
                 is_premium = False
-                # En un diseño puro, un GET no altera estado, pero mantenemos compatibilidad por ahora
-                await self.user_repo.set_premium(
-                    user_id=user_id,
-                    is_premium=False,
-                    expires_at=expires_at
-                )
+                # Reconciliación defensiva:
+                # no crea una fila nueva y no sobrescribe google_order_id.
+                await self.user_repo.mark_expired_subscriptions(user_id)
+            elif is_premium is False:
+                # No reactiva una suscripción solo por una fecha futura.
+                # La reactivación debe venir de Google Play mediante /confirm o RTDN.
+                pass
 
         return {
             "success": True,
             "user_id": user_id,
             "is_premium": is_premium,
-            "expires_at": expires_at.isoformat() if isinstance(expires_at, datetime) else expires_at
+            "expires_at": (
+                expires_at.isoformat()
+                if isinstance(expires_at, datetime)
+                else expires_at
+            )
         }

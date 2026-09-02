@@ -258,7 +258,6 @@ class MelateRetroScraper:
             # --- VALIDATION ---
             try:
                 from sqlalchemy import text
-                import pandas as pd
                 with engine.connect() as conn:
                     max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_melateretro")).scalar()
                 if max_db_fecha:

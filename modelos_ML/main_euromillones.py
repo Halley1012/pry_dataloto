@@ -46,7 +46,12 @@ def main():
             hubo_sorteo = scraper_inst.run(backfill=backfill)
             if hubo_sorteo is False:
                 print("No se encontraron sorteos nuevos. Terminando DAG exitosamente.")
-                sys.exit(0)
+                try:
+                    from airflow.exceptions import AirflowSkipException
+                    raise AirflowSkipException("No se encontraron sorteos nuevos.")
+                except ImportError:
+                    return
+
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para Euromillones: {e}")
             sys.exit(1)

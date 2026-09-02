@@ -140,10 +140,19 @@ async def receive_rtdn(
             product_id
         )
 
-        return await use_cases.process_rtdn_notification(
+        result = await use_cases.process_rtdn_notification(
             purchase_token=purchase_token,
             product_id=product_id
         )
+
+        logging.info(
+            "RTDN processed: success=%s user_id=%s status=%s",
+            result.get("success"),
+            result.get("user_id"),
+            result.get("status"),
+        )
+
+        return result
 
     except HTTPException:
         raise
