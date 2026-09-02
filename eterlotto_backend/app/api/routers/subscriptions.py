@@ -142,7 +142,8 @@ async def receive_rtdn(
 
         result = await use_cases.process_rtdn_notification(
             purchase_token=purchase_token,
-            product_id=product_id
+            product_id=product_id,
+            notification_type=notification_type
         )
 
         logging.info(

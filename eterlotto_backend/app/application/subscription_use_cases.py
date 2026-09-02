@@ -50,7 +50,8 @@ class SubscriptionUseCases:
     async def process_rtdn_notification(
         self,
         purchase_token: str,
-        product_id: Optional[str] = None
+        product_id: Optional[str] = None,
+        notification_type: Optional[int] = None
     ) -> Dict[str, Any]:
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
         if not user_id:
@@ -77,10 +78,53 @@ class SubscriptionUseCases:
             raise RuntimeError("No fue posible verificar la suscripción con Google Play")
 
         is_valid = bool(google_data.get("is_valid", False))
-        is_active = bool(google_data.get("is_active", False))
         expires_at = google_data.get("expiry_time")
-        is_premium = is_valid and is_active
-        status = "active" if is_premium else "expired"
+        raw_state = google_data.get("raw_state")
+        
+        is_premium = False
+        status = "expired"
+
+        if is_valid:
+            if raw_state == "SUBSCRIPTION_STATE_ACTIVE":
+                is_premium = True
+                status = "active"
+            elif raw_state == "SUBSCRIPTION_STATE_IN_GRACE_PERIOD":
+                is_premium = True
+                status = "grace_period"
+            elif raw_state == "SUBSCRIPTION_STATE_CANCELED":
+                if expires_at:
+                    from datetime import timezone
+                    now_utc = datetime.now(timezone.utc)
+                    expires_at_utc = expires_at.astimezone(timezone.utc) if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+                    if expires_at_utc > now_utc:
+                        is_premium = True
+                        status = "canceled"
+                    else:
+                        is_premium = False
+                        status = "expired"
+                else:
+                    is_premium = False
+                    status = "expired"
+            elif raw_state == "SUBSCRIPTION_STATE_ON_HOLD":
+                is_premium = False
+                status = "on_hold"
+            elif raw_state == "SUBSCRIPTION_STATE_PAUSED":
+                is_premium = False
+                status = "paused"
+            elif raw_state == "SUBSCRIPTION_STATE_PENDING":
+                is_premium = False
+                status = "pending"
+            elif raw_state == "SUBSCRIPTION_STATE_EXPIRED":
+                is_premium = False
+                status = "expired"
+            else:
+                is_premium = False
+                status = "expired"
+
+            # Overrides basados en el RTDN de Google Play si la API no es lo suficientemente explícita
+            if notification_type == 12: # SUBSCRIPTION_REVOKED
+                is_premium = False
+                status = "revoked"
 
         result = await self.user_repo.update_subscription_state(
             user_id=user_id,
