@@ -59,13 +59,16 @@ class GooglePlayService(GooglePlayPort):
                         expiry_time = datetime.fromisoformat(expiry_str)
                     break
             
+            from datetime import timezone
             # Si el estado es ACTIVE o GRACE_PERIOD, es activo. 
             # Si es CANCELED, todavía puede tener días restantes si expiry_time > ahora.
             if state in ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD"]:
                 is_active = True
             elif state == "SUBSCRIPTION_STATE_CANCELED" and expiry_time:
-                now_utc = datetime.now(expiry_time.tzinfo) if expiry_time.tzinfo else datetime.utcnow()
-                if expiry_time > now_utc:
+                now_utc = datetime.now(timezone.utc)
+                # Convert expiry_time to utc safely for comparison
+                expiry_time_utc = expiry_time.astimezone(timezone.utc) if expiry_time.tzinfo else expiry_time.replace(tzinfo=timezone.utc)
+                if expiry_time_utc > now_utc:
                     is_active = True
                     
             return {
