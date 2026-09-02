@@ -13,7 +13,6 @@ from app.application.auth_use_cases import AuthUseCases
 from app.application.jugada_use_cases import JugadaUseCases
 from app.application.post_use_cases import PostUseCases
 from app.application.publicidad_use_cases import PublicidadUseCases
-from app.application.transaction_use_cases import TransactionUseCases
 from app.application.notification_use_cases import NotificationUseCases
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
@@ -69,9 +68,6 @@ def get_publicidad_use_cases() -> PublicidadUseCases:
     publicidad_repo = PostgresPublicidadRepository()
     return PublicidadUseCases(publicidad_repo)
 
-def get_transaction_use_cases() -> TransactionUseCases:
-    trans_repo = PostgresTransactionRepository()
-    return TransactionUseCases(trans_repo)
 
 def get_notification_use_cases() -> NotificationUseCases:
     notif_repo = PostgresNotificationRepository()
