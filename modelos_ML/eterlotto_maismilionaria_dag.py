@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_maismilionaria',
     default_args=default_args,
     description='Ejecuta scraping y predicción de +Milionária usando main_maismilionaria.py',
-    schedule='0 3 * * 0,4', # Domingos y Jueves a las 3:00 AM (tras sorteos de Sáb y Mié)
+    schedule='0 3 * * *', # Domingos y Jueves a las 3:00 AM (tras sorteos de Sáb y Mié)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'maismilionaria', 'brasil', 'brazil', 'ml']

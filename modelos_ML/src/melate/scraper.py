@@ -322,6 +322,23 @@ class MelateScraper:
         }
 
         with self.engine.connect() as conn:
+
+            # --- VALIDATION ---
+            try:
+                from sqlalchemy import text
+                import pandas as pd
+                with engine.connect() as conn:
+                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_melate")).scalar()
+                if max_db_fecha:
+                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
+                    max_df_fecha = df_final['fecha'].max().date()
+                    if max_df_fecha <= max_db_fecha:
+                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
+                        return False
+            except Exception as e:
+                print(f"Error en validación temprana: {e}")
+            # --- END VALIDATION ---
+            
             df_final.to_sql('resultados_melate', conn, if_exists='replace', index=False, dtype=dtypes)
             conn.commit()
 
