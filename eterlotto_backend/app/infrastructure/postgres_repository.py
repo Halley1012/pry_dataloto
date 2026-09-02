@@ -3,5 +3,4 @@ from app.infrastructure.repositories.user_repository import PostgresUserReposito
 from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepository
 from app.infrastructure.repositories.post_repository import PostgresPostRepository
 from app.infrastructure.repositories.publicidad_repository import PostgresPublicidadRepository
-from app.infrastructure.repositories.transaction_repository import PostgresTransactionRepository
 from app.infrastructure.repositories.notification_repository import PostgresNotificationRepository

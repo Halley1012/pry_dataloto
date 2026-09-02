@@ -2,4 +2,3 @@ from .user_repository import PostgresUserRepository
 from .jugada_repository import PostgresJugadaRepository
 from .post_repository import PostgresPostRepository
 from .publicidad_repository import PostgresPublicidadRepository
-from .transaction_repository import PostgresTransactionRepository
