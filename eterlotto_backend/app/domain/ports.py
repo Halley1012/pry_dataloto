@@ -93,6 +93,10 @@ class UserRepositoryPort(ABC):
     ) -> Dict[str, Any]:
         pass
 
+    @abstractmethod
+    async def mark_expired_subscriptions(self, user_id: int) -> bool:
+        pass
+
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
