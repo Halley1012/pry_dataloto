@@ -264,6 +264,68 @@ class PostgresUserRepository(UserRepositoryPort):
                 "expires_at": expires_at.isoformat() if expires_at else None
             }
 
+    async def find_user_id_by_purchase_token(self, purchase_token: str) -> Optional[int]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            row = await conn.fetchrow(
+                """
+                SELECT user_id
+                FROM user_subscriptions
+                WHERE purchase_token = $1
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                purchase_token
+            )
+            return int(row["user_id"]) if row else None
+
+    async def update_subscription_state(
+        self,
+        user_id: int,
+        is_premium: bool,
+        expires_at: Optional[datetime] = None,
+        purchase_token: Optional[str] = None,
+        product_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    UPDATE users
+                    SET is_premium = $1,
+                        premium_expires_at = $2,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $3
+                    """,
+                    is_premium, expires_at, user_id
+                )
+
+                if purchase_token:
+                    await conn.execute(
+                        """
+                        UPDATE user_subscriptions
+                        SET status = COALESCE($1, status),
+                            expires_at = COALESCE($2, expires_at),
+                            product_id = COALESCE($3, product_id),
+                            order_id = COALESCE($4, order_id)
+                        WHERE purchase_token = $5
+                        """,
+                        status, expires_at, product_id, order_id, purchase_token
+                    )
+
+            return {
+                "success": True,
+                "user_id": user_id,
+                "is_premium": is_premium,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "status": status
+            }
+
     async def delete(self, user_id: int) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:

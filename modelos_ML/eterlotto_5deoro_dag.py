@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_5deoro',
     default_args=default_args,
     description='Ejecuta scraping y predicción de 5 de Oro usando main_5deoro.py',
-    schedule='0 3 * * 1,4', # Jueves y Lunes a las 3:00 AM (tras sorteos de Miércoles y Domingo)
+    schedule='0 3 * * *', # Jueves y Lunes a las 3:00 AM (tras sorteos de Miércoles y Domingo)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', '5deoro', 'cincodeoro', 'uruguay', 'uy', 'ml']

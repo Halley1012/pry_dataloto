@@ -41,7 +41,10 @@ def main():
     if task in ["scrap", "all"]:
         try:
             scraper_inst = BalotoScraper()
-            scraper_inst.run()
+            hubo_sorteo = scraper_inst.run()
+            if hubo_sorteo is False:
+                print('No se encontraron sorteos nuevos. Terminando DAG exitosamente.')
+                sys.exit(0)
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para baloto: {e}")
             sys.exit(1)

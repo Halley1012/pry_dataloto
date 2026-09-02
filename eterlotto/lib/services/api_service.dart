@@ -373,7 +373,7 @@ class ApiService {
   ) async {
     final response = await http.put(
       Uri.parse('$baseUrl/users/$userId'),
-      headers: {"Content-Type": "application/json"},
+      headers: await _getHeaders(withAuth: true),
       body: json.encode(updateData),
     );
 
@@ -1807,7 +1807,7 @@ class ApiService {
       final userIdStr = await getUserId();
       if (userIdStr == null) return false;
 
-      final response = await get("/subscriptions/status/$userIdStr", withAuth: false);
+      final response = await get("/subscriptions/status/$userIdStr", withAuth: true);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data["is_premium"] == true;

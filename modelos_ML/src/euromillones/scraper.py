@@ -291,6 +291,23 @@ class EuromillonesScraper:
         # --- Guardar en Base de Datos ---
         try:
             from sqlalchemy.types import Date, Integer, String
+
+            # --- VALIDATION ---
+            try:
+                from sqlalchemy import text
+                import pandas as pd
+                with engine.connect() as conn:
+                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_euromillones")).scalar()
+                if max_db_fecha:
+                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
+                    max_df_fecha = df_final['fecha'].max().date()
+                    if max_df_fecha <= max_db_fecha:
+                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
+                        return False
+            except Exception as e:
+                print(f"Error en validación temprana: {e}")
+            # --- END VALIDATION ---
+            
             df_final.to_sql(
                 'resultados_euromillones', 
                 engine, 
