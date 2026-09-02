@@ -43,7 +43,10 @@ def main():
     if task in ["scrap", "all"]:
         try:
             scraper_inst = PrimitivaScraper()
-            scraper_inst.run(backfill=backfill)
+            hubo_sorteo = scraper_inst.run(backfill=backfill)
+            if hubo_sorteo is False:
+                print("No se encontraron sorteos nuevos. Terminando DAG exitosamente.")
+                sys.exit(0)
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para La Primitiva: {e}")
             sys.exit(1)

@@ -191,6 +191,23 @@ class MilotoScraper:
         try:
             from sqlalchemy.types import Date
             engine = get_engine()
+
+            # --- VALIDATION ---
+            try:
+                from sqlalchemy import text
+                import pandas as pd
+                with engine.connect() as conn:
+                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_mloto")).scalar()
+                if max_db_fecha:
+                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
+                    max_df_fecha = df_final['fecha'].max().date()
+                    if max_df_fecha <= max_db_fecha:
+                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
+                        return False
+            except Exception as e:
+                print(f"Error en validación temprana: {e}")
+            # --- END VALIDATION ---
+            
             df_final.to_sql('resultados_mloto', engine, if_exists='replace', index=False, dtype={'fecha': Date()})
             print(f"DataFrame guardado exitosamente en Neon PostgreSQL! Total filas: {len(df_final)}")
             
