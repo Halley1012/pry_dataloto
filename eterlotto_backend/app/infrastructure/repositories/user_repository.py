@@ -379,20 +379,6 @@ class PostgresUserRepository(UserRepositoryPort):
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             async with conn.transaction():
-                # Marcar como expiradas solo las suscripciones que ya superaron
-                # su expiry real. Esto es una reconciliación defensiva y no crea filas.
-                result = await conn.execute(
-                    """
-                    UPDATE user_subscriptions
-                    SET status = 'expired'
-                    WHERE user_id = $1
-                      AND status IN ('active', 'canceled', 'grace_period')
-                      AND expires_at IS NOT NULL
-                      AND expires_at <= CURRENT_TIMESTAMP
-                    """,
-                    user_id
-                )
-
                 await conn.execute(
                     """
                     UPDATE users
@@ -405,6 +391,20 @@ class PostgresUserRepository(UserRepositoryPort):
                       )
                       AND premium_expires_at IS NOT NULL
                       AND premium_expires_at <= CURRENT_TIMESTAMP
+                    """,
+                    user_id
+                )
+
+                # Marcar como expiradas solo las suscripciones que ya superaron
+                # su expiry real. Esto es una reconciliación defensiva y no crea filas.
+                result = await conn.execute(
+                    """
+                    UPDATE user_subscriptions
+                    SET status = 'expired'
+                    WHERE user_id = $1
+                      AND status IN ('active', 'canceled', 'grace_period')
+                      AND expires_at IS NOT NULL
+                      AND expires_at <= CURRENT_TIMESTAMP
                     """,
                     user_id
                 )
