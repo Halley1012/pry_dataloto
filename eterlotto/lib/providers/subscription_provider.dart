@@ -1,19 +1,18 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import 'package:flutter/widgets.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
+
 import '../services/api_service.dart';
-import '../utils/secure_storage_helper.dart';
 import '../services/data_refresh_manager.dart';
 
-class SubscriptionProvider extends ChangeNotifier {
+class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
   // 🆔 ID del producto de suscripción en Google Play Console
   static const String monthlySubscriptionId = 'eterlotto_monthly_sub';
 
   final InAppPurchase _iap = InAppPurchase.instance;
-  final FlutterSecureStorage _storage = AppSecureStorage.instance;
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
 
@@ -38,6 +37,8 @@ class SubscriptionProvider extends ChangeNotifier {
   List<String> _notFoundIDs = [];
   List<String> get notFoundIDs => _notFoundIDs;
 
+  bool _isSyncingGooglePlay = false;
+
   String get diagnosticInfo =>
       'Disponibilidad Google Play: $_isAvailable\n'
       'Productos encontrados: ${_products.length}\n'
@@ -46,6 +47,7 @@ class SubscriptionProvider extends ChangeNotifier {
       'Estado: ${_errorMessage ?? (_products.isNotEmpty ? "Listo para compra" : "Esperando sincronización con Google Play")}';
 
   SubscriptionProvider() {
+    WidgetsBinding.instance.addObserver(this);
     _initialize();
     DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
   }
@@ -69,10 +71,71 @@ class SubscriptionProvider extends ChangeNotifier {
     }
   }
 
+  /// 🔄 Reconciliar las compras actuales de Google Play con nuestro backend.
+  ///
+  /// En Android, queryPastPurchases() del plugin consulta las compras
+  /// actualmente disponibles/propias del usuario a través de BillingClient.
+  Future<bool> _syncGooglePlayPurchases() async {
+    if (!Platform.isAndroid || !_isAvailable || _isSyncingGooglePlay) {
+      await refreshSubscriptionStatus();
+      return _isSubscribed;
+    }
+
+    _isSyncingGooglePlay = true;
+
+    try {
+      final androidAddition =
+          _iap.getPlatformAddition<InAppPurchaseAndroidPlatformAddition>();
+      final response = await androidAddition.queryPastPurchases();
+
+      if (response.error != null) {
+        debugPrint('❌ Error consultando compras de Google Play: ${response.error}');
+        await refreshSubscriptionStatus();
+        return _isSubscribed;
+      }
+
+      final GooglePlayPurchaseDetails? currentPurchase = response.pastPurchases
+          .where((purchase) => purchase.productID == monthlySubscriptionId)
+          .cast<GooglePlayPurchaseDetails?>()
+          .firstWhere(
+            (purchase) => purchase != null,
+            orElse: () => null,
+          );
+
+      if (currentPurchase == null) {
+        debugPrint('ℹ️ Google Play no reportó una compra activa para $monthlySubscriptionId');
+        await refreshSubscriptionStatus();
+        return _isSubscribed;
+      }
+
+      debugPrint('🔄 Compra encontrada en Google Play. Confirmando con backend...');
+
+      final result = await _confirmPurchaseWithBackend(currentPurchase);
+      await refreshSubscriptionStatus();
+
+      return result && _isSubscribed;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Excepción sincronizando Google Play: $e');
+      debugPrint(stackTrace.toString());
+      await refreshSubscriptionStatus();
+      return _isSubscribed;
+    } finally {
+      _isSyncingGooglePlay = false;
+    }
+  }
+
   void _onDataRefreshNotification() {
     final module = DataRefreshManager.instance.refreshNotifier.value;
     if (module == RefreshModules.perfil || module == 'all') {
-      refreshSubscriptionStatus();
+      unawaited(refreshSubscriptionStatus());
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('🔄 App volvió a primer plano. Sincronizando suscripción...');
+      unawaited(_syncGooglePlayPurchases());
     }
   }
 
@@ -120,8 +183,13 @@ class SubscriptionProvider extends ChangeNotifier {
       const Set<String> ids = {
         monthlySubscriptionId,
       };
-      debugPrint('🔍 Consultando Google Play para ID de producto: $monthlySubscriptionId');
-      final ProductDetailsResponse response = await _iap.queryProductDetails(ids);
+
+      debugPrint(
+        '🔍 Consultando Google Play para ID de producto: $monthlySubscriptionId',
+      );
+
+      final ProductDetailsResponse response =
+          await _iap.queryProductDetails(ids);
 
       debugPrint('📦 Productos encontrados: ${response.productDetails.length}');
       debugPrint('⚠️ IDs no encontrados: ${response.notFoundIDs}');
@@ -131,7 +199,8 @@ class SubscriptionProvider extends ChangeNotifier {
         _products = [];
         _monthlyProduct = null;
         _notFoundIDs = response.notFoundIDs;
-        _errorMessage = 'Error de Google Play (${response.error!.code}): ${response.error!.message}';
+        _errorMessage =
+            'Error de Google Play (${response.error!.code}): ${response.error!.message}';
         notifyListeners();
         return;
       }
@@ -139,7 +208,7 @@ class SubscriptionProvider extends ChangeNotifier {
       _products = response.productDetails;
       _notFoundIDs = response.notFoundIDs;
 
-      // Buscar ÚNICAMENTE el Product ID real con verificación segura de tipos
+      // Buscar ÚNICAMENTE el Product ID real.
       final ProductDetails? product = _products
           .where((p) => p.id == monthlySubscriptionId)
           .cast<ProductDetails?>()
@@ -150,7 +219,8 @@ class SubscriptionProvider extends ChangeNotifier {
 
       if (product == null) {
         _monthlyProduct = null;
-        _errorMessage = 'Google Play no encontró el producto $monthlySubscriptionId';
+        _errorMessage =
+            'Google Play no encontró el producto $monthlySubscriptionId';
         debugPrint('❌ Producto no encontrado: $monthlySubscriptionId');
         notifyListeners();
         return;
@@ -170,7 +240,9 @@ class SubscriptionProvider extends ChangeNotifier {
         debugPrint('   Offer token: ${product.offerToken}');
         debugPrint('   Subscription index: ${product.subscriptionIndex}');
       } else {
-        debugPrint('ℹ️ El producto no es GooglePlayProductDetails directo (${product.runtimeType})');
+        debugPrint(
+          'ℹ️ El producto no es GooglePlayProductDetails directo (${product.runtimeType})',
+        );
       }
     } catch (e, stackTrace) {
       debugPrint('❌ Excepción cargando productos: $e');
@@ -181,59 +253,139 @@ class SubscriptionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> _confirmPurchaseWithBackend(PurchaseDetails purchaseDetails) async {
+    try {
+      final res = await ApiService.confirmSubscription(
+        productId: purchaseDetails.productID,
+        purchaseToken: purchaseDetails.verificationData.serverVerificationData,
+        orderId: purchaseDetails.purchaseID,
+      );
+
+      if (res['success'] == true) {
+        debugPrint('🎉 ¡Suscripción confirmada y guardada en BD!');
+        _errorMessage = null;
+        return true;
+      }
+
+      debugPrint('⚠️ Servidor no pudo confirmar suscripción: ${res['error']}');
+      return false;
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error confirmando suscripción con backend: $e');
+      debugPrint(stackTrace.toString());
+      return false;
+    }
+  }
+
   /// Manejar eventos de actualización de compras
-  Future<void> _onPurchaseUpdate(List<PurchaseDetails> purchaseDetailsList) async {
+  Future<void> _onPurchaseUpdate(
+    List<PurchaseDetails> purchaseDetailsList,
+  ) async {
     for (final purchaseDetails in purchaseDetailsList) {
       if (purchaseDetails.status == PurchaseStatus.pending) {
         debugPrint('⏳ Compra pendiente...');
         _isLoading = true;
         notifyListeners();
-      } else {
-        if (purchaseDetails.status == PurchaseStatus.error) {
-          debugPrint('❌ Error en la compra: ${purchaseDetails.error}');
-          _errorMessage = purchaseDetails.error?.message ?? 'Error al procesar la compra';
-          _isLoading = false;
-          notifyListeners();
-        } else if (purchaseDetails.status == PurchaseStatus.purchased) {
-          debugPrint('💳 Compra completada en Google Play. Confirmando con Backend...');
-          final res = await ApiService.confirmSubscription(
-            productId: purchaseDetails.productID,
-            purchaseToken: purchaseDetails.verificationData.serverVerificationData,
-            orderId: purchaseDetails.purchaseID,
+        continue;
+      }
+
+      if (purchaseDetails.status == PurchaseStatus.error) {
+        final purchaseError = purchaseDetails.error;
+        final errorText = '${purchaseError?.code ?? ''} ${purchaseError?.message ?? ''} ${purchaseError?.details ?? ''}'.toLowerCase();
+        final isItemAlreadyOwned =
+            errorText.contains('itemalreadyowned') ||
+            errorText.contains('item already owned');
+
+        debugPrint('❌ Error en la compra: ${purchaseDetails.error}');
+        debugPrint('🔎 Código/detalle Google Play: $errorText');
+
+        if (isItemAlreadyOwned) {
+          debugPrint(
+            '🔄 Google Play indica ITEM_ALREADY_OWNED. Reconciliando compra actual...',
           );
-          if (res['success'] == true) {
-            debugPrint('🎉 ¡Suscripción confirmada y guardada en BD!');
+
+          _errorMessage = null;
+          notifyListeners();
+
+          final recovered = await _syncGooglePlayPurchases();
+
+          if (recovered) {
+            debugPrint('✅ Suscripción recuperada correctamente desde Google Play.');
+            _errorMessage = null;
           } else {
-            debugPrint('⚠️ Servidor no pudo confirmar suscripción: ${res['error']}');
+            _errorMessage =
+                'Google Play está sincronizando tu suscripción. Intenta nuevamente en unos segundos.';
           }
-          // Sincronizar siempre el estado VIP real desde el backend
-          await refreshSubscriptionStatus();
-        } else if (purchaseDetails.status == PurchaseStatus.restored) {
-          debugPrint('🔄 Compra restaurada. Verificando vigencia con backend...');
-          await refreshSubscriptionStatus();
+        } else {
+          _errorMessage =
+              purchaseDetails.error?.message ?? 'Error al procesar la compra';
         }
+
+        _isLoading = false;
+        notifyListeners();
 
         if (purchaseDetails.pendingCompletePurchase) {
           await _iap.completePurchase(purchaseDetails);
         }
-        _isLoading = false;
-        notifyListeners();
+
+        continue;
       }
+
+      if (purchaseDetails.status == PurchaseStatus.purchased) {
+        debugPrint(
+          '💳 Compra completada en Google Play. Confirmando con Backend...',
+        );
+
+        await _confirmPurchaseWithBackend(purchaseDetails);
+
+        // Sincronizar siempre el estado VIP real desde el backend
+        await refreshSubscriptionStatus();
+      } else if (purchaseDetails.status == PurchaseStatus.restored) {
+        debugPrint(
+          '🔄 Compra restaurada. Verificando vigencia con backend...',
+        );
+
+        await _confirmPurchaseWithBackend(purchaseDetails);
+        await refreshSubscriptionStatus();
+      }
+
+      if (purchaseDetails.pendingCompletePurchase) {
+        await _iap.completePurchase(purchaseDetails);
+      }
+
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
   /// Iniciar flujo de compra de la suscripción mensual en Google Play
   Future<bool> buyMonthlySubscription() async {
     if (_monthlyProduct == null) {
-      debugPrint('⚠️ Producto no disponible para compra. Intentando recargar...');
+      debugPrint(
+        '⚠️ Producto no disponible para compra. Intentando recargar...',
+      );
       _isLoading = true;
       notifyListeners();
       await loadProducts();
       _isLoading = false;
+
       if (_monthlyProduct == null) {
-        _errorMessage ??= 'El plan de suscripción no está disponible desde Google Play en este dispositivo. Por favor verifica tu conexión o inténtalo en unos minutos.';
+        _errorMessage ??=
+            'El plan de suscripción no está disponible desde Google Play en este dispositivo. Por favor verifica tu conexión o inténtalo en unos minutos.';
         notifyListeners();
         return false;
+      }
+    }
+
+    // Antes de abrir el flujo de compra, comprobar el estado actual de Google
+    // Play. Esto evita intentar comprar cuando todavía existe una compra activa.
+    if (Platform.isAndroid && _isAvailable) {
+      final existingPurchase = await _syncGooglePlayPurchases();
+      if (existingPurchase) {
+        debugPrint('✅ Ya existe una suscripción activa según Google Play.');
+        _errorMessage = null;
+        _isLoading = false;
+        notifyListeners();
+        return true;
       }
     }
 
@@ -243,9 +395,15 @@ class SubscriptionProvider extends ChangeNotifier {
 
     try {
       PurchaseParam purchaseParam;
+
       if (Platform.isAndroid && _monthlyProduct is GooglePlayProductDetails) {
-        final googlePlayProduct = _monthlyProduct as GooglePlayProductDetails;
-        debugPrint('🧾 Iniciando compra con Offer token: ${googlePlayProduct.offerToken}');
+        final googlePlayProduct =
+            _monthlyProduct as GooglePlayProductDetails;
+
+        debugPrint(
+          '🧾 Iniciando compra con Offer token: ${googlePlayProduct.offerToken}',
+        );
+
         purchaseParam = GooglePlayPurchaseParam(
           productDetails: _monthlyProduct!,
           changeSubscriptionParam: null,
@@ -256,7 +414,7 @@ class SubscriptionProvider extends ChangeNotifier {
         );
       }
 
-      // En Android, las suscripciones se inician como suscripción no consumible
+      // Las suscripciones se compran mediante buyNonConsumable en el plugin de Flutter.
       return await _iap.buyNonConsumable(purchaseParam: purchaseParam);
     } catch (e) {
       debugPrint('❌ Error al iniciar compra: $e');
@@ -280,7 +438,9 @@ class SubscriptionProvider extends ChangeNotifier {
       await refreshSubscriptionStatus();
     } catch (e) {
       debugPrint('❌ Error al restaurar compras: $e');
-      if (!silent) _errorMessage = 'No se pudieron restaurar las compras';
+      if (!silent) {
+        _errorMessage = 'No se pudieron restaurar las compras';
+      }
     } finally {
       if (!silent) {
         _isLoading = false;
@@ -291,8 +451,12 @@ class SubscriptionProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
+    WidgetsBinding.instance.removeObserver(this);
+    DataRefreshManager.instance.refreshNotifier.removeListener(
+      _onDataRefreshNotification,
+    );
     _subscription?.cancel();
     super.dispose();
   }
 }
+

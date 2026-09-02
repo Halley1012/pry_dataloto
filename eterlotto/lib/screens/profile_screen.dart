@@ -111,6 +111,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = {
       'name': name,
       'email': email,
+      'avatar_url': avatarUrl,
       'pais_id': int.tryParse(await storage.read(key: 'pais_id') ?? '0'),
       'departamento_id': int.tryParse(await storage.read(key: 'departamento_id') ?? '0'),
     };
@@ -149,14 +150,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
               // Header Perfil
               Row(
                 children: [
-                  UserBalotaAvatar(
-                    avatarUrl: avatarUrl,
-                    userName: name,
-                    userId: int.tryParse(userId ?? "0"),
-                    radius: 45,
-                    showGlow: true,
-                    showBorder: true,
-                    borderColor: AppColors.yellow,
+                  GestureDetector(
+                    onTap: _editProfile,
+                    child: UserBalotaAvatar(
+                      avatarUrl: avatarUrl,
+                      userName: name,
+                      userId: int.tryParse(userId ?? "0"),
+                      radius: 45,
+                      showGlow: true,
+                      showBorder: true,
+                      borderColor: AppColors.yellow,
+                    ),
                   ),
                   const SizedBox(width: 20),
                   Expanded(
