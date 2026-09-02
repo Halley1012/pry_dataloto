@@ -3,9 +3,10 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from app.core import config
+from app.application.subscription_use_cases import SubscriptionUseCases
 from app.infrastructure.postgres_repository import (
     PostgresUserRepository, PostgresJugadaRepository, PostgresPostRepository,
-    PostgresPublicidadRepository, PostgresTransactionRepository, PostgresNotificationRepository
+    PostgresPublicidadRepository, PostgresNotificationRepository
 )
 from app.infrastructure.email_service import SMTPEmailSender
 from app.application.auth_use_cases import AuthUseCases
@@ -75,3 +76,13 @@ def get_transaction_use_cases() -> TransactionUseCases:
 def get_notification_use_cases() -> NotificationUseCases:
     notif_repo = PostgresNotificationRepository()
     return NotificationUseCases(notif_repo)
+
+
+from app.infrastructure.google_play_service import GooglePlayService
+
+def get_subscription_use_cases() -> SubscriptionUseCases:
+    return SubscriptionUseCases(
+        user_repo=PostgresUserRepository(),
+        google_play=GooglePlayService()
+    )
+
