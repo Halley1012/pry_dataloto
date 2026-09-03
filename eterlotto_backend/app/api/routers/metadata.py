@@ -103,3 +103,12 @@ def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
+
+@router.get("/app-config")
+def get_app_config():
+    return {
+        "success": True,
+        "min_build_number": 19,
+        "store_url_android": "https://play.google.com/store/apps/details?id=com.lumieter.eterlotto",
+        "store_url_ios": "https://apps.apple.com/app/id_aqui_si_tienes"
+    }

@@ -1975,5 +1975,19 @@ class ApiService {
       return false;
     }
   }
+
+  static Future<Map<String, dynamic>?> getAppConfig() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/metadata/app-config'))
+          .timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (e) {
+      debugPrint('⚠️ No se pudo obtener la configuración de la app: $e');
+    }
+    return null;
+  }
 }
 
