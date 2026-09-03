@@ -247,7 +247,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     LEFT JOIN loterias_jackpots j ON j.loteria = 'miloto' AND j.fecha = r.fecha
                     WHERE r.balota1 <> 0
                     ORDER BY r.fecha DESC
-                    LIMIT 5;
+                    LIMIT 10;
                 """)
                 rows = cur.fetchall()
                 return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
@@ -264,7 +264,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         WHERE r.balota1 <> 0
                         AND LOWER(r.sorteo) = LOWER(%s)
                         ORDER BY r.fecha DESC
-                        LIMIT 5;
+                        LIMIT 10;
                     """, (sorteo,))
                 else:
                     cur.execute("""
@@ -440,10 +440,15 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
+                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
+                if "sorteo" in cols:
+                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
+
                 query = f"""
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC
                     LIMIT 40;
@@ -515,10 +520,15 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
+                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
+                if "sorteo" in cols:
+                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
+
                 query = f"""
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC
                     LIMIT 50;
@@ -591,10 +601,15 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
+                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
+                if "sorteo" in cols:
+                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
+
                 query = f"""
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON j.loteria = '{loteria_nombre}' AND j.fecha = r.fecha
+                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
                     WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
                     ORDER BY r.fecha DESC;
                 """
