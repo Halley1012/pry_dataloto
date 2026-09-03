@@ -21,6 +21,7 @@ class HistoricoResultadosScreen extends StatefulWidget {
   final String? initialSorteo;
   final List<Map<String, dynamic>>? initialResultados;
   final List<int>? top20;
+  final Map<String, List<int>>? prediccionesPorFecha;
   final bool modoResultadosIA;
 
   const HistoricoResultadosScreen({
@@ -30,6 +31,7 @@ class HistoricoResultadosScreen extends StatefulWidget {
     this.initialSorteo,
     this.initialResultados,
     this.top20,
+    this.prediccionesPorFecha,
     this.modoResultadosIA = false,
   });
 
@@ -44,6 +46,52 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
   List<int> _top20 = [];
+  Map<String, List<int>> _prediccionesPorFecha = {};
+
+  String _normalizarFechaISO(String rawDate) {
+    if (rawDate.isEmpty) return "";
+    try {
+      final clean = rawDate.trim();
+      if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
+        return clean.substring(0, 10);
+      }
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        final y = parsed.year.toString().padLeft(4, '0');
+        final m = parsed.month.toString().padLeft(2, '0');
+        final d = parsed.day.toString().padLeft(2, '0');
+        return "$y-$m-$d";
+      }
+    } catch (_) {}
+    return rawDate;
+  }
+
+  List<int>? _obtenerPrediccionParaFecha(String rawDate) {
+    final isoDate = _normalizarFechaISO(rawDate);
+    if (isoDate.isEmpty) return null;
+    if (_prediccionesPorFecha.containsKey(isoDate)) {
+      return _prediccionesPorFecha[isoDate];
+    }
+    final drawDt = DateTime.tryParse(isoDate);
+    if (drawDt != null && _prediccionesPorFecha.isNotEmpty) {
+      String? bestMatch;
+      int minDiff = 999;
+      for (var pDate in _prediccionesPorFecha.keys) {
+        final pDt = DateTime.tryParse(pDate);
+        if (pDt != null) {
+          final diff = (drawDt.difference(pDt).inDays).abs();
+          if (diff <= 3 && diff < minDiff) {
+            minDiff = diff;
+            bestMatch = pDate;
+          }
+        }
+      }
+      if (bestMatch != null) {
+        return _prediccionesPorFecha[bestMatch];
+      }
+    }
+    return null;
+  }
 
   String _formatearFechaCorta(String rawDate) {
     if (rawDate.isEmpty) return "";
@@ -86,6 +134,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
     if (widget.top20 != null && widget.top20!.isNotEmpty) {
       _top20 = List<int>.from(widget.top20!);
+    }
+
+    if (widget.prediccionesPorFecha != null && widget.prediccionesPorFecha!.isNotEmpty) {
+      _prediccionesPorFecha = Map<String, List<int>>.from(widget.prediccionesPorFecha!);
     }
 
     // ⚡ Optimización Cache-First: Usar datos iniciales si vienen pre-cargados
@@ -185,6 +237,29 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           }
         } catch (_) {}
       }
+
+      if (_prediccionesPorFecha.isEmpty && widget.modoResultadosIA) {
+        try {
+          final preds = await ApiService.getPrediccionesHistorico(widget.config.route);
+          if (preds.isNotEmpty && mounted) {
+            Map<String, List<int>> pMap = {};
+            for (var p in preds) {
+              final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
+              final rawN = p["numeros"];
+              if (f.isNotEmpty && rawN is List) {
+                final nums = rawN.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
+                if (nums.isNotEmpty) pMap[f] = nums;
+              }
+            }
+            if (pMap.isNotEmpty && mounted) {
+              setState(() {
+                _prediccionesPorFecha = pMap;
+              });
+            }
+          }
+        } catch (_) {}
+      }
+
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -205,12 +280,23 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     }
 
     // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0
-    return baseList.where((r) {
+    final validos = baseList.where((r) {
       final rawNums = (r["numeros"] as List<dynamic>? ?? []);
       if (rawNums.isEmpty) return false;
       final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
       return parsed.any((n) => n > 0);
-    }).take(50).toList();
+    }).toList();
+
+    // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,
+    // filtrar para mostrar únicamente los sorteos que tienen predicción real evaluada
+    if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
+      final evaluados = validos.where((r) => _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") != null).toList();
+      if (evaluados.isNotEmpty) {
+        return evaluados.take(50).toList();
+      }
+    }
+
+    return validos.take(50).toList();
   }
 
   Widget _buildActionButton({
@@ -413,6 +499,15 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
         return parsed.any((n) => n > 0);
       }).toList();
 
+      // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,
+      // filtrar para exportar únicamente los sorteos que tienen predicción real evaluada
+      if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
+        final evaluados = listToExport.where((r) => _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") != null).toList();
+        if (evaluados.isNotEmpty) {
+          listToExport = evaluados;
+        }
+      }
+
       if (listToExport.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -454,7 +549,8 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
         final specialStr = red?.toString() ?? "";
 
         if (widget.modoResultadosIA) {
-          final hits = mainBalls.where((n) => _top20.contains(n)).length;
+          final predParaFecha = _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") ?? _top20;
+          final hits = mainBalls.where((n) => predParaFecha.contains(n)).length;
           final covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
           buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr","$covPercent%","$hits / ${mainBalls.length}"');
         } else {
@@ -818,7 +914,8 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                   ? nums.last
                                   : null;
 
-                              final int hits = mainBalls.where((n) => _top20.contains(n)).length;
+                              final predParaFecha = _obtenerPrediccionParaFecha(resultado["fecha"]?.toString() ?? "") ?? _top20;
+                              final int hits = mainBalls.where((n) => predParaFecha.contains(n)).length;
                               final int covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
                               final Color coverageColor = covPercent >= 60 ? Colors.greenAccent : Colors.amber;
 
