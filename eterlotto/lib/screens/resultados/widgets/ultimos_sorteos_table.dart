@@ -9,15 +9,17 @@ class UltimosSorteosTable extends StatelessWidget {
   final List<Map<String, dynamic>> listToRender;
   final int maxSeleccion;
   final bool tieneComplementario;
+  final VoidCallback? onVerMas;
 
   const UltimosSorteosTable({
-    Key? key,
+    super.key,
     required this.subTitulo,
     required this.tabSelector,
     required this.listToRender,
     this.maxSeleccion = 5,
     this.tieneComplementario = false,
-  }) : super(key: key);
+    this.onVerMas,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -30,11 +32,39 @@ class UltimosSorteosTable extends StatelessWidget {
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
                 l10n.resultados,
                 style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
               ),
+              if (onVerMas != null)
+                InkWell(
+                  onTap: onVerMas,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          "Ver más",
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFFFFC107),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.arrow_forward_ios,
+                          size: 11,
+                          color: Color(0xFFFFC107),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -191,6 +221,44 @@ class UltimosSorteosTable extends StatelessWidget {
               );
             }).toList(),
           ),
+          if (onVerMas != null) ...[
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: onVerMas,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFFFC107).withValues(alpha: 0.35),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      l10n.verMasResultados,
+                      style: GoogleFonts.montserrat(
+                        color: const Color(0xFFFFC107),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 11,
+                      color: Color(0xFFFFC107),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
