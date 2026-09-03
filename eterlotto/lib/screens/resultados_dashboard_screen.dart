@@ -171,7 +171,25 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     try {
       // Phase 1: Fetch ultimos5 to determine target draw date
-      final sorteosList = await ApiService.getUltimosResultados(route);
+      List<Map<String, dynamic>> sorteosList = await ApiService.getUltimosResultados(route);
+
+      // Garantizar al menos 10 sorteos si la lotería solo devolvió 5
+      if (sorteosList.length < 10) {
+        try {
+          final extraSorteos = await ApiService.getHistorico50(route);
+          if (extraSorteos.isNotEmpty) {
+            final existingKeys = sorteosList.map((s) => "${s['fecha']}_${s['sorteo']}").toSet();
+            for (var s in extraSorteos) {
+              final key = "${s['fecha']}_${s['sorteo']}";
+              if (!existingKeys.contains(key)) {
+                sorteosList.add(s);
+                existingKeys.add(key);
+                if (sorteosList.length >= 10) break;
+              }
+            }
+          }
+        } catch (_) {}
+      }
 
       // Determinar la fecha exacta del sorteo evaluado
       String targetDrawDate = "";
@@ -778,66 +796,21 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   canPop: canPop,
                 ),
 
-              // 1. Fila Superior: Números Ganadores + Cobertura del Resultado
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final bool tieneComp = widget.loteriaData?['tiene_complementario'] == true ||
-                      widget.loteriaData?['tieneComplementario'] == true ||
-                      (_winningNums.length > dynamicMaxSel);
-                  final int? totalSorteo = int.tryParse(widget.loteriaData?['total_balotas_sorteo']?.toString() ?? '') ??
-                      int.tryParse(widget.loteriaData?['totalBalotasSorteo']?.toString() ?? '');
-
-                  final ultimoSorteoWidget = UltimoSorteoCard(
-                    selectedLoteria: _selectedLoteria,
-                    fechaSorteo: _fechaSorteo,
-                    subSorteos: _subSorteos,
-                    maxSeleccion: dynamicMaxSel,
-                    tieneComplementario: tieneComp,
-                    totalBalotasSorteo: totalSorteo,
-                  );
-
-                  final coberturaWidget = CoberturaGaugeCard(
-                    subSorteos: _subSorteos,
-                    probablesCount: _probablesCount,
-                    totalWinningCount: _totalWinningCount,
-                  );
-
-                  if (constraints.maxWidth > 600) {
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(flex: 3, child: ultimoSorteoWidget),
-                        const SizedBox(width: 12),
-                        Expanded(flex: 2, child: coberturaWidget),
-                      ],
-                    );
-                  } else {
-                    return Column(
-                      children: [
-                        ultimoSorteoWidget,
-                        const SizedBox(height: 12),
-                        coberturaWidget,
-                      ],
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 14),
-
-              // 2. Insights IA
-              InsightIaCard(
-                insightIAText: insightText,
+              // 1. Números Ganadores del Último Sorteo
+              UltimoSorteoCard(
                 selectedLoteria: _selectedLoteria,
-                probablesCount: _probablesCount,
-                coberturaPorcentaje: _coberturaPorcentaje,
-                subSorteos: _subSorteos,
                 fechaSorteo: _fechaSorteo,
-                predictionNumeros: _predictionNumeros.isNotEmpty ? _predictionNumeros : _top20List,
-                predictionBalotaroja: _predictionBalotaroja,
+                subSorteos: _subSorteos,
+                maxSeleccion: dynamicMaxSel,
+                tieneComplementario: widget.loteriaData?['tiene_complementario'] == true ||
+                    widget.loteriaData?['tieneComplementario'] == true ||
+                    (_winningNums.length > dynamicMaxSel),
+                totalBalotasSorteo: int.tryParse(widget.loteriaData?['total_balotas_sorteo']?.toString() ?? '') ??
+                    int.tryParse(widget.loteriaData?['totalBalotasSorteo']?.toString() ?? ''),
               ),
               const SizedBox(height: 14),
 
-              // 3. Comparación Mis Jugadas vs Resultado
+              // 2. Comparación Mis Jugadas vs Resultado
               MisJugadasCard(
                 selectedLoteria: _selectedLoteria,
                 misJugadas: _misJugadas.map((j) {
@@ -851,7 +824,28 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               ),
               const SizedBox(height: 14),
 
-              // 4. Gráficas
+              // 3. Cobertura del Resultado
+              CoberturaGaugeCard(
+                subSorteos: _subSorteos,
+                probablesCount: _probablesCount,
+                totalWinningCount: _totalWinningCount,
+              ),
+              const SizedBox(height: 14),
+
+              // 4. Insights IA
+              InsightIaCard(
+                insightIAText: insightText,
+                selectedLoteria: _selectedLoteria,
+                probablesCount: _probablesCount,
+                coberturaPorcentaje: _coberturaPorcentaje,
+                subSorteos: _subSorteos,
+                fechaSorteo: _fechaSorteo,
+                predictionNumeros: _predictionNumeros.isNotEmpty ? _predictionNumeros : _top20List,
+                predictionBalotaroja: _predictionBalotaroja,
+              ),
+              const SizedBox(height: 14),
+
+              // 5. Gráficas
               EstadisticasCards(
                 misJugadas: _misJugadas,
                 distribucionAciertos: _distribucionAciertos,
@@ -861,7 +855,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              // 5. Tabla de Últimos Sorteos
+              // 6. Tabla de Últimos Sorteos
               UltimosSorteosTable(
                 subTitulo: subTitulo,
                 listToRender: listToRender,
