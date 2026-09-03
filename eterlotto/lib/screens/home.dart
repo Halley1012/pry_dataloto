@@ -292,19 +292,78 @@ class _HomeScreenState extends State<HomeScreen> {
     final langCode = Localizations.localeOf(context).languageCode;
     final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 40.0, 16.0, 12.0),
-      child: Row(
-        children: [
-          Text(
-            PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
-            style: const TextStyle(fontSize: 32),
-          ), 
-          const SizedBox(width: 12),
-          Text(
-            nombrePaisDisplay,
-            style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 28),
+      padding: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 12.0),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais()));
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+          decoration: BoxDecoration(
+            color: const Color(0xFF161616), // Dark background for the card
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white12, width: 1.0),
           ),
-        ],
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
+                          style: const TextStyle(fontSize: 22),
+                        ), 
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            nombrePaisDisplay,
+                            style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      "Explora las loterias más jugadas en el país.",
+                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Container(
+                width: 55,
+                height: 55,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.yellow.withOpacity(0.4), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.yellow.withOpacity(0.15),
+                      blurRadius: 15,
+                      spreadRadius: 2,
+                    )
+                  ]
+                ),
+                clipBehavior: Clip.antiAlias,
+                alignment: Alignment.center,
+                child: Transform.scale(
+                  scale: 1.8,
+                  child: Text(
+                    PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
+                    style: const TextStyle(fontSize: 45),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              const Icon(Icons.arrow_forward_ios, color: AppColors.yellow, size: 16),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -541,10 +600,51 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: _filteredLoterias.length - 3,
           itemBuilder: (context, index) {
             final loteria = _filteredLoterias[index + 3];
-            return _buildLoteriaCard(loteria, showCountry: true);
+            return _buildCompactLoteriaCard(loteria);
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildCompactLoteriaCard(dynamic loteria) {
+    final String rawNombre = loteria["nombre"] ?? "";
+    final String nombreFormateado = rawNombre.isNotEmpty
+        ? rawNombre[0].toUpperCase() + rawNombre.substring(1).toLowerCase()
+        : "";
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => _resolveScreen(loteria)),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                nombreFormateado,
+                style: AppTextStyles.mensajeImportante.copyWith(
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14.0,
+                ),
+              ),
+              const Icon(Icons.arrow_forward_ios, color: Colors.white38, size: 14),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1087,7 +1187,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: _buildPopularesSection(),
               ),
               const SliverToBoxAdapter(
-                child: SizedBox(height: 10),
+                child: SizedBox(height: 15),
               ),
               SliverToBoxAdapter(
                 child: _buildTodasLoteriasSection(),
@@ -1099,11 +1199,14 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverToBoxAdapter(
               child: _buildBuscaloAquiSection(),
             ),
+            const SliverToBoxAdapter(
+              child: SizedBox(height: 30),
+            ),
             SliverToBoxAdapter(
               child: _buildComunidadSection(),
             ),
             const SliverToBoxAdapter(
-              child: SizedBox(height: 30),
+              child: SizedBox(height: 40),
             ),
           ],
         ),
@@ -1130,7 +1233,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 25),
           GestureDetector(
             onTap: () => Navigator.push(
               context,
@@ -1202,7 +1305,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 25),
           AppContainer4(
             child: isLoading && posts.isEmpty
                 ? Shimmer.fromColors(
@@ -1225,7 +1328,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : posts.isEmpty
                 ? Center(child: Text(AppLocalizations.of(context)?.sinPosts ?? "No hay posts", style: const TextStyle(color: AppColors.yellow)))
                 : SizedBox(
-                    height: 400,
+                    height: 450,
                     child: ListView.builder(
                       shrinkWrap: true,
                       physics: const BouncingScrollPhysics(),
