@@ -29,7 +29,14 @@ class SubscriptionUseCases:
         if not google_result["is_active"]:
             raise ValueError("La suscripción no está activa")
 
-        expires_at = google_result["expiry_time"]
+        expires_at = google_result.get("expiry_time")
+        raw_state = google_result.get("raw_state")
+
+        status = "active"
+        if raw_state == "SUBSCRIPTION_STATE_CANCELED":
+            status = "canceled"
+        elif raw_state == "SUBSCRIPTION_STATE_IN_GRACE_PERIOD":
+            status = "grace_period"
 
         res = await self.user_repo.set_premium(
             user_id=user_id,
@@ -37,13 +44,15 @@ class SubscriptionUseCases:
             expires_at=expires_at,
             order_id=order_id,
             purchase_token=purchase_token,
-            product_id=product_id
+            product_id=product_id,
+            status=status
         )
 
         return {
             "success": True,
             "message": "Suscripción activada con éxito en la base de datos",
             "is_premium": True,
+            "status": status,
             "expires_at": res.get("expires_at") if res else expires_at
         }
 

@@ -237,7 +237,8 @@ class PostgresUserRepository(UserRepositoryPort):
         expires_at: Optional[datetime] = None,
         order_id: Optional[str] = None,
         purchase_token: Optional[str] = None,
-        product_id: Optional[str] = None
+        product_id: Optional[str] = None,
+        status: Optional[str] = None
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -266,6 +267,8 @@ class PostgresUserRepository(UserRepositoryPort):
                             purchase_token
                         )
 
+                    final_status = status if status else ('active' if is_premium else 'expired')
+
                     if existing:
                         await conn.execute(
                             """
@@ -280,7 +283,7 @@ class PostgresUserRepository(UserRepositoryPort):
                             user_id,
                             product_id,
                             order_id,
-                            'active' if is_premium else 'expired',
+                            final_status,
                             expires_at,
                             existing["id"]
                         )
@@ -301,7 +304,7 @@ class PostgresUserRepository(UserRepositoryPort):
                             product_id,
                             purchase_token,
                             order_id,
-                            'active' if is_premium else 'expired',
+                            final_status,
                             expires_at
                         )
 
