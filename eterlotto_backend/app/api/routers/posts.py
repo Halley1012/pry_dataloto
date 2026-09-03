@@ -7,8 +7,13 @@ router = APIRouter()
 
 @router.post("/posts", response_model=schemas.PostResponse)
 async def create_post(post: schemas.PostCreate, current_user: dict = Depends(dependencies.get_current_user), use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
-    user_id = int(current_user["user_id"])
-    return await use_cases.crear_post(post.title, post.content, user_id)
+    try:
+        user_id = int(current_user["user_id"])
+        return await use_cases.crear_post(post.title, post.content, user_id)
+    except HTTPException:
+        raise
+    except (PermissionError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/posts", response_model=List[schemas.PostResponse])
 async def get_posts(use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
@@ -19,6 +24,8 @@ async def update_post(post_id: int, post_update: schemas.PostCreate, current_use
     try:
         user_id = int(current_user["user_id"])
         return await use_cases.editar_post(post_id, post_update.title, post_update.content, user_id)
+    except HTTPException:
+        raise
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:

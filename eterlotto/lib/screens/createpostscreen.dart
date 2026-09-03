@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -74,10 +75,13 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     } catch (e) {
       debugPrint("🚨 Error guardando post: $e");
       if (!mounted) return;
+      final rawError = e.toString().replaceAll("Exception: ", "").trim();
       final l10n = AppLocalizations.of(context);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(l10n?.errorGuardarPost ?? "Error al guardar el post")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(rawError.isNotEmpty ? rawError : (l10n?.errorGuardarPost ?? "Error al guardar el post")),
+        backgroundColor: Colors.redAccent.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -109,12 +113,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 🔹 Campo de título
-                    _buildTextField(_titleController, l10n?.titulo ?? "Título"),
+                    _buildTextField(
+                      _titleController,
+                      l10n?.titulo ?? "Título",
+                      maxLength: 100,
+                    ),
                     const SizedBox(height: 10),
                     _buildTextField(
                       _contentController,
                       l10n?.contenido ?? "Contenido",
                       maxLines: 8,
+                      maxLength: 500,
+                      showCounterThreshold: true,
                     ),
                     const SizedBox(height: 20),
                     // 🔹 Botón de acción
@@ -126,7 +136,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               onPressed: _submitPost,
                               style: ElevatedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
+                                   vertical: 14,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
@@ -155,12 +165,27 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     TextEditingController controller,
     String hint, {
     int maxLines = 1,
+    int? maxLength,
+    bool showCounterThreshold = false,
   }) {
     return AppContainer4(
       child: TextField(
         controller: controller,
         maxLines: maxLines,
+        maxLength: maxLength,
+        inputFormatters: [
+          if (maxLength != null) LengthLimitingTextInputFormatter(maxLength),
+        ],
         style: AppTextStyles.mensajeSecundario,
+        buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
+          if (showCounterThreshold && maxLength != null && currentLength > (maxLength * 0.8)) {
+            return Text(
+              "$currentLength/$maxLength",
+              style: const TextStyle(fontSize: 10, color: AppColors.yellow),
+            );
+          }
+          return null;
+        },
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: AppTextStyles.mensajeSecundario,
@@ -169,7 +194,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             horizontal: 12,
             vertical: 8,
           ),
+          counterText: (showCounterThreshold && maxLength != null && controller.text.length > (maxLength * 0.8)) ? null : "",
         ),
+        onChanged: (_) => setState(() {}),
       ),
     );
   }

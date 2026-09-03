@@ -950,10 +950,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF1E1E1E),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+              border: Border.all(color: AppColors.yellow, width: 1.5),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                  color: AppColors.yellow.withValues(alpha: 0.25),
                   blurRadius: 16,
                   spreadRadius: 2,
                 ),
@@ -984,17 +984,17 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   height: 56,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                    border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                    color: AppColors.yellow.withValues(alpha: 0.15),
+                    border: Border.all(color: AppColors.yellow, width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                        color: AppColors.yellow.withValues(alpha: 0.4),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.analytics_outlined, color: Color(0xFF00E5FF), size: 28),
+                  child: const Icon(Icons.query_stats_rounded, color: AppColors.yellow, size: 28),
                 ),
                 const SizedBox(height: 14),
                 // Pregunta clara al usuario
@@ -1007,17 +1007,17 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Text(
-                  "Compara la jugada seleccionada directamente contra las estadísticas, números calientes/fríos y predicción IA de ${widget.loteriaNombre}.",
+                  "Selecciona la jugada que deseas llevar a la pantalla de estadísticas para analizar su coincidencia con los sorteos pasados.",
                   style: GoogleFonts.montserrat(
                     color: Colors.white70,
-                    fontSize: 13,
-                    height: 1.3,
+                    fontSize: 12.5,
+                    height: 1.35,
                   ),
                   textAlign: TextAlign.center,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 // Card de la jugada
                 Container(
                   width: double.infinity,
@@ -1025,7 +1025,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF141A22),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                    border: Border.all(color: AppColors.yellow.withValues(alpha: 0.4)),
                   ),
                   child: Column(
                     children: [
@@ -1035,7 +1035,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           Text(
                             "Jugada #$jugadaIndex",
                             style: GoogleFonts.montserrat(
-                              color: const Color(0xFF00E5FF),
+                              color: AppColors.yellow,
                               fontWeight: FontWeight.bold,
                               fontSize: 13.5,
                             ),
@@ -1100,13 +1100,13 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                       flex: 2,
                       child: ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00E5FF),
+                          backgroundColor: AppColors.yellow,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 4,
                         ),
-                        icon: const Icon(Icons.analytics_outlined, size: 20, color: Colors.black),
+                        icon: const Icon(Icons.query_stats_rounded, size: 20, color: Colors.black),
                         label: const Text(
                           "Sí, Comparar",
                           style: TextStyle(
@@ -1188,21 +1188,20 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               height: fabSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF00E5FF), Color(0xFF0070F3)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                color: AppColors.yellow,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 2.0,
                 ),
-                border: Border.all(color: Colors.white, width: 2.0),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
-                    blurRadius: 12,
+                    color: AppColors.yellow.withValues(alpha: 0.45),
+                    blurRadius: 14,
                     spreadRadius: 2,
                     offset: const Offset(0, 4),
                   ),
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: Colors.black.withValues(alpha: 0.4),
                     blurRadius: 8,
                     offset: const Offset(0, 4),
                   ),
@@ -1210,9 +1209,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               ),
               child: const Center(
                 child: Icon(
-                  Icons.compare_arrows,
-                  size: 32,
-                  color: Colors.white,
+                  Icons.query_stats_rounded,
+                  size: 30,
+                  color: Colors.black,
                 ),
               ),
             ),
