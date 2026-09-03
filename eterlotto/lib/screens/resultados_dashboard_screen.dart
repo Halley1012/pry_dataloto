@@ -66,29 +66,32 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
     if (isoDate.isEmpty) return null;
+    List<int>? fullList;
     if (_prediccionesPorFecha.containsKey(isoDate)) {
-      return _prediccionesPorFecha[isoDate];
-    }
-    // Match más cercano dentro de +/- 3 días (por diferencias de calendario de sorteo)
-    final drawDt = DateTime.tryParse(isoDate);
-    if (drawDt != null && _prediccionesPorFecha.isNotEmpty) {
-      String? bestMatch;
-      int minDiff = 999;
-      for (var pDate in _prediccionesPorFecha.keys) {
-        final pDt = DateTime.tryParse(pDate);
-        if (pDt != null) {
-          final diff = (drawDt.difference(pDt).inDays).abs();
-          if (diff <= 3 && diff < minDiff) {
-            minDiff = diff;
-            bestMatch = pDate;
+      fullList = _prediccionesPorFecha[isoDate];
+    } else if (_prediccionesPorFecha.isNotEmpty) {
+      final drawDt = DateTime.tryParse(isoDate);
+      if (drawDt != null) {
+        String? bestMatch;
+        int minDiff = 999;
+        for (var pDate in _prediccionesPorFecha.keys) {
+          final pDt = DateTime.tryParse(pDate);
+          if (pDt != null) {
+            final diff = (drawDt.difference(pDt).inDays).abs();
+            if (diff <= 3 && diff < minDiff) {
+              minDiff = diff;
+              bestMatch = pDate;
+            }
           }
         }
-      }
-      if (bestMatch != null) {
-        return _prediccionesPorFecha[bestMatch];
+        if (bestMatch != null) {
+          fullList = _prediccionesPorFecha[bestMatch];
+        }
       }
     }
-    return null;
+    if (fullList == null) return null;
+    final limit = _getTopLimitForLoteria(_selectedLoteria, fullList.length);
+    return fullList.take(limit).toList();
   }
 
   List<int> get _winningNums => _subSorteos.isNotEmpty ? _subSorteos.first.winningNums : [];
@@ -157,6 +160,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
     if (lower.contains("baloto") || lower.contains("bloto")) return 21;
+    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
 
     if (widget.loteriaData != null && widget.loteriaData!['max_balotas_blancas'] != null) {
       final m = int.tryParse(widget.loteriaData!['max_balotas_blancas'].toString());
@@ -184,7 +188,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_v6_$route';
+    final cacheKey = 'resultados_dashboard_cache_v7_$route';
 
     // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
     if (!forceRefresh) {
@@ -205,19 +209,40 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     try {
       // Phase 1: Fetch ultimos5 to determine target draw date
-      List<Map<String, dynamic>> sorteosList = await ApiService.getUltimosResultados(route);
+      final rawSorteosList = await ApiService.getUltimosResultados(route);
+
+      final now = DateTime.now();
+      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      bool esSorteoValido(Map<String, dynamic> s) {
+        final nums = _extraerNumerosDeMap(s);
+        if (nums.isEmpty || !nums.any((n) => n > 0)) return false;
+        final fIso = _normalizarFechaISO(s["fecha"]?.toString() ?? "");
+        final dt = DateTime.tryParse(fIso);
+        if (dt != null && dt.isAfter(todayEnd)) return false;
+        return true;
+      }
+
+      String makeKey(Map<String, dynamic> s) {
+        return "${_normalizarFechaISO(s['fecha']?.toString() ?? '')}_${s['sorteo']?.toString().trim().toLowerCase()}";
+      }
+
+      final seenSorteos = <String>{};
+      List<Map<String, dynamic>> sorteosList = [];
+      for (var s in rawSorteosList) {
+        if (esSorteoValido(s) && seenSorteos.add(makeKey(s))) {
+          sorteosList.add(s);
+        }
+      }
 
       // Garantizar al menos 10 sorteos si la lotería solo devolvió 5
       if (sorteosList.length < 10) {
         try {
           final extraSorteos = await ApiService.getHistorico50(route);
           if (extraSorteos.isNotEmpty) {
-            final existingKeys = sorteosList.map((s) => "${s['fecha']}_${s['sorteo']}").toSet();
             for (var s in extraSorteos) {
-              final key = "${s['fecha']}_${s['sorteo']}";
-              if (!existingKeys.contains(key)) {
+              if (esSorteoValido(s) && seenSorteos.add(makeKey(s))) {
                 sorteosList.add(s);
-                existingKeys.add(key);
                 if (sorteosList.length >= 10) break;
               }
             }
@@ -761,9 +786,29 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // Preparar listToRender para la tabla
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
 
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    // Filtrar sorteos válidos (no futuros y con balotas > 0)
+    rawSource = rawSource.where((s) {
+      final nums = _extraerNumerosDeMap(s);
+      if (nums.isEmpty || !nums.any((n) => n > 0)) return false;
+      final fIso = _normalizarFechaISO(s["fecha"]?.toString() ?? "");
+      final dt = DateTime.tryParse(fIso);
+      if (dt != null && dt.isAfter(todayEnd)) return false;
+      return true;
+    }).toList();
+
+    // Deduplicar por fecha y subsorteo
+    final seen = <String>{};
+    rawSource = rawSource.where((s) {
+      final key = "${_normalizarFechaISO(s['fecha']?.toString() ?? '')}_${s['sorteo']?.toString().trim().toLowerCase()}";
+      return seen.add(key);
+    }).toList();
+
     if (_sorteosNombres.length > 1 && _selectedResultadosTab < _sorteosNombres.length) {
       final targetSorteo = _sorteosNombres[_selectedResultadosTab];
-      final matches = _ultimosSorteos
+      final matches = rawSource
           .where((s) => (s["sorteo"]?.toString().toLowerCase() ?? "").contains(targetSorteo.toLowerCase()))
           .toList();
       if (matches.isNotEmpty) {

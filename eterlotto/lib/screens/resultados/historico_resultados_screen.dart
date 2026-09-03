@@ -66,31 +66,47 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     return rawDate;
   }
 
+  int _getTopLimit(int poolSize) {
+    final lower = widget.config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
+    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
+    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
+    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
+    if (widget.config.maxBalotasBlancas > 0) {
+      return widget.config.maxBalotasBlancas ~/ 2;
+    }
+    return poolSize > 0 ? (poolSize ~/ 2) : 20;
+  }
+
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
     if (isoDate.isEmpty) return null;
+    List<int>? fullList;
     if (_prediccionesPorFecha.containsKey(isoDate)) {
-      return _prediccionesPorFecha[isoDate];
-    }
-    final drawDt = DateTime.tryParse(isoDate);
-    if (drawDt != null && _prediccionesPorFecha.isNotEmpty) {
-      String? bestMatch;
-      int minDiff = 999;
-      for (var pDate in _prediccionesPorFecha.keys) {
-        final pDt = DateTime.tryParse(pDate);
-        if (pDt != null) {
-          final diff = (drawDt.difference(pDt).inDays).abs();
-          if (diff <= 3 && diff < minDiff) {
-            minDiff = diff;
-            bestMatch = pDate;
+      fullList = _prediccionesPorFecha[isoDate];
+    } else if (_prediccionesPorFecha.isNotEmpty) {
+      final drawDt = DateTime.tryParse(isoDate);
+      if (drawDt != null) {
+        String? bestMatch;
+        int minDiff = 999;
+        for (var pDate in _prediccionesPorFecha.keys) {
+          final pDt = DateTime.tryParse(pDate);
+          if (pDt != null) {
+            final diff = (drawDt.difference(pDt).inDays).abs();
+            if (diff <= 3 && diff < minDiff) {
+              minDiff = diff;
+              bestMatch = pDate;
+            }
           }
         }
-      }
-      if (bestMatch != null) {
-        return _prediccionesPorFecha[bestMatch];
+        if (bestMatch != null) {
+          fullList = _prediccionesPorFecha[bestMatch];
+        }
       }
     }
-    return null;
+    if (fullList == null) return null;
+    final limit = _getTopLimit(fullList.length);
+    return fullList.take(limit).toList();
   }
 
   String _formatearFechaCorta(String rawDate) {
@@ -279,24 +295,38 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       }
     }
 
-    // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0 o fecha es futura
     final validos = baseList.where((r) {
       final rawNums = (r["numeros"] as List<dynamic>? ?? []);
       if (rawNums.isEmpty) return false;
       final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
-      return parsed.any((n) => n > 0);
+      if (!parsed.any((n) => n > 0)) return false;
+      final fIso = _normalizarFechaISO(r["fecha"]?.toString() ?? "");
+      final dt = DateTime.tryParse(fIso);
+      if (dt != null && dt.isAfter(todayEnd)) return false;
+      return true;
+    }).toList();
+
+    // Deduplicar por fecha y sorteo
+    final seen = <String>{};
+    final dedup = validos.where((r) {
+      final key = "${_normalizarFechaISO(r['fecha']?.toString() ?? '')}_${r['sorteo']?.toString().trim().toLowerCase()}";
+      return seen.add(key);
     }).toList();
 
     // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,
     // filtrar para mostrar únicamente los sorteos que tienen predicción real evaluada
     if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
-      final evaluados = validos.where((r) => _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") != null).toList();
+      final evaluados = dedup.where((r) => _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") != null).toList();
       if (evaluados.isNotEmpty) {
         return evaluados.take(50).toList();
       }
     }
 
-    return validos.take(50).toList();
+    return dedup.take(50).toList();
   }
 
   Widget _buildActionButton({
@@ -491,12 +521,26 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
         }
       }
 
-      // Filtrar filas vacías o con ceros
+      final now = DateTime.now();
+      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      // Filtrar filas vacías, con ceros o de fecha futura
       listToExport = listToExport.where((r) {
         final rawNums = (r["numeros"] as List<dynamic>? ?? []);
         if (rawNums.isEmpty) return false;
         final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
-        return parsed.any((n) => n > 0);
+        if (!parsed.any((n) => n > 0)) return false;
+        final fIso = _normalizarFechaISO(r["fecha"]?.toString() ?? "");
+        final dt = DateTime.tryParse(fIso);
+        if (dt != null && dt.isAfter(todayEnd)) return false;
+        return true;
+      }).toList();
+
+      // Deduplicar por fecha y sorteo
+      final seen = <String>{};
+      listToExport = listToExport.where((r) {
+        final key = "${_normalizarFechaISO(r['fecha']?.toString() ?? '')}_${r['sorteo']?.toString().trim().toLowerCase()}";
+        return seen.add(key);
       }).toList();
 
       // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,

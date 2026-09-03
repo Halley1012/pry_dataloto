@@ -485,7 +485,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
+                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
                     ORDER BY r.fecha DESC
                     LIMIT 40;
                 """
@@ -496,6 +496,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 num_rojas = len(roja_cols)
 
                 results = []
+                seen_draws = set()
                 for r in rows:
                     fecha = r[0]
                     numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
@@ -511,7 +512,10 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
                     sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
                     jackpot = r[1 + num_balotas + num_rojas + 1]
-                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+                    draw_key = (str(fecha), str(sorteo).strip().lower())
+                    if draw_key not in seen_draws:
+                        seen_draws.add(draw_key)
+                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
 
                 return results
 
@@ -565,7 +569,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
+                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
                     ORDER BY r.fecha DESC
                     LIMIT 50;
                 """
@@ -576,6 +580,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 num_rojas = len(roja_cols)
 
                 results = []
+                seen_draws = set()
                 for r in rows:
                     fecha = r[0]
                     numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
@@ -591,7 +596,10 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
                     sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
                     jackpot = r[1 + num_balotas + num_rojas + 1]
-                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+                    draw_key = (str(fecha), str(sorteo).strip().lower())
+                    if draw_key not in seen_draws:
+                        seen_draws.add(draw_key)
+                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
 
                 return results
 
@@ -646,7 +654,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     SELECT {', '.join(select_cols)}
                     FROM {tabla} r
                     LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.{first_balota} IS NOT NULL AND r.{first_balota} <> 0
+                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
                     ORDER BY r.fecha DESC;
                 """
                 cur.execute(query)
@@ -656,6 +664,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 num_rojas = len(roja_cols)
 
                 results = []
+                seen_draws = set()
                 for r in rows:
                     fecha = r[0]
                     numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
@@ -671,7 +680,10 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
                     sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
                     jackpot = r[1 + num_balotas + num_rojas + 1]
-                    results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
+                    draw_key = (str(fecha), str(sorteo).strip().lower())
+                    if draw_key not in seen_draws:
+                        seen_draws.add(draw_key)
+                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
 
                 return results
 
