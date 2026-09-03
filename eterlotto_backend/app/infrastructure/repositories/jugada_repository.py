@@ -349,6 +349,42 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 except Exception:
                     return []
 
+    @cached(ttl=180)
+    def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
+        clean_tipo = tipo.strip().lower()
+        alias_loteria = "miloto" if clean_tipo == "mloto" else ("baloto" if clean_tipo == "bloto" else ("colorloto" if clean_tipo == "cloto" else clean_tipo))
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cur:
+                # 1. Intentar en tabla global predicciones
+                try:
+                    cur.execute("""
+                        SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                        FROM predicciones
+                        WHERE LOWER(loteria_route) = %s 
+                           OR LOWER(loteria_route) = %s
+                           OR LOWER(loteria_route) = %s
+                        ORDER BY fecha DESC
+                        LIMIT %s;
+                    """, (clean_tipo, alias_loteria, clean_tipo.replace("_", ""), limit))
+                    rows = cur.fetchall()
+                    if rows:
+                        return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
+                except Exception:
+                    pass
+
+                # 2. Fallback a tabla específica predicciones_{clean_tipo}
+                try:
+                    cur.execute(f"""
+                        SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
+                        FROM predicciones_{clean_tipo}
+                        ORDER BY fecha DESC
+                        LIMIT %s;
+                    """, (limit,))
+                    rows = cur.fetchall()
+                    return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
+                except Exception:
+                    return []
+
     @cached(ttl=300)
     def get_prediccion_generico(self, tabla: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         clean_tipo = tabla.replace("predicciones_", "").strip().lower()
