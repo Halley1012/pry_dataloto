@@ -80,7 +80,21 @@ class SubscriptionUseCases:
         is_valid = bool(google_data.get("is_valid", False))
         expires_at = google_data.get("expiry_time")
         raw_state = google_data.get("raw_state")
+        is_active = bool(google_data.get("is_active", False))
         
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(
+            "RTDN SUBSCRIPTION: token=%s | product_id=%s | notification_type=%s | raw_state=%s | expires_at=%s | is_active=%s",
+            purchase_token,
+            resolved_product_id,
+            notification_type,
+            raw_state,
+            expires_at,
+            is_active,
+        )
+
         is_premium = False
         status = "expired"
 
@@ -134,6 +148,15 @@ class SubscriptionUseCases:
             product_id=resolved_product_id,
             order_id=None,
             status=status
+        )
+        
+        logger.info(
+            "RTDN RESULT: user_id=%s | token=%s | status=%s | is_premium=%s | expires_at=%s",
+            user_id,
+            purchase_token,
+            status,
+            is_premium,
+            expires_at,
         )
 
         return {
