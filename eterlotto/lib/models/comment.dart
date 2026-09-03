@@ -8,6 +8,9 @@ class Comment {
   final String content;
   final DateTime createdAt;
   final int? parentId;
+  final String status;
+  final String? moderationReason;
+  final DateTime? updatedAt;
 
   Comment({
     required this.id,
@@ -17,6 +20,9 @@ class Comment {
     required this.content,
     required this.createdAt,
     this.parentId,
+    this.status = 'active',
+    this.moderationReason,
+    this.updatedAt,
   });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
@@ -32,14 +38,22 @@ class Comment {
 
     final cleanContent = rawContent.replaceAll(RegExp(r'\[replyTo:\d+\]\s*'), '');
 
+    DateTime? parsedUpdatedAt;
+    if (json['updated_at'] != null) {
+      parsedUpdatedAt = DateTime.tryParse(json['updated_at'].toString());
+    }
+
     return Comment(
       id: json['id'],
       postId: json['post_id'],
       userId: json['user_id'],
       userName: json['user_name'] ?? '',
       content: cleanContent,
-      createdAt: DateTime.parse(json['created_at']),
+      createdAt: DateTime.parse(json['created_at'].toString()),
       parentId: parsedParentId,
+      status: json['status'] ?? 'active',
+      moderationReason: json['moderation_reason'],
+      updatedAt: parsedUpdatedAt,
     );
   }
 

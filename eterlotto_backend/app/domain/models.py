@@ -66,13 +66,29 @@ class Post:
         self.created_at = created_at or datetime.utcnow()
 
 class Comment:
-    def __init__(self, id: int, post_id: int, user_id: int, content: str, user_name: Optional[str] = None, created_at: Optional[datetime] = None):
+    def __init__(
+        self,
+        id: int,
+        post_id: int,
+        user_id: int,
+        content: str,
+        user_name: Optional[str] = None,
+        created_at: Optional[datetime] = None,
+        status: str = "active",
+        moderation_reason: Optional[str] = None,
+        updated_at: Optional[datetime] = None,
+        parent_id: Optional[int] = None,
+    ):
         self.id = id
         self.post_id = post_id
         self.user_id = user_id
         self.content = content
         self.user_name = user_name
         self.created_at = created_at or datetime.utcnow()
+        self.status = status
+        self.moderation_reason = moderation_reason
+        self.updated_at = updated_at
+        self.parent_id = parent_id
 
 class Publicidad:
     def __init__(self, id: int, user_id: int, imagen_url: str, link: str, aprobado: bool = False, categoria_id: Optional[int] = None, ciudad_id: Optional[int] = None, departament_id: Optional[int] = None, clicks: int = 0, views: int = 0, created_at: Optional[datetime] = None):

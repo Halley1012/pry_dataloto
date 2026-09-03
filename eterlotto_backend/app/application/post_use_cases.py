@@ -1,5 +1,14 @@
 from typing import List, Dict, Any, Optional
+from fastapi import HTTPException
 from app.domain.ports import PostRepositoryPort
+from app.core.moderation import moderate_content, check_rate_limit
+
+REASON_MESSAGES = {
+    "insulto": "Tu comentario contiene lenguaje ofensivo o inapropiado y no puede ser publicado.",
+    "spam": "Tu comentario fue detectado como spam o contiene enlaces no permitidos.",
+    "amenaza": "Tu comentario contiene lenguaje amenazante o violento.",
+    "contenido_inapropiado": "Tu comentario contiene contenido no permitido según las normas de la comunidad.",
+}
 
 class PostUseCases:
     def __init__(self, post_repo: PostRepositoryPort):
@@ -24,10 +33,55 @@ class PostUseCases:
         return {"message": "Post eliminado correctamente"}
 
     async def crear_comentario(self, post_id: int, user_id: int, content: str, parent_id: Optional[int] = None) -> Dict[str, Any]:
-        return await self.post_repo.create_comment(post_id, user_id, content, parent_id)
+        # 1. Rate limiting (cooldown de 5 segundos)
+        check_rate_limit(user_id)
+
+        # 2. Moderación de contenido
+        is_clean, reason = moderate_content(content)
+        if not is_clean:
+            # Guardado para auditoría en base de datos con status='rejected'
+            await self.post_repo.create_comment(
+                post_id=post_id,
+                user_id=user_id,
+                content=content,
+                parent_id=parent_id,
+                status="rejected",
+                moderation_reason=reason
+            )
+            detail_msg = REASON_MESSAGES.get(reason, "Tu comentario no cumple con las normas de la comunidad.")
+            raise HTTPException(status_code=400, detail=detail_msg)
+
+        # 3. Guardado activo
+        return await self.post_repo.create_comment(
+            post_id=post_id,
+            user_id=user_id,
+            content=content,
+            parent_id=parent_id,
+            status="active",
+            moderation_reason=None
+        )
 
     async def editar_comentario(self, comment_id: int, user_id: int, content: str) -> Dict[str, Any]:
-        record = await self.post_repo.update_comment(comment_id, user_id, content)
+        # 1. Moderación del nuevo contenido
+        is_clean, reason = moderate_content(content)
+        if not is_clean:
+            await self.post_repo.update_comment(
+                comment_id=comment_id,
+                user_id=user_id,
+                content=content,
+                status="rejected",
+                moderation_reason=reason
+            )
+            detail_msg = REASON_MESSAGES.get(reason, "La edición fue rechazada por contener términos no permitidos.")
+            raise HTTPException(status_code=400, detail=detail_msg)
+
+        record = await self.post_repo.update_comment(
+            comment_id=comment_id,
+            user_id=user_id,
+            content=content,
+            status="active",
+            moderation_reason=None
+        )
         if not record:
             raise ValueError("Comentario no encontrado o no autorizado")
         return record
