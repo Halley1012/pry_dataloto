@@ -177,8 +177,12 @@ class JugadaUseCases:
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
+                "balotas_blancas": numeros,
+                "balotas_rojas": balotaroja,
                 "sorteo": row[3] if len(row) > 3 and row[3] else display_name
             }
+            if balotaroja:
+                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
             if jackpot:
                 item["jackpot"] = jackpot
             resultados.append(item)
@@ -198,8 +202,12 @@ class JugadaUseCases:
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
+                "balotas_blancas": numeros,
+                "balotas_rojas": balotaroja,
                 "sorteo": row[3] if len(row) > 3 and row[3] else display_name
             }
+            if balotaroja:
+                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
             if jackpot:
                 item["jackpot"] = jackpot
             resultados.append(item)
@@ -219,8 +227,12 @@ class JugadaUseCases:
             item = {
                 "fecha": _format_fecha(fecha),
                 "numeros": numeros + balotaroja,
+                "balotas_blancas": numeros,
+                "balotas_rojas": balotaroja,
                 "sorteo": row[3] if len(row) > 3 and row[3] else display_name
             }
+            if balotaroja:
+                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
             if jackpot:
                 item["jackpot"] = jackpot
             resultados.append(item)

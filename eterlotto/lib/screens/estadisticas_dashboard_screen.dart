@@ -102,6 +102,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             .map((e) => int.tryParse(e.toString()) ?? -1)
             .where((n) => n > 0)
             .toList();
+        if ((widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) && _balotasComparacion.isNotEmpty) {
+          maxSeleccion = _balotasComparacion.length;
+        }
       }
       final rawRoja = widget.jugadaComparacion!["balota_roja"] ?? widget.jugadaComparacion!["superbalota"];
       if (rawRoja != null) {
@@ -190,8 +193,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     if (todosResultados.isEmpty) return;
 
-    // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos
-    if (widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) {
+    // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos solo si no hay configuración
+    if ((widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) &&
+        (widget.jugadaComparacion == null || _balotasComparacion.isEmpty)) {
       final Map<int, int> lenCounts = {};
       for (var r in todosResultados) {
         final nums = r["numeros"];
@@ -201,7 +205,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       }
       if (lenCounts.isNotEmpty) {
         final mostCommonLen = lenCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-        maxSeleccion = maxRoja > 0 && mostCommonLen > 1 ? mostCommonLen - 1 : mostCommonLen;
+        final int rojasCount = (maxRoja > 0 ? (maxRoja > 10 ? 1 : (maxRoja > 2 ? 2 : 1)) : 0);
+        maxSeleccion = rojasCount > 0 && mostCommonLen > rojasCount ? mostCommonLen - rojasCount : mostCommonLen;
       }
     }
 
@@ -260,6 +265,36 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     }
 
     try {
+      // Sincronizar reglas oficiales de la lotería desde la base de datos de forma 100% dinámica
+      if (widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) {
+        try {
+          final loteriasList = await ApiService.getAllLoterias();
+          final cleanRoute = routeName.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final cleanNombre = widget.loteriaNombreInicial.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final match = loteriasList.firstWhere(
+            (l) {
+              final lr = (l['route'] ?? '').toString().toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+              final ln = (l['nombre'] ?? '').toString().toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+              return lr == cleanRoute || ln == cleanNombre || (cleanRoute.isNotEmpty && lr.contains(cleanRoute));
+            },
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty && mounted) {
+            setState(() {
+              if (match['max_seleccion'] != null) {
+                maxSeleccion = int.tryParse(match['max_seleccion'].toString()) ?? maxSeleccion;
+              }
+              if (match['max_balotas_blancas'] != null) {
+                maxBalota = int.tryParse(match['max_balotas_blancas'].toString()) ?? maxBalota;
+              }
+              if (match['max_balotas_rojas'] != null) {
+                maxRoja = int.tryParse(match['max_balotas_rojas'].toString()) ?? maxRoja;
+              }
+            });
+          }
+        } catch (_) {}
+      }
+
       final listResultados = await ApiService.getHistoricoCompleto(routeName);
       if (listResultados.isNotEmpty && mounted) {
         setState(() {
@@ -414,8 +449,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
 
     final int totalBalls = _balotasComparacion.length + (_superbalotaComparacion != null ? 1 : 0);
-    final double estimatedWidth = (totalBalls * 42.0 + 64.0).clamp(220.0, maxW - 20.0);
-    const double estimatedHeight = 94.0;
+    final double estimatedWidth = (totalBalls * 46.0 + 80.0).clamp(240.0, maxW - 20.0);
+    const double estimatedHeight = 106.0;
 
     const double defaultX = 14.0;
     const double defaultY = 14.0;
@@ -444,26 +479,26 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             child: Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF141921).withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.85),
-                  width: 1.5,
+                  color: AppColors.amber.withValues(alpha: 0.85),
+                  width: 1.6,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
-                    blurRadius: 14,
+                    color: AppColors.amber.withValues(alpha: 0.28),
+                    blurRadius: 16,
                     spreadRadius: 1,
                     offset: const Offset(0, 3),
                   ),
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.75),
-                    blurRadius: 10,
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              padding: const EdgeInsets.fromLTRB(12.0, 8.0, 10.0, 10.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: IntrinsicWidth(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -491,7 +526,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                             ),
                           ],
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 14),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -499,12 +534,12 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               behavior: HitTestBehavior.opaque,
                               onTap: _irAEditarJugada,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                                  color: AppColors.amber.withValues(alpha: 0.15),
                                 ),
-                                child: const Icon(Icons.edit_outlined, color: Color(0xFF00E5FF), size: 15),
+                                child: const Icon(Icons.edit_outlined, color: AppColors.amber, size: 15),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -512,7 +547,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               behavior: HitTestBehavior.opaque,
                               onTap: _isSavingJugada ? null : _guardarJugadaEditada,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: const Color(0xFF00E676).withValues(alpha: 0.2),
@@ -535,7 +570,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: Colors.white.withValues(alpha: 0.12),
@@ -547,7 +582,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     // Balotas centradas dentro de la tarjeta
                     Center(
                       child: Row(
@@ -556,9 +591,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                         children: [
                           ..._balotasComparacion.map((n) {
                             return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: 36,
-                              height: 36,
+                              margin: const EdgeInsets.symmetric(horizontal: 3.5),
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
@@ -588,7 +623,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   "$n",
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -597,9 +632,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                           }),
                           if (_superbalotaComparacion != null) ...[
                             Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: 36,
-                              height: 36,
+                              margin: const EdgeInsets.symmetric(horizontal: 3.5),
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
@@ -629,7 +664,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   "$_superbalotaComparacion",
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
