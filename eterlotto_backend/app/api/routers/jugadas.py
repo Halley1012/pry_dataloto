@@ -223,6 +223,14 @@ async def borrar_jugada_unificada(jugada_id: int, user_id: int, loteria: Optiona
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada eliminada"}
 
+@router.put("/jugadas/{jugada_id}", response_model=schemas.JugadaOut, name="actualizar_jugada_unificada")
+async def actualizar_jugada_unificada(jugada_id: int, jugada: schemas.JugadaUpdate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = (jugada.loteria_route or "").strip().lower()
+    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros)
+    if not res:
+        raise HTTPException(status_code=404, detail="Jugada no encontrada")
+    return res
+
 @router.post("/jugadas_{r_name}", response_model=schemas.JugadaOut, name="crear_jugada_dinamico")
 async def crear_jugada_dinamico(r_name: str, jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()
@@ -240,6 +248,14 @@ async def borrar_jugada_dinamico(r_name: str, jugada_id: int, user_id: int, use_
     if not success:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada eliminada"}
+
+@router.put("/jugadas_{r_name}/{jugada_id}", response_model=schemas.JugadaOut, name="actualizar_jugada_dinamico")
+async def actualizar_jugada_dinamico(r_name: str, jugada_id: int, jugada: schemas.JugadaUpdate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros)
+    if not res:
+        raise HTTPException(status_code=404, detail="Jugada no encontrada")
+    return res
 
 @router.get("/{r_name}", name="get_loteria_prediccion_dinamico")
 def get_prediccion_dinamico(r_name: str, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
