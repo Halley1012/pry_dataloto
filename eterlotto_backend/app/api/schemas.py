@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 from fastapi import Query
@@ -99,7 +99,7 @@ class VerifyEmailCodeRequest(BaseModel):
     code: str
 
 class CommentCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=300, description="Contenido entre 1 y 300 caracteres")
     parent_id: Optional[int] = None
 
 class CommentResponse(BaseModel):
@@ -108,7 +108,10 @@ class CommentResponse(BaseModel):
     user_id: int
     user_name: str
     content: str
+    status: str = "active"
+    moderation_reason: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
     parent_id: Optional[int] = None
 
 class PostCreate(BaseModel):

@@ -14,12 +14,14 @@ import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
+import 'widgets/resultados_shared.dart';
 
 class HistoricoResultadosScreen extends StatefulWidget {
   final LoteriaConfig config;
   final List<String> sorteosDisponibles;
   final String? initialSorteo;
   final List<Map<String, dynamic>>? initialResultados;
+  final List<int>? top20;
 
   const HistoricoResultadosScreen({
     super.key,
@@ -27,6 +29,7 @@ class HistoricoResultadosScreen extends StatefulWidget {
     this.sorteosDisponibles = const [],
     this.initialSorteo,
     this.initialResultados,
+    this.top20,
   });
 
   @override
@@ -39,6 +42,28 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   String? _errorMessage;
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
+  List<int> _top20 = [];
+
+  String _formatearFechaCorta(String rawDate) {
+    if (rawDate.isEmpty) return "";
+    try {
+      final clean = rawDate.trim();
+      if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
+        final year = clean.substring(2, 4);
+        final month = clean.substring(5, 7);
+        final day = clean.substring(8, 10);
+        return "$day-$month-$year";
+      }
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        final day = parsed.day.toString().padLeft(2, '0');
+        final month = parsed.month.toString().padLeft(2, '0');
+        final year = (parsed.year % 100).toString().padLeft(2, '0');
+        return "$day-$month-$year";
+      }
+    } catch (_) {}
+    return rawDate;
+  }
 
   List<String> get sorteosActivos {
     final encontrados = _todosResultados
@@ -57,6 +82,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     ScreenSecurityHelper.enableSecureScreen();
     _selectedSorteo = widget.initialSorteo ??
         (widget.sorteosDisponibles.isNotEmpty ? widget.sorteosDisponibles.first : widget.config.nombre);
+
+    if (widget.top20 != null && widget.top20!.isNotEmpty) {
+      _top20 = List<int>.from(widget.top20!);
+    }
 
     // ⚡ Optimización Cache-First: Usar datos iniciales si vienen pre-cargados
     if (widget.initialResultados != null && widget.initialResultados!.isNotEmpty) {
@@ -139,6 +168,22 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
         });
       }
     } finally {
+      if (_top20.isEmpty) {
+        try {
+          final pred = await ApiService.getPrediccionLoteria(widget.config.route);
+          if (pred != null && pred["numeros"] is List) {
+            final pNums = (pred["numeros"] as List)
+                .map((e) => int.tryParse(e.toString()) ?? -1)
+                .where((n) => n >= 0)
+                .toList();
+            if (pNums.isNotEmpty && mounted) {
+              setState(() {
+                _top20 = pNums.take(20).toList();
+              });
+            }
+          }
+        } catch (_) {}
+      }
       if (mounted) setState(() => _isLoading = false);
     }
   }

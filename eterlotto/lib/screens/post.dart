@@ -1,11 +1,11 @@
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
@@ -114,9 +114,14 @@ class _PostScreenState extends State<PostScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => isLoading = false);
+      final rawError = e.toString().replaceAll("Exception: ", "").trim();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n?.errorEnviarComentario(e.toString()) ?? "Error al enviar comentario: $e")));
+      ).showSnackBar(SnackBar(
+        content: Text(rawError.isNotEmpty ? rawError : (l10n?.errorEnviarComentario(e.toString()) ?? "Error al enviar comentario: $e")),
+        backgroundColor: Colors.redAccent.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
@@ -314,7 +319,20 @@ class _PostScreenState extends State<PostScreen> {
                             child: TextField(
                               controller: _commentController,
                               focusNode: _commentFocusNode,
+                              maxLength: 300,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(300),
+                              ],
                               style: AppTextStyles.mensajeSecundario,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
+                                if (currentLength > 240) {
+                                  return Text(
+                                    "$currentLength/$maxLength",
+                                    style: const TextStyle(fontSize: 10, color: AppColors.yellow),
+                                  );
+                                }
+                                return null;
+                              },
                               decoration: InputDecoration(
                                 hintText: replyingToUser != null
                                     ? (l10n?.escribeRespuesta ?? "Escribe tu respuesta...")
@@ -324,6 +342,7 @@ class _PostScreenState extends State<PostScreen> {
                                 fillColor: AppColors.grayBlue.withOpacity(0.3),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                counterText: _commentController.text.length > 240 ? null : "",
                               ),
                               onChanged: (_) => setState(() {}),
                             ),
