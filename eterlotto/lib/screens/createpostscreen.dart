@@ -124,7 +124,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       l10n?.contenido ?? "Contenido",
                       maxLines: 8,
                       maxLength: 500,
-                      showCounterThreshold: true,
                     ),
                     const SizedBox(height: 20),
                     // 🔹 Botón de acción
@@ -166,7 +165,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     String hint, {
     int maxLines = 1,
     int? maxLength,
-    bool showCounterThreshold = false,
   }) {
     return AppContainer4(
       child: TextField(
@@ -178,13 +176,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         ],
         style: AppTextStyles.mensajeSecundario,
         buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
-          if (showCounterThreshold && maxLength != null && currentLength > (maxLength * 0.8)) {
-            return Text(
-              "$currentLength/$maxLength",
-              style: const TextStyle(fontSize: 10, color: AppColors.yellow),
-            );
-          }
-          return null;
+          if (maxLength == null) return null;
+          return Text(
+            "$currentLength/$maxLength",
+            style: TextStyle(
+              fontSize: 11,
+              color: currentLength >= maxLength
+                  ? Colors.redAccent
+                  : (currentLength > maxLength * 0.85 ? AppColors.yellow : Colors.white54),
+              fontWeight: FontWeight.w500,
+            ),
+          );
         },
         decoration: InputDecoration(
           hintText: hint,
@@ -194,7 +196,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
             horizontal: 12,
             vertical: 8,
           ),
-          counterText: (showCounterThreshold && maxLength != null && controller.text.length > (maxLength * 0.8)) ? null : "",
         ),
         onChanged: (_) => setState(() {}),
       ),

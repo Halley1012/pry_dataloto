@@ -32,6 +32,9 @@ class PostUseCases:
 
         return await self.post_repo.create_post(title.strip(), content.strip(), user_id)
 
+    async def listar_posts(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
+        return await self.post_repo.list_posts(skip, limit)
+
     async def editar_post(self, post_id: int, title: str, content: str, user_id: int) -> Dict[str, Any]:
         # 1. Moderación de título
         is_clean_title, reason_title = moderate_content(title)
