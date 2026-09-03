@@ -74,11 +74,14 @@ class SubscriptionUseCases:
 
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
         if not user_id:
-            return {
-                "success": True,
-                "ignored": True,
-                "reason": "purchase_token_not_found"
-            }
+            # 3.3 - Solución a la carrera RTDN vs /confirm
+            # Al lanzar una excepción, el webhook devuelve HTTP 500 a Google Pub/Sub.
+            # Pub/Sub aplicará backoff exponencial y reintentará la entrega.
+            # Para cuando reintente, es casi seguro que Flutter ya habrá llamado a /confirm.
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning("RTDN token not found. Deferring processing for Pub/Sub retry.")
+            raise RuntimeError("purchase_token_not_found: deferred processing")
 
         resolved_product_id = product_id or "eterlotto_monthly_sub"
         if resolved_product_id not in self.ALLOWED_PRODUCTS:
@@ -147,8 +150,16 @@ class SubscriptionUseCases:
                 is_premium = False
                 status = "expired"
             else:
-                is_premium = False
-                status = "expired"
+                logger.warning(
+                    "RTDN UNKNOWN STATE | raw_state=%s no está mapeado. No se cambiará el entitlement automáticamente.",
+                    raw_state
+                )
+                if notification_type != 12:
+                    return {
+                        "success": True,
+                        "ignored": True,
+                        "reason": f"unknown_raw_state_{raw_state}"
+                    }
 
             # Overrides basados en el RTDN de Google Play si la API no es lo suficientemente explícita
             if notification_type == 12: # SUBSCRIPTION_REVOKED
@@ -199,8 +210,8 @@ class SubscriptionUseCases:
 
             if expires_at <= now_tz:
                 is_premium = False
-                # Reconciliación defensiva:
-                # no crea una fila nueva y no sobrescribe google_order_id.
+                # Reconciliación defensiva delegada a mark_expired_subscriptions
+                # (usa SELECT EXISTS internamente para evitar updates innecesarios)
                 await self.user_repo.mark_expired_subscriptions(user_id)
             elif is_premium is False:
                 # No reactiva una suscripción solo por una fecha futura.

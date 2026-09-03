@@ -345,17 +345,46 @@ class PostgresUserRepository(UserRepositoryPort):
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             async with conn.transaction():
+                # 1. Actualizar usuario respetando si existe otra suscripción válida
                 await conn.execute(
                     """
                     UPDATE users
-                    SET is_premium = $1,
-                        premium_expires_at = $2,
+                    SET is_premium = (
+                            CASE 
+                                WHEN $1 = TRUE THEN TRUE
+                                ELSE (
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM user_subscriptions 
+                                        WHERE user_id = $3 
+                                          AND purchase_token != $4 
+                                          AND status IN ('active', 'canceled', 'grace_period') 
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    )
+                                )
+                            END
+                        ),
+                        premium_expires_at = (
+                            CASE
+                                WHEN $1 = TRUE THEN $2
+                                ELSE COALESCE(
+                                    (
+                                        SELECT MAX(expires_at) FROM user_subscriptions
+                                        WHERE user_id = $3
+                                          AND purchase_token != $4
+                                          AND status IN ('active', 'canceled', 'grace_period')
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    ),
+                                    $2
+                                )
+                            END
+                        ),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $3
                     """,
-                    is_premium, expires_at, user_id
+                    is_premium, expires_at, user_id, purchase_token or ''
                 )
 
+                # 2. Actualizar la suscripción histórica
                 if purchase_token:
                     await conn.execute(
                         """
@@ -381,6 +410,30 @@ class PostgresUserRepository(UserRepositoryPort):
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
+
+            # Optimización 3.1: Verificar si realmente hay algo que expirar antes de adquirir locks de escritura
+            needs_update = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM users
+                    WHERE id = $1
+                      AND is_premium = TRUE
+                      AND premium_expires_at IS NOT NULL
+                      AND premium_expires_at <= CURRENT_TIMESTAMP
+                ) OR EXISTS (
+                    SELECT 1 FROM user_subscriptions
+                    WHERE user_id = $1
+                      AND status IN ('active', 'canceled', 'grace_period')
+                      AND expires_at IS NOT NULL
+                      AND expires_at <= CURRENT_TIMESTAMP
+                )
+                """,
+                user_id
+            )
+
+            if not needs_update:
+                return False
+
             async with conn.transaction():
                 await conn.execute(
                     """
@@ -388,10 +441,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     SET is_premium = FALSE,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $1
-                      AND (
-                          is_premium = TRUE
-                          OR premium_expires_at IS NOT NULL
-                      )
+                      AND is_premium = TRUE
                       AND premium_expires_at IS NOT NULL
                       AND premium_expires_at <= CURRENT_TIMESTAMP
                     """,
