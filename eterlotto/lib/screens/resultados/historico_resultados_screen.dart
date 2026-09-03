@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -22,6 +21,7 @@ class HistoricoResultadosScreen extends StatefulWidget {
   final String? initialSorteo;
   final List<Map<String, dynamic>>? initialResultados;
   final List<int>? top20;
+  final bool modoResultadosIA;
 
   const HistoricoResultadosScreen({
     super.key,
@@ -30,6 +30,7 @@ class HistoricoResultadosScreen extends StatefulWidget {
     this.initialSorteo,
     this.initialResultados,
     this.top20,
+    this.modoResultadosIA = false,
   });
 
   @override
@@ -171,7 +172,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       if (_top20.isEmpty) {
         try {
           final pred = await ApiService.getPrediccionLoteria(widget.config.route);
-          if (pred != null && pred["numeros"] is List) {
+          if (pred["numeros"] is List) {
             final pNums = (pred["numeros"] as List)
                 .map((e) => int.tryParse(e.toString()) ?? -1)
                 .where((n) => n >= 0)
@@ -210,54 +211,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
       return parsed.any((n) => n > 0);
     }).take(50).toList();
-  }
-
-  Widget _build3DBall(
-    int? numero, {
-    Color baseColor = const Color(0xFFF33A21),
-    double size = 32,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            baseColor.withValues(alpha: 0.95),
-            baseColor.withValues(alpha: 0.8),
-            baseColor.withValues(alpha: 0.6),
-          ],
-          center: Alignment.topLeft,
-          radius: 0.9,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black45,
-            offset: Offset(1.2, 1.2),
-            blurRadius: 2.5,
-          ),
-        ],
-        border: Border.all(color: Colors.white24, width: 0.8),
-      ),
-      child: Center(
-        child: Text(
-          numero?.toString() ?? "–",
-          style: GoogleFonts.montserrat(
-            fontSize: size * 0.40,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            shadows: const [
-              Shadow(
-                color: Colors.black87,
-                offset: Offset(0.6, 0.6),
-                blurRadius: 1.5,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   Widget _buildActionButton({
@@ -472,20 +425,41 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       final buffer = StringBuffer();
       // UTF-8 BOM para que Excel abra acentos y símbolos correctamente
       buffer.write('\uFEFF');
-      buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota");
+      if (widget.modoResultadosIA) {
+        buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota,Cobertura_IA,Aciertos");
+      } else {
+        buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota");
+      }
 
       for (int i = 0; i < listToExport.length; i++) {
         final r = listToExport[i];
         final rawNums = (r["numeros"] as List<dynamic>? ?? []);
-        final nums = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
-        final rawRed = r["balotaroja"] ?? r["superbalota"] ?? r["comodin"] ?? r["reintegro"];
-        final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0) ? int.parse(rawRed.toString()) : null;
+        List<int> nums = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
+        int? red = int.tryParse(
+          r["balotaroja2"]?.toString() ??
+          r["reintegro"]?.toString() ??
+          r["balotaroja"]?.toString() ??
+          r["balota_roja"]?.toString() ??
+          r["superbalota"]?.toString() ??
+          r["red"]?.toString() ?? "",
+        );
+        if (red == null && (widget.config.tieneBalotaRoja || widget.config.maxBalotasRojas > 0) && nums.length > widget.config.maxSeleccion) {
+          red = nums.removeLast();
+        } else if (red != null && nums.length > widget.config.maxSeleccion && nums.last == red) {
+          nums.removeLast();
+        }
 
         final mainBalls = nums.length > widget.config.maxSeleccion ? nums.sublist(0, widget.config.maxSeleccion) : nums;
         final numbersStr = mainBalls.join(' - ');
         final specialStr = red?.toString() ?? "";
 
-        buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"');
+        if (widget.modoResultadosIA) {
+          final hits = mainBalls.where((n) => _top20.contains(n)).length;
+          final covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
+          buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr","$covPercent%","$hits / ${mainBalls.length}"');
+        } else {
+          buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"');
+        }
       }
 
       final bytes = utf8.encode(buffer.toString());
@@ -517,22 +491,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final listToShow = _obtenerResultadosFiltrados();
-
-    final int maxBallsInResults = listToShow.isNotEmpty
-        ? listToShow
-            .map((r) => (r["numeros"] as List<dynamic>? ?? [])
-                .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n >= 0)
-                .length)
-            .fold(0, (max, len) => len > max ? len : max)
-        : widget.config.totalBalotasSorteo;
-
-    final double ballSpacing = maxBallsInResults <= 5
-        ? 4.5
-        : (maxBallsInResults == 6 ? 3.0 : (maxBallsInResults == 7 ? 2.0 : 1.2));
-    final double defaultBallSize = maxBallsInResults <= 5
-        ? 34.0
-        : (maxBallsInResults == 6 ? 31.0 : (maxBallsInResults == 7 ? 28.0 : 25.0));
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -720,39 +678,75 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                         padding: const EdgeInsets.all(12),
                         child: Column(
                           children: [
-                            // Encabezado de la tabla
-                            Row(
-                              children: [
-                                SizedBox(
-                                  width: 28,
-                                  child: Text(
-                                    "#",
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
+                            // Encabezado dinámico según el modo
+                            if (widget.modoResultadosIA)
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      child: Text(
+                                        l10n?.sorteoLabel ?? "Sorteo",
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 10,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                SizedBox(
-                                  width: 82,
-                                  child: Text(
-                                    l10n?.sorteoLabel ?? "Sorteo",
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
+                                  Expanded(
+                                    flex: 12,
+                                    child: Center(
+                                      child: Text(
+                                        l10n?.numerosGanadores ?? "Números ganadores",
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 10,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Center(
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      child: Text(
+                                        l10n?.coberturaIA ?? "Cobertura IA",
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 10,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    flex: 3,
+                                    child: Center(
+                                      child: Text(
+                                        l10n?.aciertosSimple ?? "Aciertos",
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 10,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              )
+                            else
+                              Row(
+                                children: [
+                                  SizedBox(
+                                    width: 28,
                                     child: Text(
-                                      l10n?.resultados ?? "Resultados",
+                                      "#",
+                                      textAlign: TextAlign.center,
                                       style: GoogleFonts.montserrat(
                                         fontSize: 11,
                                         color: Colors.white38,
@@ -760,32 +754,179 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
+                                  const SizedBox(width: 6),
+                                  SizedBox(
+                                    width: 84,
+                                    child: Text(
+                                      l10n?.sorteoLabel ?? "Sorteo",
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.montserrat(
+                                        fontSize: 11,
+                                        color: Colors.white38,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Expanded(
+                                    child: Center(
+                                      child: Text(
+                                        l10n?.resultados ?? "Resultados",
+                                        style: GoogleFonts.montserrat(
+                                          fontSize: 11,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             const Divider(color: Colors.white12, height: 16),
 
-                            // Filas de sorteos visibles (máximo 50)
+                            // Filas de sorteos visibles (hasta 50)
                             ...List.generate(listToShow.length, (rowIndex) {
                               final resultado = listToShow[rowIndex];
-                              final fecha = resultado["fecha"]?.toString() ?? "S/F";
-                              final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
-                              final int limiteBalotas = widget.config.totalBalotasSorteo > 0
-                                  ? widget.config.totalBalotasSorteo
-                                  : 20;
-                              final bool isReintegro = widget.config.tieneReintegro;
-                              final numeros = rawNumeros
+                              final rawDate = resultado["fecha"]?.toString() ?? "";
+                              final dateDisplay = _formatearFechaCorta(rawDate);
+
+                              final rawNumeros = (resultado["numeros"] as List<dynamic>? ?? []);
+                              List<int> nums = rawNumeros
                                   .map((e) => int.tryParse(e.toString()) ?? -1)
-                                  .whereIndexed((index, n) {
-                                    if (n < 0) return false;
-                                    if (n == 0 && index >= widget.config.maxSeleccion && !isReintegro) {
-                                      return false;
-                                    }
-                                    return true;
-                                  })
-                                  .take(limiteBalotas)
+                                  .where((n) => n >= 0)
                                   .toList();
 
+                              int? red = int.tryParse(
+                                resultado["balotaroja2"]?.toString() ??
+                                resultado["reintegro"]?.toString() ??
+                                resultado["balotaroja"]?.toString() ??
+                                resultado["balota_roja"]?.toString() ??
+                                resultado["superbalota"]?.toString() ??
+                                resultado["red"]?.toString() ?? "",
+                              );
+                              if (red == null && (widget.config.tieneBalotaRoja || widget.config.maxBalotasRojas > 0) && nums.length > widget.config.maxSeleccion) {
+                                red = nums.removeLast();
+                              } else if (red != null && nums.length > widget.config.maxSeleccion && nums.last == red) {
+                                nums.removeLast();
+                              }
+
+                              final bool tieneComp = widget.config.tieneComplementario || (nums.length > widget.config.maxSeleccion);
+                              final List<int> mainBalls = nums.length > widget.config.maxSeleccion
+                                  ? nums.sublist(0, widget.config.maxSeleccion)
+                                  : nums;
+                              final int? compBall = (tieneComp && nums.length > widget.config.maxSeleccion)
+                                  ? nums.last
+                                  : null;
+
+                              final int hits = mainBalls.where((n) => _top20.contains(n)).length;
+                              final int covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
+                              final Color coverageColor = covPercent >= 60 ? Colors.greenAccent : Colors.amber;
+
+                              final int totalBalls = mainBalls.length +
+                                  (compBall != null ? 1 : 0) +
+                                  (red != null ? 1 : 0);
+
+                              final double ballSize = totalBalls <= 5
+                                  ? 27.0
+                                  : (totalBalls == 6 ? 25.0 : (totalBalls == 7 ? 22.0 : 20.0));
+                              final double ballPadding = totalBalls <= 5
+                                  ? 2.0
+                                  : (totalBalls == 6 ? 1.8 : (totalBalls == 7 ? 1.4 : 1.0));
+
+                              if (widget.modoResultadosIA) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 7.0),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: rowIndex == listToShow.length - 1
+                                            ? Colors.transparent
+                                            : Colors.white10,
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        flex: 3,
+                                        child: Center(
+                                          child: Text(
+                                            dateDisplay,
+                                            textAlign: TextAlign.center,
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.white70,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 12,
+                                        child: Center(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.center,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                ...mainBalls.map((n) => Padding(
+                                                      padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                      child: buildMiniBall(n, baseColor: coverageColor, size: ballSize),
+                                                    )),
+                                                if (compBall != null) ...[
+                                                  SizedBox(width: ballPadding),
+                                                  Padding(
+                                                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                    child: buildMiniBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
+                                                  ),
+                                                ],
+                                                if (red != null) ...[
+                                                  SizedBox(width: ballPadding),
+                                                  Padding(
+                                                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                    child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: ballSize),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 3,
+                                        child: Center(
+                                          child: Text(
+                                            "$covPercent%",
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: coverageColor,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                        flex: 3,
+                                        child: Center(
+                                          child: Text(
+                                            "$hits / ${mainBalls.length}",
+                                            style: GoogleFonts.montserrat(
+                                              fontSize: 12.5,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }
+
+                              // Modo Tabla Principal (Lotería): #, Sorteo, Resultados (balotas doradas + roja)
                               return Container(
                                 padding: const EdgeInsets.symmetric(vertical: 6.5),
                                 decoration: BoxDecoration(
@@ -799,9 +940,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                   ),
                                 ),
                                 child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    // Índice
                                     SizedBox(
                                       width: 28,
                                       child: Text(
@@ -815,11 +954,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    // Fecha
                                     SizedBox(
-                                      width: 82,
+                                      width: 84,
                                       child: Text(
-                                        fecha,
+                                        rawDate,
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.montserrat(
                                           fontSize: 12,
@@ -829,66 +967,36 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    // Balotas
                                     Expanded(
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final totalBalls = numeros.length;
-                                          final double calculatedSize = totalBalls > 0
-                                              ? ((constraints.maxWidth -
-                                                      (totalBalls * ballSpacing * 2)) /
-                                                  totalBalls)
-                                              : defaultBallSize;
-                                          final double ballSize =
-                                              calculatedSize.clamp(15.0, defaultBallSize);
-
-                                          return Center(
-                                            child: FittedBox(
-                                              fit: BoxFit.scaleDown,
-                                              alignment: Alignment.center,
-                                              child: Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: List.generate(numeros.length, (index) {
-                                                  final n = numeros[index];
-                                                  final bool isLastBall =
-                                                      index == numeros.length - 1;
-                                                  final bool isComp =
-                                                      widget.config.tieneComplementario &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          index == widget.config.maxSeleccion;
-                                                  final bool isSpecial =
-                                                      widget.config.tieneBalotaRoja &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          (index >=
-                                                                  widget.config.maxSeleccion +
-                                                                      (widget.config
-                                                                              .tieneComplementario
-                                                                          ? 1
-                                                                          : 0) ||
-                                                              isLastBall);
-                                                  final Color ballColor = isSpecial
-                                                      ? const Color(0xFFB91C1C)
-                                                      : (isComp
-                                                          ? const Color(0xFF0D9488)
-                                                          : Colors.amber);
-
-                                                  return Padding(
-                                                    padding: EdgeInsets.symmetric(
-                                                        horizontal: ballSpacing),
-                                                    child: _build3DBall(
-                                                      n,
-                                                      baseColor: ballColor,
-                                                      size: ballSize,
-                                                    ),
-                                                  );
-                                                }),
-                                              ),
-                                            ),
-                                          );
-                                        },
+                                      child: Center(
+                                        child: FittedBox(
+                                          fit: BoxFit.scaleDown,
+                                          alignment: Alignment.center,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              ...mainBalls.map((n) => Padding(
+                                                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                    child: buildMiniBall(n, baseColor: Colors.amber, size: ballSize),
+                                                  )),
+                                              if (compBall != null) ...[
+                                                SizedBox(width: ballPadding),
+                                                Padding(
+                                                  padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                  child: buildMiniBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
+                                                ),
+                                              ],
+                                              if (red != null) ...[
+                                                SizedBox(width: ballPadding),
+                                                Padding(
+                                                  padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: ballSize),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ],

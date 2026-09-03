@@ -1160,13 +1160,26 @@ class ApiService {
       body: jsonEncode({"title": title, "content": content}),
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
       return Post.fromJson(data);
     } else {
-      throw Exception(
-        "Error al crear post: ${response.statusCode} ${response.body}",
-      );
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List && detail.isNotEmpty && detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al crear post (${response.statusCode})");
     }
   }
 
@@ -1206,7 +1219,22 @@ class ApiService {
       final data = jsonDecode(response.body);
       return Post.fromJson(data);
     } else {
-      throw Exception("Error al actualizar el post: ${response.statusCode}");
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List && detail.isNotEmpty && detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al actualizar el post (${response.statusCode})");
     }
   }
 
