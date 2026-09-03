@@ -61,6 +61,35 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<Map<String, dynamic>> _misJugadas = [];
   List<int> _distribucionAciertos = [0, 0, 0, 0, 0, 0];
   int _selectedResultadosTab = 0; // Índice de tab seleccionado
+  Map<String, List<int>> _prediccionesPorFecha = {};
+
+  List<int>? _obtenerPrediccionParaFecha(String rawDate) {
+    final isoDate = _normalizarFechaISO(rawDate);
+    if (isoDate.isEmpty) return null;
+    if (_prediccionesPorFecha.containsKey(isoDate)) {
+      return _prediccionesPorFecha[isoDate];
+    }
+    // Match más cercano dentro de +/- 3 días (por diferencias de calendario de sorteo)
+    final drawDt = DateTime.tryParse(isoDate);
+    if (drawDt != null && _prediccionesPorFecha.isNotEmpty) {
+      String? bestMatch;
+      int minDiff = 999;
+      for (var pDate in _prediccionesPorFecha.keys) {
+        final pDt = DateTime.tryParse(pDate);
+        if (pDt != null) {
+          final diff = (drawDt.difference(pDt).inDays).abs();
+          if (diff <= 3 && diff < minDiff) {
+            minDiff = diff;
+            bestMatch = pDate;
+          }
+        }
+      }
+      if (bestMatch != null) {
+        return _prediccionesPorFecha[bestMatch];
+      }
+    }
+    return null;
+  }
 
   List<int> get _winningNums => _subSorteos.isNotEmpty ? _subSorteos.first.winningNums : [];
   int? get _winningRed => _subSorteos.isNotEmpty ? _subSorteos.first.winningRed : null;
@@ -209,14 +238,16 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         targetDrawDate = _normalizarFechaISO(firstSort["fecha"]?.toString() ?? "");
       }
 
-      // Phase 2: Fetch user plays for this specific draw date
+      // Phase 2: Fetch user plays, cached prediction, and historical predictions
       final responses = await Future.wait([
         _obtenerJugadasUsuario(_selectedLoteria, fecha: targetDrawDate),
         CacheService.getJson('${route}_prediccion'),
+        ApiService.getPrediccionesHistorico(route),
       ]);
 
       final userJugadas = responses[0] as List<Map<String, dynamic>>;
       final cachedPred = responses[1];
+      final prediccionesHistoricas = responses[2] as List<Map<String, dynamic>>;
 
       List<int> top20 = [];
       List<int> predictionNumeros = [];
@@ -295,6 +326,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         "predictionBalotaroja": predictionBalotaroja,
         "jugadas": userJugadas,
         "jackpot": jackpotVal,
+        "prediccionesHistoricas": prediccionesHistoricas,
       };
 
       CacheService.setJson(cacheKey, payload);
@@ -341,6 +373,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
     _top20List = top20;
 
+
+    final rawPredList = List<Map<String, dynamic>>.from(data["prediccionesHistoricas"] ?? []);
+    Map<String, List<int>> predMap = {};
+    for (var p in rawPredList) {
+      final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
+      final rawN = p["numeros"];
+      if (f.isNotEmpty && rawN is List) {
+        final nums = rawN.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
+        if (nums.isNotEmpty) {
+          predMap[f] = nums;
+        }
+      }
+    }
+    _prediccionesPorFecha = predMap;
 
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
@@ -524,13 +570,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     // 5. Historial de sorteos & coberturas para gráficas (evaluando 5 balotas principales)
     _ultimosSorteos = sorteosRaw;
-    if (sorteosRaw.isNotEmpty && top20.isNotEmpty) {
+    if (sorteosRaw.isNotEmpty) {
       List<double> histList = [];
       for (var sort in sorteosRaw.take(10)) {
+        final sortDate = sort["fecha"]?.toString() ?? "";
+        final predForDate = _obtenerPrediccionParaFecha(sortDate) ?? top20;
         List<int> drawNums = _extraerNumerosDeMap(sort);
-        if (drawNums.isNotEmpty) {
+        if (drawNums.isNotEmpty && predForDate.isNotEmpty) {
           final mainDrawNums = drawNums.length > 5 ? drawNums.sublist(0, 5) : drawNums;
-          int hCount = mainDrawNums.where((n) => top20.contains(n)).length;
+          int hCount = mainDrawNums.where((n) => predForDate.contains(n)).length;
           histList.add((hCount / mainDrawNums.length).clamp(0.0, 1.0));
         }
       }
@@ -723,6 +771,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
     }
 
+    // Filtrar para evaluar únicamente los sorteos que tienen predicción real en la base de datos
+    if (_prediccionesPorFecha.isNotEmpty) {
+      final evaluados = rawSource.where((s) => _obtenerPrediccionParaFecha(s["fecha"]?.toString() ?? "") != null).toList();
+      if (evaluados.isNotEmpty) {
+        rawSource = evaluados;
+      }
+    }
+
     final SubSorteoData? currentSub = _selectedResultadosTab < _subSorteos.length
         ? _subSorteos[_selectedResultadosTab]
         : (_subSorteos.isNotEmpty ? _subSorteos.first : null);
@@ -749,7 +805,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             }
 
             final mainNums = nums.length > dynamicMaxSel ? nums.sublist(0, dynamicMaxSel) : nums;
-            final hits = mainNums.where((n) => _top20List.contains(n)).length;
+            
+            // Evaluar contra la predicción específica de esa fecha
+            final predParaFecha = _obtenerPrediccionParaFecha(rawDate) ?? _top20List;
+            final hits = mainNums.where((n) => predParaFecha.contains(n)).length;
             final covPercent = mainNums.isNotEmpty ? ((hits / mainNums.length) * 100).round() : 0;
 
             return {
@@ -943,6 +1002,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   : null,
               initialResultados: _ultimosSorteos,
               top20: _top20List,
+              prediccionesPorFecha: _prediccionesPorFecha,
               modoResultadosIA: true,
             ),
           ),

@@ -1837,6 +1837,25 @@ class ApiService {
     }
   }
 
+  /// 🧠 Obtener el histórico de predicciones generadas por la IA para una lotería
+  static Future<List<Map<String, dynamic>>> getPrediccionesHistorico(String route, {int limit = 50}) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse("$baseUrl/$cleanRoute/predicciones_historico?limit=$limit");
+    try {
+      final response = await http
+          .get(uri, headers: await _getHeaders(withAuth: false))
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> && decoded["predicciones"] is List) {
+          return List<Map<String, dynamic>>.from(decoded["predicciones"]);
+        }
+      }
+    } catch (_) {}
+    return <Map<String, dynamic>>[];
+  }
+
   /// 📊 Obtener últimos sorteos de una lotería
   static Future<List<Map<String, dynamic>>> getUltimosResultados(String route) async {
     final cleanRoute = route.trim().toLowerCase();

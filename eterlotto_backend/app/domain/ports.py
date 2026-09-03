@@ -160,6 +160,10 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
+        pass
+
+    @abstractmethod
     def get_prediccion_generico(self, tabla: str) -> Optional[Tuple[datetime, List[int], List[int]]]:
         pass
 
