@@ -53,6 +53,16 @@ class SubscriptionUseCases:
         product_id: Optional[str] = None,
         notification_type: Optional[int] = None
     ) -> Dict[str, Any]:
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(
+            "RTDN RECEIVED | purchase_token=%s | product_id=%s | notification_type=%s",
+            purchase_token,
+            product_id,
+            notification_type,
+        )
+
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
         if not user_id:
             return {
@@ -82,17 +92,13 @@ class SubscriptionUseCases:
         raw_state = google_data.get("raw_state")
         is_active = bool(google_data.get("is_active", False))
         
-        import logging
-        logger = logging.getLogger(__name__)
-        
         logger.info(
-            "RTDN SUBSCRIPTION: token=%s | product_id=%s | notification_type=%s | raw_state=%s | expires_at=%s | is_active=%s",
+            "RTDN GOOGLE STATE | purchase_token=%s | notification_type=%s | raw_state=%s | is_active=%s | expires_at=%s",
             purchase_token,
-            resolved_product_id,
             notification_type,
             raw_state,
-            expires_at,
             is_active,
+            expires_at,
         )
 
         is_premium = False
@@ -140,6 +146,14 @@ class SubscriptionUseCases:
                 is_premium = False
                 status = "revoked"
 
+        logger.info(
+            "RTDN DB UPDATE | user_id=%s | status=%s | is_premium=%s | expires_at=%s",
+            user_id,
+            status,
+            is_premium,
+            expires_at,
+        )
+
         result = await self.user_repo.update_subscription_state(
             user_id=user_id,
             is_premium=is_premium,
@@ -148,15 +162,6 @@ class SubscriptionUseCases:
             product_id=resolved_product_id,
             order_id=None,
             status=status
-        )
-        
-        logger.info(
-            "RTDN RESULT: user_id=%s | token=%s | status=%s | is_premium=%s | expires_at=%s",
-            user_id,
-            purchase_token,
-            status,
-            is_premium,
-            expires_at,
         )
 
         return {
