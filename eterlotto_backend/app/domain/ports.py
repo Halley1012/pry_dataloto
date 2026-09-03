@@ -112,6 +112,10 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
     async def list_active_lotteries(self, user_id: int) -> List[str]:
         pass
 

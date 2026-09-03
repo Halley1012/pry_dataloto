@@ -65,9 +65,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     if (!mounted) return;
 
     final uId = await _storage.read(key: 'user_id');
-    final uPaisId = await _storage.read(key: 'pais_id') ?? "5";
-    final uCountry = await _storage.read(key: 'pais_nombre') ?? "Colombia";
-    final cacheKey = 'resultados_selector_v3_${uId ?? "anon"}_$uPaisId';
+    final uPaisId = await _storage.read(key: 'pais_id');
+    final uCountry = await _storage.read(key: 'pais_nombre') ?? "Internacional";
+    final cacheKey = 'resultados_selector_v3_${uId ?? "anon"}_${uPaisId ?? "all"}';
 
     if (!forceRefresh) {
       // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
@@ -103,8 +103,8 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
 
       // Identificar el ID del país del usuario
-      String targetPaisId = uPaisId;
-      if (_paises.isNotEmpty && uCountry.isNotEmpty) {
+      String? targetPaisId = uPaisId;
+      if (_paises.isNotEmpty && uCountry.isNotEmpty && uCountry != "Internacional") {
         try {
           final pMatch = _paises.firstWhere(
             (p) => p["nombre"].toString().toLowerCase() == uCountry.toLowerCase(),
@@ -115,7 +115,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         } catch (_) {}
       }
 
-      // Filtrado inteligente: Loterías de MI PAÍS + Loterías con JUGADAS ACTIVAS
+      // Filtrado inteligente: Loterías de MI PAÍS + Loterías con JUGADAS ACTIVAS (o todas si es internacional)
       List<Map<String, dynamic>> finalLoterias = todas.where((mapItem) {
         final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
         final route = (rawRoute != null && rawRoute.isNotEmpty)
@@ -123,14 +123,14 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             : _getRouteFromName(mapItem['nombre'] ?? "");
         
         final mapPaisId = mapItem['pais_id']?.toString();
-        final isFromMyCountry = (mapPaisId != null && mapPaisId == targetPaisId);
+        final isFromMyCountry = (targetPaisId != null && targetPaisId.isNotEmpty && mapPaisId != null && mapPaisId == targetPaisId);
         final hasJugadas = activas.contains(route);
 
-        return isFromMyCountry || hasJugadas;
+        return (targetPaisId == null || targetPaisId.isEmpty) || isFromMyCountry || hasJugadas;
       }).toList();
 
       // Si por alguna razón la lista quedó vacía, intentar traer directamente las del país
-      if (finalLoterias.isEmpty) {
+      if (finalLoterias.isEmpty && targetPaisId != null && targetPaisId.isNotEmpty) {
         try {
           final countryLoterias = await ApiService.getLoteriasPorPais(targetPaisId);
           finalLoterias = countryLoterias
@@ -336,7 +336,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
     final langCode = Localizations.localeOf(context).languageCode;
-    final countryName = PaisHelper.getNombreTraducido(_userCountry ?? "Colombia", langCode);
+    final countryName = PaisHelper.getNombreTraducido(_userCountry ?? "Internacional", langCode);
 
     final String titleText = langCode == 'en'
         ? "No lotteries registered for $countryName"
