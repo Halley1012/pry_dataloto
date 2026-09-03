@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -55,8 +56,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   // Comparación de Jugada Flotante (Draggable)
   List<int> _balotasComparacion = [];
   int? _superbalotaComparacion;
-  List<int> _balotasOriginales = [];
-  int? _superbalotaOriginal;
   int? _jugadaId;
   String? _fechaSorteoOriginal;
   bool _isSavingJugada = false;
@@ -113,8 +112,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       if (widget.jugadaComparacion!["color"] != null) {
         _colorComparacion = Color(int.parse(widget.jugadaComparacion!["color"].toString()));
       }
-      _balotasOriginales = List<int>.from(_balotasComparacion);
-      _superbalotaOriginal = _superbalotaComparacion;
     }
 
     _cargarDatos();
@@ -391,8 +388,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                       _buildRedBallsSection(l10n),
                                       const SizedBox(height: 20),
                                     ],
-                                    _buildGuardarJugadaSection(l10n),
-                                    const SizedBox(height: 30),
+                                    const SizedBox(height: 20),
                                   ],
                                   const SizedBox(height: 20),
                                 ],
@@ -514,6 +510,25 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                             const SizedBox(width: 8),
                             GestureDetector(
                               behavior: HitTestBehavior.opaque,
+                              onTap: _isSavingJugada ? null : _guardarJugadaEditada,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF00E676).withValues(alpha: 0.2),
+                                ),
+                                child: _isSavingJugada
+                                    ? const SizedBox(
+                                        width: 15,
+                                        height: 15,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00E676)),
+                                      )
+                                    : const Icon(Icons.save_outlined, color: Color(0xFF00E676), size: 15),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              behavior: HitTestBehavior.opaque,
                               onTap: () {
                                 setState(() {
                                   _mostrarComparacion = false;
@@ -533,107 +548,96 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Balotas (su ancho define naturalmente el ancho de la tarjeta)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ..._balotasComparacion.map((n) {
-                          return Container(
-                            margin: const EdgeInsets.only(right: 6),
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  _colorComparacion.withValues(alpha: 0.95),
-                                  _colorComparacion.withValues(alpha: 0.75),
-                                  _colorComparacion.withValues(alpha: 0.5),
+                    // Balotas centradas dentro de la tarjeta
+                    Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ..._balotasComparacion.map((n) {
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    _colorComparacion.withValues(alpha: 0.95),
+                                    _colorComparacion.withValues(alpha: 0.75),
+                                    _colorComparacion.withValues(alpha: 0.5),
+                                  ],
+                                  center: Alignment.topLeft,
+                                  radius: 0.9,
+                                ),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    offset: const Offset(2, 2),
+                                    blurRadius: 4,
+                                  ),
+                                  BoxShadow(
+                                    color: _colorComparacion.withValues(alpha: 0.4),
+                                    blurRadius: 6,
+                                  ),
                                 ],
-                                center: Alignment.topLeft,
-                                radius: 0.9,
                               ),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  offset: const Offset(2, 2),
-                                  blurRadius: 4,
-                                ),
-                                BoxShadow(
-                                  color: _colorComparacion.withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                "$n",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                              child: Center(
+                                child: Text(
+                                  "$n",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                            ),
-                          );
-                        }),
-                        if (_superbalotaComparacion != null) ...[
-                          Container(
-                            margin: const EdgeInsets.only(left: 2, right: 2),
-                            width: 36,
-                            height: 36,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  const Color(0xFFB91C1C).withValues(alpha: 0.95),
-                                  const Color(0xFFB91C1C).withValues(alpha: 0.75),
-                                  const Color(0xFFB91C1C).withValues(alpha: 0.5),
+                            );
+                          }),
+                          if (_superbalotaComparacion != null) ...[
+                            Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: RadialGradient(
+                                  colors: [
+                                    const Color(0xFFB91C1C).withValues(alpha: 0.95),
+                                    const Color(0xFFB91C1C).withValues(alpha: 0.75),
+                                    const Color(0xFFB91C1C).withValues(alpha: 0.5),
+                                  ],
+                                  center: Alignment.topLeft,
+                                  radius: 0.9,
+                                ),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.4),
+                                    offset: const Offset(2, 2),
+                                    blurRadius: 4,
+                                  ),
+                                  BoxShadow(
+                                    color: const Color(0xFFFF1744).withValues(alpha: 0.4),
+                                    blurRadius: 6,
+                                  ),
                                 ],
-                                center: Alignment.topLeft,
-                                radius: 0.9,
                               ),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.4),
-                                  offset: const Offset(2, 2),
-                                  blurRadius: 4,
-                                ),
-                                BoxShadow(
-                                  color: const Color(0xFFFF1744).withValues(alpha: 0.4),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Text(
-                                "$_superbalotaComparacion",
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
+                              child: Center(
+                                child: Text(
+                                  "$_superbalotaComparacion",
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: _irAEditarJugada,
-                          child: Container(
-                            margin: const EdgeInsets.only(left: 4),
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
-                              border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
-                            ),
-                            child: const Icon(Icons.edit, color: Color(0xFF00E5FF), size: 14),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -649,7 +653,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     int? numero, {
     Color baseColor = const Color(0xFFF33A21),
     double size = 38,
-    bool isSelected = false,
   }) {
     return Container(
       width: size,
@@ -665,30 +668,14 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           center: Alignment.topLeft,
           radius: 0.9,
         ),
-        boxShadow: isSelected
-            ? [
-                BoxShadow(
-                  color: baseColor.withValues(alpha: 0.7),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                ),
-                const BoxShadow(
-                  color: Colors.black45,
-                  offset: Offset(1.5, 1.5),
-                  blurRadius: 3,
-                ),
-              ]
-            : const [
-                BoxShadow(
-                  color: Colors.black38,
-                  offset: Offset(1.5, 1.5),
-                  blurRadius: 3,
-                ),
-              ],
-        border: Border.all(
-          color: isSelected ? Colors.white : Colors.white24,
-          width: isSelected ? 2.0 : 1.0,
-        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black38,
+            offset: Offset(1.5, 1.5),
+            blurRadius: 3,
+          ),
+        ],
+        border: Border.all(color: Colors.white24, width: 1.0),
       ),
       child: Center(
         child: Text(
@@ -958,7 +945,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                       numero,
                       baseColor: baseColor,
                       size: 38,
-                      isSelected: isSelected,
                     ),
                   );
                 }).toList(),
@@ -1033,110 +1019,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                       numero,
                       baseColor: baseColor,
                       size: 38,
-                      isSelected: isSelected,
                     ),
                   );
                 }).toList(),
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGuardarJugadaSection(AppLocalizations? l10n) {
-    return AppContainer3(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                "Selección (${_balotasComparacion.length}/$maxSeleccion${maxRoja > 0 ? " + ${_superbalotaComparacion != null ? "1" : "0"}/1" : ""})",
-                style: GoogleFonts.montserrat(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              if (_balotasOriginales.isNotEmpty)
-                TextButton.icon(
-                  style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                  onPressed: () {
-                    setState(() {
-                      _balotasComparacion = List<int>.from(_balotasOriginales);
-                      _superbalotaComparacion = _superbalotaOriginal;
-                    });
-                  },
-                  icon: const Icon(Icons.restart_alt, size: 15, color: Color(0xFF00E5FF)),
-                  label: const Text(
-                    "Restablecer",
-                    style: TextStyle(color: Color(0xFF00E5FF), fontSize: 12),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Row(
-              children: [
-                ..._balotasComparacion.map((n) => Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 3),
-                      child: _build3DBall(
-                        n,
-                        baseColor: _colorComparacion,
-                        size: 36,
-                        isSelected: true,
-                      ),
-                    )),
-                if (_superbalotaComparacion != null) ...[
-                  const SizedBox(width: 4),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 3),
-                    child: _build3DBall(
-                      _superbalotaComparacion,
-                      baseColor: const Color(0xFFB91C1C),
-                      size: 36,
-                      isSelected: true,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF00E5FF),
-                foregroundColor: Colors.black,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 4,
-              ),
-              icon: _isSavingJugada
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black),
-                    )
-                  : const Icon(Icons.save_outlined, size: 20, color: Colors.black),
-              label: Text(
-                _isSavingJugada
-                    ? "Guardando..."
-                    : (_jugadaId != null ? "Guardar y Actualizar Jugada" : "Guardar Jugada"),
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              onPressed: _isSavingJugada ? null : _guardarJugadaEditada,
-            ),
           ),
         ],
       ),
@@ -1328,93 +1215,138 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
   Widget _buildCardGraficaFrecuencia(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
     final frecs = _calcularFrecuencias(resultados);
-    final maxFrec = frecs.values.fold(1, (max, val) => val > max ? val : max);
-    final titleText = "1. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
-    final subtitleText = l10n?.tocaParaVerMas ?? "Toca una barra para interactuar";
+    final List<int> valoresFrec = List.generate(maxBalota, (idx) => frecs[idx + 1] ?? 0);
+    final int minFrec = valoresFrec.isEmpty ? 0 : valoresFrec.reduce(math.min);
+    final int maxFrec = valoresFrec.isEmpty ? 1 : valoresFrec.reduce(math.max);
 
-    Widget buildBarChart({bool isFullScreen = false}) {
+    double range = (maxFrec - minFrec).toDouble();
+    if (range <= 0) {
+      range = maxFrec > 0 ? maxFrec * 0.2 : 5.0;
+    }
+
+    final double paddingY = range * 0.15;
+    final double dynamicMinY = math.max(0.0, (minFrec - paddingY).floorToDouble());
+    final double dynamicMaxY = (maxFrec + paddingY).ceilToDouble();
+    final double stepY = _calcularPasoEjeY(dynamicMaxY - dynamicMinY, 4);
+
+    final titleText = "1. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
+    final subtitleText = l10n?.tocaParaVerMas ?? "Toca para ver más";
+
+    Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
-        height: isFullScreen ? double.infinity : 220,
-        child: BarChart(
-          BarChartData(
-            maxY: (maxFrec * 1.22).toDouble(),
-            barTouchData: BarTouchData(
-              touchTooltipData: BarTouchTooltipData(
-                fitInsideHorizontally: true,
-                fitInsideVertically: true,
-                getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                  final ball = group.x.toInt();
-                  return BarTooltipItem(
-                    "Balota $ball\n${rod.toY.toInt()} salidas",
-                    const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
-                  );
-                },
-              ),
-            ),
-            titlesData: FlTitlesData(
-              show: true,
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 22,
-                  getTitlesWidget: (val, meta) {
-                    final v = val.toInt();
-                    if (v % 10 == 0 || v == 1 || v == maxBalota) {
-                      return Text("$v", style: TextStyle(color: Colors.white54, fontSize: isFullScreen ? 12 : 10));
-                    }
-                    return const SizedBox.shrink();
+        height: isFullScreen ? double.infinity : 210,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
+          child: LineChart(
+            LineChartData(
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                    return touchedSpots.map((LineBarSpot touchedSpot) {
+                      final ball = touchedSpot.x.toInt();
+                      final count = touchedSpot.y.toInt();
+                      return LineTooltipItem(
+                        "Balota $ball\n$count salidas",
+                        const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                      );
+                    }).toList();
                   },
                 ),
               ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 28,
-                  getTitlesWidget: (val, meta) {
-                    return Text("${val.toInt()}",
-                        style: TextStyle(color: Colors.white54, fontSize: isFullScreen ? 12 : 10));
-                  },
+              minY: dynamicMinY,
+              maxY: dynamicMaxY,
+              minX: 1,
+              maxX: maxBalota.toDouble(),
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                show: true,
+                topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 42,
+                    interval: stepY,
+                    getTitlesWidget: (value, meta) {
+                      if (value < dynamicMinY || value > dynamicMaxY) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        "${value.toInt()}",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            ),
-            gridData: FlGridData(show: isFullScreen),
-            borderData: FlBorderData(show: false),
-            barGroups: List.generate(maxBalota, (idx) {
-              final ball = idx + 1;
-              final count = (frecs[ball] ?? 0).toDouble();
-              final isComparacion = _mostrarComparacion && _balotasComparacion.contains(ball);
-              return BarChartGroupData(
-                x: ball,
-                barRods: [
-                  BarChartRodData(
-                    toY: count,
-                    gradient: isComparacion
-                        ? LinearGradient(
-                            colors: [_colorComparacion, _colorComparacion.withValues(alpha: 0.7), Colors.white],
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
-                          )
-                        : const LinearGradient(
-                            colors: [
-                              Color(0xFF4A148C),
-                              Color(0xFF1565C0),
-                              Color(0xFF00B0FF),
-                              Color(0xFF00E676),
-                              Color(0xFFFFEA00),
-                              Color(0xFFFF6D00),
-                              Color(0xFFFF1744),
-                            ],
-                            begin: Alignment.bottomCenter,
-                            end: Alignment.topCenter,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    interval: 1,
+                    getTitlesWidget: (value, meta) {
+                      final intVal = value.toInt();
+                      if (intVal % 10 == 0 || intVal == 1 || intVal == maxBalota) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            "$intVal",
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                    width: isFullScreen ? (isComparacion ? 12 : 10) : (isComparacion ? 7 : 5),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-                  )
-                ],
-              );
-            }),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: List.generate(
+                    maxBalota,
+                    (idx) {
+                      final ball = idx + 1;
+                      return FlSpot(ball.toDouble(), (frecs[ball] ?? 0).toDouble());
+                    },
+                  ),
+                  isCurved: true,
+                  color: AppColors.amber,
+                  barWidth: isFullScreen ? 4 : 2.5,
+                  isStrokeCapRound: true,
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter: (spot, percent, barData, index) {
+                      final ball = spot.x.toInt();
+                      final isComparacion = _mostrarComparacion && _balotasComparacion.contains(ball);
+                      if (isComparacion) {
+                        return FlDotCirclePainter(
+                          radius: isFullScreen ? 6.5 : 5.0,
+                          color: _colorComparacion,
+                          strokeWidth: 2,
+                          strokeColor: Colors.white,
+                        );
+                      }
+                      return FlDotCirclePainter(
+                        radius: isFullScreen ? 4.5 : 3.5,
+                        color: AppColors.amber,
+                        strokeWidth: 0,
+                        strokeColor: Colors.transparent,
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -1437,7 +1369,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                     context,
                     title: titleText,
                     subtitle: subtitleText,
-                    chartWidget: buildBarChart(isFullScreen: true),
+                    chartWidget: buildLineChart(isFullScreen: true),
                   );
                 },
                 borderRadius: BorderRadius.circular(20),
@@ -1451,7 +1383,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           const SizedBox(height: 4),
           Text(subtitleText, style: AppTextStyles.caption),
           const SizedBox(height: 16),
-          buildBarChart(isFullScreen: false),
+          buildLineChart(isFullScreen: false),
         ],
       ),
     );
@@ -1736,17 +1668,19 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final titleText = "6. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
     final subtitleText = l10n?.promedioSumaHistorica(avgSuma) ?? "Promedio de suma histórica: $avgSuma";
 
-    double minY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
-    double maxY = reversedSumas.isEmpty ? 0 : reversedSumas[0];
-    for (final val in reversedSumas) {
-      if (val < minY) minY = val;
-      if (val > maxY) maxY = val;
-    }
-    final finalMaxY = (maxY * 1.25).toDouble();
+    double minVal = reversedSumas.isEmpty ? 50 : reversedSumas.reduce(math.min);
+    double maxVal = reversedSumas.isEmpty ? 150 : reversedSumas.reduce(math.max);
+    double range = (maxVal - minVal).abs();
+    if (range <= 0) range = maxVal > 0 ? maxVal * 0.2 : 20.0;
+
+    final double paddingY = range * 0.15;
+    final double dynamicMinY = math.max(0.0, (minVal - paddingY).floorToDouble());
+    final double dynamicMaxY = (maxVal + paddingY).ceilToDouble();
+    final double stepY = _calcularPasoEjeY(dynamicMaxY - dynamicMinY, 4);
 
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
-        height: isFullScreen ? double.infinity : 180,
+        height: isFullScreen ? double.infinity : 210,
         child: Padding(
           padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
           child: LineChart(
@@ -1765,8 +1699,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   },
                 ),
               ),
-              minY: minY,
-              maxY: finalMaxY,
+              minY: dynamicMinY,
+              maxY: dynamicMaxY,
               minX: 0,
               maxX: reversedSumas.isNotEmpty ? (reversedSumas.length - 1).toDouble() : 0,
               gridData: const FlGridData(show: false),
@@ -1778,23 +1712,20 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 32,
+                    reservedSize: 38,
+                    interval: stepY,
                     getTitlesWidget: (value, meta) {
-                      final intVal = value.toInt();
-                      final isMin = intVal == minY.toInt();
-                      final isMax = intVal == maxY.toInt();
-                      final isStep = intVal % 50 == 0 && intVal > minY && intVal < maxY;
-                      if (isMin || isMax || isStep) {
-                        return Text(
-                          "$intVal",
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        );
+                      if (value < dynamicMinY || value > dynamicMaxY) {
+                        return const SizedBox.shrink();
                       }
-                      return const SizedBox.shrink();
+                      return Text(
+                        "${value.toInt()}",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -2144,6 +2075,17 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
         ],
       ),
     );
+  }
+
+  double _calcularPasoEjeY(double span, [int targetTicks = 4]) {
+    final rawStep = span / targetTicks;
+    if (rawStep <= 0) return 1.0;
+    final magnitude = math.pow(10, (math.log(rawStep) / math.ln10).floor()).toDouble();
+    final residual = rawStep / magnitude;
+    if (residual > 5) return 10 * magnitude;
+    if (residual > 2) return 5 * magnitude;
+    if (residual > 1) return 2 * magnitude;
+    return magnitude;
   }
 
   Map<int, int> _calcularFrecuencias(List<Map<String, dynamic>> resultados) {

@@ -113,95 +113,22 @@ class JugadaUseCases:
        
 
     def obtener_ultimos5_mloto(self) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_ultimos_resultados_mloto()
-        if not rows:
-            return {"error": "No hay resultados registrados"}
-        
-        jackpot_reciente = self.jugada_repo.get_jackpot_reciente("miloto")
-        resultados = []
-        for i, row in enumerate(rows):
-            fecha, numeros = row[0], row[1]
-            jackpot = row[2] if len(row) > 2 else None
-            if not jackpot and i == 0:
-                jackpot = jackpot_reciente
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros
-            }
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
-    
+        return self.obtener_ultimos5_generico("mloto", "MiLoto")
 
     def obtener_ultimos5_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_ultimos_resultados_bloto(sorteo=sorteo)
-        if not rows:
-            return {"error": "No hay resultados registrados"}
-        
-        jackpot_baloto = self.jugada_repo.get_jackpot_reciente("baloto")
-        jackpot_revancha = self.jugada_repo.get_jackpot_reciente("revancha")
-        resultados = []
-        for i, row in enumerate(rows):
-            fecha = row[0]
-            numeros = _normalize_numeros(row[1])
-            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
-            jackpot = row[4] if len(row) > 4 else None
-            if not jackpot and i < 2:
-                if "revancha" in sorteo_nombre.lower():
-                    jackpot = jackpot_revancha
-                else:
-                    jackpot = jackpot_baloto
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja,
-                "sorteo": sorteo_nombre
-            }
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
-
+        res = self.obtener_ultimos5_generico("bloto", "Baloto")
+        if sorteo and "resultados" in res:
+            res["resultados"] = [r for r in res["resultados"] if r.get("sorteo", "").lower() == sorteo.lower()]
+        return res
 
     def obtener_historico_completo_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_historico_completo_bloto(sorteo=sorteo)
-        if not rows:
-            return {"error": "No hay resultados registrados"}
-        resultados = []
-        for row in rows:
-            fecha = row[0]
-            numeros = _normalize_numeros(row[1])
-            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            sorteo_nombre = row[3] if len(row) > 3 else "Baloto"
-            jackpot = row[4] if len(row) > 4 else None
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja,
-                "sorteo": sorteo_nombre
-            }
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
+        res = self.obtener_historico_completo_generico("bloto", "Baloto")
+        if sorteo and "resultados" in res:
+            res["resultados"] = [r for r in res["resultados"] if r.get("sorteo", "").lower() == sorteo.lower()]
+        return res
 
     def obtener_historico_completo_mloto(self) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_historico_completo_mloto()
-        if not rows:
-            return {"error": "No hay resultados registrados"}
-        resultados = []
-        for row in rows:
-            fecha = row[0]
-            numeros = _normalize_numeros(row[1])
-            jackpot = row[2] if len(row) > 2 else None
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros
-            }
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
+        return self.obtener_historico_completo_generico("mloto", "MiLoto")
 
     def obtener_historico(self, tipo: str, limit: int) -> Dict[str, Any]:
         rows = self.jugada_repo.get_predicciones_historico(tipo, limit)

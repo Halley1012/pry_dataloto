@@ -147,17 +147,21 @@ class EstadisticasCards extends StatelessWidget {
         ? historialCoberturasList.reduce(math.min)
         : 0.4;
 
-    double minY = minCov;
-    double maxY = maxCov;
-    if (minY == maxY) {
-      minY = math.max(0.0, minY - 0.1);
-      maxY = math.min(1.0, maxY + 0.1);
-    }
-    final finalMaxY = (maxY * 1.20).toDouble();
+    double range = maxCov - minCov;
+    if (range <= 0) range = maxCov > 0 ? maxCov * 0.2 : 0.2;
+
+    final double paddingY = range * 0.15;
+    final double dynamicMinY = math.max(0.0, ((minCov - paddingY) * 100).floorToDouble() / 100);
+    final double dynamicMaxY = math.min(1.0, ((maxCov + paddingY) * 100).ceilToDouble() / 100);
+
+    final double span = dynamicMaxY - dynamicMinY;
+    final double stepY = span <= 0.25
+        ? 0.05
+        : (span <= 0.50 ? 0.10 : 0.20);
 
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
-        height: isFullScreen ? double.infinity : 120,
+        height: isFullScreen ? double.infinity : 200,
         child: Padding(
           padding: const EdgeInsets.only(right: 16.0, top: 12.0, bottom: 8.0, left: 8.0),
           child: LineChart(
@@ -171,14 +175,14 @@ class EstadisticasCards extends StatelessWidget {
                       final int val = (touchedSpot.y * 100).round();
                       return LineTooltipItem(
                         "$val%",
-                        const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold),
+                        const TextStyle(color: Color(0xFFFFC107), fontWeight: FontWeight.bold),
                       );
                     }).toList();
                   },
                 ),
               ),
-              minY: minY,
-              maxY: finalMaxY,
+              minY: dynamicMinY,
+              maxY: dynamicMaxY,
               minX: 0,
               maxX: historialCoberturasList.isNotEmpty ? (historialCoberturasList.length - 1).toDouble() : 0,
               gridData: const FlGridData(show: false),
@@ -190,27 +194,21 @@ class EstadisticasCards extends StatelessWidget {
                 leftTitles: AxisTitles(
                   sideTitles: SideTitles(
                     showTitles: true,
-                    reservedSize: 36,
-                    interval: 0.1,
+                    reservedSize: 42,
+                    interval: stepY,
                     getTitlesWidget: (value, meta) {
-                      final intVal = (value * 100).round();
-                      final intMin = (meta.min * 100).round();
-                      final intMax = (meta.max * 100).round();
-                      final isMin = intVal == intMin;
-                      final isMax = intVal == intMax;
-                      final isStep = intVal % 20 == 0 && intVal > intMin && intVal < intMax;
-
-                      if (isMin || isMax || isStep) {
-                        return Text(
-                          "$intVal%",
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        );
+                      if (value < dynamicMinY - 0.001 || value > dynamicMaxY + 0.001) {
+                        return const SizedBox.shrink();
                       }
-                      return const SizedBox.shrink();
+                      final intVal = (value * 100).round();
+                      return Text(
+                        "$intVal%",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      );
                     },
                   ),
                 ),
@@ -228,8 +226,8 @@ class EstadisticasCards extends StatelessWidget {
                           child: Text(
                             "$intVal",
                             style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 9,
+                              color: Colors.white70,
+                              fontSize: 10,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -248,7 +246,7 @@ class EstadisticasCards extends StatelessWidget {
                   ),
                   isCurved: true,
                   preventCurveOverShooting: true,
-                  color: const Color(0xFFF59E0B),
+                  color: const Color(0xFFFFC107),
                   barWidth: isFullScreen ? 4 : 2.5,
                   isStrokeCapRound: true,
                   dotData: FlDotData(
@@ -256,7 +254,7 @@ class EstadisticasCards extends StatelessWidget {
                     getDotPainter: (spot, percent, barData, index) {
                       return FlDotCirclePainter(
                         radius: 3.5,
-                        color: const Color(0xFFF59E0B),
+                        color: const Color(0xFFFFC107),
                         strokeWidth: 0,
                         strokeColor: Colors.transparent,
                       );
@@ -289,11 +287,12 @@ class EstadisticasCards extends StatelessWidget {
                   children: [
                     Text(
                       titleStr,
-                      style: GoogleFonts.montserrat(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                      style: GoogleFonts.montserrat(fontSize: 14.5, fontWeight: FontWeight.bold, color: Colors.white),
                     ),
+                    const SizedBox(height: 4),
                     Text(
                       subtitleStr,
-                      style: GoogleFonts.montserrat(fontSize: 11, color: const Color(0xFFF59E0B), fontWeight: FontWeight.w600),
+                      style: GoogleFonts.montserrat(fontSize: 11.5, color: const Color(0xFFFFC107), fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -310,7 +309,7 @@ class EstadisticasCards extends StatelessWidget {
                 borderRadius: BorderRadius.circular(20),
                 child: const Padding(
                   padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.open_in_full, color: Color(0xFFF59E0B), size: 18),
+                  child: Icon(Icons.open_in_full, color: Color(0xFFFFC107), size: 18),
                 ),
               ),
             ],
