@@ -20,6 +20,7 @@ import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import '../../utils/screen_security_helper.dart';
 import '../loteria_screen.dart';
+import '../estadisticas_dashboard_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
 class MisJugadasScreen extends StatefulWidget {
@@ -42,6 +43,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   bool _cargando = true;
   String? _userId;
   LoteriaConfig? _config;
+  final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(null);
 
   @override
   void initState() {
@@ -54,6 +56,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   @override
   void dispose() {
     ScreenSecurityHelper.disableSecureScreen();
+    _fabPositionNotifier.dispose();
     super.dispose();
   }
 
@@ -571,14 +574,18 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
-      body: RefreshIndicator(
-        color: AppColors.yellow,
-        backgroundColor: const Color(0xFF1E1E1E),
-        displacement: 25.0,
-        onRefresh: () => _cargarJugadas(force: true),
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            children: [
+              RefreshIndicator(
+                color: AppColors.yellow,
+                backgroundColor: const Color(0xFF1E1E1E),
+                displacement: 25.0,
+                onRefresh: () => _cargarJugadas(force: true),
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
             CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
             SliverToBoxAdapter(
             child: Padding(
@@ -853,10 +860,322 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
-    ),
+      if (_selectedIds.length == 1)
+        _buildDraggableCompareFab(context, constraints),
+    ],
   );
+},
+),
+);
+}
+
+  void _abrirModalComparar() {
+    if (_selectedIds.length != 1) return;
+    final id = _selectedIds.first;
+    final index = _jugadasList.indexWhere((j) => (j["id"] as int? ?? 0) == id);
+    if (index == -1) return;
+    final item = _jugadasList[index];
+    final (whites, red) = _parsearJugada(item);
+    final jugadaIndex = index + 1;
+    final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+
+    final Color rowColor = [
+      const Color(0xFF1E3A8A), // Azul
+      const Color(0xFF4C1D95), // Morado
+      const Color(0xFF0F766E), // Turquesa
+      const Color(0xFF9A3412), // Naranja Óxido
+      const Color(0xFF065F46), // Esmeralda
+      const Color(0xFF831843), // Rosa
+      const Color(0xFF312E81), // Índigo
+      const Color(0xFF155E75), // Cian
+      const Color(0xFF7C2D12), // Naranja Oscuro
+      const Color(0xFF78350F), // Ámbar
+    ][index % 10];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.8),
+                  blurRadius: 14,
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Indicador superior
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white30,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Icono con glow
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                    border: Border.all(color: const Color(0xFF00E5FF), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF00E5FF).withValues(alpha: 0.4),
+                        blurRadius: 12,
+                        spreadRadius: 2,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.analytics_outlined, color: Color(0xFF00E5FF), size: 28),
+                ),
+                const SizedBox(height: 14),
+                // Pregunta clara al usuario
+                Text(
+                  "¿Quieres comparar con Estadísticas?",
+                  style: GoogleFonts.montserrat(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  "Compara la jugada seleccionada directamente contra las estadísticas, números calientes/fríos y predicción IA de ${widget.loteriaNombre}.",
+                  style: GoogleFonts.montserrat(
+                    color: Colors.white70,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                // Card de la jugada
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF141A22),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF00E5FF).withValues(alpha: 0.4)),
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            "Jugada #$jugadaIndex",
+                            style: GoogleFonts.montserrat(
+                              color: const Color(0xFF00E5FF),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                          Text(
+                            fechaStr,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11.5),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ...whites.map((n) => Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  child: _build3DBall(
+                                    n,
+                                    baseColor: rowColor,
+                                    size: 38,
+                                  ),
+                                )),
+                            if (red != null) ...[
+                              const SizedBox(width: 4),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 3),
+                                child: _build3DBall(
+                                  red,
+                                  baseColor: const Color(0xFFB91C1C),
+                                  size: 38,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                // Botones Cancelar y Confirmar
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          side: const BorderSide(color: Colors.white24),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text(
+                          "Cancelar",
+                          style: TextStyle(color: Colors.white70, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 4,
+                        ),
+                        icon: const Icon(Icons.analytics_outlined, size: 20, color: Colors.black),
+                        label: const Text(
+                          "Sí, Comparar",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14.5,
+                            color: Colors.black,
+                          ),
+                        ),
+                        onPressed: () async {
+                          Navigator.pop(ctx);
+                          final Map<String, dynamic> jugadaComparacionData = {
+                            "id": id,
+                            "index": jugadaIndex,
+                            "titulo": "Jugada #$jugadaIndex",
+                            "color": rowColor.toARGB32(),
+                            "numeros": whites,
+                            "balota_roja": red,
+                            "fecha": fechaStr,
+                          };
+                          final bool? editada = await Navigator.push<bool>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EstadisticasDashboardScreen(
+                                loteriaNombreInicial: widget.loteriaNombre,
+                                loteriaRoute: widget.loteriaRoute,
+                                jugadaComparacion: jugadaComparacionData,
+                              ),
+                            ),
+                          );
+                          if (editada == true && mounted) {
+                            _cargarJugadas();
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDraggableCompareFab(BuildContext context, BoxConstraints constraints) {
+    const double fabSize = 58.0;
+
+    final double maxW = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width;
+    final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
+
+    final defaultX = (maxW - fabSize - 16.0).clamp(10.0, maxW);
+    final defaultY = (maxH - fabSize - 30.0).clamp(10.0, maxH);
+
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: _fabPositionNotifier,
+      builder: (context, pos, child) {
+        final currentX = (pos?.dx ?? defaultX).clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
+        final currentY = (pos?.dy ?? defaultY).clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+
+        return Positioned(
+          left: currentX,
+          top: currentY,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (details) {
+              final cur = _fabPositionNotifier.value ?? Offset(defaultX, defaultY);
+              double newX = cur.dx + details.delta.dx;
+              double newY = cur.dy + details.delta.dy;
+
+              newX = newX.clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
+              newY = newY.clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+
+              _fabPositionNotifier.value = Offset(newX, newY);
+            },
+            onTap: _abrirModalComparar,
+            child: Container(
+              width: fabSize,
+              height: fabSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF00E5FF), Color(0xFF0070F3)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(color: Colors.white, width: 2.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00E5FF).withValues(alpha: 0.5),
+                    blurRadius: 12,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.compare_arrows,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildSkeletonJugadas() {

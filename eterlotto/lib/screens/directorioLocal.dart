@@ -8,7 +8,6 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/cardbussiness.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -129,14 +128,11 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
       }
 
-      // 🇨🇴 Por defecto si no coincide, seleccionar Colombia
+      // 🌐 Por defecto si no coincide, seleccionar el primer país disponible
       if (matchedPaisId == null && paisesData.isNotEmpty) {
-        final col = paisesData.firstWhere(
-          (p) => p['nombre'].toString().toLowerCase().contains("colombia"),
-          orElse: () => paisesData.first,
-        );
-        matchedPaisId = int.tryParse(col['id'].toString()) ?? 5;
-        matchedPaisNombre = col['nombre'].toString();
+        final primerPais = paisesData.first;
+        matchedPaisId = int.tryParse(primerPais['id'].toString());
+        matchedPaisNombre = primerPais['nombre'].toString();
       }
 
       if (matchedPaisId != null) {
@@ -150,7 +146,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       if (!mounted) return;
 
       setState(() {
-        paisController.text = matchedPaisNombre ?? "Colombia";
+        paisController.text = matchedPaisNombre ?? "Todos";
         departamentoController.text = "Todos";
         categoriaController.text = "Todas las categorías";
       });

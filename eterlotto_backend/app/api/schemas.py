@@ -38,6 +38,11 @@ class JugadaCreate(BaseModel):
     fecha_sorteo: Optional[str] = None
     fecha: Optional[str] = None
 
+class JugadaUpdate(BaseModel):
+    numeros: List[int]
+    user_id: str
+    loteria_route: Optional[str] = None
+
 class JugadaOut(BaseModel):
     id: int
     user_id: int

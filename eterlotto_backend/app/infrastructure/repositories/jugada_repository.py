@@ -137,6 +137,25 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             """, jugada_id, user_id, loteria_route)
             return result == "DELETE 1"
 
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+        pool = db_connection.get_pool()
+        loteria_route = tipo.strip().lower()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            numeros_clean = [int(n) for n in numeros]
+            row = await conn.fetchrow("""
+                UPDATE jugadas
+                SET numeros = $1
+                WHERE id = $2 AND user_id = $3 AND ($4 = '' OR LOWER(loteria_route) = $4)
+                RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
+            """, numeros_clean, jugada_id, user_id, loteria_route)
+            if not row:
+                return None
+            d = dict(row)
+            if d.get('fecha_sorteo'):
+                d['fecha_sorteo'] = str(d['fecha_sorteo'])
+            return d
+
     async def list_active_lotteries(self, user_id: int) -> List[str]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:

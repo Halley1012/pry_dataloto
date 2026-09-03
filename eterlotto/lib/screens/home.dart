@@ -14,7 +14,6 @@ import 'package:eterlotto/screens/mis_jugadas_selector_screen.dart';
 import 'package:eterlotto/screens/resultados_selector_screen.dart';
 
 import 'package:eterlotto/styles/app_text_styles.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/screens/createpostscreen.dart';
@@ -109,25 +108,26 @@ class _HomeScreenState extends State<HomeScreen> {
       final nameStr = keys[3];
       final avatarUrlStr = keys[4];
 
-      String paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
+      String? paisIdStr = (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
           ? rawPaisId
-          : "5";
+          : null;
       if (paisNombreStr != null && paisNombreStr.toLowerCase().contains("estados")) {
-        paisIdStr = "21";
+        paisIdStr ??= "21";
       } else if (paisNombreStr != null && paisNombreStr.toLowerCase().contains("colombia")) {
-        paisIdStr = "5";
+        paisIdStr ??= "5";
       }
-      final paisIdInt = int.tryParse(paisIdStr);
+      final paisIdInt = paisIdStr != null ? int.tryParse(paisIdStr) : null;
+      final cacheKeySuffix = paisIdStr ?? "global";
 
       // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms) si no es forceRefresh
       if (!forceRefresh) {
-        final cachedLoterias = await CacheService.getJson('home_loterias_$paisIdStr');
-        final cachedAnuncios = await CacheService.getJson('home_anuncios_$paisIdStr');
+        final cachedLoterias = await CacheService.getJson('home_loterias_$cacheKeySuffix');
+        final cachedAnuncios = await CacheService.getJson('home_anuncios_$cacheKeySuffix');
         final cachedGlobal = await CacheService.getJson('home_loterias_globales');
         if (cachedLoterias != null && mounted) {
           setState(() {
             currentUserId = userIdStr;
-            pais = paisNombreStr ?? "Colombia";
+            pais = paisNombreStr ?? "Internacional";
             userName = nameStr;
             avatarUrl = avatarUrlStr;
             _loterias = List<dynamic>.from(cachedLoterias);
@@ -153,10 +153,15 @@ class _HomeScreenState extends State<HomeScreen> {
         return <Map<String, dynamic>>[];
       });
 
-      final loteriasFuture = ApiService.getLoteriasPorPais(paisIdStr).catchError((e) {
-        debugPrint("⚠️ Error al obtener loterías: $e");
-        return <dynamic>[];
-      });
+      final loteriasFuture = (paisIdStr != null && paisIdStr.isNotEmpty)
+          ? ApiService.getLoteriasPorPais(paisIdStr).catchError((e) {
+              debugPrint("⚠️ Error al obtener loterías: $e");
+              return <dynamic>[];
+            })
+          : ApiService.getAllLoterias().catchError((e) {
+              debugPrint("⚠️ Error al obtener loterías globales: $e");
+              return <dynamic>[];
+            });
 
       final resultados = await Future.wait([
         postsFuture,
@@ -170,9 +175,7 @@ class _HomeScreenState extends State<HomeScreen> {
       List<dynamic> globalRes = [];
       if (loteriasRes.isEmpty) {
         try {
-          final resCol = await ApiService.getLoteriasPorPais("5");
-          final resUsa = await ApiService.getLoteriasPorPais("21");
-          globalRes = [...resCol, ...resUsa];
+          globalRes = await ApiService.getAllLoterias();
           CacheService.setJson('home_loterias_globales', globalRes);
         } catch (e) {
           debugPrint("⚠️ Error obteniendo loterías globales: $e");
@@ -224,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         currentUserId = userIdStr;
-        pais = paisNombreStr ?? "Colombia";
+        pais = paisNombreStr ?? "Internacional";
         userName = finalName;
         avatarUrl = finalAvatar;
         posts = rawPosts;
@@ -237,8 +240,8 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       // 💾 Guardar en caché local
-      CacheService.setJson('home_loterias_$paisIdStr', resultados[2]);
-      CacheService.setJson('home_anuncios_$paisIdStr', resultados[1]);
+      CacheService.setJson('home_loterias_$cacheKeySuffix', resultados[2]);
+      CacheService.setJson('home_anuncios_$cacheKeySuffix', resultados[1]);
       DataRefreshManager.instance.markUpdated(RefreshModules.home);
     } catch (e) {
       debugPrint("❌ Error al cargar la página principal: $e");
@@ -258,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
         : "Usuario";
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 30.0, bottom: 4.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -290,7 +293,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildCountryHeader() {
     final langCode = Localizations.localeOf(context).languageCode;
-    final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
+    final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Internacional", langCode);
+    final esInternacional = (pais == null || pais == "Internacional" || pais == "Todos");
+    final subtituloPais = esInternacional
+        ? (langCode == 'en'
+            ? "Explore the most played lotteries in the world."
+            : (langCode == 'pt'
+                ? "Explore as loterias mais jogadas no mundo."
+                : "Explora las loterías más jugadas en el mundo."))
+        : (langCode == 'en'
+            ? "Explore the most played lotteries in the country."
+            : (langCode == 'pt'
+                ? "Explore as loterias mais jogadas no país."
+                : "Explora las loterias más jugadas en el país."));
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 12.0),
       child: GestureDetector(
@@ -310,57 +326,24 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Text(
-                          PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
-                          style: const TextStyle(fontSize: 22),
-                        ), 
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            nombrePaisDisplay,
-                            style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24, fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      nombrePaisDisplay,
+                      style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 24, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      "Explora las loterias más jugadas en el país.",
-                      style: TextStyle(color: Colors.white54, fontSize: 13),
+                    Text(
+                      subtituloPais,
+                      style: const TextStyle(color: Colors.white54, fontSize: 13),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              Container(
-                width: 55,
-                height: 55,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.yellow.withOpacity(0.4), width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.yellow.withOpacity(0.15),
-                      blurRadius: 15,
-                      spreadRadius: 2,
-                    )
-                  ]
-                ),
-                clipBehavior: Clip.antiAlias,
-                alignment: Alignment.center,
-                child: Transform.scale(
-                  scale: 1.8,
-                  child: Text(
-                    PaisHelper.getBanderaEmoji(pais ?? "Colombia"),
-                    style: const TextStyle(fontSize: 45),
-                  ),
-                ),
+              Text(
+                PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
+                style: const TextStyle(fontSize: 40),
               ),
-              const SizedBox(width: 16),
-              const Icon(Icons.arrow_forward_ios, color: AppColors.yellow, size: 16),
             ],
           ),
         ),
@@ -467,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _getPaisNombre(dynamic loteria) {
-    String rawPais = "Colombia";
+    String rawPais = pais ?? "Internacional";
     if (loteria["pais_nombre"] != null && loteria["pais_nombre"].toString().isNotEmpty) {
       rawPais = loteria["pais_nombre"].toString();
     } else {
@@ -870,19 +853,22 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 4.0),
       child: SizedBox(
-        height: 52,
+        height: 58,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Logo Eterlotto más grande y adaptativo a cualquier tamaño de pantalla
+            // Logo Eterlotto adaptado a las especificaciones (110-130px ancho, 25-35px alto)
             Flexible(
               child: Align(
                 alignment: Alignment.centerLeft,
-                child: Image.asset(
-                  "assets/images/eterlotto_gold_trans.png",
-                  height: 48,
-                  fit: BoxFit.contain,
+                child: Padding(
+                  padding: const EdgeInsets.only( top: 8,), // Lo empuja ligeramente hacia abajo para alinearse con los iconos
+                  child: Image.asset(
+                    "assets/images/eterlotto_gold_trans.png",
+                    width: 140,
+                    fit: BoxFit.contain,
+                  ),
                 ),
               ),
             ),
@@ -905,7 +891,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: const Icon(
                               Icons.notifications_outlined,
                               color: AppColors.yellow,
-                              size: 28,
+                              size: 30,
                             ),
                             onPressed: () {
                               Navigator.push(
@@ -962,7 +948,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     avatarUrl: avatarUrl,
                     userName: userName,
                     userId: int.tryParse(currentUserId ?? "0"),
-                    radius: 22,
+                    radius: 26,
                     showGlow: true,
                     showBorder: true,
                     borderColor: AppColors.yellow,
@@ -1031,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEmptyLoteriasState() {
     final langCode = Localizations.localeOf(context).languageCode;
-    final countryName = PaisHelper.getNombreTraducido(pais ?? "Colombia", langCode);
+    final countryName = PaisHelper.getNombreTraducido(pais ?? "Internacional", langCode);
 
     final String titleText = langCode == 'en'
         ? "No lotteries registered for $countryName"

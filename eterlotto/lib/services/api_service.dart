@@ -791,6 +791,105 @@ class ApiService {
     }
   }
 
+  /// ✏️ Actualizar jugada genérica (con soporte directo PUT y fallback inteligente)
+  static Future<bool> actualizarJugadaGenerica(
+    String loteriaName,
+    int jugadaId,
+    List<int> numeros,
+    String userId, {
+    int? balotaRoja,
+    String? fechaSorteo,
+  }) async {
+    if (userId.isEmpty) return false;
+    String route = loteriaName.trim().toLowerCase();
+    if (route == "colorloto") {
+      route = "cloto";
+    }
+
+    final List<int> numerosParaGuardar = (balotaRoja != null)
+        ? (numeros.isNotEmpty && numeros.last == balotaRoja ? numeros : [...numeros, balotaRoja])
+        : numeros;
+
+    final Map<String, dynamic> payload = {
+      "numeros": numerosParaGuardar,
+      "user_id": userId,
+      "loteria_route": route,
+    };
+    if (balotaRoja != null) {
+      payload["balota_roja"] = balotaRoja;
+    }
+    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
+      payload["fecha_sorteo"] = fechaSorteo;
+    }
+
+    try {
+      final token = await getToken();
+      final headers = {
+        "Content-Type": "application/json",
+        if (token != null && token.isNotEmpty) "Authorization": "Bearer $token",
+      };
+
+      // 1. Intentar endpoint dinámico PUT en el backend
+      var putResponse = await http.put(
+        Uri.parse("$baseUrl/jugadas_$route/$jugadaId"),
+        headers: headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      if (putResponse.statusCode == 200) {
+        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        return true;
+      }
+
+      // 2. Intentar endpoint unificado PUT
+      putResponse = await http.put(
+        Uri.parse("$baseUrl/jugadas/$jugadaId"),
+        headers: headers,
+        body: jsonEncode(payload),
+      ).timeout(const Duration(seconds: 10));
+
+      if (putResponse.statusCode == 200) {
+        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        return true;
+      }
+
+      // 3. Si el backend en Render aún no ha desplegado el PUT (404 o 405), fallback: borrar y crear
+      if (putResponse.statusCode == 404 || putResponse.statusCode == 405) {
+        final deleted = await borrarJugadaGenerica(route, jugadaId, userId);
+        if (deleted) {
+          await crearJugadaGenerica(
+            route,
+            numeros,
+            userId,
+            balotaRoja: balotaRoja,
+            fechaSorteo: fechaSorteo,
+          );
+          CacheService.invalidarCachesDeJugadas(specificRoute: route);
+          return true;
+        }
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint("⚠️ Error al actualizar jugada ($route/$jugadaId): $e");
+      try {
+        final deleted = await borrarJugadaGenerica(route, jugadaId, userId);
+        if (deleted) {
+          await crearJugadaGenerica(
+            route,
+            numeros,
+            userId,
+            balotaRoja: balotaRoja,
+            fechaSorteo: fechaSorteo,
+          );
+          CacheService.invalidarCachesDeJugadas(specificRoute: route);
+          return true;
+        }
+      } catch (_) {}
+      return false;
+    }
+  }
+
   /// 🔍 Obtener lista de loterías donde el usuario tiene jugadas
   static Future<List<String>> getLoteriasConJugadas() async {
     final userId = await getUserId();
