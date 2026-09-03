@@ -195,7 +195,7 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def create_comment(self, post_id: int, user_id: int, content: str) -> Dict[str, Any]:
+    async def create_comment(self, post_id: int, user_id: int, content: str, parent_id: Optional[int] = None, status: str = "active", moderation_reason: Optional[str] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod

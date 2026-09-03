@@ -1235,22 +1235,33 @@ class ApiService {
   }) async {
     await ensureValidSession();
 
-    final payloadContent =
-        parentId != null ? "[replyTo:$parentId] $content" : content;
     final body = <String, dynamic>{
-      "content": payloadContent,
+      "content": content.trim(),
+      if (parentId != null) "parent_id": parentId,
     };
-    if (parentId != null) {
-      body["parent_id"] = parentId;
-    }
 
     final response = await post("/posts/$postId/comments", body, withAuth: true);
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
       return Comment.fromJson(data);
     } else {
-      throw Exception("Error al crear comentario: ${response.statusCode}");
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List && detail.isNotEmpty && detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al crear comentario (${response.statusCode})");
     }
   }
 

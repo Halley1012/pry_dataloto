@@ -36,8 +36,13 @@ async def delete_post(post_id: int, current_user: dict = Depends(dependencies.ge
 
 @router.post("/posts/{post_id}/comments", response_model=schemas.CommentResponse)
 async def create_comment(post_id: int, comment: schemas.CommentCreate, current_user: dict = Depends(dependencies.get_current_user), use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
-    user_id = int(current_user["user_id"])
-    return await use_cases.crear_comentario(post_id, user_id, comment.content, comment.parent_id)
+    try:
+        user_id = int(current_user["user_id"])
+        return await use_cases.crear_comentario(post_id, user_id, comment.content, comment.parent_id)
+    except HTTPException:
+        raise
+    except (PermissionError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.patch("/comments/{comment_id}", response_model=schemas.CommentResponse)
 async def update_comment(comment_id: int, comment_update: schemas.CommentCreate, current_user: dict = Depends(dependencies.get_current_user), use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):

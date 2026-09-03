@@ -18,6 +18,11 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/screens/resultados/historico_resultados_screen.dart';
+import 'package:eterlotto/screens/loteria_screen.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -872,6 +877,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     });
                   },
                 ),
+                onVerMas: _abrirHistoricoResultados,
               ),
                 const SizedBox(height: 30),
               ],
@@ -882,6 +888,61 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     ),
   );
 }
+
+  void _abrirHistoricoResultados() {
+    final route = _getRouteForLoteria(_selectedLoteria);
+    final int dynamicMaxSel = _selectedLoteria.toLowerCase().contains("colorloto")
+        ? 6
+        : (widget.loteriaData?['max_seleccion'] ??
+            widget.loteriaData?['maxSeleccion'] ??
+            5);
+    final int dynamicMaxRojas = (widget.loteriaData?['max_balotas_rojas'] ??
+        widget.loteriaData?['maxBalotasRojas'] ??
+        (_selectedLoteria.toLowerCase().contains("baloto") ? 1 : 0));
+
+    final config = LoteriaConfig(
+      nombre: _selectedLoteria,
+      route: route,
+      maxSeleccion: dynamicMaxSel,
+      maxBalotasBlancas: widget.loteriaData?['max_balotas_blancas'] ??
+          widget.loteriaData?['maxBalotasBlancas'] ??
+          45,
+      maxBalotasRojas: dynamicMaxRojas,
+      tieneComplementario: widget.loteriaData?['tiene_complementario'] == true ||
+          widget.loteriaData?['tieneComplementario'] == true ||
+          (_winningNums.length > dynamicMaxSel),
+      tieneReintegro: widget.loteriaData?['tiene_reintegro'] == true ||
+          widget.loteriaData?['tieneReintegro'] == true,
+    );
+
+    final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+    final l10n = AppLocalizations.of(context);
+
+    AdService.instance.showRewardedFeatureGate(
+      context: context,
+      isPremium: isPremium,
+      featureKey: "historico_resultados",
+      featureTitle: l10n?.historicoResultadosTitulo ?? "Histórico de Resultados",
+      featureActionDescription: l10n?.descripcionVideoHistorico ??
+          "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
+      onRewardGranted: () {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HistoricoResultadosScreen(
+              config: config,
+              sorteosDisponibles: _sorteosNombres,
+              initialSorteo: _sorteosNombres.isNotEmpty && _selectedResultadosTab < _sorteosNombres.length
+                  ? _sorteosNombres[_selectedResultadosTab]
+                  : null,
+              initialResultados: _ultimosSorteos,
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Widget _buildSkeletonDashboard() {
     return Shimmer.fromColors(

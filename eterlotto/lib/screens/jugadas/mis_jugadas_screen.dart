@@ -21,6 +21,7 @@ import 'package:eterlotto/providers/subscription_provider.dart';
 import '../../utils/screen_security_helper.dart';
 import '../loteria_screen.dart';
 import '../estadisticas_dashboard_screen.dart';
+import '../resultados_dashboard_screen.dart';
 import 'package:shimmer/shimmer.dart';
 
 class MisJugadasScreen extends StatefulWidget {
@@ -429,23 +430,48 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
   }
 
+  void _irAResultados() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultadosDashboardScreen(
+          loteriaNombreInicial: widget.loteriaNombre,
+          loteriaRoute: widget.loteriaRoute,
+          loteriaData: _config != null
+              ? {
+                  'nombre': _config!.nombre,
+                  'route': _config!.route,
+                  'max_seleccion': _config!.maxSeleccion,
+                  'max_balotas_blancas': _config!.maxBalotasBlancas,
+                  'max_balotas_rojas': _config!.maxBalotasRojas,
+                  'tiene_complementario': _config!.tieneComplementario,
+                  'tiene_reintegro': _config!.tieneReintegro,
+                }
+              : null,
+        ),
+      ),
+    );
+  }
+
   Widget _buildActionButton({
     required dynamic icon,
     required Color color,
     required VoidCallback? onPressed,
     bool isEnabled = true,
+    double size = 48,
+    String? tooltip,
   }) {
-    return InkWell(
+    Widget btn = InkWell(
       onTap: isEnabled ? onPressed : null,
       borderRadius: BorderRadius.circular(30),
       child: Container(
-        width: 54,
-        height: 54,
+        width: size,
+        height: size,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
             colors: isEnabled 
-                ? [color.withOpacity(0.3), Colors.black] 
+                ? [color.withValues(alpha: 0.3), Colors.black] 
                 : [Colors.white10, Colors.black],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -453,26 +479,26 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           boxShadow: [
             if (isEnabled) ...[
               BoxShadow(
-                color: color.withOpacity(0.3),
+                color: color.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(-2, -2),
                 spreadRadius: 1,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.8),
+                color: Colors.black.withValues(alpha: 0.8),
                 blurRadius: 10,
                 offset: const Offset(4, 4),
                 spreadRadius: 1,
               ),
             ] else 
               BoxShadow(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 blurRadius: 5,
                 offset: const Offset(2, 2),
               ),
           ],
           border: Border.all(
-            color: isEnabled ? color.withOpacity(0.4) : Colors.white10,
+            color: isEnabled ? color.withValues(alpha: 0.4) : Colors.white10,
             width: 1.5,
           ),
         ),
@@ -481,16 +507,24 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               ? Icon(
                   icon,
                   color: isEnabled ? color : Colors.white24,
-                  size: 22,
+                  size: size * 0.42,
                 )
               : FaIcon(
                   icon,
                   color: isEnabled ? color : Colors.white24,
-                  size: 22,
+                  size: size * 0.42,
                 ),
         ),
       ),
     );
+
+    if (tooltip != null && tooltip.isNotEmpty) {
+      return Tooltip(
+        message: tooltip,
+        child: btn,
+      );
+    }
+    return btn;
   }
 
   String _formatFecha(dynamic rawDate) {
@@ -601,23 +635,33 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           icon: hasSelection ? Icons.deselect : Icons.check_circle_outline,
                           color: AppColors.yellow,
                           onPressed: _toggleSelectAll,
+                          tooltip: hasSelection ? "Deseleccionar" : "Seleccionar todo",
                         ),
                         _buildActionButton(
                           icon: FontAwesomeIcons.whatsapp,
                           color: const Color(0xFF25D366),
                           onPressed: _compartirWhatsApp,
                           isEnabled: hasSelection,
+                          tooltip: "Compartir WhatsApp",
+                        ),
+                        _buildActionButton(
+                          icon: Icons.analytics_outlined,
+                          color: const Color(0xFF00E5FF),
+                          onPressed: _irAResultados,
+                          tooltip: l10n?.resultados ?? "Resultados",
                         ),
                         _buildActionButton(
                           icon: Icons.picture_as_pdf,
                           color: Colors.purpleAccent,
                           onPressed: _imprimirPDF,
+                          tooltip: "Exportar PDF",
                         ),
                         _buildActionButton(
                           icon: Icons.delete_outline,
                           color: Colors.redAccent,
                           onPressed: hasSelection ? _eliminarSeleccionadas : null,
                           isEnabled: hasSelection,
+                          tooltip: "Eliminar seleccionadas",
                         ),
                       ],
                     ),
