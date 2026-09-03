@@ -115,8 +115,8 @@ class CommentResponse(BaseModel):
     parent_id: Optional[int] = None
 
 class PostCreate(BaseModel):
-    title: str
-    content: str
+    title: str = Field(..., min_length=1, max_length=100, description="Título del post entre 1 y 100 caracteres")
+    content: str = Field(..., min_length=1, max_length=500, description="Contenido del post entre 1 y 500 caracteres")
 
 class PostResponse(BaseModel):
     id: int

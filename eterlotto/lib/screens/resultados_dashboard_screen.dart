@@ -900,6 +900,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         widget.loteriaData?['maxBalotasRojas'] ??
         (_selectedLoteria.toLowerCase().contains("baloto") ? 1 : 0));
 
+    final int dynamicTotalBalotas = dynamicMaxSel + dynamicMaxRojas +
+        ((widget.loteriaData?['tiene_complementario'] == true ||
+          widget.loteriaData?['tieneComplementario'] == true) ? 1 : 0);
+
     final config = LoteriaConfig(
       nombre: _selectedLoteria,
       route: route,
@@ -908,6 +912,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           widget.loteriaData?['maxBalotasBlancas'] ??
           45,
       maxBalotasRojas: dynamicMaxRojas,
+      totalBalotasSorteo: dynamicTotalBalotas,
       tieneComplementario: widget.loteriaData?['tiene_complementario'] == true ||
           widget.loteriaData?['tieneComplementario'] == true ||
           (_winningNums.length > dynamicMaxSel),
@@ -937,6 +942,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   ? _sorteosNombres[_selectedResultadosTab]
                   : null,
               initialResultados: _ultimosSorteos,
+              top20: _top20List,
+              modoResultadosIA: true,
             ),
           ),
         );

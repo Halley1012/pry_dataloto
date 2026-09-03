@@ -15,13 +15,37 @@ class PostUseCases:
         self.post_repo = post_repo
 
     async def crear_post(self, title: str, content: str, user_id: int) -> Dict[str, Any]:
-        return await self.post_repo.create_post(title, content, user_id)
+        # 1. Rate limiting (cooldown)
+        check_rate_limit(user_id)
 
-    async def listar_posts(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-        return await self.post_repo.list_posts(skip, limit)
+        # 2. Moderación de título
+        is_clean_title, reason_title = moderate_content(title)
+        if not is_clean_title:
+            detail_msg = REASON_MESSAGES.get(reason_title, "El título contiene términos no permitidos.")
+            raise HTTPException(status_code=400, detail=f"Título no permitido: {detail_msg}")
+
+        # 3. Moderación de contenido
+        is_clean_content, reason_content = moderate_content(content)
+        if not is_clean_content:
+            detail_msg = REASON_MESSAGES.get(reason_content, "El contenido contiene términos no permitidos.")
+            raise HTTPException(status_code=400, detail=f"Contenido no permitido: {detail_msg}")
+
+        return await self.post_repo.create_post(title.strip(), content.strip(), user_id)
 
     async def editar_post(self, post_id: int, title: str, content: str, user_id: int) -> Dict[str, Any]:
-        record = await self.post_repo.update_post(post_id, title, content, user_id)
+        # 1. Moderación de título
+        is_clean_title, reason_title = moderate_content(title)
+        if not is_clean_title:
+            detail_msg = REASON_MESSAGES.get(reason_title, "El título contiene términos no permitidos.")
+            raise HTTPException(status_code=400, detail=f"Título no permitido: {detail_msg}")
+
+        # 2. Moderación de contenido
+        is_clean_content, reason_content = moderate_content(content)
+        if not is_clean_content:
+            detail_msg = REASON_MESSAGES.get(reason_content, "El contenido contiene términos no permitidos.")
+            raise HTTPException(status_code=400, detail=f"Contenido no permitido: {detail_msg}")
+
+        record = await self.post_repo.update_post(post_id, title.strip(), content.strip(), user_id)
         if not record:
             raise ValueError("Post no encontrado o no autorizado")
         return record
