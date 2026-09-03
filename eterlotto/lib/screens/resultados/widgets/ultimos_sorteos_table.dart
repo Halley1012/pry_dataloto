@@ -30,42 +30,9 @@ class UltimosSorteosTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                l10n.resultados,
-                style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              if (onVerMas != null)
-                InkWell(
-                  onTap: onVerMas,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          "Ver más",
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            color: Color(0xFFFFC107),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          size: 11,
-                          color: Color(0xFFFFC107),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          Text(
+            l10n.resultados,
+            style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 10),
           tabSelector,
