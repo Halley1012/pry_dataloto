@@ -257,6 +257,20 @@ async def actualizar_jugada_dinamico(r_name: str, jugada_id: int, jugada: schema
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return res
 
+@router.get("/{r_name}/predicciones_historico", name="get_loteria_predicciones_historico_dinamico")
+def get_predicciones_historico_dinamico(r_name: str, limit: int = 50, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+    clean_route = r_name.strip().lower()
+    if clean_route in RESERVED_ROUTES:
+        raise HTTPException(status_code=404, detail="Ruta no encontrada")
+    cache_key = f"{clean_route}:predicciones_historico:{limit}"
+    cached = memory_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    res = use_cases.obtener_predicciones_historico_generico(clean_route, limit)
+    if "error" not in res:
+        memory_cache.set(cache_key, res, ttl=180)
+    return res
+
 @router.get("/{r_name}", name="get_loteria_prediccion_dinamico")
 def get_prediccion_dinamico(r_name: str, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()

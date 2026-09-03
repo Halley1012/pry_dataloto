@@ -135,6 +135,18 @@ class JugadaUseCases:
         data = [{"fecha": _format_fecha(r[0]), "numeros": _normalize_numeros(r[1])} for r in rows]
         return {"items": data}
 
+    def obtener_predicciones_historico_generico(self, loteria_nombre: str, limit: int = 50) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_predicciones_historico_completas(loteria_nombre, limit)
+        data = [
+            {
+                "fecha": _format_fecha(r[0]),
+                "numeros": _normalize_numeros(r[1]),
+                "balotaroja": _normalize_numeros(r[2]) if len(r) > 2 else []
+            }
+            for r in rows
+        ]
+        return {"predicciones": data}
+
     def obtener_prediccion_generico(self, loteria_nombre: str, fecha: Optional[str] = None) -> Dict[str, Any]:
         tabla = f"predicciones_{loteria_nombre}"
         row = self.jugada_repo.get_prediccion_generico(tabla, fecha)
