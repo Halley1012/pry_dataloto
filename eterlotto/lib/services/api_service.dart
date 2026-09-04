@@ -1944,13 +1944,20 @@ class ApiService {
         withAuth: true,
       );
 
-      if (response.statusCode == 200) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         return {'success': true, 'data': data};
       } else {
+        String errorMsg = 'Error del servidor: ${response.statusCode}';
+        try {
+          final data = jsonDecode(response.body);
+          if (data['detail'] != null) {
+            errorMsg = data['detail'];
+          }
+        } catch (_) {}
         return {
           'success': false,
-          'error': 'Error del servidor: ${response.statusCode}',
+          'error': errorMsg,
         };
       }
     } catch (e) {

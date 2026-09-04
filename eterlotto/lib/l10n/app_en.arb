@@ -719,5 +719,41 @@
   "publicidadLabel": "ADVERTISEMENT",
   "quitarAnuncios": "Remove ads",
   "buscaloAqui": "Find it here",
-  "buscarDirectorioHint": "Find businesses, services, and local shops..."
+  "buscarDirectorioHint": "Find businesses, services, and local shops...",
+  "mejorJugadaTitulo": "Best play",
+  "mejorJugadaSorteo": "Best play of the draw",
+  "aciertosConPorcentaje": "{hits} / {total} hits — {percent}%",
+  "@aciertosConPorcentaje": {
+    "placeholders": {
+      "hits": { "type": "int" },
+      "total": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "superoRendimientoJugadas": "⭐ Outperformed {percent}% of your previous plays.",
+  "@superoRendimientoJugadas": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "tuMejorJugadaSorteo": "⭐ Your best result in this draw.",
+  "sinJugadasParaSorteo": "You don't have saved plays for this draw.",
+  "rendimientoUltimosSorteos": "Performance last {count} draws",
+  "@rendimientoUltimosSorteos": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tuRendimiento": "Your performance",
+  "coberturaPromedio": "Average coverage",
+  "mejorCobertura": "Best coverage",
+  "peorCobertura": "Worst coverage",
+  "nSorteosLabel": "{count} Draws",
+  "@nSorteosLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "numerosMayorAfinidadHistorica": "🤖 Numbers with highest historical affinity:",
+  "disclaimerAfinidadHistorica": "Based on historical patterns. Does not represent a real probability of being drawn."
 }

@@ -80,7 +80,7 @@ class SubscriptionUseCases:
             # Para cuando reintente, es casi seguro que Flutter ya habrá llamado a /confirm.
             import logging
             logger = logging.getLogger(__name__)
-            logger.warning("RTDN token not found. Deferring processing for Pub/Sub retry.")
+            logger.warning("[SUBSCRIPTION] event=RTDN_WARNING metric=rtdn_retries_requested message=Token not found. Deferring processing for Pub/Sub retry.")
             raise RuntimeError("purchase_token_not_found: deferred processing")
 
         resolved_product_id = product_id or "eterlotto_monthly_sub"
@@ -105,8 +105,7 @@ class SubscriptionUseCases:
         is_active = bool(google_data.get("is_active", False))
         
         logger.info(
-            "RTDN GOOGLE STATE | purchase_token=%s | notification_type=%s | raw_state=%s | is_active=%s | expires_at=%s",
-            purchase_token,
+            "[SUBSCRIPTION] event=RTDN_GOOGLE_STATE notification_type=%s raw_state=%s is_active=%s expires_at=%s",
             notification_type,
             raw_state,
             is_active,
@@ -151,7 +150,7 @@ class SubscriptionUseCases:
                 status = "expired"
             else:
                 logger.warning(
-                    "RTDN UNKNOWN STATE | raw_state=%s no está mapeado. No se cambiará el entitlement automáticamente.",
+                    "[SUBSCRIPTION] event=RTDN_WARNING message=Unknown raw_state %s. No entitlement changes made.",
                     raw_state
                 )
                 if notification_type != 12:
@@ -167,9 +166,9 @@ class SubscriptionUseCases:
                 status = "revoked"
 
         logger.info(
-            "RTDN DB UPDATE | user_id=%s | status=%s | is_premium=%s | expires_at=%s",
-            user_id,
+            "[SUBSCRIPTION] event=RTDN_DB_UPDATE metric=subscriptions_%s user_id=%s is_premium=%s expires_at=%s",
             status,
+            user_id,
             is_premium,
             expires_at,
         )
