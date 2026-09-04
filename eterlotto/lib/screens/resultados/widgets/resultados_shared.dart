@@ -197,7 +197,7 @@ class DonutChartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
-    const strokeWidth = 12.0;
+    final strokeWidth = size.width <= 80 ? 8.5 : 12.0;
 
     final total = values.fold(0, (a, b) => a + b);
     if (total == 0) {

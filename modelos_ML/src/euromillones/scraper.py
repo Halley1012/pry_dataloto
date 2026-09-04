@@ -2,7 +2,7 @@ import sys
 import time
 import re
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -15,9 +15,13 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 
 from config.database import get_engine
+from sqlalchemy import text
+from psycopg2.extras import execute_values
 
 class EuromillonesScraper:
     def __init__(self):
+        self.engine = get_engine()
+        self.loteria_id = 25
         self.base_url = "https://www.euromillones.com.es/resultados-anteriores.html"
         self.archive_url = "https://www.euromillones.com.es/historico/euromillones-anos-anteriores.html"
         self.game_name = "Euromillones"
@@ -43,7 +47,6 @@ class EuromillonesScraper:
         if not jackpot or not fecha:
             return
         
-        from sqlalchemy import text
         try:
             with engine.connect() as conn:
                 print(f"💰 Actualizando jackpot para {loteria}: {jackpot} (Fecha: {fecha})")
@@ -73,13 +76,13 @@ class EuromillonesScraper:
                 response = requests.get(self.base_url, headers=self.headers, timeout=15)
                 if response.status_code == 200:
                     break
-            except requests.exceptions.RequestException as e:
-                wait = (intento + 1) * 2
-                print(f"🔄 Intento {intento + 1} falló ({e}). Reintentando en {wait}s...")
-                time.sleep(wait)
+            except Exception as e:
+                if intento == 2:
+                    print(f"❌ Error conectando a {self.base_url}: {e}")
+                    return [], None, None
+                time.sleep(2)
 
         if not response or response.status_code != 200:
-            print("⚠️ No se pudo obtener respuesta de la página de resultados recientes de Euromillones.")
             return [], None, None
 
         soup = BeautifulSoup(response.text, "html.parser")
@@ -220,21 +223,18 @@ class EuromillonesScraper:
         return all_draws
 
     def run(self, backfill=False):
-        print("🚀 Iniciando Scraping de Euromillones (España)...")
+        print("🚀 Iniciando Scraping de Euromillones...")
         
         resultados = []
         recent_draws, jackpot_str, next_draw_date = self.scrape_recent_draws()
         resultados.extend(recent_draws)
 
-        engine = get_engine()
         existing_df = pd.DataFrame()
-        
         try:
-            with engine.connect() as conn:
-                from sqlalchemy import text
+            with self.engine.connect() as conn:
                 res = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'resultados_euromillones';")).scalar()
                 if res > 0:
-                    existing_df = pd.read_sql("SELECT * FROM resultados_euromillones WHERE balota1 > 0;", conn)
+                    existing_df = pd.read_sql(text("SELECT * FROM resultados_euromillones WHERE balota1 > 0;"), conn)
                     print(f"📦 Registros históricos existentes en BD: {len(existing_df)}")
         except Exception as e:
             print(f"ℹ️ No se pudieron cargar registros previos ({e}).")
@@ -249,7 +249,7 @@ class EuromillonesScraper:
         df_new = pd.DataFrame(resultados, columns=columns) if resultados else pd.DataFrame(columns=columns)
 
         if not existing_df.empty:
-            df_combined = pd.concat([existing_df, df_new], ignore_index=True)
+            df_combined = pd.concat([df_new, existing_df], ignore_index=True)
         else:
             df_combined = df_new
 
@@ -259,78 +259,118 @@ class EuromillonesScraper:
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce')
         df_combined = df_combined.dropna(subset=['fecha'])
-        # Filtrar solo filas con balotas reales para el merge deduplicado
         df_combined = df_combined[df_combined['balota1'] > 0]
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).reset_index(drop=True)
-        df_final = df_combined
+        hoy_max = pd.to_datetime('now') + timedelta(days=1)
+        df_combined = df_combined[df_combined['fecha'] <= hoy_max]
+        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=True).reset_index(drop=True)
+
+        # Asignar concurso secuencial desde 2004
+        df_combined['concurso'] = range(1, len(df_combined) + 1)
 
         # --- Agregar fila del próximo sorteo en cero ---
+        prox_concurso = int(df_combined['concurso'].max()) + 1
         try:
             if next_draw_date:
                 cur_date = pd.to_datetime(next_draw_date)
             else:
-                fecha_max_hist = df_final['fecha'].max()
+                fecha_max_hist = df_combined['fecha'].max()
                 cur_date = fecha_max_hist + timedelta(days=1)
                 while cur_date.weekday() not in self.draw_days:
                     cur_date += timedelta(days=1)
 
-            if df_final['fecha'].max() < cur_date:
-                df_prox = pd.DataFrame({
-                    'sorteo': [self.game_name],
-                    'fecha': [cur_date],
-                    'balota1': [0], 'balota2': [0], 'balota3': [0], 'balota4': [0], 'balota5': [0],
-                    'balotaroja': [0], 'balotaroja2': [0]
-                })
-                df_final = pd.concat([df_final, df_prox], ignore_index=True)
+            if df_combined['fecha'].max() < cur_date:
+                df_prox = pd.DataFrame([{
+                    'concurso': prox_concurso,
+                    'loteria_id': self.loteria_id,
+                    'sorteo': self.game_name,
+                    'fecha': cur_date,
+                    'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0,
+                    'balotaroja': 0, 'balotaroja2': 0
+                }])
+                df_final = pd.concat([df_prox, df_combined.sort_values('fecha', ascending=False)], ignore_index=True)
                 print(f"📅 Fecha del próximo sorteo agregada para Euromillones: {cur_date.strftime('%Y-%m-%d')}")
+            else:
+                df_final = df_combined.sort_values('fecha', ascending=False).reset_index(drop=True)
         except Exception as e:
             print(f"⚠️ Error calculando fecha de próximo sorteo Euromillones: {e}")
+            df_final = df_combined.sort_values('fecha', ascending=False).reset_index(drop=True)
 
-        df_final = df_final.sort_values(by='fecha', ascending=False).reset_index(drop=True)
+        df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').reset_index(drop=True)
 
-        # --- Guardar en Base de Datos ---
+        # Guardar en Base de Datos vía UPSERT seguro
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_euromillones (
+                    id SERIAL PRIMARY KEY,
+                    concurso INT,
+                    loteria_id INT REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INT NOT NULL,
+                    balota2 INT NOT NULL,
+                    balota3 INT NOT NULL,
+                    balota4 INT NOT NULL,
+                    balota5 INT NOT NULL,
+                    balotaroja INT NOT NULL DEFAULT 0,
+                    balotaroja2 INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_euromillones_fecha_sorteo ON resultados_euromillones (fecha, sorteo);
+            """))
+
+        insert_sql = """
+            INSERT INTO resultados_euromillones (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5,
+                balotaroja, balotaroja2, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo)
+            DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_euromillones.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja,
+                balotaroja2 = EXCLUDED.balotaroja2,
+                updated_at = CURRENT_TIMESTAMP;
+        """
+
+        records = []
+        for _, row in df_final.iterrows():
+            c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
+            f_val = row['fecha'].date() if hasattr(row['fecha'], 'date') else row['fecha']
+            records.append((
+                c_val,
+                self.loteria_id,
+                str(row['sorteo']),
+                f_val,
+                int(row['balota1']),
+                int(row['balota2']),
+                int(row['balota3']),
+                int(row['balota4']),
+                int(row['balota5']),
+                int(row.get('balotaroja', 0)),
+                int(row.get('balotaroja2', 0)),
+                datetime.now(),
+                datetime.now()
+            ))
+
+        raw_conn = self.engine.raw_connection()
         try:
-            from sqlalchemy.types import Date, Integer, String
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, records, page_size=1000)
+            raw_conn.commit()
+            print(f"✅ Resultados de Euromillones guardados exitosamente! Total filas: {len(records)}")
+        finally:
+            raw_conn.close()
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_euromillones")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql(
-                'resultados_euromillones', 
-                engine, 
-                if_exists='replace', 
-                index=False, 
-                dtype={
-                    'sorteo': String(50),
-                    'fecha': Date(),
-                    'balota1': Integer(),
-                    'balota2': Integer(),
-                    'balota3': Integer(),
-                    'balota4': Integer(),
-                    'balota5': Integer(),
-                    'balotaroja': Integer(),
-                    'balotaroja2': Integer()
-                }
-            )
-            print(f"✅ Resultados de Euromillones guardados exitosamente! Total filas: {len(df_final)}")
-            
-            if jackpot_str:
-                target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
-                self.update_jackpot(engine, "euromillones", jackpot_str, target_fecha)
-        except Exception as e:
-            print(f"❌ Error al guardar resultados de Euromillones en BD: {e}")
+        if jackpot_str:
+            target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
+            self.update_jackpot(self.engine, "euromillones", jackpot_str, target_fecha)
 
 if __name__ == "__main__":
     EuromillonesScraper().run(backfill=False)

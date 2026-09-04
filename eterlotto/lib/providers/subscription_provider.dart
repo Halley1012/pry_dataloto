@@ -268,10 +268,12 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
       }
 
       debugPrint('⚠️ Servidor no pudo confirmar suscripción: ${res['error']}');
+      _errorMessage = res['error']?.toString() ?? 'Error al confirmar con el servidor';
       return false;
     } catch (e, stackTrace) {
       debugPrint('❌ Error confirmando suscripción con backend: $e');
       debugPrint(stackTrace.toString());
+      _errorMessage = 'Error conectando con el servidor';
       return false;
     }
   }

@@ -59,13 +59,15 @@ class PostgresUserRepository(UserRepositoryPort):
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     product_id VARCHAR(100) NOT NULL,
-                    purchase_token TEXT,
+                    purchase_token TEXT UNIQUE,
                     order_id VARCHAR(255),
                     status VARCHAR(50) DEFAULT 'active',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     expires_at TIMESTAMP WITH TIME ZONE
                 );
                 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions (user_id);
+                ALTER TABLE user_subscriptions DROP CONSTRAINT IF EXISTS user_subscriptions_purchase_token_key;
+                ALTER TABLE user_subscriptions ADD CONSTRAINT user_subscriptions_purchase_token_key UNIQUE (purchase_token);
             """)
 
             # 3. Crear tabla de tokens / códigos de recuperación de contraseña
@@ -258,7 +260,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     if purchase_token:
                         existing = await conn.fetchrow(
                             """
-                            SELECT id
+                            SELECT id, user_id
                             FROM user_subscriptions
                             WHERE purchase_token = $1
                             ORDER BY created_at DESC
@@ -270,17 +272,18 @@ class PostgresUserRepository(UserRepositoryPort):
                     final_status = status if status else ('active' if is_premium else 'expired')
 
                     if existing:
+                        if existing["user_id"] != user_id:
+                            raise ValueError("Esta compra ya está asociada a otra cuenta de Eterlotto.")
+                        
                         await conn.execute(
                             """
                             UPDATE user_subscriptions
-                            SET user_id = $1,
-                                product_id = $2,
-                                order_id = COALESCE($3, order_id),
-                                status = $4,
-                                expires_at = COALESCE($5, expires_at)
-                            WHERE id = $6
+                            SET product_id = $1,
+                                order_id = COALESCE($2, order_id),
+                                status = $3,
+                                expires_at = COALESCE($4, expires_at)
+                            WHERE id = $5
                             """,
-                            user_id,
                             product_id,
                             order_id,
                             final_status,

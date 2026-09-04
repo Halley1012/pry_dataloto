@@ -79,8 +79,8 @@ class GooglePlayService(GooglePlayPort):
             }
             
         except Exception as e:
-            # We don't print the raw exception with token details for security
-            print(f"Error querying Google Play API for subscription (token hidden): {type(e).__name__}")
+            import logging
+            logging.getLogger(__name__).error("[SUBSCRIPTION] event=GOOGLE_API_ERROR metric=google_api_failure message=Google Play API request failed: %s", type(e).__name__)
             from googleapiclient.errors import HttpError
             if isinstance(e, HttpError):
                 raise

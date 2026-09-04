@@ -6,14 +6,20 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text, Integer, Date, String
+from sqlalchemy import text
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 from config.database import get_engine
 
 class LottoCostaRicaScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 35
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -99,42 +105,45 @@ class LottoCostaRicaScraper:
                             "balota5": rev_sorted[4],
                             "balotaroja": 0
                         })
-                    
-                    if items:
-                        return items
+
+                    return items
         except Exception:
             pass
-        return None
+        return []
 
-    def extraer_historico_concurrente(self, max_draws: int = 350) -> pd.DataFrame:
-        """Genera fechas pasadas de Lunes, Miércoles y Sábados y descarga los sorteos concurrentemente."""
-        print(f"➡️ Generando fechas de sorteos pasados (Lunes, Miércoles y Sábados)...")
-        fechas = []
-        curr = datetime.now().date()
-        while len(fechas) < max_draws:
-            if curr.weekday() in (0, 2, 5): # Lunes (0), Miércoles (2), Sábado (5)
-                fechas.append(curr.strftime("%Y-%m-%d"))
-            curr -= timedelta(days=1)
+    def extraer_historico_concurrente(self, max_draws: int = 30) -> pd.DataFrame:
+        """Genera fechas pasadas de sorteos válidos y descarga resultados concurrentemente."""
+        print(f"📚 Descargando hasta {max_draws} sorteos de Lotto Costa Rica...")
+        dias_sorteo = {0, 2, 5}
+        fechas_candidatas = []
+        cur = datetime.now().date()
+        
+        while len(fechas_candidatas) < max_draws:
+            if cur.weekday() in dias_sorteo:
+                fechas_candidatas.append(cur.strftime("%Y-%m-%d"))
+            cur -= timedelta(days=1)
 
-        print(f"Descargando {len(fechas)} sorteos de Lotto Costa Rica concurrentemente...")
-        draws = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            results = list(executor.map(self._parsear_sorteo_fecha, fechas))
+        registros = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futuros = {executor.submit(self._parsear_sorteo_fecha, f): f for f in fechas_candidatas}
+            for fut in concurrent.futures.as_completed(futuros):
+                try:
+                    res = fut.result()
+                    if res:
+                        registros.extend(res)
+                except Exception:
+                    pass
 
-        for res in results:
-            if res:
-                if isinstance(res, list):
-                    draws.extend(res)
-                else:
-                    draws.append(res)
+        if not registros:
+            return pd.DataFrame()
 
-        print(f"📊 Filas procesadas de Lotto y Revancha CR: {len(draws)}")
-        return pd.DataFrame(draws)
+        df = pd.DataFrame(registros)
+        print(f"📊 Sorteos parseados: {len(df)}")
+        return df
 
-    def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
-        """Actualiza el pozo de Lotto Costa Rica en la tabla loterias_jackpots."""
-        jackpot_val = jackpot_str or "₡ 125.000.000"
-        print(f"💰 Actualizando jackpot para Lotto CR: {jackpot_val} (Fecha: {proxima_fecha})")
+    def actualizar_jackpot(self, proxima_fecha: str, jackpot_val: str):
+        """Actualiza el acumulado en loterias_jackpots."""
+        print(f"💰 Actualizando jackpot de Lotto CR: {jackpot_val} para {proxima_fecha}")
         try:
             with self.engine.connect() as conn:
                 conn.execute(text("""
@@ -171,9 +180,12 @@ class LottoCostaRicaScraper:
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_lotto_cr WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
+                res = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'resultados_lotto_cr';")).scalar()
+                if res > 0:
+                    df_existente = pd.read_sql(text("SELECT * FROM resultados_lotto_cr WHERE balota1 > 0;"), conn)
+                    print(f"📦 Registros históricos existentes en BD: {len(df_existente)}")
+        except Exception as e:
+            print(f"ℹ️ No se pudieron cargar registros previos ({e}).")
 
         # 2. Descargar histórico concurrente
         if backfill or df_existente.empty or len(df_existente) < 50:
@@ -181,12 +193,12 @@ class LottoCostaRicaScraper:
         else:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
-        # Combinar existente + histórico
+        # Combinar existente + histórico (df_scraped primero)
         dfs_to_combine = []
-        if not df_existente.empty and 'sorteo' in df_existente.columns:
-            dfs_to_combine.append(df_existente)
         if not df_scraped.empty:
             dfs_to_combine.append(df_scraped)
+        if not df_existente.empty and 'sorteo' in df_existente.columns:
+            dfs_to_combine.append(df_existente)
 
         if not dfs_to_combine:
             print("❌ No se pudieron obtener resultados de Lotto Costa Rica.")
@@ -214,6 +226,8 @@ class LottoCostaRicaScraper:
         # Filas placeholder en ceros
         filas_proximo = [
             {
+                "concurso": None,
+                "loteria_id": self.loteria_id,
                 "sorteo": "Lotto",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -224,6 +238,8 @@ class LottoCostaRicaScraper:
                 "balotaroja": 0
             },
             {
+                "concurso": None,
+                "loteria_id": self.loteria_id,
                 "sorteo": "Revancha",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -235,42 +251,78 @@ class LottoCostaRicaScraper:
             }
         ]
         df_final = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
+        df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
-        # 4. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balotaroja': Integer(),
-        }
+        # 4. Guardar en PostgreSQL vía UPSERT seguro
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_lotto_cr (
+                    id SERIAL PRIMARY KEY,
+                    concurso INT,
+                    loteria_id INT REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INT NOT NULL,
+                    balota2 INT NOT NULL,
+                    balota3 INT NOT NULL,
+                    balota4 INT NOT NULL,
+                    balota5 INT NOT NULL,
+                    balotaroja INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_lotto_cr_fecha_sorteo ON resultados_lotto_cr (fecha, sorteo);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_lotto_cr (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5,
+                balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo)
+            DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_lotto_cr.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_lotto_cr")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_lotto_cr', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        records = []
+        for _, row in df_final.iterrows():
+            c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
+            f_val = row['fecha'] if isinstance(row['fecha'], date) else row['fecha'].date()
+            records.append((
+                c_val,
+                self.loteria_id,
+                str(row['sorteo']),
+                f_val,
+                int(row['balota1']),
+                int(row['balota2']),
+                int(row['balota3']),
+                int(row['balota4']),
+                int(row['balota5']),
+                int(row.get('balotaroja', 0)),
+                datetime.now(),
+                datetime.now()
+            ))
 
-        print(f"✅ Resultados de Lotto y Revancha CR guardados exitosamente! Total filas: {len(df_final)}")
+        raw_conn = self.engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, records, page_size=1000)
+            raw_conn.commit()
+            print(f"✅ Resultados de Lotto y Revancha CR guardados exitosamente! Total filas: {len(records)}")
+        finally:
+            raw_conn.close()
+
         self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
 
 if __name__ == "__main__":
     scraper = LottoCostaRicaScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)
