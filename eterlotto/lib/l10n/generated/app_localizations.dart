@@ -2462,6 +2462,90 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Encuentra negocios, servicios y comercios...'**
   String get buscarDirectorioHint;
+
+  /// No description provided for @mejorJugadaTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor jugada'**
+  String get mejorJugadaTitulo;
+
+  /// No description provided for @mejorJugadaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor jugada del sorteo'**
+  String get mejorJugadaSorteo;
+
+  /// No description provided for @aciertosConPorcentaje.
+  ///
+  /// In es, this message translates to:
+  /// **'{hits} / {total} aciertos — {percent}%'**
+  String aciertosConPorcentaje(int hits, int total, int percent);
+
+  /// No description provided for @superoRendimientoJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'⭐ Superó el rendimiento del {percent}% de tus jugadas anteriores.'**
+  String superoRendimientoJugadas(int percent);
+
+  /// No description provided for @tuMejorJugadaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'⭐ Tu mejor resultado en este sorteo.'**
+  String get tuMejorJugadaSorteo;
+
+  /// No description provided for @sinJugadasParaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'No tienes jugadas guardadas para este sorteo.'**
+  String get sinJugadasParaSorteo;
+
+  /// No description provided for @rendimientoUltimosSorteos.
+  ///
+  /// In es, this message translates to:
+  /// **'Rendimiento últimos {count} sorteos'**
+  String rendimientoUltimosSorteos(int count);
+
+  /// No description provided for @tuRendimiento.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu rendimiento'**
+  String get tuRendimiento;
+
+  /// No description provided for @coberturaPromedio.
+  ///
+  /// In es, this message translates to:
+  /// **'Cobertura promedio'**
+  String get coberturaPromedio;
+
+  /// No description provided for @mejorCobertura.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor cobertura'**
+  String get mejorCobertura;
+
+  /// No description provided for @peorCobertura.
+  ///
+  /// In es, this message translates to:
+  /// **'Peor cobertura'**
+  String get peorCobertura;
+
+  /// No description provided for @nSorteosLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'{count} Sorteos'**
+  String nSorteosLabel(int count);
+
+  /// No description provided for @numerosMayorAfinidadHistorica.
+  ///
+  /// In es, this message translates to:
+  /// **'🤖 Números con mayor afinidad histórica:'**
+  String get numerosMayorAfinidadHistorica;
+
+  /// No description provided for @disclaimerAfinidadHistorica.
+  ///
+  /// In es, this message translates to:
+  /// **'Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.'**
+  String get disclaimerAfinidadHistorica;
 }
 
 class _AppLocalizationsDelegate

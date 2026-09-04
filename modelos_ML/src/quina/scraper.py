@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
 import requests
 import pandas as pd
@@ -6,6 +8,7 @@ import concurrent.futures
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -13,6 +16,7 @@ from config.database import get_engine
 class QuinaScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 20
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json, text/plain, */*",
@@ -68,6 +72,8 @@ class QuinaScraper:
                 if fecha_str and len(dezenas) == 5:
                     balls = sorted([int(d) for d in dezenas])
                     item = {
+                        "concurso": concurso_actual,
+                        "loteria_id": self.loteria_id,
                         "sorteo": "Quina",
                         "fecha": fecha_str,
                         "balota1": balls[0],
@@ -84,28 +90,32 @@ class QuinaScraper:
         return None, "R$ 1.500.000,00", None
 
     def _descargar_concurso_caixa(self, num_concurso: int) -> dict:
-        """Descarga un concurso específico desde la API de Caixa."""
+        """Descarga un concurso específico desde la API de Caixa con reintentos."""
         url = f"{self.url_caixa}/{num_concurso}"
-        try:
-            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
-            if r.status_code == 200:
-                d = r.json()
-                fecha_str = self._parse_fecha(d.get("dataApuracao"))
-                dezenas = d.get("listaDezenas", [])
-                if fecha_str and len(dezenas) == 5:
-                    balls = sorted([int(x) for x in dezenas])
-                    return {
-                        "sorteo": "Quina",
-                        "fecha": fecha_str,
-                        "balota1": balls[0],
-                        "balota2": balls[1],
-                        "balota3": balls[2],
-                        "balota4": balls[3],
-                        "balota5": balls[4],
-                        "balotaroja": 0
-                    }
-        except Exception:
-            pass
+        import time
+        for _ in range(3):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=10, verify=False)
+                if r.status_code == 200:
+                    d = r.json()
+                    fecha_str = self._parse_fecha(d.get("dataApuracao"))
+                    dezenas = d.get("listaDezenas", [])
+                    if fecha_str and len(dezenas) == 5:
+                        balls = sorted([int(x) for x in dezenas])
+                        return {
+                            "concurso": num_concurso,
+                            "loteria_id": self.loteria_id,
+                            "sorteo": "Quina",
+                            "fecha": fecha_str,
+                            "balota1": balls[0],
+                            "balota2": balls[1],
+                            "balota3": balls[2],
+                            "balota4": balls[3],
+                            "balota5": balls[4],
+                            "balotaroja": 0
+                        }
+            except Exception:
+                time.sleep(0.3)
         return None
 
     def extraer_historico_concurrente(self, ultimo_num: int, cantidad: int = 800) -> pd.DataFrame:
@@ -114,8 +124,8 @@ class QuinaScraper:
             return pd.DataFrame()
 
         inicio = max(1, ultimo_num - cantidad)
-        numeros = list(range(inicio, ultimo_num))
-        print(f"➡️ Descargando {len(numeros)} sorteos históricos de Quina concurrentemente ({inicio} a {ultimo_num - 1})...")
+        numeros = list(range(inicio, ultimo_num + 1))
+        print(f"➡️ Descargando {len(numeros)} sorteos históricos de Quina concurrentemente ({inicio} a {ultimo_num})...")
 
         draws = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
@@ -186,12 +196,12 @@ class QuinaScraper:
 
         # 4. Combinar y limpiar
         if not df_existente.empty:
-            df_combined = pd.concat([df_existente, df_scraped], ignore_index=True)
+            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
             df_combined = df_scraped
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=False).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values('fecha', ascending=False).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
@@ -207,8 +217,13 @@ class QuinaScraper:
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
         print(f"📅 Fecha del próximo sorteo agregada para Quina: {proxima_fecha_str}")
 
+        max_concurso = df_combined['concurso'].dropna().max()
+        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
+
         # Fila placeholder en ceros
         fila_proximo = {
+            "concurso": prox_concurso,
+            "loteria_id": self.loteria_id,
             "sorteo": "Quina",
             "fecha": proxima_fecha,
             "balota1": 0,
@@ -220,40 +235,80 @@ class QuinaScraper:
         }
         df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
 
-        # 6. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balotaroja': Integer()
-        }
+        # 6. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_quina (
+                    id SERIAL PRIMARY KEY,
+                    concurso INTEGER,
+                    loteria_id INTEGER DEFAULT 20 REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL,
+                    balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL,
+                    balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL,
+                    balotaroja INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_quina_fecha_sorteo ON resultados_quina (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_quina_concurso ON resultados_quina (concurso);
+                CREATE INDEX IF NOT EXISTS idx_quina_loteria_id ON resultados_quina (loteria_id);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_quina (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5, balotaroja,
+                created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo) DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_quina.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_quina")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_quina', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        data_tuples = [
+            (
+                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
+                int(self.loteria_id),
+                str(r['sorteo']),
+                str(r['fecha']),
+                int(r['balota1']),
+                int(r['balota2']),
+                int(r['balota3']),
+                int(r['balota4']),
+                int(r['balota5']),
+                int(r['balotaroja'])
+            )
+            for r in df_final.to_dict(orient='records')
+        ]
+
+        raw_conn = self.engine.raw_connection()
+        try:
+            chunk_size = 500
+            for i in range(0, len(data_tuples), chunk_size):
+                chunk = data_tuples[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(
+                        cur, insert_sql, chunk,
+                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                raw_conn.commit()
+        finally:
+            raw_conn.close()
 
         print(f"✅ Resultados de Quina guardados exitosamente! Total filas: {len(df_final)}")
         self.actualizar_jackpot(proxima_fecha_str, jackpot_final)
+        return True
 
 if __name__ == "__main__":
     scraper = QuinaScraper()

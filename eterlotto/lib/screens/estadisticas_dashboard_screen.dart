@@ -102,6 +102,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             .map((e) => int.tryParse(e.toString()) ?? -1)
             .where((n) => n > 0)
             .toList();
+        if ((widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) && _balotasComparacion.isNotEmpty) {
+          maxSeleccion = _balotasComparacion.length;
+        }
       }
       final rawRoja = widget.jugadaComparacion!["balota_roja"] ?? widget.jugadaComparacion!["superbalota"];
       if (rawRoja != null) {
@@ -190,8 +193,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     if (todosResultados.isEmpty) return;
 
-    // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos
-    if (widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) {
+    // 3. Si es una lotería no catalogada, inferir selección de los resultados históricos solo si no hay configuración
+    if ((widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) &&
+        (widget.jugadaComparacion == null || _balotasComparacion.isEmpty)) {
       final Map<int, int> lenCounts = {};
       for (var r in todosResultados) {
         final nums = r["numeros"];
@@ -201,7 +205,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       }
       if (lenCounts.isNotEmpty) {
         final mostCommonLen = lenCounts.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-        maxSeleccion = maxRoja > 0 && mostCommonLen > 1 ? mostCommonLen - 1 : mostCommonLen;
+        final int rojasCount = (maxRoja > 0 ? (maxRoja > 10 ? 1 : (maxRoja > 2 ? 2 : 1)) : 0);
+        maxSeleccion = rojasCount > 0 && mostCommonLen > rojasCount ? mostCommonLen - rojasCount : mostCommonLen;
       }
     }
 
@@ -260,6 +265,36 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     }
 
     try {
+      // Sincronizar reglas oficiales de la lotería desde la base de datos de forma 100% dinámica
+      if (widget.loteriaData == null || widget.loteriaData!['max_seleccion'] == null) {
+        try {
+          final loteriasList = await ApiService.getAllLoterias();
+          final cleanRoute = routeName.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final cleanNombre = widget.loteriaNombreInicial.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+          final match = loteriasList.firstWhere(
+            (l) {
+              final lr = (l['route'] ?? '').toString().toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+              final ln = (l['nombre'] ?? '').toString().toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+              return lr == cleanRoute || ln == cleanNombre || (cleanRoute.isNotEmpty && lr.contains(cleanRoute));
+            },
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty && mounted) {
+            setState(() {
+              if (match['max_seleccion'] != null) {
+                maxSeleccion = int.tryParse(match['max_seleccion'].toString()) ?? maxSeleccion;
+              }
+              if (match['max_balotas_blancas'] != null) {
+                maxBalota = int.tryParse(match['max_balotas_blancas'].toString()) ?? maxBalota;
+              }
+              if (match['max_balotas_rojas'] != null) {
+                maxRoja = int.tryParse(match['max_balotas_rojas'].toString()) ?? maxRoja;
+              }
+            });
+          }
+        } catch (_) {}
+      }
+
       final listResultados = await ApiService.getHistoricoCompleto(routeName);
       if (listResultados.isNotEmpty && mounted) {
         setState(() {
@@ -367,8 +402,6 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   const SizedBox(height: 20),
                                   _buildCardGraficaFrecuencia(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
-                                  _buildCardAusenciaSorteos(resultadosFiltrados, l10n),
-                                  const SizedBox(height: 20),
                                   _buildCardParImpar(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
                                   _buildCardBajosAltos(resultadosFiltrados, l10n),
@@ -376,6 +409,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   _buildCardSumaCombinaciones(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
                                   _buildCardParejasYTrios(resultadosFiltrados, l10n),
+                                  const SizedBox(height: 20),
+                                  _buildCardAusenciaSorteos(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
                                   _buildCardScoreIA(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
@@ -414,8 +449,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
 
     final int totalBalls = _balotasComparacion.length + (_superbalotaComparacion != null ? 1 : 0);
-    final double estimatedWidth = (totalBalls * 42.0 + 64.0).clamp(220.0, maxW - 20.0);
-    const double estimatedHeight = 94.0;
+    final double estimatedWidth = (totalBalls * 46.0 + 80.0).clamp(240.0, maxW - 20.0);
+    const double estimatedHeight = 106.0;
 
     const double defaultX = 14.0;
     const double defaultY = 14.0;
@@ -444,26 +479,26 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             child: Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF141921).withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(
-                  color: const Color(0xFF00E5FF).withValues(alpha: 0.85),
-                  width: 1.5,
+                  color: AppColors.amber.withValues(alpha: 0.85),
+                  width: 1.6,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF00E5FF).withValues(alpha: 0.28),
-                    blurRadius: 14,
+                    color: AppColors.amber.withValues(alpha: 0.28),
+                    blurRadius: 16,
                     spreadRadius: 1,
                     offset: const Offset(0, 3),
                   ),
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.75),
-                    blurRadius: 10,
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
-              padding: const EdgeInsets.fromLTRB(12.0, 8.0, 10.0, 10.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
               child: IntrinsicWidth(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -491,7 +526,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                             ),
                           ],
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 14),
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -499,12 +534,12 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               behavior: HitTestBehavior.opaque,
                               onTap: _irAEditarJugada,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                                  color: AppColors.amber.withValues(alpha: 0.15),
                                 ),
-                                child: const Icon(Icons.edit_outlined, color: Color(0xFF00E5FF), size: 15),
+                                child: const Icon(Icons.edit_outlined, color: AppColors.amber, size: 15),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -512,7 +547,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               behavior: HitTestBehavior.opaque,
                               onTap: _isSavingJugada ? null : _guardarJugadaEditada,
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: const Color(0xFF00E676).withValues(alpha: 0.2),
@@ -535,7 +570,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                 });
                               },
                               child: Container(
-                                padding: const EdgeInsets.all(4),
+                                padding: const EdgeInsets.all(5),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: Colors.white.withValues(alpha: 0.12),
@@ -547,7 +582,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     // Balotas centradas dentro de la tarjeta
                     Center(
                       child: Row(
@@ -556,9 +591,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                         children: [
                           ..._balotasComparacion.map((n) {
                             return Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: 36,
-                              height: 36,
+                              margin: const EdgeInsets.symmetric(horizontal: 3.5),
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
@@ -588,7 +623,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   "$n",
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -597,9 +632,9 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                           }),
                           if (_superbalotaComparacion != null) ...[
                             Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              width: 36,
-                              height: 36,
+                              margin: const EdgeInsets.symmetric(horizontal: 3.5),
+                              width: 38,
+                              height: 38,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 gradient: RadialGradient(
@@ -629,7 +664,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   "$_superbalotaComparacion",
                                   style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 14,
+                                    fontSize: 14.5,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -1163,7 +1198,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n?.numerosCalientesFrios ?? "2. Números Calientes y Fríos 🔥❄️", style: AppTextStyles.h2),
+          Text("3. ${l10n?.numerosCalientesFrios ?? "Números Calientes y Fríos 🔥❄️"}", style: AppTextStyles.h2),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1229,7 +1264,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final double dynamicMaxY = (maxFrec + paddingY).ceilToDouble();
     final double stepY = _calcularPasoEjeY(dynamicMaxY - dynamicMinY, 4);
 
-    final titleText = "1. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
+    final titleText = "4. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
     final subtitleText = l10n?.tocaParaVerMas ?? "Toca para ver más";
 
     Widget buildLineChart({bool isFullScreen = false}) {
@@ -1400,14 +1435,16 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n?.ausenciaSorteosTitle ?? "3. Sorteos Sin Salir (Ausencia)", style: AppTextStyles.h2),
+          Text("8. ${l10n?.ausenciaSorteosTitle ?? "Días / Sorteos Sin Salir (Ausencia)"}", style: AppTextStyles.h2),
           const SizedBox(height: 8),
           Text(l10n?.balotasMayorTiempo ?? "Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: masAtrasados.map((e) {
               final int sorteosSinSalir = e.value;
+              final bool isComparacion = _mostrarComparacion && _balotasComparacion.contains(e.key);
               final String labelText = (sorteosSinSalir >= resultados.length && resultados.isNotEmpty)
                   ? "+$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}"
                   : "$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}";
@@ -1420,13 +1457,35 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                       Container(
                         width: 38,
                         height: 38,
-                        decoration: const BoxDecoration(
+                        decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.redAccent,
+                          color: isComparacion ? const Color(0xFF16222F) : Colors.redAccent,
+                          border: isComparacion
+                              ? Border.all(color: _colorComparacion, width: 2.2)
+                              : null,
+                          boxShadow: [
+                            if (isComparacion)
+                              BoxShadow(
+                                color: _colorComparacion.withValues(alpha: 0.7),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              )
+                            else
+                              BoxShadow(
+                                color: Colors.redAccent.withValues(alpha: 0.35),
+                                blurRadius: 4,
+                              ),
+                          ],
                         ),
                         child: Center(
-                          child: Text("${e.key}",
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            "${e.key}",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -1438,6 +1497,25 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                           textAlign: TextAlign.center,
                         ),
                       ),
+                      if (isComparacion) ...[
+                        const SizedBox(height: 3),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.white30, width: 0.8),
+                          ),
+                          child: const Text(
+                            "En tu jugada",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9.0,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1465,7 +1543,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final total = (pares + impares) == 0 ? 1 : (pares + impares);
     final pctPar = ((pares / total) * 100).toStringAsFixed(1);
     final pctImpar = ((impares / total) * 100).toStringAsFixed(1);
-    final titleText = "4. ${l10n?.parImpar ?? "Distribución Par vs Impar"}";
+    final titleText = "5. ${l10n?.parImpar ?? "Distribución Par vs Impar"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -1542,6 +1620,33 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           ),
           const SizedBox(height: 16),
           buildPieContent(isFullScreen: false),
+          if (_mostrarComparacion && _balotasComparacion.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tune, size: 16, color: AppColors.yellow),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Tu jugada: ${_balotasComparacion.where((n) => n % 2 == 0).length} Pares / ${_balotasComparacion.where((n) => n % 2 != 0).length} Impares",
+                      style: AppTextStyles.h2.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1563,7 +1668,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final total = (bajos + altos) == 0 ? 1 : (bajos + altos);
     final pctBajos = ((bajos / total) * 100).toStringAsFixed(1);
     final pctAltos = ((altos / total) * 100).toStringAsFixed(1);
-    final titleText = "5. ${l10n?.bajosAltos ?? "Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)"}";
+    final titleText = "5.1 ${l10n?.bajosAltos ?? "Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)"}";
 
     Widget buildPieContent({bool isFullScreen = false}) {
       return Row(
@@ -1640,6 +1745,33 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           ),
           const SizedBox(height: 16),
           buildPieContent(isFullScreen: false),
+          if (_mostrarComparacion && _balotasComparacion.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tune, size: 16, color: AppColors.yellow),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Tu jugada: ${_balotasComparacion.where((n) => n <= mitad).length} Bajos / ${_balotasComparacion.where((n) => n > mitad).length} Altos",
+                      style: AppTextStyles.h2.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1816,6 +1948,33 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           Text(subtitleText, style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
           const SizedBox(height: 16),
           buildLineChart(isFullScreen: false),
+          if (_mostrarComparacion && _balotasComparacion.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calculate_outlined, size: 16, color: AppColors.yellow),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Suma de tu jugada: ${_balotasComparacion.fold(0, (acc, n) => acc + n)} (Promedio histórico: $avgSuma)",
+                      style: AppTextStyles.h2.copyWith(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1843,17 +2002,105 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           Text("7. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}", style: AppTextStyles.h2),
           const SizedBox(height: 12),
           ...topParejas.take(5).map((e) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
+            final parts = e.key.split('-').map((s) => int.tryParse(s.trim()) ?? -1).toList();
+            final n1 = parts.isNotEmpty ? parts[0] : -1;
+            final n2 = parts.length > 1 ? parts[1] : -1;
+            final bool n1Matches = _mostrarComparacion && _balotasComparacion.contains(n1);
+            final bool n2Matches = _mostrarComparacion && _balotasComparacion.contains(n2);
+            final bool bothMatch = n1Matches && n2Matches;
+            final bool anyMatches = n1Matches || n2Matches;
+
+            Widget buildNumberBadge(int num, bool isMatch) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: isMatch ? const Color(0xFF16222F) : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: isMatch ? _colorComparacion : Colors.white24,
+                    width: isMatch ? 1.6 : 0.8,
+                  ),
+                  boxShadow: isMatch
+                      ? [
+                          BoxShadow(
+                            color: _colorComparacion.withValues(alpha: 0.5),
+                            blurRadius: 5,
+                            spreadRadius: 0.5,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  "$num",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              );
+            }
+
+            return Container(
+              margin: const EdgeInsets.symmetric(vertical: 3.0),
+              padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
+              decoration: BoxDecoration(
+                color: anyMatches
+                    ? _colorComparacion.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: anyMatches
+                    ? Border.all(
+                        color: _colorComparacion.withValues(alpha: bothMatch ? 0.6 : 0.3),
+                        width: bothMatch ? 1.2 : 0.8,
+                      )
+                    : null,
+              ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("${l10n?.pareja ?? "Pareja"} ( ${e.key} )", style: AppTextStyles.mensajeImportante),
+                  Text("${l10n?.pareja ?? "Pareja"} ( ", style: AppTextStyles.mensajeImportante),
+                  buildNumberBadge(n1, n1Matches),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 4.0),
+                    child: Text("-", style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold)),
+                  ),
+                  buildNumberBadge(n2, n2Matches),
+                  Text(" )", style: AppTextStyles.mensajeImportante),
+                  if (bothMatch) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.greenAccent.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 0.8),
+                      ),
+                      child: const Text(
+                        "¡Ambos!",
+                        style: TextStyle(color: Colors.greenAccent, fontSize: 9.0, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ] else if (anyMatches) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: Colors.white30, width: 0.8),
+                      ),
+                      child: const Text(
+                        "1 en tu jugada",
+                        style: TextStyle(color: Colors.white, fontSize: 9.0, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
                   Text("${e.value} ${l10n?.apariciones ?? "apariciones"}", style: AppTextStyles.caption2.copyWith(color: AppColors.yellow)),
                 ],
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
     );
@@ -1949,7 +2196,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("8. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2),
+          Text("9. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2),
           if (scoreComparacion != null) ...[
             const SizedBox(height: 10),
             Container(
@@ -2051,26 +2298,90 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             spacing: 8,
             runSpacing: 8,
             children: top3Hist
-                .map((n) => Chip(
-                      label: Text("$n"),
-                      backgroundColor: Colors.amber,
-                      labelStyle: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                    ))
+                .map((n) {
+                  final bool isHighlighted = _mostrarComparacion && _balotasComparacion.contains(n);
+                  return Chip(
+                    label: Text("$n"),
+                    backgroundColor: isHighlighted ? const Color(0xFF16222F) : Colors.amber,
+                    side: isHighlighted ? BorderSide(color: _colorComparacion, width: 2.0) : BorderSide.none,
+                    labelStyle: TextStyle(
+                      color: isHighlighted ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                })
+                .toList(),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            l10n?.numerosMayorAfinidadHistorica ?? "🤖 Números con mayor afinidad histórica:",
+            style: AppTextStyles.caption.copyWith(color: const Color(0xFFC7D2FE)),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: predNums
+                .map((n) {
+                  final bool isHighlighted = _mostrarComparacion && _balotasComparacion.contains(n);
+                  return Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isHighlighted ? const Color(0xFF16222F) : const Color(0xFF6366F1).withValues(alpha: 0.2),
+                      border: Border.all(
+                        color: isHighlighted ? _colorComparacion : const Color(0xFF818CF8).withValues(alpha: 0.7),
+                        width: isHighlighted ? 2.2 : 1.2,
+                      ),
+                      boxShadow: isHighlighted
+                          ? [
+                              BoxShadow(
+                                color: _colorComparacion.withValues(alpha: 0.7),
+                                blurRadius: 8,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Center(
+                      child: Text(
+                        "$n",
+                        style: TextStyle(
+                          color: isHighlighted ? Colors.white : const Color(0xFFE0E7FF),
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  );
+                })
                 .toList(),
           ),
           const SizedBox(height: 12),
-          Text(l10n?.prediccionActualIA ?? "Predicción actual del modelo IA:", style: AppTextStyles.caption),
-          const SizedBox(height: 6),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: predNums
-                .map((n) => CircleAvatar(
-                      radius: 14,
-                      backgroundColor: Colors.redAccent,
-                      child: Text("$n", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ))
-                .toList(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 2.0, right: 6.0),
+                  child: Icon(Icons.info_outline, size: 15, color: Colors.amber),
+                ),
+                Expanded(
+                  child: Text(
+                    l10n?.disclaimerAfinidadHistorica ??
+                        "Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.",
+                    style: const TextStyle(fontSize: 11, color: Colors.white70, height: 1.3),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

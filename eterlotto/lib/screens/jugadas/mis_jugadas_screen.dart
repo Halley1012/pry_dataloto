@@ -645,16 +645,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           tooltip: "Compartir WhatsApp",
                         ),
                         _buildActionButton(
-                          icon: Icons.analytics_outlined,
-                          color: const Color(0xFF00E5FF),
-                          onPressed: _irAResultados,
-                          tooltip: l10n?.resultados ?? "Resultados",
-                        ),
-                        _buildActionButton(
                           icon: Icons.picture_as_pdf,
                           color: Colors.purpleAccent,
                           onPressed: _imprimirPDF,
                           tooltip: "Exportar PDF",
+                        ),
+                        _buildActionButton(
+                          icon: Icons.analytics_outlined,
+                          color: const Color(0xFF00E5FF),
+                          onPressed: _irAResultados,
+                          tooltip: l10n?.resultados ?? "Resultados",
                         ),
                         _buildActionButton(
                           icon: Icons.delete_outline,
@@ -1117,28 +1117,50 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         ),
                         onPressed: () async {
                           Navigator.pop(ctx);
-                          final Map<String, dynamic> jugadaComparacionData = {
-                            "id": id,
-                            "index": jugadaIndex,
-                            "titulo": "Jugada #$jugadaIndex",
-                            "color": rowColor.toARGB32(),
-                            "numeros": whites,
-                            "balota_roja": red,
-                            "fecha": fechaStr,
-                          };
-                          final bool? editada = await Navigator.push<bool>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => EstadisticasDashboardScreen(
-                                loteriaNombreInicial: widget.loteriaNombre,
-                                loteriaRoute: widget.loteriaRoute,
-                                jugadaComparacion: jugadaComparacionData,
-                              ),
-                            ),
+                          if (!mounted) return;
+                          final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+
+                          await AdService.instance.showRewardedFeatureGate(
+                            context: context,
+                            isPremium: isPremium,
+                            featureTitle: "Comparar con Estadísticas",
+                            featureActionDescription: "Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.",
+                            onRewardGranted: () async {
+                              final Map<String, dynamic> jugadaComparacionData = {
+                                "id": id,
+                                "index": jugadaIndex,
+                                "titulo": "Jugada #$jugadaIndex",
+                                "color": rowColor.toARGB32(),
+                                "numeros": whites,
+                                "balota_roja": red,
+                                "fecha": fechaStr,
+                              };
+                              final bool? editada = await Navigator.push<bool>(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => EstadisticasDashboardScreen(
+                                    loteriaNombreInicial: widget.loteriaNombre,
+                                    loteriaRoute: widget.loteriaRoute,
+                                    jugadaComparacion: jugadaComparacionData,
+                                    loteriaData: _config != null
+                                        ? {
+                                            'nombre': _config!.nombre,
+                                            'route': _config!.route,
+                                            'max_seleccion': _config!.maxSeleccion,
+                                            'max_balotas_blancas': _config!.maxBalotasBlancas,
+                                            'max_balotas_rojas': _config!.maxBalotasRojas,
+                                            'tiene_complementario': _config!.tieneComplementario,
+                                            'tiene_reintegro': _config!.tieneReintegro,
+                                          }
+                                        : null,
+                                  ),
+                                ),
+                              );
+                              if (editada == true && mounted) {
+                                _cargarJugadas();
+                              }
+                            },
                           );
-                          if (editada == true && mounted) {
-                            _cargarJugadas();
-                          }
                         },
                       ),
                     ),

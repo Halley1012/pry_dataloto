@@ -15,9 +15,13 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 
 from config.database import get_engine
+from sqlalchemy import text
+from psycopg2.extras import execute_values
 
 class ElGordoScraper:
     def __init__(self):
+        self.engine = get_engine()
+        self.loteria_id = 28
         self.base_url = "https://www.elgordodelaprimitiva.com.es/"
         self.archive_url = "https://www.elgordodelaprimitiva.com.es/historico-el-gordo-primitiva/"
         self.game_name = "El Gordo de la Primitiva"
@@ -43,7 +47,6 @@ class ElGordoScraper:
         if not jackpot or not fecha:
             return
         
-        from sqlalchemy import text
         try:
             with engine.connect() as conn:
                 print(f"💰 Actualizando jackpot para {loteria}: {jackpot} (Fecha: {fecha})")
@@ -73,30 +76,27 @@ class ElGordoScraper:
                 response = requests.get(self.base_url, headers=self.headers, timeout=15)
                 if response.status_code == 200:
                     break
-            except requests.exceptions.RequestException as e:
-                wait = (intento + 1) * 2
-                print(f"🔄 Intento {intento + 1} falló ({e}). Reintentando en {wait}s...")
-                time.sleep(wait)
+            except Exception as e:
+                if intento == 2:
+                    print(f"❌ Error conectando a {self.base_url}: {e}")
+                    return [], None, None
+                time.sleep(2)
 
         if not response or response.status_code != 200:
-            print("⚠️ No se pudo obtener respuesta de la página principal de El Gordo.")
             return [], None, None
 
         soup = BeautifulSoup(response.text, "html.parser")
-        
-        # 1. Extraer Jackpot y fecha del próximo sorteo de forma robusta
         jackpot_str = None
         next_draw_date = None
 
-        # 1.1 Buscar en bloques txtpub filtrando específicamente El Gordo y descartando banners comerciales
-        for txtpub in soup.find_all(class_="txtpub"):
-            nloto = txtpub.find(class_="nloto")
-            nloto_text = nloto.get_text(strip=True).lower() if nloto else ""
-            h3 = txtpub.find("h3")
-            raw_h3 = h3.get_text(" ", strip=True).replace("\xa0", " ").strip() if h3 else ""
-
-            if ("gordo" in nloto_text or not nloto_text) and not any(other in nloto_text for other in ["bono", "euro", "primitiva"]):
-                if not any(bad in raw_h3.lower() for bad in ["desde", "solo", "juega", "apuesta", "precio"]):
+        # 1. Extraer bote/jackpot
+        txtpub_list = soup.find_all("div", class_="txtpubli")
+        for txtpub in txtpub_list:
+            p_text = txtpub.get_text(" ", strip=True)
+            if "bote" in p_text.lower():
+                h3 = txtpub.find("h3")
+                if h3:
+                    raw_h3 = h3.get_text(strip=True)
                     m_num = re.search(r'([0-9\.,]+(?:\s*millon(?:es)?)?)\s*€?', raw_h3, re.IGNORECASE)
                     if m_num:
                         val = m_num.group(1).strip()
@@ -117,26 +117,18 @@ class ElGordoScraper:
                                         next_draw_date = f"{d_yr}-{mon_num}-{d_day.zfill(2)}"
                             break
 
-        # 1.2 Fallback en párrafos
-        if not jackpot_str:
-            for p in soup.find_all("p"):
-                ptxt = p.get_text(" ", strip=True)
-                if "bote" in ptxt.lower():
-                    m_bote = re.search(r'bote\s*(?:de|estimado|en\s*juego|para\s*el\s*próximo\s*sorteo)?\s*:?\s*([0-9\.,]+(?:\s*millones)?)\s*€', ptxt, re.IGNORECASE)
-                    if m_bote:
-                        val = m_bote.group(1).strip()
-                        num_clean = re.sub(r'[^\d]', '', val)
-                        if num_clean and int(num_clean) >= 1000000:
-                            jackpot_str = f"{val} €"
-                            break
-
         if not jackpot_str:
             jackpot_str = "14.500.000 €"
 
         # 2. Extraer último sorteo
         draws = []
+        concurso_reciente = None
         art = soup.find("article", class_="result")
         if art:
+            m_concurso = re.search(r'Sorteo\s+(\d+)', art.get_text())
+            if m_concurso:
+                concurso_reciente = int(m_concurso.group(1))
+
             date_p = art.find("p", class_="date")
             if date_p:
                 date_txt = date_p.get_text(strip=True)
@@ -153,12 +145,13 @@ class ElGordoScraper:
                             nums_divs = combi_div.find_all("div", class_="num")
                             num_vals = [int(nd.get_text(strip=True)) for nd in nums_divs if nd.get_text(strip=True).isdigit()]
                             if len(num_vals) >= 6:
-                                # 5 regulares, 1 número clave
+                                # 5 regulares, 1 clave
                                 draws.append([
+                                    concurso_reciente,
                                     self.game_name,
                                     fecha_str,
                                     num_vals[0], num_vals[1], num_vals[2], num_vals[3], num_vals[4],
-                                    num_vals[5] # Número Clave
+                                    num_vals[5] # Clave
                                 ])
 
         return draws, jackpot_str, next_draw_date
@@ -184,7 +177,6 @@ class ElGordoScraper:
                 year_text = m.group(1)
                 year_links.append((year_text, href))
 
-        # Deduplicar enlaces por año
         seen_years = set()
         unique_year_links = []
         for yt, hf in year_links:
@@ -225,6 +217,12 @@ class ElGordoScraper:
                     if date_idx is None:
                         continue
 
+                    concurso_val = None
+                    if date_idx >= 1 and tds[date_idx - 1].isdigit():
+                        concurso_val = int(tds[date_idx - 1])
+                    elif date_idx >= 2 and tds[1].isdigit():
+                        concurso_val = int(tds[1])
+
                     date_str = tds[date_idx].lower()
                     day_part, mon_part = date_str.split('-')
                     mon_num = self.meses_abrev.get(mon_part)
@@ -249,6 +247,7 @@ class ElGordoScraper:
 
                         if len(nums) == 5:
                             all_draws.append([
+                                concurso_val,
                                 self.game_name,
                                 fecha_str,
                                 nums[0], nums[1], nums[2], nums[3], nums[4],
@@ -264,18 +263,17 @@ class ElGordoScraper:
         return all_draws
 
     def run(self, backfill=False):
-        print("🚀 Iniciando Scraping de El Gordo de la Primitiva (España)...")
+        print("🚀 Iniciando Scraping de El Gordo de la Primitiva...")
         
         resultados = []
         recent_draws, jackpot_str, next_draw_date = self.scrape_recent_draws()
         resultados.extend(recent_draws)
 
-        engine = get_engine()
+        engine = self.engine
         existing_df = pd.DataFrame()
         
         try:
             with engine.connect() as conn:
-                from sqlalchemy import text
                 res = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'resultados_el_gordo';")).scalar()
                 if res > 0:
                     existing_df = pd.read_sql("SELECT * FROM resultados_el_gordo WHERE balota1 > 0;", conn)
@@ -289,11 +287,11 @@ class ElGordoScraper:
             hist_draws = self.scrape_historical_years()
             resultados.extend(hist_draws)
 
-        columns = ["sorteo", "fecha", "balota1", "balota2", "balota3", "balota4", "balota5", "balotaroja"]
+        columns = ["concurso", "sorteo", "fecha", "balota1", "balota2", "balota3", "balota4", "balota5", "balotaroja"]
         df_new = pd.DataFrame(resultados, columns=columns) if resultados else pd.DataFrame(columns=columns)
 
         if not existing_df.empty:
-            df_combined = pd.concat([existing_df, df_new], ignore_index=True)
+            df_combined = pd.concat([df_new, existing_df], ignore_index=True)
         else:
             df_combined = df_new
 
@@ -306,10 +304,16 @@ class ElGordoScraper:
         df_combined = df_combined[df_combined['balota1'] > 0]
         hoy_max = pd.to_datetime('now') + timedelta(days=1)
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').reset_index(drop=True)
         df_final = df_combined
 
         # --- Agregar fila del próximo sorteo en cero ---
+        prox_concurso = None
+        if 'concurso' in df_final.columns:
+            valid_c = df_final['concurso'].dropna()
+            if not valid_c.empty:
+                prox_concurso = int(valid_c.max()) + 1
+
         try:
             if next_draw_date:
                 cur_date = pd.to_datetime(next_draw_date)
@@ -320,61 +324,92 @@ class ElGordoScraper:
                     cur_date += timedelta(days=1)
 
             if df_final['fecha'].max() < cur_date:
-                df_prox = pd.DataFrame({
-                    'sorteo': [self.game_name],
-                    'fecha': [cur_date],
-                    'balota1': [0], 'balota2': [0], 'balota3': [0], 'balota4': [0], 'balota5': [0],
-                    'balotaroja': [0]
-                })
-                df_final = pd.concat([df_final, df_prox], ignore_index=True)
+                df_prox = pd.DataFrame([{
+                    'concurso': prox_concurso,
+                    'loteria_id': self.loteria_id,
+                    'sorteo': self.game_name,
+                    'fecha': cur_date,
+                    'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0,
+                    'balotaroja': 0
+                }])
+                df_final = pd.concat([df_prox, df_final], ignore_index=True)
                 print(f"📅 Fecha del próximo sorteo agregada para El Gordo: {cur_date.strftime('%Y-%m-%d')}")
         except Exception as e:
             print(f"⚠️ Error calculando fecha de próximo sorteo El Gordo: {e}")
 
-        df_final = df_final.sort_values(by='fecha', ascending=False).reset_index(drop=True)
+        df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by='fecha', ascending=False).reset_index(drop=True)
 
-        # --- Guardar en Base de Datos ---
+        # Guardar en Base de Datos vía UPSERT seguro
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_el_gordo (
+                    id SERIAL PRIMARY KEY,
+                    concurso INT,
+                    loteria_id INT REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INT NOT NULL,
+                    balota2 INT NOT NULL,
+                    balota3 INT NOT NULL,
+                    balota4 INT NOT NULL,
+                    balota5 INT NOT NULL,
+                    balotaroja INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_el_gordo_fecha_sorteo ON resultados_el_gordo (fecha, sorteo);
+            """))
+
+        insert_sql = """
+            INSERT INTO resultados_el_gordo (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5,
+                balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo)
+            DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_el_gordo.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
+
+        records = []
+        for _, row in df_final.iterrows():
+            c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
+            f_val = row['fecha'].date() if hasattr(row['fecha'], 'date') else row['fecha']
+            records.append((
+                c_val,
+                self.loteria_id,
+                str(row['sorteo']),
+                f_val,
+                int(row['balota1']),
+                int(row['balota2']),
+                int(row['balota3']),
+                int(row['balota4']),
+                int(row['balota5']),
+                int(row.get('balotaroja', 0)),
+                datetime.now(),
+                datetime.now()
+            ))
+
+        raw_conn = self.engine.raw_connection()
         try:
-            from sqlalchemy.types import Date, Integer, String
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, records, page_size=1000)
+            raw_conn.commit()
+            print(f"✅ Resultados de El Gordo guardados exitosamente! Total filas: {len(records)}")
+        finally:
+            raw_conn.close()
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_el_gordo")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql(
-                'resultados_el_gordo', 
-                engine, 
-                if_exists='replace', 
-                index=False, 
-                dtype={
-                    'sorteo': String(50),
-                    'fecha': Date(),
-                    'balota1': Integer(),
-                    'balota2': Integer(),
-                    'balota3': Integer(),
-                    'balota4': Integer(),
-                    'balota5': Integer(),
-                    'balotaroja': Integer()
-                }
-            )
-            print(f"✅ Resultados de El Gordo guardados exitosamente! Total filas: {len(df_final)}")
-            
-            if jackpot_str:
-                target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
-                self.update_jackpot(engine, "el_gordo", jackpot_str, target_fecha)
-        except Exception as e:
-            print(f"❌ Error al guardar resultados de El Gordo en BD: {e}")
+        if jackpot_str:
+            target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
+            self.update_jackpot(self.engine, "el_gordo", jackpot_str, target_fecha)
 
 if __name__ == "__main__":
     ElGordoScraper().run(backfill=False)

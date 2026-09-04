@@ -1328,4 +1328,57 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get buscarDirectorioHint =>
       'Encuentra negocios, servicios y comercios...';
+
+  @override
+  String get mejorJugadaTitulo => 'Mejor jugada';
+
+  @override
+  String get mejorJugadaSorteo => 'Mejor jugada del sorteo';
+
+  @override
+  String aciertosConPorcentaje(int hits, int total, int percent) {
+    return '$hits / $total aciertos — $percent%';
+  }
+
+  @override
+  String superoRendimientoJugadas(int percent) {
+    return '⭐ Superó el rendimiento del $percent% de tus jugadas anteriores.';
+  }
+
+  @override
+  String get tuMejorJugadaSorteo => '⭐ Tu mejor resultado en este sorteo.';
+
+  @override
+  String get sinJugadasParaSorteo =>
+      'No tienes jugadas guardadas para este sorteo.';
+
+  @override
+  String rendimientoUltimosSorteos(int count) {
+    return 'Rendimiento últimos $count sorteos';
+  }
+
+  @override
+  String get tuRendimiento => 'Tu rendimiento';
+
+  @override
+  String get coberturaPromedio => 'Cobertura promedio';
+
+  @override
+  String get mejorCobertura => 'Mejor cobertura';
+
+  @override
+  String get peorCobertura => 'Peor cobertura';
+
+  @override
+  String nSorteosLabel(int count) {
+    return '$count Sorteos';
+  }
+
+  @override
+  String get numerosMayorAfinidadHistorica =>
+      '🤖 Números con mayor afinidad histórica:';
+
+  @override
+  String get disclaimerAfinidadHistorica =>
+      'Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.';
 }

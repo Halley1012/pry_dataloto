@@ -745,5 +745,41 @@
   "publicidadLabel": "PUBLICIDADE",
   "quitarAnuncios": "Remover anúncios",
   "buscaloAqui": "Procure aqui",
-  "buscarDirectorioHint": "Encontre negócios, serviços e comércios locais..."
+  "buscarDirectorioHint": "Encontre negócios, serviços e comércios locais...",
+  "mejorJugadaTitulo": "Melhor jogo",
+  "mejorJugadaSorteo": "Melhor jogo do sorteio",
+  "aciertosConPorcentaje": "{hits} / {total} acertos — {percent}%",
+  "@aciertosConPorcentaje": {
+    "placeholders": {
+      "hits": { "type": "int" },
+      "total": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "superoRendimientoJugadas": "⭐ Superou o desempenho de {percent}% dos seus jogos anteriores.",
+  "@superoRendimientoJugadas": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "tuMejorJugadaSorteo": "⭐ Seu melhor resultado neste sorteio.",
+  "sinJugadasParaSorteo": "Você não tem jogos salvos para este sorteio.",
+  "rendimientoUltimosSorteos": "Desempenho últimos {count} sorteios",
+  "@rendimientoUltimosSorteos": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tuRendimiento": "Seu desempenho",
+  "coberturaPromedio": "Cobertura média",
+  "mejorCobertura": "Melhor cobertura",
+  "peorCobertura": "Pior cobertura",
+  "nSorteosLabel": "{count} Sorteios",
+  "@nSorteosLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "numerosMayorAfinidadHistorica": "🤖 Números com maior afinidade histórica:",
+  "disclaimerAfinidadHistorica": "Baseado em padrões históricos. Não representa uma probabilidade real de ser sorteado."
 }

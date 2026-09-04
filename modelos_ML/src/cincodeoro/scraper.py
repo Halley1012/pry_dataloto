@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
 import requests
 import pandas as pd
@@ -6,7 +8,8 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text, Integer, Date, String
+from sqlalchemy import text
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -14,6 +17,7 @@ from config.database import get_engine
 class CincoDeOroScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 34
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -265,7 +269,7 @@ class CincoDeOroScraper:
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_5deoro WHERE balota1 > 0;"), conn)
+                df_existente = pd.read_sql(text("SELECT concurso, loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_5deoro WHERE balota1 > 0;"), conn)
         except Exception:
             pass
 
@@ -277,12 +281,12 @@ class CincoDeOroScraper:
 
         # Combinar en vivo + existente + histórico
         dfs_to_combine = []
+        if not df_scraped.empty:
+            dfs_to_combine.append(df_scraped)
         if live_draws:
             dfs_to_combine.append(pd.DataFrame(live_draws))
         if not df_existente.empty and 'sorteo' in df_existente.columns:
             dfs_to_combine.append(df_existente)
-        if not df_scraped.empty:
-            dfs_to_combine.append(df_scraped)
 
         if not dfs_to_combine:
             print("❌ No se pudieron obtener resultados de 5 de Oro.")
@@ -290,7 +294,7 @@ class CincoDeOroScraper:
 
         df_combined = pd.concat(dfs_to_combine, ignore_index=True)
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo']).sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         hoy_max = datetime.now().date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
@@ -315,6 +319,8 @@ class CincoDeOroScraper:
         # Filas placeholder en ceros idéntico a Baloto/Revancha
         filas_proximo = [
             {
+                "concurso": None,
+                "loteria_id": self.loteria_id,
                 "sorteo": "5 de Oro",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -325,6 +331,8 @@ class CincoDeOroScraper:
                 "balotaroja": 0
             },
             {
+                "concurso": None,
+                "loteria_id": self.loteria_id,
                 "sorteo": "Revancha",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -337,37 +345,75 @@ class CincoDeOroScraper:
         ]
         df_final = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balotaroja': Integer(),
-        }
+        # 5. Guardar en PostgreSQL de manera segura (UPSERT sin destruir estructura ni foreign keys)
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_5deoro (
+                    id SERIAL PRIMARY KEY,
+                    concurso INT,
+                    loteria_id INT REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INT NOT NULL,
+                    balota2 INT NOT NULL,
+                    balota3 INT NOT NULL,
+                    balota4 INT NOT NULL,
+                    balota5 INT NOT NULL,
+                    balotaroja INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_5deoro_fecha_sorteo ON resultados_5deoro (fecha, sorteo);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_5deoro (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5,
+                balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo)
+            DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_5deoro.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_5deoro")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_5deoro', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        data_tuples = [
+            (
+                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
+                int(self.loteria_id),
+                str(r['sorteo']),
+                str(r['fecha']),
+                int(r['balota1']),
+                int(r['balota2']),
+                int(r['balota3']),
+                int(r['balota4']),
+                int(r['balota5']),
+                int(r['balotaroja'])
+            )
+            for r in df_final.to_dict(orient='records')
+        ]
+
+        raw_conn = self.engine.raw_connection()
+        try:
+            chunk_size = 500
+            for i in range(0, len(data_tuples), chunk_size):
+                chunk = data_tuples[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(
+                        cur, insert_sql, chunk,
+                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                raw_conn.commit()
+        finally:
+            raw_conn.close()
 
         print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas: {len(df_final)}")
         self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
