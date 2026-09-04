@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
 import requests
 import pandas as pd
@@ -7,6 +9,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -14,6 +17,7 @@ from config.database import get_engine
 class MegaSenaScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 21
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "application/json, text/html, */*",
@@ -91,6 +95,8 @@ class MegaSenaScraper:
                 if dezenas and len(dezenas) == 6 and fecha_str:
                     balls = sorted([int(d) for d in dezenas])
                     draws.append({
+                        "concurso": int(data.get('numero')) if data.get('numero') else None,
+                        "loteria_id": self.loteria_id,
                         "sorteo": "Mega-Sena",
                         "fecha": fecha_str,
                         "balota1": balls[0],
@@ -114,6 +120,8 @@ class MegaSenaScraper:
                     for row in tables[1].find_all("tr"):
                         tds = row.find_all("td")
                         if len(tds) >= 3:
+                            draw_div = tds[0].find("div", class_="draw-number")
+                            c_num = int(re.search(r'(\d+)', draw_div.get_text()).group(1)) if draw_div and re.search(r'(\d+)', draw_div.get_text()) else None
                             date_div = tds[0].find("div", class_="date")
                             date_raw = date_div.get_text(strip=True) if date_div else tds[0].get_text(strip=True)
                             fecha_str = self._parse_fecha(date_raw)
@@ -121,6 +129,8 @@ class MegaSenaScraper:
                             if len(balls) == 6 and fecha_str:
                                 balls = sorted(balls)
                                 draws.append({
+                                    "concurso": c_num,
+                                    "loteria_id": self.loteria_id,
                                     "sorteo": "Mega-Sena",
                                     "fecha": fecha_str,
                                     "balota1": balls[0],
@@ -171,6 +181,8 @@ class MegaSenaScraper:
                     if dezenas and len(dezenas) == 6 and fecha_str:
                         balls = sorted([int(x) for x in dezenas])
                         return {
+                            "concurso": num,
+                            "loteria_id": self.loteria_id,
                             "sorteo": "Mega-Sena",
                             "fecha": fecha_str,
                             "balota1": balls[0],
@@ -251,12 +263,12 @@ class MegaSenaScraper:
 
         # 3. Combinar y limpiar
         if not df_existente.empty:
-            df_combined = pd.concat([df_existente, df_scraped], ignore_index=True)
+            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
             df_combined = df_scraped
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=False).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values('fecha', ascending=False).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
@@ -276,8 +288,13 @@ class MegaSenaScraper:
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
         print(f"📅 Fecha del próximo sorteo agregada para Mega-Sena: {proxima_fecha_str}")
 
+        max_concurso = df_combined['concurso'].dropna().max()
+        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
+
         # Fila placeholder en ceros
         fila_proximo = {
+            "concurso": prox_concurso,
+            "loteria_id": self.loteria_id,
             "sorteo": "Mega-Sena",
             "fecha": proxima_fecha,
             "balota1": 0,
@@ -289,40 +306,80 @@ class MegaSenaScraper:
         }
         df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balota6': Integer()
-        }
+        # 5. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_megasena (
+                    id SERIAL PRIMARY KEY,
+                    concurso INTEGER,
+                    loteria_id INTEGER DEFAULT 21 REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL,
+                    balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL,
+                    balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL,
+                    balota6 INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_megasena_fecha_sorteo ON resultados_megasena (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_megasena_concurso ON resultados_megasena (concurso);
+                CREATE INDEX IF NOT EXISTS idx_megasena_loteria_id ON resultados_megasena (loteria_id);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_megasena (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5, balota6,
+                created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo) DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_megasena.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balota6 = EXCLUDED.balota6,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_megasena")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_megasena', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        data_tuples = [
+            (
+                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
+                int(self.loteria_id),
+                str(r['sorteo']),
+                str(r['fecha']),
+                int(r['balota1']),
+                int(r['balota2']),
+                int(r['balota3']),
+                int(r['balota4']),
+                int(r['balota5']),
+                int(r['balota6'])
+            )
+            for r in df_final.to_dict(orient='records')
+        ]
+
+        raw_conn = self.engine.raw_connection()
+        try:
+            chunk_size = 500
+            for i in range(0, len(data_tuples), chunk_size):
+                chunk = data_tuples[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(
+                        cur, insert_sql, chunk,
+                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                raw_conn.commit()
+        finally:
+            raw_conn.close()
 
         print(f"✅ Resultados de Mega-Sena guardados exitosamente! Total filas: {len(df_final)}")
         self.actualizar_jackpot(proxima_fecha_str, jackpot_reciente)
+        return True
 
 if __name__ == "__main__":
     scraper = MegaSenaScraper()

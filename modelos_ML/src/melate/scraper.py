@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
 import io
 import requests
@@ -7,6 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -14,6 +17,7 @@ from config.database import get_engine
 class MelateScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 16
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -71,8 +75,11 @@ class MelateScraper:
                     f = self._parse_fecha(str(row.get('FECHA', '')))
                     if f:
                         try:
+                            c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
                             balls = sorted([int(row['R1']), int(row['R2']), int(row['R3']), int(row['R4']), int(row['R5']), int(row['R6'])])
                             draws.append({
+                                "concurso": c_num,
+                                "loteria_id": self.loteria_id,
                                 "sorteo": "Melate",
                                 "fecha": f,
                                 "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
@@ -98,8 +105,11 @@ class MelateScraper:
                     f = self._parse_fecha(str(row.get('FECHA', '')))
                     if f:
                         try:
+                            c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
                             balls = sorted([int(row['R1']), int(row['R2']), int(row['R3']), int(row['R4']), int(row['R5']), int(row['R6'])])
                             draws.append({
+                                "concurso": c_num,
+                                "loteria_id": self.loteria_id,
                                 "sorteo": "Revancha",
                                 "fecha": f,
                                 "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
@@ -127,8 +137,11 @@ class MelateScraper:
                     f = self._parse_fecha(str(row.get('FECHA', '')))
                     if f:
                         try:
+                            c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
                             balls = sorted([int(row[cols[0]]), int(row[cols[1]]), int(row[cols[2]]), int(row[cols[3]]), int(row[cols[4]]), int(row[cols[5]])])
                             draws.append({
+                                "concurso": c_num,
+                                "loteria_id": self.loteria_id,
                                 "sorteo": "Revanchita",
                                 "fecha": f,
                                 "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
@@ -166,6 +179,7 @@ class MelateScraper:
                     for row in tables[3].find_all("tr")[1:]:
                         tds = row.find_all("td")
                         if len(tds) >= 3:
+                            c_num = int(tds[0].get_text(strip=True)) if tds[0].get_text(strip=True).isdigit() else None
                             fecha_str = self._parse_fecha(tds[1].get_text(strip=True))
                             comb = tds[2].get_text(strip=True)
                             parts = comb.split('-')
@@ -175,6 +189,7 @@ class MelateScraper:
                                 if len(nat_str) == 6 and add_str.isdigit():
                                     balls = sorted([int(n) for n in nat_str])
                                     draws.append({
+                                        "concurso": c_num, "loteria_id": self.loteria_id,
                                         "sorteo": "Melate", "fecha": fecha_str,
                                         "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
                                         "balota4": balls[3], "balota5": balls[4], "balota6": balls[5],
@@ -186,6 +201,7 @@ class MelateScraper:
                     for row in tables[4].find_all("tr")[1:]:
                         tds = row.find_all("td")
                         if len(tds) >= 3:
+                            c_num = int(tds[0].get_text(strip=True)) if tds[0].get_text(strip=True).isdigit() else None
                             fecha_str = self._parse_fecha(tds[1].get_text(strip=True))
                             comb = tds[2].get_text(strip=True)
                             nat_str = comb.strip().split()
@@ -193,6 +209,7 @@ class MelateScraper:
                                 balls = sorted([int(n) for n in nat_str if n.isdigit()])
                                 if len(balls) == 6:
                                     draws.append({
+                                        "concurso": c_num, "loteria_id": self.loteria_id,
                                         "sorteo": "Revancha", "fecha": fecha_str,
                                         "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
                                         "balota4": balls[3], "balota5": balls[4], "balota6": balls[5],
@@ -204,6 +221,7 @@ class MelateScraper:
                     for row in tables[5].find_all("tr")[1:]:
                         tds = row.find_all("td")
                         if len(tds) >= 3:
+                            c_num = int(tds[0].get_text(strip=True)) if tds[0].get_text(strip=True).isdigit() else None
                             fecha_str = self._parse_fecha(tds[1].get_text(strip=True))
                             comb = tds[2].get_text(strip=True)
                             nat_str = comb.strip().split()
@@ -211,6 +229,7 @@ class MelateScraper:
                                 balls = sorted([int(n) for n in nat_str if n.isdigit()])
                                 if len(balls) == 6:
                                     draws.append({
+                                        "concurso": c_num, "loteria_id": self.loteria_id,
                                         "sorteo": "Revanchita", "fecha": fecha_str,
                                         "balota1": balls[0], "balota2": balls[1], "balota3": balls[2],
                                         "balota4": balls[3], "balota5": balls[4], "balota6": balls[5],
@@ -279,12 +298,12 @@ class MelateScraper:
 
         # 3. Combinar y limpiar
         if not df_existente.empty:
-            df_combined = pd.concat([df_existente, df_scraped], ignore_index=True)
+            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
             df_combined = df_scraped
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['sorteo', 'fecha']).sort_values(['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
@@ -300,49 +319,94 @@ class MelateScraper:
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
         print(f"📅 Fecha del próximo sorteo agregada para Melate/Revancha/Revanchita: {proxima_fecha_str}")
 
+        max_concurso = df_combined['concurso'].dropna().max()
+        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
+
         # Filas placeholder en ceros para cada tipo de sorteo
         filas_proximos = [
-            {"sorteo": "Melate", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
-            {"sorteo": "Revancha", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
-            {"sorteo": "Revanchita", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
+            {"concurso": prox_concurso, "loteria_id": self.loteria_id, "sorteo": "Melate", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
+            {"concurso": prox_concurso, "loteria_id": self.loteria_id, "sorteo": "Revancha", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
+            {"concurso": prox_concurso, "loteria_id": self.loteria_id, "sorteo": "Revanchita", "fecha": proxima_fecha, "balota1": 0, "balota2": 0, "balota3": 0, "balota4": 0, "balota5": 0, "balota6": 0, "balotaroja": 0},
         ]
         df_final = pd.concat([pd.DataFrame(filas_proximos), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balota6': Integer(),
-            'balotaroja': Integer()
-        }
+        # 5. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_melate (
+                    id SERIAL PRIMARY KEY,
+                    concurso INTEGER,
+                    loteria_id INTEGER DEFAULT 16 REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL,
+                    balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL,
+                    balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL,
+                    balota6 INTEGER NOT NULL,
+                    balotaroja INTEGER NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_melate_fecha_sorteo ON resultados_melate (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_melate_concurso ON resultados_melate (concurso);
+                CREATE INDEX IF NOT EXISTS idx_melate_loteria_id ON resultados_melate (loteria_id);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_melate (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5, balota6, balotaroja,
+                created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo) DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_melate.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balota6 = EXCLUDED.balota6,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_melate")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_melate', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        data_tuples = [
+            (
+                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
+                int(self.loteria_id),
+                str(r['sorteo']),
+                str(r['fecha']),
+                int(r['balota1']),
+                int(r['balota2']),
+                int(r['balota3']),
+                int(r['balota4']),
+                int(r['balota5']),
+                int(r['balota6']),
+                int(r['balotaroja'])
+            )
+            for r in df_final.to_dict(orient='records')
+        ]
+
+        raw_conn = self.engine.raw_connection()
+        try:
+            chunk_size = 500
+            for i in range(0, len(data_tuples), chunk_size):
+                chunk = data_tuples[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(
+                        cur, insert_sql, chunk,
+                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                raw_conn.commit()
+        finally:
+            raw_conn.close()
 
         print(f"✅ Resultados de Melate/Revancha/Revanchita guardados exitosamente! Total filas: {len(df_final)}")
         self.actualizar_jackpot(proxima_fecha_str, jackpot_final)
+        return True
 
 if __name__ == "__main__":
     scraper = MelateScraper()

@@ -5,15 +5,21 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text, Integer, Date, String
+from sqlalchemy import text
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 from config.database import get_engine
 
 class EuroDreamsScraper:
     def __init__(self):
         self.engine = get_engine()
+        self.loteria_id = 29
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -180,23 +186,32 @@ class EuroDreamsScraper:
                     "fecha": proxima_fecha,
                     "jackpot": jackpot_str
                 })
+                
+                # Cleanup older than 5 days
+                conn.execute(text("""
+                    DELETE FROM loterias_jackpots
+                    WHERE loteria = 'eurodreams' AND fecha < CURRENT_DATE - INTERVAL '5 days';
+                """))
                 conn.commit()
         except Exception as e:
-            print(f"⚠️ Error actualizando jackpot para EuroDreams: {e}")
+            print(f"❌ Error actualizando jackpot para eurodreams en BD: {e}")
 
     def run(self, backfill: bool = False):
-        print("🚀 Iniciando Scraping de EuroDreams (España / Europa)...")
-        
-        # 1. Obtener datos existentes en BD
+        print("🚀 Iniciando Scraping de EuroDreams...")
+
+        # 1. Leer registros existentes
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT * FROM resultados_eurodreams WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
+                res = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'resultados_eurodreams';")).scalar()
+                if res > 0:
+                    df_existente = pd.read_sql(text("SELECT * FROM resultados_eurodreams WHERE balota1 > 0;"), conn)
+                    print(f"📦 Registros históricos existentes en BD: {len(df_existente)}")
+        except Exception as e:
+            print(f"ℹ️ No se pudieron cargar registros previos ({e}).")
 
-        # 2. Descargar datos
-        if backfill or df_existente.empty:
+        # 2. Scrapear recientes o histórico
+        if backfill or len(df_existente) < 10:
             df_scraped = self.extraer_historico_completo()
         else:
             df_scraped = self.extraer_recientes()
@@ -207,25 +222,31 @@ class EuroDreamsScraper:
 
         # 3. Combinar y limpiar
         if not df_existente.empty:
-            df_combined = pd.concat([df_existente, df_scraped], ignore_index=True)
+            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
             df_combined = df_scraped
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=False).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha']).sort_values('fecha', ascending=True).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
 
+        # Asignar concurso secuencial (desde fecha inaugural 2023-11-06)
+        df_combined['concurso'] = range(1, len(df_combined) + 1)
+
         # 4. Calcular próximo sorteo
-        ultima_fecha_real = df_combined.iloc[0]['fecha']
+        ultima_fecha_real = df_combined.iloc[-1]['fecha']
         proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
+        prox_concurso = int(df_combined['concurso'].max()) + 1
         print(f"📅 Fecha del próximo sorteo agregada para EuroDreams: {proxima_fecha_str}")
 
         # Fila placeholder en ceros
         fila_proximo = {
+            "concurso": prox_concurso,
+            "loteria_id": self.loteria_id,
             "sorteo": "EuroDreams",
             "fecha": proxima_fecha,
             "balota1": 0,
@@ -236,44 +257,81 @@ class EuroDreamsScraper:
             "balota6": 0,
             "balotaroja": 0
         }
-        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
+        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined.sort_values('fecha', ascending=False)], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balota6': Integer(),
-            'balotaroja': Integer(),
-        }
+        # 5. Guardar en Base de Datos vía UPSERT seguro
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_eurodreams (
+                    id SERIAL PRIMARY KEY,
+                    concurso INT,
+                    loteria_id INT REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INT NOT NULL,
+                    balota2 INT NOT NULL,
+                    balota3 INT NOT NULL,
+                    balota4 INT NOT NULL,
+                    balota5 INT NOT NULL,
+                    balota6 INT NOT NULL,
+                    balotaroja INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_eurodreams_fecha_sorteo ON resultados_eurodreams (fecha, sorteo);
+            """))
 
-        with self.engine.connect() as conn:
+        insert_sql = """
+            INSERT INTO resultados_eurodreams (
+                concurso, loteria_id, sorteo, fecha,
+                balota1, balota2, balota3, balota4, balota5, balota6,
+                balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (fecha, sorteo)
+            DO UPDATE SET
+                concurso = COALESCE(EXCLUDED.concurso, resultados_eurodreams.concurso),
+                loteria_id = EXCLUDED.loteria_id,
+                balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2,
+                balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4,
+                balota5 = EXCLUDED.balota5,
+                balota6 = EXCLUDED.balota6,
+                balotaroja = EXCLUDED.balotaroja,
+                updated_at = CURRENT_TIMESTAMP;
+        """
 
-            # --- VALIDATION ---
-            try:
-                from sqlalchemy import text
-                with engine.connect() as conn:
-                    max_db_fecha = conn.execute(text("SELECT MAX(fecha) FROM resultados_eurodreams")).scalar()
-                if max_db_fecha:
-                    max_db_fecha = pd.to_datetime(max_db_fecha).date()
-                    max_df_fecha = df_final['fecha'].max().date()
-                    if max_df_fecha <= max_db_fecha:
-                        print("No hay sorteo nuevo por feriado o retraso. Terminando sin actualizar.")
-                        return False
-            except Exception as e:
-                print(f"Error en validación temprana: {e}")
-            # --- END VALIDATION ---
-            
-            df_final.to_sql('resultados_eurodreams', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.commit()
+        records = []
+        for _, row in df_final.iterrows():
+            c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
+            f_val = row['fecha'] if isinstance(row['fecha'], date) else row['fecha'].date()
+            records.append((
+                c_val,
+                self.loteria_id,
+                str(row['sorteo']),
+                f_val,
+                int(row['balota1']),
+                int(row['balota2']),
+                int(row['balota3']),
+                int(row['balota4']),
+                int(row['balota5']),
+                int(row['balota6']),
+                int(row.get('balotaroja', 0)),
+                datetime.now(),
+                datetime.now()
+            ))
 
-        print(f"✅ Resultados de EuroDreams guardados exitosamente! Total filas: {len(df_final)}")
+        raw_conn = self.engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, records, page_size=1000)
+            raw_conn.commit()
+            print(f"✅ Resultados de EuroDreams guardados exitosamente! Total filas: {len(records)}")
+        finally:
+            raw_conn.close()
+
         self.actualizar_jackpot(proxima_fecha_str)
 
 if __name__ == "__main__":
     scraper = EuroDreamsScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)

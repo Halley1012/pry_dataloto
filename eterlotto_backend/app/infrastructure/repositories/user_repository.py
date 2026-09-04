@@ -59,13 +59,15 @@ class PostgresUserRepository(UserRepositoryPort):
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     product_id VARCHAR(100) NOT NULL,
-                    purchase_token TEXT,
+                    purchase_token TEXT UNIQUE,
                     order_id VARCHAR(255),
                     status VARCHAR(50) DEFAULT 'active',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     expires_at TIMESTAMP WITH TIME ZONE
                 );
                 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions (user_id);
+                ALTER TABLE user_subscriptions DROP CONSTRAINT IF EXISTS user_subscriptions_purchase_token_key;
+                ALTER TABLE user_subscriptions ADD CONSTRAINT user_subscriptions_purchase_token_key UNIQUE (purchase_token);
             """)
 
             # 3. Crear tabla de tokens / códigos de recuperación de contraseña
@@ -258,7 +260,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     if purchase_token:
                         existing = await conn.fetchrow(
                             """
-                            SELECT id
+                            SELECT id, user_id
                             FROM user_subscriptions
                             WHERE purchase_token = $1
                             ORDER BY created_at DESC
@@ -270,17 +272,18 @@ class PostgresUserRepository(UserRepositoryPort):
                     final_status = status if status else ('active' if is_premium else 'expired')
 
                     if existing:
+                        if existing["user_id"] != user_id:
+                            raise ValueError("Esta compra ya está asociada a otra cuenta de Eterlotto.")
+                        
                         await conn.execute(
                             """
                             UPDATE user_subscriptions
-                            SET user_id = $1,
-                                product_id = $2,
-                                order_id = COALESCE($3, order_id),
-                                status = $4,
-                                expires_at = COALESCE($5, expires_at)
-                            WHERE id = $6
+                            SET product_id = $1,
+                                order_id = COALESCE($2, order_id),
+                                status = $3,
+                                expires_at = COALESCE($4, expires_at)
+                            WHERE id = $5
                             """,
-                            user_id,
                             product_id,
                             order_id,
                             final_status,
@@ -345,17 +348,46 @@ class PostgresUserRepository(UserRepositoryPort):
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             async with conn.transaction():
+                # 1. Actualizar usuario respetando si existe otra suscripción válida
                 await conn.execute(
                     """
                     UPDATE users
-                    SET is_premium = $1,
-                        premium_expires_at = $2,
+                    SET is_premium = (
+                            CASE 
+                                WHEN $1 = TRUE THEN TRUE
+                                ELSE (
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM user_subscriptions 
+                                        WHERE user_id = $3 
+                                          AND purchase_token != $4 
+                                          AND status IN ('active', 'canceled', 'grace_period') 
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    )
+                                )
+                            END
+                        ),
+                        premium_expires_at = (
+                            CASE
+                                WHEN $1 = TRUE THEN $2
+                                ELSE COALESCE(
+                                    (
+                                        SELECT MAX(expires_at) FROM user_subscriptions
+                                        WHERE user_id = $3
+                                          AND purchase_token != $4
+                                          AND status IN ('active', 'canceled', 'grace_period')
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    ),
+                                    $2
+                                )
+                            END
+                        ),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $3
                     """,
-                    is_premium, expires_at, user_id
+                    is_premium, expires_at, user_id, purchase_token or ''
                 )
 
+                # 2. Actualizar la suscripción histórica
                 if purchase_token:
                     await conn.execute(
                         """
@@ -381,6 +413,30 @@ class PostgresUserRepository(UserRepositoryPort):
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
+
+            # Optimización 3.1: Verificar si realmente hay algo que expirar antes de adquirir locks de escritura
+            needs_update = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM users
+                    WHERE id = $1
+                      AND is_premium = TRUE
+                      AND premium_expires_at IS NOT NULL
+                      AND premium_expires_at <= CURRENT_TIMESTAMP
+                ) OR EXISTS (
+                    SELECT 1 FROM user_subscriptions
+                    WHERE user_id = $1
+                      AND status IN ('active', 'canceled', 'grace_period')
+                      AND expires_at IS NOT NULL
+                      AND expires_at <= CURRENT_TIMESTAMP
+                )
+                """,
+                user_id
+            )
+
+            if not needs_update:
+                return False
+
             async with conn.transaction():
                 await conn.execute(
                     """
@@ -388,10 +444,7 @@ class PostgresUserRepository(UserRepositoryPort):
                     SET is_premium = FALSE,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = $1
-                      AND (
-                          is_premium = TRUE
-                          OR premium_expires_at IS NOT NULL
-                      )
+                      AND is_premium = TRUE
                       AND premium_expires_at IS NOT NULL
                       AND premium_expires_at <= CURRENT_TIMESTAMP
                     """,
