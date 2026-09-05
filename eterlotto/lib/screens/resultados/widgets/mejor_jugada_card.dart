@@ -194,22 +194,26 @@ class MejorJugadaCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // 3. Fila de Balotas con aciertos destacados
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ...bestNums.map((n) {
-                final isHit = bestSub!.winningNums.contains(n);
-                return buildPlayBall(n, isHit: isHit);
-              }),
-              if (bestRed != null)
-                buildPlayBall(
-                  bestRed,
-                  isHit: (bestRed == bestSub.winningRed),
-                  isRed: true,
-                ),
-            ],
+          // 3. Fila de Balotas con aciertos destacados (centrada)
+          Center(
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...bestNums.map((n) {
+                  final isHit = bestSub!.winningNums.contains(n);
+                  return buildPlayBall(n, isHit: isHit);
+                }),
+                if (bestRed != null)
+                  buildPlayBall(
+                    bestRed,
+                    isHit: (bestRed == bestSub.winningRed),
+                    isRed: true,
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 14),
 

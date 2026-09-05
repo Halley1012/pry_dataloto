@@ -24,3 +24,6 @@ def setup_logging():
     for handler in root_logger.handlers:
         handler.addFilter(RequestIdFilter())
         handler.setFormatter(logging.Formatter(log_format, datefmt="%Y-%m-%d %H:%M:%S"))
+
+    # Silenciar logs de httpx para no filtrar tokens en URLs
+    logging.getLogger("httpx").setLevel(logging.WARNING)
