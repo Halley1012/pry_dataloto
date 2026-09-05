@@ -346,6 +346,10 @@ class AuthUseCases:
         # Call Google tokeninfo to verify the ID token
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+            
+            import logging
+            logging.info(f"Google ID token verification → {resp.status_code}")
+            
             if resp.status_code != 200:
                 raise ValueError("Token de Google inválido o expirado")
             payload = resp.json()

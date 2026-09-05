@@ -104,11 +104,18 @@ def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases
 
 
 
-@router.get("/app-config")
+import os
+
+@router.get("/metadata/app-config")
 def get_app_config():
+    try:
+        min_build = int(os.getenv("MIN_BUILD_NUMBER", "22"))
+    except (ValueError, TypeError):
+        min_build = 22
+
     return {
         "success": True,
-        "min_build_number": 19,
+        "min_build_number": min_build,
         "store_url_android": "https://play.google.com/store/apps/details?id=com.lumieter.eterlotto",
         "store_url_ios": "https://apps.apple.com/app/id_aqui_si_tienes"
     }
