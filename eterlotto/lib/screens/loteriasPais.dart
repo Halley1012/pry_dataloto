@@ -1,6 +1,5 @@
 import 'package:eterlotto/screens/loteria_screen.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';

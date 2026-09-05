@@ -2268,7 +2268,7 @@ abstract class AppLocalizations {
   /// No description provided for @restaurarCompras.
   ///
   /// In es, this message translates to:
-  /// **'Restaurar compras'**
+  /// **'Restaurar suscripción'**
   String get restaurarCompras;
 
   /// No description provided for @terminosSuscripcionGooglePlay.

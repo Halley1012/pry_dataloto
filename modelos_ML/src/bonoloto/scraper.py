@@ -66,6 +66,48 @@ class BonolotoScraper:
         except Exception as e:
             print(f"❌ Error actualizando jackpot para {loteria} en BD: {e}")
 
+    def obtener_ultimo_sorteo_db(self) -> dict:
+        """Obtiene el último sorteo REAL registrado en la BD (balota1 > 0)."""
+        try:
+            with self.engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT concurso, fecha, sorteo
+                    FROM resultados_bonoloto
+                    WHERE balota1 > 0
+                    ORDER BY fecha DESC
+                    LIMIT 1;
+                """)).fetchone()
+                if row:
+                    return {
+                        "concurso": int(row[0]) if row[0] is not None else None,
+                        "fecha": row[1].strftime("%Y-%m-%d") if hasattr(row[1], 'strftime') else str(row[1]),
+                        "sorteo": str(row[2])
+                    }
+        except Exception as e:
+            print(f"⚠️ Error consultando último sorteo en BD: {e}")
+        return None
+
+    def extraer_ultimo_sorteo_fuente(self) -> dict:
+        """Extrae el último sorteo REAL publicado en la página principal."""
+        try:
+            draws, jackpot_str, next_draw_date, concurso_reciente = self.scrape_recent_draws()
+            if draws:
+                d = draws[0]
+                return {
+                    "concurso": d.get("concurso"),
+                    "fecha": d.get("fecha"),
+                    "sorteo": d.get("sorteo"),
+                    "balotas": [d["balota1"], d["balota2"], d["balota3"], d["balota4"], d["balota5"], d["balota6"]],
+                    "complementario": d.get("balotaroja"),
+                    "reintegro": d.get("balotaroja2"),
+                    "jackpot_str": jackpot_str,
+                    "next_draw_date": next_draw_date,
+                    "raw_draws": draws
+                }
+        except Exception as e:
+            print(f"⚠️ Error extrayendo último sorteo de la fuente Bonoloto: {e}")
+        return None
+
     def scrape_recent_draws(self):
         """Extrae el sorteo más reciente y el bote desde la página principal de Bonoloto."""
         print(f"➡️ Solicitando resultados recientes desde {self.base_url}...")
@@ -255,6 +297,10 @@ class BonolotoScraper:
                         comp = int(comp_col[0]) if comp_col and comp_col[0].isdigit() else 0
                         rein = int(rein_col[0]) if rein_col and rein_col[0].isdigit() else 0
 
+                        # Corrección de errata tipográfica en la fuente oficial loteriabonoloto.info
+                        if fecha_str == "2018-11-26" and nums == [49, 40, 49, 39, 18, 37]:
+                            nums = [48, 40, 49, 39, 18, 37]
+
                         if len(nums) == 6:
                             all_draws.append({
                                 "concurso": None,
@@ -281,9 +327,40 @@ class BonolotoScraper:
 
     def run(self, backfill=False):
         print("🚀 Iniciando Scraping de Bonoloto (España)...")
-        
+
+        # 1. Detección temprana: comparar último sorteo real en BD vs fuente
+        ultimo_db = self.obtener_ultimo_sorteo_db()
+        ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not backfill and ultimo_db and ultimo_fuente:
+            fecha_db = str(ultimo_db.get("fecha"))
+            fecha_fuente = str(ultimo_fuente.get("fecha"))
+
+            if fecha_fuente and fecha_db and fecha_fuente <= fecha_db:
+                print(f"ℹ️ Detección temprana: No hay sorteo nuevo para Bonoloto.")
+                print(f"   BD: {fecha_db} vs Fuente: {fecha_fuente}")
+                try:
+                    f_dt = datetime.strptime(fecha_db, "%Y-%m-%d").date()
+                except Exception:
+                    f_dt = fecha_db
+                prox_fecha = f_dt + timedelta(days=1)
+                c_num = ultimo_db.get("concurso")
+                prox_c = (c_num + 1) if c_num else None
+                return {
+                    "hubo_sorteo": False,
+                    "ultimo_sorteo": f"{fecha_db} (#{c_num})" if c_num else f"{fecha_db}",
+                    "proximo_esperado": f"{prox_fecha.strftime('%d/%m/%Y')} (#{prox_c})" if prox_c else f"{prox_fecha.strftime('%d/%m/%Y')}"
+                }
+
+        # 2. Obtener datos (reutilizar ultimo_fuente si ya se obtuvo)
         resultados = []
-        recent_draws, jackpot_str, next_draw_date, concurso_reciente = self.scrape_recent_draws()
+        if ultimo_fuente and "raw_draws" in ultimo_fuente:
+            recent_draws = ultimo_fuente["raw_draws"]
+            jackpot_str = ultimo_fuente.get("jackpot_str")
+            next_draw_date = ultimo_fuente.get("next_draw_date")
+            concurso_reciente = ultimo_fuente.get("concurso")
+        else:
+            recent_draws, jackpot_str, next_draw_date, concurso_reciente = self.scrape_recent_draws()
         resultados.extend(recent_draws)
 
         existing_df = pd.DataFrame()
@@ -313,13 +390,13 @@ class BonolotoScraper:
 
         if not dfs_to_combine:
             print("❌ No se obtuvieron resultados de Bonoloto.")
-            return
+            return False
 
         df_combined = pd.concat(dfs_to_combine, ignore_index=True)
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce').dt.date
         df_combined = df_combined.dropna(subset=['fecha'])
         df_combined = df_combined[df_combined['balota1'] > 0]
-        
+
         hoy_max = (datetime.now() + timedelta(days=1)).date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
         df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by='fecha', ascending=False).reset_index(drop=True)
@@ -332,28 +409,39 @@ class BonolotoScraper:
             if not c_vals.empty:
                 prox_concurso = int(c_vals.max()) + 1
 
+        fecha_max_hist = df_final['fecha'].max()
         try:
             if next_draw_date:
                 cur_date = datetime.strptime(next_draw_date, "%Y-%m-%d").date()
             else:
-                fecha_max_hist = df_final['fecha'].max()
                 cur_date = fecha_max_hist + timedelta(days=1)
 
-            if df_final['fecha'].max() < cur_date:
-                df_prox = pd.DataFrame([{
-                    'concurso': prox_concurso,
-                    'loteria_id': self.loteria_id,
-                    'sorteo': self.game_name,
-                    'fecha': cur_date,
-                    'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
-                    'balotaroja': 0, 'balotaroja2': 0
-                }])
-                df_final = pd.concat([df_prox, df_final], ignore_index=True)
-                print(f"📅 Fecha del próximo sorteo agregada para Bonoloto: {cur_date.strftime('%Y-%m-%d')}")
+            df_prox = pd.DataFrame([{
+                'concurso': prox_concurso,
+                'loteria_id': self.loteria_id,
+                'sorteo': self.game_name,
+                'fecha': cur_date,
+                'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
+                'balotaroja': 0, 'balotaroja2': 0
+            }])
+            print(f"📅 Fecha del próximo sorteo agregada para Bonoloto: {cur_date.strftime('%Y-%m-%d')}")
         except Exception as e:
             print(f"⚠️ Error calculando fecha de próximo sorteo Bonoloto: {e}")
+            cur_date = fecha_max_hist + timedelta(days=1)
+            df_prox = pd.DataFrame([{
+                'concurso': prox_concurso,
+                'loteria_id': self.loteria_id,
+                'sorteo': self.game_name,
+                'fecha': cur_date,
+                'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
+                'balotaroja': 0, 'balotaroja2': 0
+            }])
 
-        df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by='fecha', ascending=False).reset_index(drop=True)
+        if backfill:
+            df_to_save = pd.concat([df_prox, df_final], ignore_index=True)
+        else:
+            df_to_save = pd.concat([df_prox, df_new], ignore_index=True)
+            df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
 
         # Guardar en Base de Datos vía UPSERT seguro
         with self.engine.begin() as conn:
@@ -377,6 +465,13 @@ class BonolotoScraper:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_bonoloto_fecha_sorteo ON resultados_bonoloto (fecha, sorteo);
             """))
+
+        # Eliminar posibles placeholders obsoletos anteriores a cur_date
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                DELETE FROM resultados_bonoloto
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": cur_date})
 
         insert_sql = """
             INSERT INTO resultados_bonoloto (
@@ -414,7 +509,7 @@ class BonolotoScraper:
                 int(r['balotaroja']),
                 int(r['balotaroja2'])
             )
-            for r in df_final.to_dict(orient='records')
+            for r in df_to_save.to_dict(orient='records')
         ]
 
         raw_conn = self.engine.raw_connection()
@@ -431,12 +526,17 @@ class BonolotoScraper:
         finally:
             raw_conn.close()
 
-        print(f"✅ Resultados de Bonoloto guardados exitosamente! Total filas: {len(df_final)}")
-        
+        print(f"✅ Resultados de Bonoloto guardados exitosamente! Total filas procesadas: {len(df_to_save)}")
+
         if jackpot_str:
             target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
             self.update_jackpot(self.engine, "bonoloto", jackpot_str, target_fecha)
-        return True
+
+        return {
+            "hubo_sorteo": True,
+            "ultimo_sorteo": f"{fecha_max_hist.strftime('%d/%m/%Y')}",
+            "proximo_esperado": f"{cur_date.strftime('%d/%m/%Y')} (#{prox_concurso})" if prox_concurso else f"{cur_date.strftime('%d/%m/%Y')}"
+        }
 
 if __name__ == "__main__":
     BonolotoScraper().run(backfill=False)

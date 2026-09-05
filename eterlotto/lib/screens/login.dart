@@ -4,7 +4,6 @@ import 'package:eterlotto/screens/welcome.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:eterlotto/l10n/generated/app_localizations.dart';

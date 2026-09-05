@@ -1269,23 +1269,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 5. 📈 Rendimiento últimos 10 sorteos (Gráfica Comparativa)
-                  if (_historialCoberturasPorSorteo.isNotEmpty) ...[
-                    RendimientoGraficaCard(
-                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // 6. 📊 Resumen del rendimiento (Tarjeta compacta)
-                  if (_historialCoberturasPorSorteo.isNotEmpty) ...[
-                    ResumenRendimientoCard(
-                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
-                    ),
-                    const SizedBox(height: 14),
-                  ],
-
-                  // 7. Insights IA
+                  // 5. Insights IA
                   InsightIaCard(
                     insightIAText: insightText,
                     selectedLoteria: _selectedLoteria,
@@ -1299,6 +1283,22 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     predictionBalotaroja: _predictionBalotaroja,
                   ),
                   const SizedBox(height: 14),
+
+                  // 6. 📈 Rendimiento últimos 10 sorteos (Gráfica Comparativa)
+                  if (_historialCoberturasPorSorteo.isNotEmpty) ...[
+                    RendimientoGraficaCard(
+                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  // 7. 📊 Resumen del rendimiento (Tarjeta compacta)
+                  if (_historialCoberturasPorSorteo.isNotEmpty) ...[
+                    ResumenRendimientoCard(
+                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
+                    ),
+                    const SizedBox(height: 14),
+                  ],
 
                   // 8. Gráficas (Distribución de aciertos y rachas del usuario)
                   EstadisticasCards(

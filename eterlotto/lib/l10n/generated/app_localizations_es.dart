@@ -1215,7 +1215,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get suscribirmeAhora => 'Suscribirme Ahora';
 
   @override
-  String get restaurarCompras => 'Restaurar compras';
+  String get restaurarCompras => 'Restaurar suscripción';
 
   @override
   String get terminosSuscripcionGooglePlay =>
