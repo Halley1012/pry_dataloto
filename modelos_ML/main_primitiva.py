@@ -43,14 +43,33 @@ def main():
     if task in ["scrap", "all"]:
         try:
             scraper_inst = PrimitivaScraper()
-            hubo_sorteo = scraper_inst.run(backfill=backfill)
+            res_scrap = scraper_inst.run(backfill=backfill)
+
+            hubo_sorteo = True
+            ultimo_sorteo = None
+            proximo_esperado = None
+
+            if isinstance(res_scrap, dict):
+                hubo_sorteo = res_scrap.get("hubo_sorteo", True)
+                ultimo_sorteo = res_scrap.get("ultimo_sorteo")
+                proximo_esperado = res_scrap.get("proximo_esperado")
+            elif isinstance(res_scrap, tuple):
+                hubo_sorteo = res_scrap[0]
+                if len(res_scrap) > 1:
+                    ultimo_sorteo = res_scrap[1]
+                if len(res_scrap) > 2:
+                    proximo_esperado = res_scrap[2]
+            elif res_scrap is False:
+                hubo_sorteo = False
+
             if hubo_sorteo is False:
-                print("No se encontraron sorteos nuevos. Terminando DAG exitosamente.")
-                try:
-                    from airflow.exceptions import AirflowSkipException
-                    raise AirflowSkipException("No se encontraron sorteos nuevos.")
-                except ImportError:
-                    return
+                print("\nℹ️ No hay sorteo nuevo para procesar.")
+                if ultimo_sorteo:
+                    print(f"📅 Último sorteo: {ultimo_sorteo}")
+                if proximo_esperado:
+                    print(f"🎯 Próximo esperado: {proximo_esperado}")
+                print("✅ Ejecución correcta.\n")
+                return
 
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para La Primitiva: {e}")
