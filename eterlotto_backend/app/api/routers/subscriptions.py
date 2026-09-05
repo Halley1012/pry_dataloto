@@ -123,8 +123,6 @@ async def receive_rtdn(
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=400, detail="Invalid Pub/Sub message data") from exc
 
-        logging.info("RTDN received")
-
         subscription_notification = notification.get("subscriptionNotification")
         if not subscription_notification:
             return {

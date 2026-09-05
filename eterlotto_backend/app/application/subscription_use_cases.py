@@ -66,8 +66,7 @@ class SubscriptionUseCases:
         logger = logging.getLogger(__name__)
 
         logger.info(
-            "RTDN RECEIVED | purchase_token=%s | product_id=%s | notification_type=%s",
-            purchase_token,
+            "RTDN_RECEIVED | product_id=%s | notification_type=%s",
             product_id,
             notification_type,
         )
