@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:eterlotto/screens/update_screen.dart';
+import 'package:in_app_update/in_app_update.dart';
 
 import '../utils/secure_storage_helper.dart';
 
@@ -47,27 +48,31 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       final splashDelay = Future.delayed(const Duration(milliseconds: 1500));
 
-      // 🛑 1. CHECK DE VERSIÓN OBLIGATORIA
-      final appConfig = await ApiService.getAppConfig();
-      if (appConfig != null && appConfig['success'] == true) {
-        final minBuildNumber = appConfig['min_build_number'] as int? ?? 0;
-        final packageInfo = await PackageInfo.fromPlatform();
-        final currentBuildNumber = int.tryParse(packageInfo.buildNumber) ?? 0;
-
-        if (currentBuildNumber < minBuildNumber) {
-          debugPrint('⚠️ VERSIÓN OBSOLETA: $currentBuildNumber. Se requiere $minBuildNumber');
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => UpdateScreen(
-                androidUrl: appConfig['store_url_android'],
-                iosUrl: appConfig['store_url_ios'],
-              ),
-            ),
-          );
-          return; // Detenemos todo, no hace login ni va al Home
+      // 🛑 1. CHECK DE VERSIÓN VÍA GOOGLE PLAY (In-App Updates)
+      try {
+        if (Theme.of(context).platform == TargetPlatform.android) {
+          final info = await InAppUpdate.checkForUpdate();
+          
+          if (info.updateAvailability == UpdateAvailability.updateAvailable) {
+            
+            // Prioridad 4 o 5 (crítico) Y Play Store permite inmediato
+            if (info.updatePriority >= 4 && info.immediateUpdateAllowed) {
+              await InAppUpdate.performImmediateUpdate();
+              
+            } else if (info.flexibleUpdateAllowed) {
+              // Actualización normal/flexible
+              InAppUpdate.installUpdateListener.listen((state) async {
+                if (state == InstallStatus.downloaded) {
+                  await InAppUpdate.completeFlexibleUpdate();
+                }
+              });
+              
+              await InAppUpdate.startFlexibleUpdate();
+            }
+          }
         }
+      } catch (e) {
+        debugPrint("Error in InAppUpdate: $e");
       }
 
       final accessToken = await storage.read(key: "auth_token").timeout(

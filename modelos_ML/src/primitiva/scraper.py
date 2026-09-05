@@ -67,6 +67,48 @@ class PrimitivaScraper:
         except Exception as e:
             print(f"❌ Error actualizando jackpot para {loteria} en BD: {e}")
 
+    def obtener_ultimo_sorteo_db(self) -> dict:
+        """Obtiene el último sorteo REAL registrado en la BD (balota1 > 0)."""
+        try:
+            with self.engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT concurso, fecha, sorteo
+                    FROM resultados_primitiva
+                    WHERE balota1 > 0
+                    ORDER BY fecha DESC
+                    LIMIT 1;
+                """)).fetchone()
+                if row:
+                    return {
+                        "concurso": int(row[0]) if row[0] is not None else None,
+                        "fecha": row[1].strftime("%Y-%m-%d") if hasattr(row[1], 'strftime') else str(row[1]),
+                        "sorteo": str(row[2])
+                    }
+        except Exception as e:
+            print(f"⚠️ Error consultando último sorteo en BD: {e}")
+        return None
+
+    def extraer_ultimo_sorteo_fuente(self) -> dict:
+        """Extrae el último sorteo REAL publicado en la página principal."""
+        try:
+            draws, jackpot_str, next_draw_date, concurso_reciente = self.scrape_recent_draws()
+            if draws:
+                d = draws[0]
+                return {
+                    "concurso": d.get("concurso"),
+                    "fecha": d.get("fecha"),
+                    "sorteo": d.get("sorteo"),
+                    "balotas": [d["balota1"], d["balota2"], d["balota3"], d["balota4"], d["balota5"], d["balota6"]],
+                    "complementario": d.get("balotaroja"),
+                    "reintegro": d.get("balotaroja2"),
+                    "jackpot_str": jackpot_str,
+                    "next_draw_date": next_draw_date,
+                    "raw_draws": draws
+                }
+        except Exception as e:
+            print(f"⚠️ Error extrayendo último sorteo de la fuente La Primitiva: {e}")
+        return None
+
     def scrape_recent_draws(self):
         """Extrae el sorteo más reciente y el bote desde la página principal de La Primitiva."""
         print(f"➡️ Solicitando resultados recientes desde {self.base_url}...")
@@ -79,43 +121,38 @@ class PrimitivaScraper:
             except Exception as e:
                 if intento == 2:
                     print(f"❌ Error conectando a {self.base_url}: {e}")
-                    return [], None, None
+                    return [], None, None, None
                 time.sleep(2)
 
         if not response or response.status_code != 200:
-            return [], None, None
+            return [], None, None, None
 
         soup = BeautifulSoup(response.text, "html.parser")
         jackpot_str = None
         next_draw_date = None
 
-        # 1. Extraer bote/jackpot
-        txtpub_list = soup.find_all("div", class_="txtpubli")
+        # 1. Extraer bote/jackpot y próxima fecha de sorteo
+        txtpub_list = soup.find_all(class_=lambda c: c and ("txtpub" in c or "txtpubli" in c))
         for txtpub in txtpub_list:
             p_text = txtpub.get_text(" ", strip=True)
-            if "bote" in p_text.lower():
-                h3 = txtpub.find("h3")
-                if h3:
-                    raw_h3 = h3.get_text(strip=True)
-                    m_num = re.search(r'([0-9\.,]+(?:\s*millon(?:es)?)?)\s*€?', raw_h3, re.IGNORECASE)
-                    if m_num:
-                        val = m_num.group(1).strip()
-                        num_clean = re.sub(r'[^\d]', '', val)
-                        if num_clean and int(num_clean) >= 500000:
-                            jackpot_str = f"{val} €"
+            if "primitiva" in p_text.lower() or "bote" in p_text.lower():
+                m_num = re.search(r'([0-9\.,]+(?:\s*millon(?:es)?)?)\s*€?', p_text, re.IGNORECASE)
+                if m_num:
+                    val = m_num.group(1).strip()
+                    num_clean = re.sub(r'[^\d]', '', val)
+                    if num_clean and int(num_clean) >= 500000:
+                        jackpot_str = f"{val} €"
 
-                            p = txtpub.find("p")
-                            if p:
-                                p_text = p.get_text(strip=True)
-                                m_next = re.search(r'(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?', p_text)
-                                if m_next:
-                                    d_day = m_next.group(1)
-                                    d_mon = m_next.group(2).lower().strip()
-                                    d_yr = m_next.group(3) or str(datetime.now().year)
-                                    mon_num = self.meses.get(d_mon)
-                                    if mon_num:
-                                        next_draw_date = f"{d_yr}-{mon_num}-{d_day.zfill(2)}"
-                            break
+                m_next = re.search(r'(\d{1,2})\s+de\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)(?:\s+de\s+(\d{4}))?', p_text)
+                if m_next:
+                    d_day = m_next.group(1)
+                    d_mon = m_next.group(2).lower().strip()
+                    d_yr = m_next.group(3) or str(datetime.now().year)
+                    mon_num = self.meses.get(d_mon)
+                    if mon_num:
+                        next_draw_date = f"{d_yr}-{mon_num}-{d_day.zfill(2)}"
+                if jackpot_str:
+                    break
 
         if not jackpot_str:
             jackpot_str = "5.000.000 €"
@@ -145,17 +182,23 @@ class PrimitivaScraper:
                             nums_divs = combi_div.find_all("div", class_="num")
                             num_vals = [int(nd.get_text(strip=True)) for nd in nums_divs if nd.get_text(strip=True).isdigit()]
                             if len(num_vals) >= 8:
-                                # 6 regulares, 1 complementario, 1 reintegro
-                                draws.append([
-                                    concurso_reciente,
-                                    self.game_name,
-                                    fecha_str,
-                                    num_vals[0], num_vals[1], num_vals[2], num_vals[3], num_vals[4], num_vals[5],
-                                    num_vals[6], # Complementario
-                                    num_vals[7]  # Reintegro
-                                ])
+                                # 6 regulares, 1 complementario, 1 reintegro (conservando orden exacto de extracción)
+                                draws.append({
+                                    "concurso": concurso_reciente,
+                                    "loteria_id": self.loteria_id,
+                                    "sorteo": self.game_name,
+                                    "fecha": fecha_str,
+                                    "balota1": num_vals[0],
+                                    "balota2": num_vals[1],
+                                    "balota3": num_vals[2],
+                                    "balota4": num_vals[3],
+                                    "balota5": num_vals[4],
+                                    "balota6": num_vals[5],
+                                    "balotaroja": num_vals[6], # Complementario
+                                    "balotaroja2": num_vals[7] # Reintegro
+                                })
 
-        return draws, jackpot_str, next_draw_date
+        return draws, jackpot_str, next_draw_date, concurso_reciente
 
     def scrape_historical_years(self):
         """Extrae el histórico completo de sorteos de La Primitiva clasificados por año."""
@@ -242,15 +285,25 @@ class PrimitivaScraper:
                         comp = int(comp_col[0]) if comp_col and comp_col[0].isdigit() else 0
                         rein = int(rein_col[0]) if rein_col and rein_col[0].isdigit() else 0
 
+                        # Corrección de errata histórica en la tabla web oficial para 2019-06-20
+                        if fecha_str == "2019-06-20" and rein == 20:
+                            rein = 2
+
                         if len(nums) == 6:
-                            all_draws.append([
-                                concurso_val,
-                                self.game_name,
-                                fecha_str,
-                                nums[0], nums[1], nums[2], nums[3], nums[4], nums[5],
-                                comp,
-                                rein
-                            ])
+                            all_draws.append({
+                                "concurso": concurso_val,
+                                "loteria_id": self.loteria_id,
+                                "sorteo": self.game_name,
+                                "fecha": fecha_str,
+                                "balota1": nums[0],
+                                "balota2": nums[1],
+                                "balota3": nums[2],
+                                "balota4": nums[3],
+                                "balota5": nums[4],
+                                "balota6": nums[5],
+                                "balotaroja": comp,
+                                "balotaroja2": rein
+                            })
                     except ValueError:
                         continue
                 time.sleep(0.2)
@@ -262,20 +315,64 @@ class PrimitivaScraper:
 
     def run(self, backfill=False):
         print("🚀 Iniciando Scraping de La Primitiva (España)...")
-        
+
+        # 1. Detección temprana: comparar último sorteo real en BD vs fuente
+        ultimo_db = self.obtener_ultimo_sorteo_db()
+        ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not backfill and ultimo_db and ultimo_fuente:
+            fecha_db = str(ultimo_db.get("fecha"))
+            fecha_fuente = str(ultimo_fuente.get("fecha"))
+
+            if fecha_fuente and fecha_db and fecha_fuente <= fecha_db:
+                print(f"ℹ️ Detección temprana: No hay sorteo nuevo para La Primitiva.")
+                print(f"   BD: {fecha_db} vs Fuente: {fecha_fuente}")
+
+                next_draw_date = ultimo_fuente.get("next_draw_date")
+                if next_draw_date:
+                    cur_date = datetime.strptime(next_draw_date, "%Y-%m-%d").date()
+                else:
+                    try:
+                        f_dt = datetime.strptime(fecha_db, "%Y-%m-%d").date()
+                    except Exception:
+                        f_dt = fecha_db
+                    cur_date = f_dt + timedelta(days=1)
+                    while cur_date.weekday() not in self.draw_days:
+                        cur_date += timedelta(days=1)
+
+                c_num = ultimo_db.get("concurso")
+                prox_c = (c_num + 1) if c_num else None
+
+                jackpot_str = ultimo_fuente.get("jackpot_str")
+                if jackpot_str:
+                    target_fecha = cur_date.strftime('%Y-%m-%d')
+                    self.update_jackpot(self.engine, "primitiva", jackpot_str, target_fecha)
+
+                return {
+                    "hubo_sorteo": False,
+                    "ultimo_sorteo": f"{fecha_db} (#{c_num})" if c_num else f"{fecha_db}",
+                    "proximo_esperado": f"{cur_date.strftime('%d/%m/%Y')} (#{prox_c})" if prox_c else f"{cur_date.strftime('%d/%m/%Y')}"
+                }
+
+        # 2. Obtener datos
         resultados = []
-        recent_draws, jackpot_str, next_draw_date = self.scrape_recent_draws()
+        if ultimo_fuente and "raw_draws" in ultimo_fuente:
+            recent_draws = ultimo_fuente["raw_draws"]
+            jackpot_str = ultimo_fuente.get("jackpot_str")
+            next_draw_date = ultimo_fuente.get("next_draw_date")
+            concurso_reciente = ultimo_fuente.get("concurso")
+        else:
+            recent_draws, jackpot_str, next_draw_date, concurso_reciente = self.scrape_recent_draws()
         resultados.extend(recent_draws)
 
-        engine = self.engine
         existing_df = pd.DataFrame()
-        
         try:
-            with engine.connect() as conn:
-                res = conn.execute(text("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'resultados_primitiva';")).scalar()
-                if res > 0:
-                    existing_df = pd.read_sql("SELECT * FROM resultados_primitiva WHERE balota1 > 0;", conn)
-                    print(f"📦 Registros históricos existentes en BD: {len(existing_df)}")
+            with self.engine.connect() as conn:
+                existing_df = pd.read_sql(
+                    "SELECT concurso, loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balota6, balotaroja, balotaroja2 FROM resultados_primitiva WHERE balota1 > 0;",
+                    conn
+                )
+                print(f"📦 Registros históricos existentes en BD: {len(existing_df)}")
         except Exception as e:
             print(f"ℹ️ No se pudieron cargar registros previos ({e}).")
 
@@ -285,57 +382,72 @@ class PrimitivaScraper:
             hist_draws = self.scrape_historical_years()
             resultados.extend(hist_draws)
 
-        columns = ["concurso", "sorteo", "fecha", "balota1", "balota2", "balota3", "balota4", "balota5", "balota6", "balotaroja", "balotaroja2"]
-        df_new = pd.DataFrame(resultados, columns=columns) if resultados else pd.DataFrame(columns=columns)
+        df_new = pd.DataFrame(resultados) if resultados else pd.DataFrame()
 
+        dfs_to_combine = []
+        if not df_new.empty:
+            dfs_to_combine.append(df_new)
         if not existing_df.empty:
-            df_combined = pd.concat([df_new, existing_df], ignore_index=True)
-        else:
-            df_combined = df_new
+            dfs_to_combine.append(existing_df)
 
-        if df_combined.empty:
+        if not dfs_to_combine:
             print("❌ No se obtuvieron resultados de La Primitiva.")
-            return
+            return False
 
-        df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce')
+        df_combined = pd.concat(dfs_to_combine, ignore_index=True)
+        df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce').dt.date
         df_combined = df_combined.dropna(subset=['fecha'])
         df_combined = df_combined[df_combined['balota1'] > 0]
-        hoy_max = pd.to_datetime('now') + timedelta(days=1)
+
+        hoy_max = (datetime.now() + timedelta(days=1)).date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by='fecha', ascending=False).reset_index(drop=True)
         df_final = df_combined
 
-        # --- Agregar fila del próximo sorteo en cero ---
-        prox_concurso = None
-        if 'concurso' in df_final.columns:
-            valid_c = df_final['concurso'].dropna()
-            if not valid_c.empty:
-                prox_concurso = int(valid_c.max()) + 1
+        # Determinar próximo sorteo y próximo concurso
+        prox_concurso = (concurso_reciente + 1) if concurso_reciente else None
+        if not prox_concurso and not df_final.empty:
+            c_vals = df_final[df_final['concurso'].notna()]['concurso']
+            if not c_vals.empty:
+                prox_concurso = int(c_vals.max()) + 1
 
+        fecha_max_hist = df_final['fecha'].max()
         try:
             if next_draw_date:
-                cur_date = pd.to_datetime(next_draw_date)
+                cur_date = datetime.strptime(next_draw_date, "%Y-%m-%d").date()
             else:
-                fecha_max_hist = df_final['fecha'].max()
                 cur_date = fecha_max_hist + timedelta(days=1)
                 while cur_date.weekday() not in self.draw_days:
                     cur_date += timedelta(days=1)
 
-            if df_final['fecha'].max() < cur_date:
-                df_prox = pd.DataFrame([{
-                    'concurso': prox_concurso,
-                    'loteria_id': self.loteria_id,
-                    'sorteo': self.game_name,
-                    'fecha': cur_date,
-                    'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
-                    'balotaroja': 0, 'balotaroja2': 0
-                }])
-                df_final = pd.concat([df_prox, df_final], ignore_index=True)
-                print(f"📅 Fecha del próximo sorteo agregada para La Primitiva: {cur_date.strftime('%Y-%m-%d')}")
+            df_prox = pd.DataFrame([{
+                'concurso': prox_concurso,
+                'loteria_id': self.loteria_id,
+                'sorteo': self.game_name,
+                'fecha': cur_date,
+                'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
+                'balotaroja': 0, 'balotaroja2': 0
+            }])
+            print(f"📅 Fecha del próximo sorteo agregada para La Primitiva: {cur_date.strftime('%Y-%m-%d')}")
         except Exception as e:
             print(f"⚠️ Error calculando fecha de próximo sorteo La Primitiva: {e}")
+            cur_date = fecha_max_hist + timedelta(days=1)
+            while cur_date.weekday() not in self.draw_days:
+                cur_date += timedelta(days=1)
+            df_prox = pd.DataFrame([{
+                'concurso': prox_concurso,
+                'loteria_id': self.loteria_id,
+                'sorteo': self.game_name,
+                'fecha': cur_date,
+                'balota1': 0, 'balota2': 0, 'balota3': 0, 'balota4': 0, 'balota5': 0, 'balota6': 0,
+                'balotaroja': 0, 'balotaroja2': 0
+            }])
 
-        df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by='fecha', ascending=False).reset_index(drop=True)
+        if backfill:
+            df_to_save = pd.concat([df_prox, df_final], ignore_index=True)
+        else:
+            df_to_save = pd.concat([df_prox, df_new], ignore_index=True)
+            df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
 
         # Guardar en Base de Datos vía UPSERT seguro
         with self.engine.begin() as conn:
@@ -360,6 +472,13 @@ class PrimitivaScraper:
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_primitiva_fecha_sorteo ON resultados_primitiva (fecha, sorteo);
             """))
 
+        # Eliminar posibles placeholders obsoletos anteriores a cur_date
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                DELETE FROM resultados_primitiva
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": cur_date})
+
         insert_sql = """
             INSERT INTO resultados_primitiva (
                 concurso, loteria_id, sorteo, fecha,
@@ -381,39 +500,49 @@ class PrimitivaScraper:
                 updated_at = CURRENT_TIMESTAMP;
         """
 
-        records = []
-        for _, row in df_final.iterrows():
-            c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
-            f_val = row['fecha'].date() if hasattr(row['fecha'], 'date') else row['fecha']
-            records.append((
-                c_val,
-                self.loteria_id,
-                str(row['sorteo']),
-                f_val,
-                int(row['balota1']),
-                int(row['balota2']),
-                int(row['balota3']),
-                int(row['balota4']),
-                int(row['balota5']),
-                int(row['balota6']),
-                int(row.get('balotaroja', 0)),
-                int(row.get('balotaroja2', 0)),
-                datetime.now(),
-                datetime.now()
-            ))
+        data_tuples = [
+            (
+                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
+                int(self.loteria_id),
+                str(r['sorteo']),
+                str(r['fecha']),
+                int(r['balota1']),
+                int(r['balota2']),
+                int(r['balota3']),
+                int(r['balota4']),
+                int(r['balota5']),
+                int(r['balota6']),
+                int(r['balotaroja']),
+                int(r['balotaroja2'])
+            )
+            for r in df_to_save.to_dict(orient='records')
+        ]
 
         raw_conn = self.engine.raw_connection()
         try:
-            with raw_conn.cursor() as cur:
-                execute_values(cur, insert_sql, records, page_size=1000)
-            raw_conn.commit()
-            print(f"✅ Resultados de La Primitiva guardados exitosamente! Total filas: {len(records)}")
+            chunk_size = 500
+            for i in range(0, len(data_tuples), chunk_size):
+                chunk = data_tuples[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(
+                        cur, insert_sql, chunk,
+                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                    )
+                raw_conn.commit()
         finally:
             raw_conn.close()
 
+        print(f"✅ Resultados de La Primitiva guardados exitosamente! Total filas procesadas: {len(df_to_save)}")
+
         if jackpot_str:
-            target_fecha = next_draw_date if next_draw_date else datetime.now().strftime('%Y-%m-%d')
+            target_fecha = next_draw_date if next_draw_date else cur_date.strftime('%Y-%m-%d')
             self.update_jackpot(self.engine, "primitiva", jackpot_str, target_fecha)
+
+        return {
+            "hubo_sorteo": True,
+            "ultimo_sorteo": f"{fecha_max_hist.strftime('%d/%m/%Y')}" if hasattr(fecha_max_hist, 'strftime') else str(fecha_max_hist),
+            "proximo_esperado": f"{cur_date.strftime('%d/%m/%Y')} (#{prox_concurso})" if prox_concurso else f"{cur_date.strftime('%d/%m/%Y')}"
+        }
 
 if __name__ == "__main__":
     PrimitivaScraper().run(backfill=False)

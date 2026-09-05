@@ -41,6 +41,45 @@ class EuroDreamsScraper:
             candidate += timedelta(days=1)
         return candidate
 
+    def obtener_ultimo_sorteo_db(self) -> dict:
+        """Obtiene el último sorteo REAL registrado en la BD (balota1 > 0)."""
+        try:
+            with self.engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT concurso, fecha, sorteo
+                    FROM resultados_eurodreams
+                    WHERE balota1 > 0
+                    ORDER BY fecha DESC
+                    LIMIT 1;
+                """)).fetchone()
+                if row:
+                    return {
+                        "concurso": int(row[0]) if row[0] is not None else None,
+                        "fecha": row[1].strftime("%Y-%m-%d") if hasattr(row[1], 'strftime') else str(row[1]),
+                        "sorteo": str(row[2])
+                    }
+        except Exception as e:
+            print(f"⚠️ Error consultando último sorteo en BD: {e}")
+        return None
+
+    def extraer_ultimo_sorteo_fuente(self) -> dict:
+        """Extrae el último sorteo REAL publicado en la fuente."""
+        try:
+            df_rec = self.extraer_recientes()
+            if not df_rec.empty:
+                d = df_rec.iloc[0]
+                return {
+                    "concurso": None,
+                    "fecha": str(d.get("fecha")),
+                    "sorteo": str(d.get("sorteo", "EuroDreams")),
+                    "balotas": [int(d["balota1"]), int(d["balota2"]), int(d["balota3"]), int(d["balota4"]), int(d["balota5"]), int(d["balota6"])],
+                    "sueno": int(d.get("balotaroja")),
+                    "df_rec": df_rec
+                }
+        except Exception as e:
+            print(f"⚠️ Error extrayendo último sorteo de la fuente EuroDreams: {e}")
+        return None
+
     def extraer_recientes(self) -> pd.DataFrame:
         """Extrae los últimos resultados disponibles desde combinacionganadora."""
         print(f"➡️ Solicitando resultados recientes de EuroDreams desde {self.url_recientes}...")
@@ -199,7 +238,35 @@ class EuroDreamsScraper:
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de EuroDreams...")
 
-        # 1. Leer registros existentes
+        # 1. Detección temprana: comparar último sorteo real en BD vs fuente
+        ultimo_db = self.obtener_ultimo_sorteo_db()
+        ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not backfill and ultimo_db and ultimo_fuente:
+            fecha_db = str(ultimo_db.get("fecha"))
+            fecha_fuente = str(ultimo_fuente.get("fecha"))
+
+            if fecha_fuente and fecha_db and fecha_fuente <= fecha_db:
+                print(f"ℹ️ Detección temprana: No hay sorteo nuevo para EuroDreams.")
+                print(f"   BD: {fecha_db} vs Fuente: {fecha_fuente}")
+
+                try:
+                    f_dt = datetime.strptime(fecha_db, "%Y-%m-%d").date()
+                except Exception:
+                    f_dt = fecha_db
+                cur_date = self._calcular_proximo_sorteo(f_dt)
+                c_num = ultimo_db.get("concurso")
+                prox_c = (c_num + 1) if c_num else None
+
+                self.actualizar_jackpot(cur_date.strftime("%Y-%m-%d"))
+
+                return {
+                    "hubo_sorteo": False,
+                    "ultimo_sorteo": f"{fecha_db} (#{c_num})" if c_num else f"{fecha_db}",
+                    "proximo_esperado": f"{cur_date.strftime('%d/%m/%Y')} (#{prox_c})" if prox_c else f"{cur_date.strftime('%d/%m/%Y')}"
+                }
+
+        # 2. Leer registros existentes
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
@@ -210,17 +277,20 @@ class EuroDreamsScraper:
         except Exception as e:
             print(f"ℹ️ No se pudieron cargar registros previos ({e}).")
 
-        # 2. Scrapear recientes o histórico
+        # 3. Scrapear recientes o histórico
         if backfill or len(df_existente) < 10:
             df_scraped = self.extraer_historico_completo()
         else:
-            df_scraped = self.extraer_recientes()
+            if ultimo_fuente and "df_rec" in ultimo_fuente:
+                df_scraped = ultimo_fuente["df_rec"]
+            else:
+                df_scraped = self.extraer_recientes()
 
         if df_scraped.empty and df_existente.empty:
             print("❌ No se pudieron obtener resultados de EuroDreams.")
-            return
+            return False
 
-        # 3. Combinar y limpiar
+        # 4. Combinar y limpiar
         if not df_existente.empty:
             df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
@@ -236,7 +306,7 @@ class EuroDreamsScraper:
         # Asignar concurso secuencial (desde fecha inaugural 2023-11-06)
         df_combined['concurso'] = range(1, len(df_combined) + 1)
 
-        # 4. Calcular próximo sorteo
+        # 5. Calcular próximo sorteo
         ultima_fecha_real = df_combined.iloc[-1]['fecha']
         proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
@@ -257,9 +327,14 @@ class EuroDreamsScraper:
             "balota6": 0,
             "balotaroja": 0
         }
-        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined.sort_values('fecha', ascending=False)], ignore_index=True)
 
-        # 5. Guardar en Base de Datos vía UPSERT seguro
+        if backfill:
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_combined.sort_values('fecha', ascending=False)], ignore_index=True)
+        else:
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_scraped], ignore_index=True)
+            df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
+
+        # 6. Guardar en Base de Datos vía UPSERT seguro
         with self.engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS resultados_eurodreams (
@@ -280,6 +355,13 @@ class EuroDreamsScraper:
                 );
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_eurodreams_fecha_sorteo ON resultados_eurodreams (fecha, sorteo);
             """))
+
+        # Eliminar posibles placeholders obsoletos anteriores a proxima_fecha
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                DELETE FROM resultados_eurodreams
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": proxima_fecha})
 
         insert_sql = """
             INSERT INTO resultados_eurodreams (
@@ -302,9 +384,9 @@ class EuroDreamsScraper:
         """
 
         records = []
-        for _, row in df_final.iterrows():
+        for _, row in df_to_save.iterrows():
             c_val = int(row['concurso']) if pd.notnull(row.get('concurso')) and row.get('concurso') is not None else None
-            f_val = row['fecha'] if isinstance(row['fecha'], date) else row['fecha'].date()
+            f_val = row['fecha'] if isinstance(row['fecha'], date) else pd.to_datetime(row['fecha']).date()
             records.append((
                 c_val,
                 self.loteria_id,
@@ -323,14 +405,23 @@ class EuroDreamsScraper:
 
         raw_conn = self.engine.raw_connection()
         try:
-            with raw_conn.cursor() as cur:
-                execute_values(cur, insert_sql, records, page_size=1000)
-            raw_conn.commit()
+            chunk_size = 500
+            for i in range(0, len(records), chunk_size):
+                chunk = records[i:i + chunk_size]
+                with raw_conn.cursor() as cur:
+                    execute_values(cur, insert_sql, chunk, page_size=500)
+                raw_conn.commit()
             print(f"✅ Resultados de EuroDreams guardados exitosamente! Total filas: {len(records)}")
         finally:
             raw_conn.close()
 
         self.actualizar_jackpot(proxima_fecha_str)
+
+        return {
+            "hubo_sorteo": True,
+            "ultimo_sorteo": f"{ultima_fecha_real.strftime('%d/%m/%Y')}" if hasattr(ultima_fecha_real, 'strftime') else str(ultima_fecha_real),
+            "proximo_esperado": f"{proxima_fecha.strftime('%d/%m/%Y')} (#{prox_concurso})"
+        }
 
 if __name__ == "__main__":
     scraper = EuroDreamsScraper()
