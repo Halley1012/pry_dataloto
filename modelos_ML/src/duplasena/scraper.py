@@ -4,10 +4,10 @@ if hasattr(sys.stdout, 'reconfigure'):
 import re
 import requests
 import pandas as pd
-import concurrent.futures
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text, Integer, Date, String
+from sqlalchemy import text
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2.extras import execute_values
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
@@ -52,134 +52,184 @@ class DuplaSenaScraper:
             candidate += timedelta(days=1)
         return candidate
 
-    def extraer_ultimo_caixa(self) -> tuple[list[dict], str, int]:
-        """Obtiene el último sorteo (1º y 2º sorteo), premio y número de concurso desde la API de Caixa."""
-        print(f"➡️ Consultando último sorteo oficial de Dupla Sena en Caixa API...")
-        items = []
+    def obtener_ultimo_sorteo_db(self) -> dict:
+        """Obtiene el último sorteo real guardado en la base de datos (balota1 > 0)."""
         try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=10, verify=False)
+            with self.engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT concurso, fecha, balota1, balota2, balota3, balota4, balota5, balota6
+                    FROM resultados_duplasena
+                    WHERE balota1 > 0 AND sorteo = 'Dupla Sena'
+                    ORDER BY concurso DESC, fecha DESC
+                    LIMIT 1;
+                """)).fetchone()
+                if row:
+                    return {
+                        "concurso": row[0],
+                        "fecha": row[1],
+                        "balotas": [row[2], row[3], row[4], row[5], row[6], row[7]]
+                    }
+        except Exception as e:
+            print(f"⚠️ Error obteniendo último sorteo de BD: {e}")
+        return None
+
+    def extraer_ultimo_sorteo_fuente(self) -> dict:
+        """Obtiene la información del último sorteo disponible en la API oficial de Caixa."""
+        try:
+            r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
             if r.status_code == 200:
                 data = r.json()
-                concurso_actual = data.get("numero")
-                fecha_str = self._parse_fecha(data.get("dataApuracao"))
+                concurso = int(data.get("numero")) if data.get("numero") else None
+                fecha_raw = data.get("dataApuracao")
+                fecha_str = self._parse_fecha(fecha_raw)
+                
                 dezenas1 = data.get("listaDezenas", [])
                 dezenas2 = data.get("listaDezenasSegundoSorteio", [])
-                
-                # Premio acumulado
-                premio_val = data.get("valorEstimadoProximoConcurso") or 0.0
-                if premio_val > 0:
-                    premio_formateado = f"R$ {premio_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                dezenas_ordem = data.get("dezenasSorteadasOrdemSorteio", [])
+
+                # Priorizar orden natural de extracción
+                if len(dezenas_ordem) >= 12:
+                    balls1 = [int(x) for x in dezenas_ordem[:6]]
+                    balls2 = [int(x) for x in dezenas_ordem[6:12]]
                 else:
-                    premio_formateado = "R$ 2.000.000,00"
+                    balls1 = [int(x) for x in dezenas1[:6]]
+                    balls2 = [int(x) for x in dezenas2[:6]]
 
-                if fecha_str and len(dezenas1) == 6:
-                    balls1 = sorted([int(d) for d in dezenas1])
-                    items.append({
-                        "concurso": concurso_actual,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Dupla Sena",
-                        "fecha": fecha_str,
-                        "balota1": balls1[0],
-                        "balota2": balls1[1],
-                        "balota3": balls1[2],
-                        "balota4": balls1[3],
-                        "balota5": balls1[4],
-                        "balota6": balls1[5],
-                        "balotaroja": 0
-                    })
+                prox_raw = data.get("dataProximoConcurso")
+                prox_fecha = self._parse_fecha(prox_raw) if prox_raw else None
+                prox_concurso = int(data.get("numeroConcursoProximo")) if data.get("numeroConcursoProximo") else (concurso + 1 if concurso else None)
+                
+                jackpot_val = data.get("valorEstimadoProximoConcurso")
+                jackpot_str = "R$ 3.500.000,00"
+                if jackpot_val:
+                    try:
+                        jackpot_str = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                    except Exception:
+                        pass
 
-                if fecha_str and len(dezenas2) == 6:
-                    balls2 = sorted([int(d) for d in dezenas2])
-                    items.append({
-                        "concurso": concurso_actual,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Dupla Sena 2",
-                        "fecha": fecha_str,
-                        "balota1": balls2[0],
-                        "balota2": balls2[1],
-                        "balota3": balls2[2],
-                        "balota4": balls2[3],
-                        "balota5": balls2[4],
-                        "balota6": balls2[5],
-                        "balotaroja": 0
-                    })
-
-                return items, premio_formateado, concurso_actual
+                return {
+                    "concurso": concurso,
+                    "fecha": fecha_str,
+                    "balls1": balls1,
+                    "balls2": balls2,
+                    "proxima_fecha": prox_fecha,
+                    "proximo_concurso": prox_concurso,
+                    "jackpot": jackpot_str,
+                    "raw_data": data
+                }
         except Exception as e:
-            print(f"⚠️ Error al consultar Caixa API: {e}")
+            print(f"⚠️ Error consultando API Caixa para último sorteo de Dupla Sena: {e}")
+        return None
 
-        return items, "R$ 2.000.000,00", None
+    def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
+        """Extrae el sorteo más reciente desde la API oficial de Caixa preservando orden original."""
+        print(f"➡️ Solicitando resultados recientes de Dupla Sena...")
+        draws = []
+        jackpot_destacado = "R$ 3.500.000,00"
+        proxima_fecha_oficial = None
+
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info and fuente_info.get("balls1") and fuente_info.get("balls2"):
+            b1 = fuente_info["balls1"]
+            b2 = fuente_info["balls2"]
+            jackpot_destacado = fuente_info.get("jackpot", jackpot_destacado)
+            proxima_fecha_oficial = fuente_info.get("proxima_fecha")
+            c_num = fuente_info.get("concurso")
+            f_str = fuente_info.get("fecha")
+
+            draws.append({
+                "concurso": c_num,
+                "loteria_id": self.loteria_id,
+                "sorteo": "Dupla Sena",
+                "fecha": f_str,
+                "balota1": b1[0], "balota2": b1[1], "balota3": b1[2],
+                "balota4": b1[3], "balota5": b1[4], "balota6": b1[5],
+                "balotaroja": 0
+            })
+            draws.append({
+                "concurso": c_num,
+                "loteria_id": self.loteria_id,
+                "sorteo": "Dupla Sena 2",
+                "fecha": f_str,
+                "balota1": b2[0], "balota2": b2[1], "balota3": b2[2],
+                "balota4": b2[3], "balota5": b2[4], "balota6": b2[5],
+                "balotaroja": 0
+            })
+            print(f"✅ Último sorteo de Caixa obtenido: Concurso {c_num} ({f_str}) -> 1º {b1} | 2º {b2}")
+
+        df = pd.DataFrame(draws)
+        return df, jackpot_destacado, proxima_fecha_oficial
 
     def _descargar_concurso_caixa(self, num_concurso: int) -> list[dict]:
-        """Descarga un concurso específico (1º y 2º sorteo) desde la API de Caixa."""
+        """Descarga un concurso específico desde la API de Caixa preservando orden original."""
         url = f"{self.url_caixa}/{num_concurso}"
-        draws = []
-        try:
-            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
-            if r.status_code == 200:
-                d = r.json()
-                fecha_str = self._parse_fecha(d.get("dataApuracao"))
-                dezenas1 = d.get("listaDezenas", [])
-                dezenas2 = d.get("listaDezenasSegundoSorteio", [])
+        import time
+        for _ in range(3):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=5)
+                if r.status_code == 200:
+                    d = r.json()
+                    fecha_str = self._parse_fecha(d.get("dataApuracao"))
+                    dezenas1 = d.get("listaDezenas", [])
+                    dezenas2 = d.get("listaDezenasSegundoSorteio", [])
+                    dezenas_ordem = d.get("dezenasSorteadasOrdemSorteio", [])
 
-                if fecha_str and len(dezenas1) == 6:
-                    b1 = sorted([int(x) for x in dezenas1])
-                    draws.append({
-                        "concurso": num_concurso,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Dupla Sena",
-                        "fecha": fecha_str,
-                        "balota1": b1[0],
-                        "balota2": b1[1],
-                        "balota3": b1[2],
-                        "balota4": b1[3],
-                        "balota5": b1[4],
-                        "balota6": b1[5],
-                        "balotaroja": 0
-                    })
+                    if len(dezenas_ordem) >= 12:
+                        b1 = [int(x) for x in dezenas_ordem[:6]]
+                        b2 = [int(x) for x in dezenas_ordem[6:12]]
+                    else:
+                        b1 = [int(x) for x in dezenas1[:6]]
+                        b2 = [int(x) for x in dezenas2[:6]]
 
-                if fecha_str and len(dezenas2) == 6:
-                    b2 = sorted([int(x) for x in dezenas2])
-                    draws.append({
-                        "concurso": num_concurso,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Dupla Sena 2",
-                        "fecha": fecha_str,
-                        "balota1": b2[0],
-                        "balota2": b2[1],
-                        "balota3": b2[2],
-                        "balota4": b2[3],
-                        "balota5": b2[4],
-                        "balota6": b2[5],
-                        "balotaroja": 0
-                    })
-        except Exception:
-            pass
-        return draws
+                    res = []
+                    if fecha_str and len(b1) == 6:
+                        res.append({
+                            "concurso": num_concurso,
+                            "loteria_id": self.loteria_id,
+                            "sorteo": "Dupla Sena",
+                            "fecha": fecha_str,
+                            "balota1": b1[0], "balota2": b1[1], "balota3": b1[2],
+                            "balota4": b1[3], "balota5": b1[4], "balota6": b1[5],
+                            "balotaroja": 0
+                        })
+                    if fecha_str and len(b2) == 6:
+                        res.append({
+                            "concurso": num_concurso,
+                            "loteria_id": self.loteria_id,
+                            "sorteo": "Dupla Sena 2",
+                            "fecha": fecha_str,
+                            "balota1": b2[0], "balota2": b2[1], "balota3": b2[2],
+                            "balota4": b2[3], "balota5": b2[4], "balota6": b2[5],
+                            "balotaroja": 0
+                        })
+                    return res
+            except Exception:
+                time.sleep(0.2)
+        return []
 
     def extraer_historico_concurrente(self, ultimo_num: int, cantidad: int = 400) -> pd.DataFrame:
-        """Descarga un lote de sorteos históricos usando hilos en paralelo (cada concurso genera 2 filas)."""
+        """Descarga un lote de sorteos históricos usando hilos en paralelo preservando orden."""
         if not ultimo_num:
             return pd.DataFrame()
 
         inicio = max(1, ultimo_num - cantidad)
-        numeros = list(range(inicio, ultimo_num))
-        print(f"➡️ Descargando {len(numeros)} concursos históricos de Dupla Sena concurrentemente ({inicio} a {ultimo_num - 1})...")
+        numeros = list(range(inicio, ultimo_num + 1))
+        print(f"➡️ Descargando {len(numeros)} sorteos históricos de Dupla Sena concurrentemente ({inicio} a {ultimo_num})...")
 
         draws = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             resultados = list(executor.map(self._descargar_concurso_caixa, numeros))
 
-        for res_list in resultados:
-            if res_list:
-                draws.extend(res_list)
+        for res in resultados:
+            if res:
+                draws.extend(res)
 
-        print(f"📊 Sorteos históricos procesados de Dupla Sena (1º y 2º Sorteo): {len(draws)}")
+        print(f"📊 Sorteos históricos procesados de Dupla Sena: {len(draws)}")
         return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el premio de Dupla Sena en la tabla loterias_jackpots."""
-        jackpot_val = jackpot_str or "R$ 2.000.000,00"
+        jackpot_val = jackpot_str or "R$ 3.500.000,00"
         print(f"💰 Actualizando jackpot para Dupla Sena: {jackpot_val} (Fecha: {proxima_fecha})")
         try:
             with self.engine.connect() as conn:
@@ -207,75 +257,56 @@ class DuplaSenaScraper:
         except Exception as e:
             print(f"⚠️ Error actualizando jackpot para Dupla Sena: {e}")
 
+    def _asegurar_placeholder(self, fuente_info: dict, db_ultimo: dict):
+        """Limpia placeholders obsoletos y asegura el placeholder futuro en ceros."""
+        prox_fecha = fuente_info.get("proxima_fecha") if fuente_info else None
+        prox_concurso = fuente_info.get("proximo_concurso") if fuente_info else None
+
+        if not prox_fecha and db_ultimo and db_ultimo.get("fecha"):
+            prox_date_obj = self._calcular_proximo_sorteo(db_ultimo["fecha"])
+            prox_fecha = prox_date_obj.strftime("%Y-%m-%d")
+        if not prox_concurso and db_ultimo and db_ultimo.get("concurso"):
+            prox_concurso = db_ultimo["concurso"] + 1
+
+        if not prox_fecha:
+            return
+
+        with self.engine.begin() as conn:
+            # Limpiar placeholders pasados de forma segura
+            conn.execute(text("""
+                DELETE FROM resultados_duplasena
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": prox_fecha})
+
+            # Insertar o actualizar placeholder para el próximo sorteo
+            conn.execute(text("""
+                INSERT INTO resultados_duplasena (
+                    concurso, loteria_id, sorteo, fecha,
+                    balota1, balota2, balota3, balota4, balota5, balota6, balotaroja,
+                    created_at, updated_at
+                ) VALUES (
+                    :concurso, :loteria_id, 'Dupla Sena', :fecha,
+                    0, 0, 0, 0, 0, 0, 0,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                ON CONFLICT (fecha, sorteo) DO UPDATE SET
+                    concurso = COALESCE(EXCLUDED.concurso, resultados_duplasena.concurso),
+                    balota1 = 0, balota2 = 0, balota3 = 0,
+                    balota4 = 0, balota5 = 0, balota6 = 0,
+                    balotaroja = 0,
+                    updated_at = CURRENT_TIMESTAMP;
+            """), {
+                "concurso": prox_concurso,
+                "loteria_id": self.loteria_id,
+                "fecha": prox_fecha
+            })
+
+        print(f"🎯 Placeholder verificado para Concurso #{prox_concurso} ({prox_fecha})")
+
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de Dupla Sena (Brasil)...")
         
-        # 1. Obtener datos existentes en BD
-        df_existente = pd.DataFrame()
-        try:
-            with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT * FROM resultados_duplasena WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
-
-        # 2. Descargar último sorteo oficial
-        ultimos_items, jackpot_final, ultimo_concurso = self.extraer_ultimo_caixa()
-        df_reciente = pd.DataFrame(ultimos_items) if ultimos_items else pd.DataFrame()
-
-        # 3. Backfill histórico si es necesario
-        if backfill or df_existente.empty or len(df_existente) < 100:
-            df_hist = self.extraer_historico_concurrente(ultimo_concurso, cantidad=400)
-            df_scraped = pd.concat([df_reciente, df_hist], ignore_index=True)
-        else:
-            df_scraped = df_reciente
-
-        if df_scraped.empty and df_existente.empty:
-            print("❌ No se pudieron obtener resultados de Dupla Sena.")
-            return
-
-        # 4. Combinar y limpiar
-        if not df_existente.empty:
-            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
-        else:
-            df_combined = df_scraped
-
-        df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values('fecha', ascending=False).reset_index(drop=True)
-
-        # Filtrar fechas futuras accidentales
-        hoy_max = datetime.now().date()
-        df_combined = df_combined[df_combined['fecha'] <= hoy_max]
-
-        if df_combined.empty:
-            print("❌ No hay datos válidos para procesar.")
-            return
-
-        # 5. Calcular próximo sorteo
-        ultima_fecha_real = df_combined.iloc[0]['fecha']
-        proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
-        proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
-        print(f"📅 Fecha del próximo sorteo agregada para Dupla Sena: {proxima_fecha_str}")
-
-        max_concurso = df_combined['concurso'].dropna().max()
-        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
-
-        # Fila placeholder en ceros
-        fila_proximo = {
-            "concurso": prox_concurso,
-            "loteria_id": self.loteria_id,
-            "sorteo": "Dupla Sena",
-            "fecha": proxima_fecha,
-            "balota1": 0,
-            "balota2": 0,
-            "balota3": 0,
-            "balota4": 0,
-            "balota5": 0,
-            "balota6": 0,
-            "balotaroja": 0
-        }
-        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
-
-        # 6. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
+        # 1. Asegurar tabla e índices
         with self.engine.begin() as conn:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS resultados_duplasena (
@@ -290,7 +321,7 @@ class DuplaSenaScraper:
                     balota4 INTEGER NOT NULL,
                     balota5 INTEGER NOT NULL,
                     balota6 INTEGER NOT NULL,
-                    balotaroja INTEGER NOT NULL,
+                    balotaroja INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
@@ -299,6 +330,111 @@ class DuplaSenaScraper:
                 CREATE INDEX IF NOT EXISTS idx_duplasena_loteria_id ON resultados_duplasena (loteria_id);
             """))
 
+        # 2. Detección temprana
+        db_ultimo = self.obtener_ultimo_sorteo_db()
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+
+        if not backfill and fuente_info and db_ultimo:
+            concurso_fuente = fuente_info.get("concurso")
+            fecha_fuente = fuente_info.get("fecha")
+            concurso_db = db_ultimo.get("concurso")
+            fecha_db = str(db_ultimo.get("fecha"))
+
+            # Si el último concurso o fecha de la fuente ya existe en la BD
+            if (concurso_fuente and concurso_db and concurso_fuente <= concurso_db) or (fecha_fuente and fecha_db and fecha_fuente <= fecha_db):
+                print(f"\nℹ️ [DETECCIÓN TEMPRANA] No hay sorteos nuevos para Dupla Sena.")
+                print(f"  Último sorteo en fuente: Concurso #{concurso_fuente} ({fecha_fuente})")
+                print(f"  Último sorteo en BD:     Concurso #{concurso_db} ({fecha_db})")
+                
+                # Actualizar jackpot y placeholder
+                prox_fecha = fuente_info.get("proxima_fecha")
+                if prox_fecha:
+                    self.actualizar_jackpot(prox_fecha, fuente_info.get("jackpot"))
+                self._asegurar_placeholder(fuente_info, db_ultimo)
+
+                return {
+                    "hubo_sorteo": False,
+                    "ultimo_sorteo": f"Concurso #{concurso_db} ({fecha_db})",
+                    "proximo_esperado": f"Concurso #{fuente_info.get('proximo_concurso')} ({prox_fecha})"
+                }
+
+        # 3. Descarga de datos
+        df_existente = pd.DataFrame()
+        try:
+            with self.engine.connect() as conn:
+                df_existente = pd.read_sql(text("SELECT * FROM resultados_duplasena WHERE balota1 > 0;"), conn)
+        except Exception:
+            pass
+
+        df_recientes, jackpot_reciente, prox_fecha_oficial = self.extraer_recientes()
+        ultimo_num = fuente_info.get("concurso") if fuente_info else None
+        if backfill or df_existente.empty or len(df_existente) < 50:
+            df_historico = self.extraer_historico_concurrente(ultimo_num, cantidad=400)
+            df_scraped = pd.concat([df_recientes, df_historico], ignore_index=True)
+        else:
+            df_scraped = df_recientes
+
+        if df_scraped.empty and df_existente.empty:
+            print("❌ No se pudieron obtener resultados de Dupla Sena.")
+            return False
+
+        # Combinar y limpiar
+        if not df_existente.empty:
+            df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
+        else:
+            df_combined = df_scraped
+
+        df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values('fecha', ascending=False).reset_index(drop=True)
+
+        # Filtrar fechas futuras accidentales
+        hoy_max = datetime.now().date()
+        df_combined = df_combined[df_combined['fecha'] <= hoy_max]
+
+        if df_combined.empty:
+            print("❌ No hay datos válidos para procesar.")
+            return False
+
+        # 4. Calcular próximo sorteo
+        if prox_fecha_oficial and datetime.strptime(prox_fecha_oficial, "%Y-%m-%d").date() > df_combined.iloc[0]['fecha']:
+            proxima_fecha = datetime.strptime(prox_fecha_oficial, "%Y-%m-%d").date()
+        else:
+            ultima_fecha_real = df_combined.iloc[0]['fecha']
+            proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
+            
+        proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
+        print(f"📅 Fecha del próximo sorteo agregada para Dupla Sena: {proxima_fecha_str}")
+
+        max_concurso = df_combined['concurso'].dropna().max()
+        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
+
+        # Fila placeholder en ceros
+        fila_proximo = {
+            "concurso": prox_concurso,
+            "loteria_id": self.loteria_id,
+            "sorteo": "Dupla Sena",
+            "fecha": proxima_fecha,
+            "balota1": 0, "balota2": 0, "balota3": 0,
+            "balota4": 0, "balota5": 0, "balota6": 0,
+            "balotaroja": 0
+        }
+
+        # Determinar qué guardar: si no es backfill, guardar solo lo nuevo + placeholder
+        if not backfill and not df_existente.empty:
+            fechas_existentes = set(pd.to_datetime(df_existente['fecha']).dt.date)
+            df_nuevos = df_combined[~df_combined['fecha'].isin(fechas_existentes)]
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_nuevos], ignore_index=True)
+        else:
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
+
+        # 5. Limpieza segura de placeholders obsoletos
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                DELETE FROM resultados_duplasena
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": proxima_fecha})
+
+        # 6. Guardar en PostgreSQL (UPSERT seguro)
         insert_sql = """
             INSERT INTO resultados_duplasena (
                 concurso, loteria_id, sorteo, fecha,
@@ -330,9 +466,9 @@ class DuplaSenaScraper:
                 int(r['balota4']),
                 int(r['balota5']),
                 int(r['balota6']),
-                int(r['balotaroja'])
+                int(r.get('balotaroja', 0))
             )
-            for r in df_final.to_dict(orient='records')
+            for r in df_to_save.to_dict(orient='records')
         ]
 
         raw_conn = self.engine.raw_connection()
@@ -349,10 +485,10 @@ class DuplaSenaScraper:
         finally:
             raw_conn.close()
 
-        print(f"✅ Resultados de Dupla Sena guardados exitosamente! Total filas: {len(df_final)}")
-        self.actualizar_jackpot(proxima_fecha_str, jackpot_final)
+        print(f"✅ Resultados de Dupla Sena guardados exitosamente! Filas procesadas: {len(df_to_save)}")
+        self.actualizar_jackpot(proxima_fecha_str, jackpot_reciente)
         return True
 
 if __name__ == "__main__":
     scraper = DuplaSenaScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List, Dict, Any, Optional
+from typing import Optional
 from app.api import dependencies
 from app.application.notification_use_cases import NotificationUseCases
 

@@ -1,3 +1,4 @@
+import logging
 from .user_repository import PostgresUserRepository
 from .jugada_repository import PostgresJugadaRepository
 from .post_repository import PostgresPostRepository

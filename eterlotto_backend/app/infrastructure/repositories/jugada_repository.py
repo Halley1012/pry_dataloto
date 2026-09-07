@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime, date
 from app.domain.ports import JugadaRepositoryPort
@@ -39,7 +40,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                    OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
             """)
             cls._table_ensured = True
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).error(f'Error capturado: {e}')
             pass
 
     async def _ensure_table(self, conn):
@@ -95,7 +97,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                           AND (fecha_sorteo = $3 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $3 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $3)))
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                     """, user_id, loteria_route, clean_date)
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     rows = await conn.fetch("""
                         SELECT id, user_id, loteria_id, loteria_route, numeros, 
                                COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
@@ -333,7 +336,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     rows = cur.fetchall()
                     if rows:
                         return [(r[0], r[1]) for r in rows]
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     pass
 
                 try:
@@ -346,13 +350,19 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     """, (limit,))
                     rows = cur.fetchall()
                     return [(r[0], r[1]) for r in rows]
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     return []
 
     @cached(ttl=180)
+
+    def _get_alias(self, name: str) -> str:
+        mapping = {"mloto": "miloto", "bloto": "baloto", "cloto": "colorloto"}
+        return mapping.get(name, name)
+
     def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
         clean_tipo = tipo.strip().lower()
-        alias_loteria = "miloto" if clean_tipo == "mloto" else ("baloto" if clean_tipo == "bloto" else ("colorloto" if clean_tipo == "cloto" else clean_tipo))
+        alias_loteria = self._get_alias(clean_tipo)
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
                 # 1. Intentar en tabla global predicciones
@@ -369,7 +379,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     rows = cur.fetchall()
                     if rows:
                         return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     pass
 
                 # 2. Fallback a tabla específica predicciones_{clean_tipo}
@@ -382,7 +393,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     """, (limit,))
                     rows = cur.fetchall()
                     return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     return []
 
     @cached(ttl=300)
@@ -410,7 +422,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     row = cur.fetchone()
                     if row:
                         return row
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     pass
 
                 try:
@@ -431,7 +444,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         """)
                     row = cur.fetchone()
                     return row if row else None
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     return None
 
     @cached(ttl=300)
@@ -476,7 +490,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
-                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                alias_loteria = self._get_alias(loteria_nombre)
                 jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
                 if "sorteo" in cols:
                     jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
@@ -560,7 +574,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
-                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                alias_loteria = self._get_alias(loteria_nombre)
                 jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
                 if "sorteo" in cols:
                     jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
@@ -645,7 +659,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 first_balota = balota_cols[0] if balota_cols else "fecha"
                 select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
 
-                alias_loteria = "miloto" if loteria_nombre == "mloto" else ("baloto" if loteria_nombre == "bloto" else ("colorloto" if loteria_nombre == "cloto" else loteria_nombre))
+                alias_loteria = self._get_alias(loteria_nombre)
                 jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
                 if "sorteo" in cols:
                     jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"

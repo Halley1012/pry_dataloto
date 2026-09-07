@@ -32,10 +32,12 @@ class EuroDreamsScraper:
         }
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE si la fuente oficial no declara explícitamente
+        la fecha del próximo sorteo en su respuesta.
+        Nunca se utiliza para filtrar ni descartar sorteos históricos reales.
         """
-        Los sorteos de EuroDreams se realizan los Lunes (weekday 0) y Jueves (weekday 3).
-        """
-        draw_days = (0, 3)
+        draw_days = (0, 3) # Lunes (0) y Jueves (3) habituales
         candidate = ultima_fecha_real + timedelta(days=1)
         while candidate.weekday() not in draw_days:
             candidate += timedelta(days=1)
@@ -145,23 +147,24 @@ class EuroDreamsScraper:
         Descarga todo el histórico de EuroDreams desde su sorteo inaugural (06/11/2023)
         mediante concurrencia multihilo.
         """
-        print("📚 Iniciando extracción histórica completa de EuroDreams desde 2023...")
+        print("📚 Iniciando extracción histórica dinámica de EuroDreams desde 2023...")
         start_date = datetime(2023, 11, 6).date()
         end_date = datetime.now().date()
 
         draw_dates = []
         curr = start_date
         while curr <= end_date:
-            if curr.weekday() in (0, 3): # Lunes y Jueves
-                draw_dates.append(curr.strftime("%Y-%m-%d"))
+            draw_dates.append(curr.strftime("%Y-%m-%d"))
             curr += timedelta(days=1)
 
-        print(f"⏳ Consultando {len(draw_dates)} fechas de sorteos históricos...")
+        print(f"⏳ Consultando {len(draw_dates)} fechas candidatas en histórico de EuroDreams...")
 
         def _fetch_single_draw(date_str):
             url = f"https://www.combinacionganadora.com/eurodreams/resultados/{date_str}/"
             try:
-                r = requests.get(url, headers=self.headers, timeout=8)
+                r = requests.get(url, headers=self.headers, timeout=8, verify=False)
+                if r.status_code == 404:
+                    return None
                 if r.status_code == 200:
                     s = BeautifulSoup(r.text, "html.parser")
                     ul = s.find("ul", class_=re.compile(r'numbers|sexy', re.I))
@@ -183,8 +186,10 @@ class EuroDreamsScraper:
                                     "balota6": nums[5],
                                     "balotaroja": dream
                                 }
-            except Exception:
-                pass
+                else:
+                    print(f"⚠️ [EuroDreams] Código HTTP {r.status_code} al consultar {url}")
+            except Exception as e:
+                print(f"⚠️ [EuroDreams] Error consultando {url}: {e}")
             return None
 
         results = []

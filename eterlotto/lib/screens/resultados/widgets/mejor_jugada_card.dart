@@ -229,7 +229,7 @@ class MejorJugadaCard extends StatelessWidget {
             child: Text(
               insightText,
               style: GoogleFonts.montserrat(
-                fontSize: 11.5,
+                fontSize: 10.0,
                 fontWeight: FontWeight.w500,
                 color: Colors.white.withValues(alpha: 0.9),
               ),
