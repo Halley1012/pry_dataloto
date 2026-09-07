@@ -9,6 +9,7 @@ class CombinationUseCases:
     def _map_to_rules(self, lot: Dict[str, Any], country_map: Dict[int, str]) -> LotteryRules:
         return LotteryRules(
             lottery_id=lot["route"] if lot.get("route") else lot["nombre"].lower().replace(" ", "_"),
+            name=lot["nombre"],
             country=country_map.get(lot["pais_id"], "Unknown"),
             main_numbers_count=lot.get("max_seleccion", 5),
             main_numbers_min=1,
@@ -20,21 +21,29 @@ class CombinationUseCases:
         )
 
     def get_supported_lotteries(self) -> List[Dict[str, Any]]:
-        loterias = self.publicidad_repo.list_loterias()
-        paises = self.publicidad_repo.list_paises()
-        country_map = {p["id"]: p["nombre"] for p in paises}
-        
-        rules_list = []
-        for lot in loterias:
-            try:
-                rules_list.append(self._map_to_rules(lot, country_map).model_dump())
-            except Exception:
-                continue
-        return rules_list
+        try:
+            loterias = self.publicidad_repo.list_loterias()
+            paises = self.publicidad_repo.list_paises()
+            country_map = {p["id"]: p["nombre"] for p in paises}
+            
+            rules_list = []
+            for lot in loterias:
+                try:
+                    rules_list.append(self._map_to_rules(lot, country_map).model_dump())
+                except Exception:
+                    continue
+            return rules_list
+        except Exception:
+            return []
 
     def get_lottery_rules(self, lottery_id: str) -> LotteryRules:
         loterias = self.publicidad_repo.list_loterias()
-        lot = next((l for l in loterias if (l.get("route") or l["nombre"].lower().replace(" ", "_")) == lottery_id.lower()), None)
+        lot = None
+        for l in loterias:
+            curr_id = l.get("route") if l.get("route") else l["nombre"].lower().replace(" ", "_")
+            if curr_id == lottery_id.lower():
+                lot = l
+                break
         
         if not lot:
             raise ValueError(f"Lottery '{lottery_id}' no está soportada.")
