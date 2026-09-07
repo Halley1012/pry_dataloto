@@ -1,7 +1,10 @@
-﻿import 'package:eterlotto/styles/colores.dart';
+import 'package:eterlotto/styles/colores.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 
 class CustomSliverAppBar extends StatelessWidget {
   final String title;
@@ -11,6 +14,8 @@ class CustomSliverAppBar extends StatelessWidget {
   final bool floating;
   final bool snap;
   final VoidCallback? onBackPressed;
+  final List<Widget>? actions;
+  final bool showPremiumCrown;
 
   const CustomSliverAppBar({
     super.key,
@@ -21,6 +26,8 @@ class CustomSliverAppBar extends StatelessWidget {
     this.floating = false, // 👈 Desactivado para no flotar/colapsar
     this.snap = false, // 👈 Desactivado para no "snap" (sin movimiento brusco)
     this.onBackPressed,
+    this.actions,
+    this.showPremiumCrown = true,
   });
 
   @override
@@ -52,6 +59,20 @@ class CustomSliverAppBar extends StatelessWidget {
           }
         },
       ),
+      actions: [
+        if (actions != null) ...actions!,
+        if (showPremiumCrown)
+          Consumer<SubscriptionProvider>(
+            builder: (context, sub, _) => sub.isPremium
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: 16.0),
+                      child: PremiumCrownIcon(isPremium: true, size: 19),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+      ],
     );
   }
 }

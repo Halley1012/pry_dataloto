@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
@@ -17,6 +16,7 @@ import 'package:eterlotto/screens/subscription_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../utils/secure_storage_helper.dart';
@@ -152,14 +152,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 children: [
                   GestureDetector(
                     onTap: _editProfile,
-                    child: UserBalotaAvatar(
-                      avatarUrl: avatarUrl,
-                      userName: name,
-                      userId: int.tryParse(userId ?? "0"),
-                      radius: 45,
-                      showGlow: true,
-                      showBorder: true,
-                      borderColor: AppColors.yellow,
+                    child: Consumer<SubscriptionProvider>(
+                      builder: (context, subProvider, _) {
+                        final isPremium = subProvider.isPremium;
+                        return PremiumCrownBadge(
+                          isPremium: isPremium,
+                          crownSize: 22,
+                          crownOffset: const Offset(4, -6),
+                          child: UserBalotaAvatar(
+                            avatarUrl: avatarUrl,
+                            userName: name,
+                            userId: int.tryParse(userId ?? "0"),
+                            radius: 45,
+                            showGlow: true,
+                            showBorder: true,
+                            borderColor: isPremium ? const Color(0xFFFFD700) : AppColors.yellow,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 20),
@@ -202,10 +212,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                                 decoration: BoxDecoration(
                                   color: isSubscribed
-                                      ? Colors.green.withValues(alpha: 0.15)
+                                      ? const Color(0xFFFFD700).withValues(alpha: 0.15)
                                       : AppColors.amber.withValues(alpha: 0.15),
                                   border: Border.all(
-                                    color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
+                                    color: isSubscribed ? const Color(0xFFFFD700) : AppColors.yellow,
                                     width: 1.2,
                                   ),
                                   borderRadius: BorderRadius.circular(20),
@@ -213,18 +223,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      isSubscribed ? Icons.verified : Icons.star,
-                                      color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
-                                      size: 14,
-                                    ),
-                                    const SizedBox(width: 5),
+                                    if (isSubscribed)
+                                      const FaIcon(
+                                        FontAwesomeIcons.crown,
+                                        color: Color(0xFFFFD700),
+                                        size: 11,
+                                      )
+                                    else
+                                      const Icon(
+                                        Icons.star,
+                                        color: AppColors.yellow,
+                                        size: 14,
+                                      ),
+                                    const SizedBox(width: 6),
                                     Text(
                                       isSubscribed
-                                          ? (l10n.vipSinAnuncios)
+                                          ? "Usuario Premium"
                                           : (l10n.planBasicoHazteVip),
                                       style: GoogleFonts.montserrat(
-                                        color: isSubscribed ? Colors.greenAccent : AppColors.yellow,
+                                        color: isSubscribed ? const Color(0xFFFFD700) : AppColors.yellow,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold,
                                       ),

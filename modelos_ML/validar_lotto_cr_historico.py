@@ -30,8 +30,9 @@ def validar_lotto_cr():
 
     print(f"\n📊 Total registros en BD: {len(df)}")
 
-    df_real = df[df['balota1'] > 0].copy()
-    df_ph = df[df['balota1'] == 0].copy()
+    is_ph = (df['balota1'] == 0) & (df['balota2'] == 0) & (df['balota3'] == 0) & (df['balota4'] == 0) & (df['balota5'] == 0)
+    df_real = df[~is_ph].copy()
+    df_ph = df[is_ph].copy()
 
     print(f"  - Sorteos reales: {len(df_real)}")
     print(f"  - Placeholders: {len(df_ph)}")

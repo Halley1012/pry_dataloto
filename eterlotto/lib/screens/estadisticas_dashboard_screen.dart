@@ -12,6 +12,9 @@ import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 
 class EstadisticasDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
@@ -365,6 +368,18 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          Consumer<SubscriptionProvider>(
+            builder: (_, sub, __) => sub.isPremium
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.only(right: 16.0),
+                      child: PremiumCrownIcon(isPremium: true, size: 20),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
       ),
       body: isInitialLoading
           ? _buildSkeletonEstadisticas()
@@ -402,9 +417,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   const SizedBox(height: 20),
                                   _buildCardGraficaFrecuencia(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
-                                  _buildCardParImpar(resultadosFiltrados, l10n),
-                                  const SizedBox(height: 20),
-                                  _buildCardBajosAltos(resultadosFiltrados, l10n),
+                                  _buildCardDistribuciones(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
                                   _buildCardSumaCombinaciones(resultadosFiltrados, l10n),
                                   const SizedBox(height: 20),
@@ -1070,7 +1083,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(l10n?.filtrosAnalisis ?? "Filtros de Análisis", style: AppTextStyles.h2),
+          Text(l10n?.filtrosAnalisis ?? "Filtros de Análisis", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -1198,7 +1211,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("3. ${l10n?.numerosCalientesFrios ?? "Números Calientes y Fríos 🔥❄️"}", style: AppTextStyles.h2),
+          Text("1. ${l10n?.numerosCalientesFrios ?? "Números Calientes y Fríos 🔥❄️"}", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           const SizedBox(height: 16),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1264,7 +1277,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final double dynamicMaxY = (maxFrec + paddingY).ceilToDouble();
     final double stepY = _calcularPasoEjeY(dynamicMaxY - dynamicMinY, 4);
 
-    final titleText = "4. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
+    final titleText = "2. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
     final subtitleText = l10n?.tocaParaVerMas ?? "Toca para ver más";
 
     Widget buildLineChart({bool isFullScreen = false}) {
@@ -1435,7 +1448,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("8. ${l10n?.ausenciaSorteosTitle ?? "Días / Sorteos Sin Salir (Ausencia)"}", style: AppTextStyles.h2),
+          Text("6. ${l10n?.ausenciaSorteosTitle ?? "Días / Sorteos Sin Salir (Ausencia)"}", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           const SizedBox(height: 8),
           Text(l10n?.balotasMayorTiempo ?? "Balotas con mayor tiempo sin aparecer:", style: AppTextStyles.caption),
           const SizedBox(height: 12),
@@ -1527,192 +1540,261 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     );
   }
 
-  Widget _buildCardParImpar(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
+  Widget _buildCardDistribuciones(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
+    // 1. Pares vs Impares
     int pares = 0;
     int impares = 0;
-
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []);
       final mainNums = nums.take(maxSeleccion);
       for (var n in mainNums) {
-        if (n % 2 == 0) pares++;
-        else impares++;
+        if (n % 2 == 0) {
+          pares++;
+        } else {
+          impares++;
+        }
       }
     }
+    final totalParImpar = (pares + impares) == 0 ? 1 : (pares + impares);
+    final pctPar = ((pares / totalParImpar) * 100).toStringAsFixed(1);
+    final pctImpar = ((impares / totalParImpar) * 100).toStringAsFixed(1);
 
-    final total = (pares + impares) == 0 ? 1 : (pares + impares);
-    final pctPar = ((pares / total) * 100).toStringAsFixed(1);
-    final pctImpar = ((impares / total) * 100).toStringAsFixed(1);
-    final titleText = "5. ${l10n?.parImpar ?? "Distribución Par vs Impar"}";
-
-    Widget buildPieContent({bool isFullScreen = false}) {
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: isFullScreen ? 240 : 120,
-            width: isFullScreen ? 240 : 120,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 4,
-                centerSpaceRadius: isFullScreen ? 55 : 30,
-                sections: [
-                  PieChartSectionData(
-                    value: pares.toDouble(),
-                    color: Colors.amber,
-                    title: '$pctPar%',
-                    radius: isFullScreen ? 65 : 35,
-                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.black),
-                  ),
-                  PieChartSectionData(
-                    value: impares.toDouble(),
-                    color: Colors.deepOrangeAccent,
-                    title: '$pctImpar%',
-                    radius: isFullScreen ? 65 : 35,
-                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLegendItem("${l10n?.parImpar.split("vs").first.trim() ?? "Pares"}: $pares ($pctPar%)", Colors.amber),
-                const SizedBox(height: 12),
-                _buildLegendItem("${l10n?.parImpar.split("vs").last.trim() ?? "Impares"}: $impares ($pctImpar%)", Colors.deepOrangeAccent),
-              ],
-            ),
-          ),
-        ],
-      );
-    }
-
-    return AppContainer3(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
-              ),
-              InkWell(
-                onTap: () {
-                  FullScreenChartViewer.show(
-                    context,
-                    title: titleText,
-                    chartWidget: buildPieContent(isFullScreen: true),
-                  );
-                },
-                borderRadius: BorderRadius.circular(20),
-                child: const Padding(
-                  padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.open_in_full, color: AppColors.yellow, size: 18),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          buildPieContent(isFullScreen: false),
-          if (_mostrarComparacion && _balotasComparacion.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.tune, size: 16, color: AppColors.yellow),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      "Tu jugada: ${_balotasComparacion.where((n) => n % 2 == 0).length} Pares / ${_balotasComparacion.where((n) => n % 2 != 0).length} Impares",
-                      style: AppTextStyles.h2.copyWith(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCardBajosAltos(List<Map<String, dynamic>> resultados, AppLocalizations? l10n) {
+    // 2. Bajos vs Altos
     final mitad = maxBalota ~/ 2;
     int bajos = 0;
     int altos = 0;
-
     for (var r in resultados) {
       final nums = List<int>.from(r["numeros"] ?? []);
       for (var n in nums.take(maxSeleccion)) {
-        if (n <= mitad) bajos++;
-        else altos++;
+        if (n <= mitad) {
+          bajos++;
+        } else {
+          altos++;
+        }
       }
     }
+    final totalBajosAltos = (bajos + altos) == 0 ? 1 : (bajos + altos);
+    final pctBajos = ((bajos / totalBajosAltos) * 100).toStringAsFixed(1);
+    final pctAltos = ((altos / totalBajosAltos) * 100).toStringAsFixed(1);
 
-    final total = (bajos + altos) == 0 ? 1 : (bajos + altos);
-    final pctBajos = ((bajos / total) * 100).toStringAsFixed(1);
-    final pctAltos = ((altos / total) * 100).toStringAsFixed(1);
-    final titleText = "5.1 ${l10n?.bajosAltos ?? "Bajos (1-$mitad) vs Altos (${mitad + 1}-$maxBalota)"}";
+    final titleText = "3. ${l10n != null ? "${l10n.distribucionAciertosTitulo.split(' ').first}: ${l10n.paresImpares} & ${l10n.bajosAltos}" : "Distribución: Par/Impar y Bajos/Altos"}";
 
-    Widget buildPieContent({bool isFullScreen = false}) {
+    final String labelPar = l10n != null
+        ? (l10n.localeName == 'en' ? 'Even' : (l10n.localeName == 'pt' ? 'Pares' : 'Pares'))
+        : 'Pares';
+    final String labelImpar = l10n != null
+        ? (l10n.localeName == 'en' ? 'Odd' : (l10n.localeName == 'pt' ? 'Ímpares' : 'Impares'))
+        : 'Impares';
+    final String labelBajos = l10n != null
+        ? (l10n.localeName == 'en' ? 'Low' : (l10n.localeName == 'pt' ? 'Baixos' : 'Bajos'))
+        : 'Bajos';
+    final String labelAltos = l10n != null
+        ? (l10n.localeName == 'en' ? 'High' : (l10n.localeName == 'pt' ? 'Altos' : 'Altos'))
+        : 'Altos';
+
+    Widget buildDonutChart({
+      required double val1,
+      required double val2,
+      required Color color1,
+      required Color color2,
+      required String pct1,
+      required String pct2,
+      required double size,
+      required double centerRadius,
+      required double sectionRadius,
+      required double fontSize,
+    }) {
+      return SizedBox(
+        height: size,
+        width: size,
+        child: PieChart(
+          PieChartData(
+            sectionsSpace: 3,
+            centerSpaceRadius: centerRadius,
+            sections: [
+              PieChartSectionData(
+                value: val1,
+                color: color1,
+                title: '$pct1%',
+                radius: sectionRadius,
+                titleStyle: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              PieChartSectionData(
+                value: val2,
+                color: color2,
+                title: '$pct2%',
+                radius: sectionRadius,
+                titleStyle: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    Widget buildLegendRow(String label, int count, String pct, Color color) {
       return Row(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: isFullScreen ? 240 : 120,
-            width: isFullScreen ? 240 : 120,
-            child: PieChart(
-              PieChartData(
-                sectionsSpace: 4,
-                centerSpaceRadius: isFullScreen ? 55 : 30,
-                sections: [
-                  PieChartSectionData(
-                    value: bajos.toDouble(),
-                    color: Colors.cyanAccent,
-                    title: '$pctBajos%',
-                    radius: isFullScreen ? 65 : 35,
-                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.black),
-                  ),
-                  PieChartSectionData(
-                    value: altos.toDouble(),
-                    color: Colors.purpleAccent,
-                    title: '$pctAltos%',
-                    radius: isFullScreen ? 65 : 35,
-                    titleStyle: TextStyle(fontSize: isFullScreen ? 15 : 12, fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
-                ],
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "$label: $count ($pct%)",
+                style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 11),
               ),
             ),
           ),
-          const SizedBox(width: 20),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildLegendItem("${l10n?.bajosAltos.split("vs").first.trim() ?? "Bajos (1-$mitad)"}: $bajos ($pctBajos%)", Colors.cyanAccent),
-                const SizedBox(height: 12),
-                _buildLegendItem("${l10n?.bajosAltos.split("vs").last.trim() ?? "Altos (${mitad + 1}-$maxBalota)"}: $altos ($pctAltos%)", Colors.purpleAccent),
-              ],
-            ),
-          ),
         ],
+      );
+    }
+
+    Widget buildFullScreenContent() {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final isLandscape = constraints.maxWidth > constraints.maxHeight;
+          if (isLandscape) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(l10n?.paresImpares ?? "Par vs Impar", style: AppTextStyles.h2.copyWith(fontSize: 16, color: Colors.white)),
+                      const SizedBox(height: 16),
+                      buildDonutChart(
+                        val1: pares.toDouble(),
+                        val2: impares.toDouble(),
+                        color1: Colors.amber,
+                        color2: Colors.deepOrangeAccent,
+                        pct1: pctPar,
+                        pct2: pctImpar,
+                        size: 190,
+                        centerRadius: 45,
+                        sectionRadius: 50,
+                        fontSize: 13,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLegendItem("$labelPar: $pares ($pctPar%)", Colors.amber),
+                          const SizedBox(width: 16),
+                          _buildLegendItem("$labelImpar: $impares ($pctImpar%)", Colors.deepOrangeAccent),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: double.infinity, color: Colors.white12, margin: const EdgeInsets.symmetric(horizontal: 12)),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text("${l10n?.bajosAltos ?? "Bajos vs Altos"} (1-$mitad / ${mitad + 1}-$maxBalota)", style: AppTextStyles.h2.copyWith(fontSize: 16, color: Colors.white)),
+                      const SizedBox(height: 16),
+                      buildDonutChart(
+                        val1: bajos.toDouble(),
+                        val2: altos.toDouble(),
+                        color1: Colors.cyanAccent,
+                        color2: Colors.purpleAccent,
+                        pct1: pctBajos,
+                        pct2: pctAltos,
+                        size: 190,
+                        centerRadius: 45,
+                        sectionRadius: 50,
+                        fontSize: 13,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildLegendItem("$labelBajos: $bajos ($pctBajos%)", Colors.cyanAccent),
+                          const SizedBox(width: 16),
+                          _buildLegendItem("$labelAltos: $altos ($pctAltos%)", Colors.purpleAccent),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          } else {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  Text(l10n?.paresImpares ?? "Par vs Impar", style: AppTextStyles.h2.copyWith(fontSize: 16, color: Colors.white)),
+                  const SizedBox(height: 14),
+                  buildDonutChart(
+                    val1: pares.toDouble(),
+                    val2: impares.toDouble(),
+                    color1: Colors.amber,
+                    color2: Colors.deepOrangeAccent,
+                    pct1: pctPar,
+                    pct2: pctImpar,
+                    size: 170,
+                    centerRadius: 40,
+                    sectionRadius: 45,
+                    fontSize: 12,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLegendItem("$labelPar: $pares ($pctPar%)", Colors.amber),
+                      const SizedBox(width: 16),
+                      _buildLegendItem("$labelImpar: $impares ($pctImpar%)", Colors.deepOrangeAccent),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24, horizontal: 32),
+                    child: Divider(color: Colors.white12),
+                  ),
+                  Text("${l10n?.bajosAltos ?? "Bajos vs Altos"} (1-$mitad / ${mitad + 1}-$maxBalota)", style: AppTextStyles.h2.copyWith(fontSize: 16, color: Colors.white)),
+                  const SizedBox(height: 14),
+                  buildDonutChart(
+                    val1: bajos.toDouble(),
+                    val2: altos.toDouble(),
+                    color1: Colors.cyanAccent,
+                    color2: Colors.purpleAccent,
+                    pct1: pctBajos,
+                    pct2: pctAltos,
+                    size: 170,
+                    centerRadius: 40,
+                    sectionRadius: 45,
+                    fontSize: 12,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildLegendItem("$labelBajos: $bajos ($pctBajos%)", Colors.cyanAccent),
+                      const SizedBox(width: 16),
+                      _buildLegendItem("$labelAltos: $altos ($pctAltos%)", Colors.purpleAccent),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }
+        },
       );
     }
 
@@ -1725,14 +1807,18 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(
-                child: Text(titleText, style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
+                child: Text(
+                  titleText,
+                  style: AppTextStyles.h2.copyWith(fontSize: 14.5),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               InkWell(
                 onTap: () {
                   FullScreenChartViewer.show(
                     context,
                     title: titleText,
-                    chartWidget: buildPieContent(isFullScreen: true),
+                    chartWidget: buildFullScreenContent(),
                   );
                 },
                 borderRadius: BorderRadius.circular(20),
@@ -1744,9 +1830,121 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             ],
           ),
           const SizedBox(height: 16),
-          buildPieContent(isFullScreen: false),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Columna izquierda: Par vs Impar
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      l10n?.paresImpares ?? "Par vs Impar",
+                      style: AppTextStyles.h2.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "(Pares / Impares)",
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
+                        color: Colors.white54,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    buildDonutChart(
+                      val1: pares.toDouble(),
+                      val2: impares.toDouble(),
+                      color1: Colors.amber,
+                      color2: Colors.deepOrangeAccent,
+                      pct1: pctPar,
+                      pct2: pctImpar,
+                      size: 95,
+                      centerRadius: 22,
+                      sectionRadius: 25,
+                      fontSize: 10,
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          buildLegendRow(labelPar, pares, pctPar, Colors.amber),
+                          const SizedBox(height: 4),
+                          buildLegendRow(labelImpar, impares, pctImpar, Colors.deepOrangeAccent),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 1,
+                height: 175,
+                color: Colors.white12,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+              // Columna derecha: Bajos vs Altos
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      l10n?.bajosAltos ?? "Bajos vs Altos",
+                      style: AppTextStyles.h2.copyWith(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "(1-$mitad / ${mitad + 1}-$maxBalota)",
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 10,
+                        color: Colors.white54,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    buildDonutChart(
+                      val1: bajos.toDouble(),
+                      val2: altos.toDouble(),
+                      color1: Colors.cyanAccent,
+                      color2: Colors.purpleAccent,
+                      pct1: pctBajos,
+                      pct2: pctAltos,
+                      size: 95,
+                      centerRadius: 22,
+                      sectionRadius: 25,
+                      fontSize: 10,
+                    ),
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.center,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          buildLegendRow(labelBajos, bajos, pctBajos, Colors.cyanAccent),
+                          const SizedBox(height: 4),
+                          buildLegendRow(labelAltos, altos, pctAltos, Colors.purpleAccent),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
           if (_mostrarComparacion && _balotasComparacion.isNotEmpty) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -1759,13 +1957,27 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                   const Icon(Icons.tune, size: 16, color: AppColors.yellow),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      "Tu jugada: ${_balotasComparacion.where((n) => n <= mitad).length} Bajos / ${_balotasComparacion.where((n) => n > mitad).length} Altos",
-                      style: AppTextStyles.h2.copyWith(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 4,
+                      children: [
+                        Text(
+                          "Tu jugada: ${_balotasComparacion.where((n) => n % 2 == 0).length} Pares / ${_balotasComparacion.where((n) => n % 2 != 0).length} Impares",
+                          style: AppTextStyles.h2.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          "• ${_balotasComparacion.where((n) => n <= mitad).length} Bajos / ${_balotasComparacion.where((n) => n > mitad).length} Altos",
+                          style: AppTextStyles.h2.copyWith(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1779,10 +1991,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
   Widget _buildLegendItem(String label, Color color) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 14, height: 14, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 8),
-        Expanded(child: Text(label, style: AppTextStyles.mensajeSecundario)),
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 6),
+        Text(label, style: AppTextStyles.mensajeSecundario.copyWith(fontSize: 12)),
       ],
     );
   }
@@ -1797,7 +2010,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
     final reversedSumas = sumas.reversed.toList();
     final avgSuma = sumas.isEmpty ? "150" : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
-    final titleText = "6. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
+    final titleText = "4. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
     final subtitleText = l10n?.promedioSumaHistorica(avgSuma) ?? "Promedio de suma histórica: $avgSuma";
 
     double minVal = reversedSumas.isEmpty ? 50 : reversedSumas.reduce(math.min);
@@ -1999,7 +2212,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("7. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}", style: AppTextStyles.h2),
+          Text("5. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           const SizedBox(height: 12),
           ...topParejas.take(5).map((e) {
             final parts = e.key.split('-').map((s) => int.tryParse(s.trim()) ?? -1).toList();
@@ -2196,7 +2409,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("9. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2),
+          Text("7. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           if (scoreComparacion != null) ...[
             const SizedBox(height: 10),
             Container(
@@ -2290,7 +2503,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text("10. ${l10n?.comparacionIA ?? "Comportamiento Histórico vs IA"} ⚡", style: AppTextStyles.h2),
+          Text("8. ${l10n?.comparacionIA ?? "Comportamiento Histórico vs IA"} ⚡", style: AppTextStyles.h2.copyWith(fontSize: 14.5)),
           const SizedBox(height: 12),
           Text(l10n?.numerosMayorTendencia ?? "Números de mayor tendencia histórica:", style: AppTextStyles.caption),
           const SizedBox(height: 6),

@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/providers/combination_generator_provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/utils/secure_storage_helper.dart';
@@ -57,6 +60,16 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
+            Consumer<SubscriptionProvider>(
+              builder: (_, sub, __) => sub.isPremium
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4.0),
+                        child: PremiumCrownIcon(isPremium: true, size: 19),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             IconButton(
               icon: const Icon(Icons.help_outline, color: Colors.white70),
               onPressed: () {},
@@ -111,7 +124,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               const SizedBox(height: 4),
                               Text(
                                 l10n?.usaTusNumerosFavoritos ?? "Usa tus números favoritos y crea jugadas personalizadas.",
-                                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                style: GoogleFonts.montserrat(color: Colors.white60, fontSize: 12),
                               ),
                             ],
                           ),
@@ -126,76 +139,119 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                       icon: Icons.emoji_events,
                       child: Column(
                         children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                flex: 3,
-                                child: DropdownButtonFormField<String>(
-                                  value: provider.selectedLottery,
-                                  dropdownColor: AppColors.darkGray,
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    filled: true,
-                                    fillColor: AppColors.darkGray,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide.none,
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  flex: 1,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E24),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.white12),
                                     ),
-                                    enabledBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(color: AppColors.yellow.withValues(alpha: 0.3)),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: provider.selectedLottery,
+                                        dropdownColor: AppColors.blackfondo,
+                                        isExpanded: true,
+                                        icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 20),
+                                        style: GoogleFonts.montserrat(color: Colors.white),
+                                        items: provider.supportedLotteries.map((rule) {
+                                          return DropdownMenuItem(
+                                            value: rule.lotteryId,
+                                            child: Row(
+                                              children: [
+                                                Text(_countryFlag(rule.country), style: const TextStyle(fontSize: 16)),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Column(
+                                                    mainAxisAlignment: MainAxisAlignment.center,
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      Text(
+                                                        rule.name,
+                                                        style: GoogleFonts.montserrat(
+                                                          color: Colors.white,
+                                                          fontSize: 13,
+                                                          fontWeight: FontWeight.w600,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                      if (rule.country.isNotEmpty)
+                                                        Text(
+                                                          rule.country,
+                                                          style: GoogleFonts.montserrat(
+                                                            color: Colors.white54,
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w400,
+                                                          ),
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (val) {
+                                          if (val != null) provider.setLottery(val);
+                                        },
+                                      ),
                                     ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: AppColors.yellow),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                   ),
-                                  style: const TextStyle(color: Colors.white),
-                                  items: provider.supportedLotteries.map((rule) {
-                                    return DropdownMenuItem(
-                                      value: rule.lotteryId,
-                                      child: Text(rule.name),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) {
-                                    if (val != null) provider.setLottery(val);
-                                  },
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 1,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E24),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.white12),
+                                    ),
+                                    child: Row(
                                       children: [
-                                        const Icon(Icons.calendar_month, color: Colors.white38, size: 10),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          l10n?.proximoSorteo ?? "Próximo sorteo",
-                                          style: const TextStyle(color: Colors.white38, fontSize: 9),
-                                          textAlign: TextAlign.end,
+                                        const Icon(Icons.calendar_month_outlined, color: Colors.white70, size: 20),
+                                        const SizedBox(width: 6),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                l10n?.proximoSorteo ?? "Próximo sorteo",
+                                                style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.w500),
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                provider.selectedLotteryRules?.proximoSorteo != null
+                                                    ? _formatFullDate(provider.selectedLotteryRules!.proximoSorteo!)
+                                                    : "Por definir",
+                                                style: GoogleFonts.montserrat(
+                                                  color: AppColors.yellow,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 11.5,
+                                                ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ],
                                     ),
-                                    Text(
-                                      provider.selectedLotteryRules?.proximoSorteo != null
-                                          ? _formatShortDate(provider.selectedLotteryRules!.proximoSorteo!)
-                                          : "Por definir",
-                                      style: const TextStyle(
-                                        color: AppColors.yellow,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                      textAlign: TextAlign.end,
-                                    ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 10),
                           // Rules badge below the dropdown
@@ -204,7 +260,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                               decoration: BoxDecoration(
-                                color: AppColors.yellow.withValues(alpha: 0.1),
+                                color: AppColors.yellow.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: AppColors.yellow.withValues(alpha: 0.4)),
                               ),
@@ -215,7 +271,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                   Expanded(
                                     child: Text(
                                       provider.selectedLotteryRules!.rulesDescription,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                                      style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w400),
                                     ),
                                   ),
                                 ],
@@ -224,7 +280,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                           else
                             Text(
                               l10n?.cargandoReglas ?? "Cargando reglas...",
-                              style: const TextStyle(color: Colors.white54, fontSize: 11),
+                              style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 11),
                             ),
                         ],
                       ),
@@ -234,127 +290,296 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                     // ── Input Numbers ──────────────────────────────────────
                     _buildSectionContainer(
                       title: l10n?.tusNumeros ?? "Tus números",
-                      subtitle: l10n?.ingresaNumerosFecha ?? "Ingresa números, una fecha o valores significativos.",
+                      subtitle: l10n?.ingresaNumerosFecha ?? "Ingresa números, una fecha o valores que tengan significado para ti.",
                       icon: Icons.person,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: _inputController,
-                            style: const TextStyle(color: Colors.white),
-                            onChanged: provider.setInputData,
-                            decoration: InputDecoration(
-                              filled: true,
-                              fillColor: AppColors.darkGray,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: AppColors.yellow.withValues(alpha: 0.5)),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: AppColors.yellow.withValues(alpha: 0.3)),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(color: AppColors.yellow),
-                              ),
-                              hintText: l10n?.ejemploNumeros ?? "Ej: 12/10/1986, 7 14 21...",
-                              hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.close, color: Colors.white54),
-                                onPressed: () {
-                                  _inputController.clear();
-                                  provider.setInputData("");
-                                },
-                              ),
-                            ),
+                      action: InkWell(
+                        onTap: () {
+                          _inputController.clear();
+                          provider.setInputData("");
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white12),
                           ),
-                          if (provider.detectedNumbers.isNotEmpty) ...[
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                const Icon(Icons.auto_awesome, color: AppColors.yellow, size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  l10n?.numerosDetectados ?? "Números detectados",
-                                  style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: provider.detectedNumbers
-                                  .map((n) => _buildBalota(n, isSpecial: false))
-                                  .toList(),
-                            ),
-                          ]
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 14),
+                              const SizedBox(width: 4),
+                              Text(
+                                "Limpiar",
+                                style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _inputController,
+                        keyboardType: TextInputType.text,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9\s/\-.,]')),
                         ],
+                        style: GoogleFonts.montserrat(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+                        onChanged: provider.setInputData,
+                        decoration: InputDecoration(
+                          filled: true,
+                          fillColor: const Color(0xFF1E1E24),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.white12),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Colors.white12),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+                          ),
+                          hintText: l10n?.ejemploNumeros ?? "Ej: 10 12 86, 12/10/1986...",
+                          hintStyle: GoogleFonts.montserrat(color: Colors.white30, fontSize: 13),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.white54),
+                            onPressed: () {
+                              _inputController.clear();
+                              provider.setInputData("");
+                            },
+                          ),
+                        ),
                       ),
                     ),
+
+                    // ── Card: Números detectados (Own separate card) ────────
+                    if (provider.detectedNumbers.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _buildSectionContainer(
+                        title: l10n?.numerosDetectados ?? "Números detectados",
+                        icon: Icons.auto_awesome,
+                        subtitle: "Toca cualquier número que no quieras utilizar para excluirlo.",
+                        action: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1B5E20).withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            "${provider.activeNumbers.length} de ${provider.detectedNumbers.length} activos",
+                            style: GoogleFonts.montserrat(
+                              color: const Color(0xFF81C784),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: provider.detectedNumbers.map((n) {
+                            return _buildInteractiveBalota(
+                              number: n,
+                              isExcluded: provider.isNumberExcluded(n),
+                              onTap: () => provider.toggleExcludeNumber(n),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 14),
 
-                    // ── Quantity + Strategy ───────────────────────────────
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _buildSectionContainer(
-                            title: l10n?.cantidadDeJugadas ?? "Cantidad",
-                            icon: Icons.numbers,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                _buildCounterBtn(Icons.remove, provider.decrementQuantity),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.darkGray,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    "${provider.quantity}",
-                                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                _buildCounterBtn(Icons.add, provider.incrementQuantity),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _buildSectionContainer(
-                            title: l10n?.estrategia ?? "Estrategia",
-                            icon: Icons.tune,
-                            child: DropdownButtonFormField<String>(
-                              value: provider.strategy,
-                              isExpanded: true,
-                              dropdownColor: AppColors.darkGray,
-                              decoration: InputDecoration(
-                                filled: true,
-                                fillColor: AppColors.darkGray,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                  borderSide: BorderSide.none,
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    // ── Quantity + Strategy (EXACT SAME HEIGHT & DIMENSIONS) ─
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Left: Cantidad de jugadas
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.black,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white10),
                               ),
-                              style: const TextStyle(color: Colors.white, fontSize: 13),
-                              items: [
-                                DropdownMenuItem(value: 'balanced', child: Text(l10n?.estrategiaEquilibrada ?? 'Equilibrada')),
-                                DropdownMenuItem(value: 'random', child: Text(l10n?.estrategiaAleatoria ?? 'Aleatoria')),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) provider.setStrategy(val);
-                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.tag, color: AppColors.yellow, size: 16),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          l10n?.cantidadDeJugadas ?? "Cantidad de jugadas",
+                                          style: GoogleFonts.montserrat(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      _buildCounterBtn(
+                                        Icons.remove,
+                                        provider.decrementQuantity,
+                                        enabled: provider.quantity > 1,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        constraints: const BoxConstraints(minWidth: 44),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF1E1E24),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.white12),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          "${provider.quantity}",
+                                          style: GoogleFonts.montserrat(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      _buildCounterBtn(
+                                        Icons.add,
+                                        provider.incrementQuantity,
+                                        enabled: provider.quantity < 10,
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    height: 28,
+                                    child: Center(
+                                      child: Text(
+                                        "Se generarán hasta ${provider.quantity}\ncombinaciones únicas.",
+                                        style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 9.5, height: 1.15),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 10),
+                          // Right: Estrategia
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: AppColors.black,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.white10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.tune, color: AppColors.yellow, size: 16),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          l10n?.estrategia ?? "Estrategia",
+                                          style: GoogleFonts.montserrat(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 13,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Container(
+                                    height: 38,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E24),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(color: AppColors.yellow, width: 1.2),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String>(
+                                        value: provider.strategy,
+                                        isExpanded: true,
+                                        dropdownColor: AppColors.blackfondo,
+                                        icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 18),
+                                        style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11),
+                                        items: [
+                                          DropdownMenuItem(
+                                            value: 'only_mine',
+                                            child: Row(
+                                              children: [
+                                                const Text('🎯', style: TextStyle(fontSize: 12)),
+                                                const SizedBox(width: 5),
+                                                Expanded(child: Text('Solo mis números', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                              ],
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'variations',
+                                            child: Row(
+                                              children: [
+                                                const Text('✨', style: TextStyle(fontSize: 12)),
+                                                const SizedBox(width: 5),
+                                                Expanded(child: Text('Variaciones', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                              ],
+                                            ),
+                                          ),
+                                          DropdownMenuItem(
+                                            value: 'balanced',
+                                            child: Row(
+                                              children: [
+                                                const Text('⚖️', style: TextStyle(fontSize: 12)),
+                                                const SizedBox(width: 5),
+                                                Expanded(child: Text('Equilibradas', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: (val) {
+                                          if (val != null) provider.setStrategy(val);
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  SizedBox(
+                                    height: 28,
+                                    child: Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        _getStrategyDescription(provider.strategy),
+                                        style: GoogleFonts.montserrat(color: Colors.white54, fontSize: 9.5, height: 1.15),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 20),
 
@@ -371,7 +596,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                           provider.isLoading
                               ? (l10n?.generando ?? "GENERANDO...")
                               : (l10n?.generarCombinaciones ?? "GENERAR COMBINACIONES"),
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15),
+                          style: GoogleFonts.montserrat(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.yellow,
@@ -395,7 +620,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                             children: [
                               const Icon(Icons.error_outline, color: Colors.red, size: 16),
                               const SizedBox(width: 6),
-                              Expanded(child: Text(provider.error!, style: const TextStyle(color: Colors.red, fontSize: 12))),
+                              Expanded(
+                                child: Text(
+                                  provider.error!,
+                                  style: GoogleFonts.montserrat(color: Colors.red, fontSize: 12),
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -413,20 +643,23 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               const SizedBox(width: 6),
                               Text(
                                 "${provider.combinations.length} ${l10n?.combinacionesGeneradas ?? 'combinaciones generadas'}",
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                               ),
                             ],
                           ),
                           TextButton.icon(
                             onPressed: () => provider.generate(),
                             icon: const Icon(Icons.refresh, color: Colors.white60, size: 16),
-                            label: Text(l10n?.generarOtras ?? "Generar otras", style: const TextStyle(color: Colors.white60, fontSize: 13)),
+                            label: Text(
+                              l10n?.generarOtras ?? "Generar otras",
+                              style: GoogleFonts.montserrat(color: Colors.white60, fontSize: 13, fontWeight: FontWeight.w500),
+                            ),
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
 
-                      // Combinations list — vertical, one per row for clarity
+                      // Combinations list — vertical with copy and favorite actions
                       ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
@@ -437,30 +670,70 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                           return Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             decoration: BoxDecoration(
-                              color: AppColors.darkGray,
+                              color: const Color(0xFF1E1E24),
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.white10),
+                              border: Border.all(color: Colors.white12),
                             ),
                             child: Row(
                               children: [
                                 SizedBox(
-                                  width: 22,
+                                  width: 24,
                                   child: Text(
                                     "#${combo.number}",
-                                    style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                    style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
                                   ),
                                 ),
+                                const SizedBox(width: 4),
                                 Expanded(
                                   child: Wrap(
-                                    spacing: 5,
-                                    runSpacing: 5,
-                                    alignment: WrapAlignment.start,
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    crossAxisAlignment: WrapCrossAlignment.center,
                                     children: [
                                       ...combo.mainNumbers.map((n) => _buildMiniBalota(n, false)),
                                       if (combo.specialNumber != null)
                                         _buildMiniBalota(combo.specialNumber!, true),
                                     ],
                                   ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy_rounded, color: Colors.white38, size: 18),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(),
+                                  tooltip: "Copiar",
+                                  onPressed: () {
+                                    final text = "${combo.mainNumbers.join(' · ')}${combo.specialNumber != null ? ' + ${combo.specialNumber}' : ''}";
+                                    Clipboard.setData(ClipboardData(text: text));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "Combinación copiada al portapapeles",
+                                          style: GoogleFonts.montserrat(fontSize: 12),
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const SizedBox(width: 10),
+                                IconButton(
+                                  icon: const Icon(Icons.favorite_border_rounded, color: Colors.white38, size: 18),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.all(4),
+                                  constraints: const BoxConstraints(),
+                                  tooltip: "Favorito",
+                                  onPressed: () {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          "Marcada como favorita",
+                                          style: GoogleFonts.montserrat(fontSize: 12),
+                                        ),
+                                        duration: const Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ],
                             ),
@@ -470,42 +743,51 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                       const SizedBox(height: 20),
                       SizedBox(
                         width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton.icon(
+                        height: 48,
+                        child: OutlinedButton.icon(
                           onPressed: () async {
+                            final l10nInner = AppLocalizations.of(context);
                             final storage = AppSecureStorage.instance;
                             final userId = await storage.read(key: "user_id");
-                            final l10nInner = AppLocalizations.of(context);
+                            if (!context.mounted) return;
                             if (userId != null) {
-                              if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(l10nInner?.guardando ?? 'Guardando...')),
+                                SnackBar(content: Text(l10nInner?.guardando ?? 'Guardando...', style: GoogleFonts.montserrat(fontSize: 12))),
                               );
                               final success = await provider.saveAll(userId);
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(success
-                                      ? (l10nInner?.jugadasGuardadasConExito ?? 'Jugadas guardadas con éxito')
-                                      : (l10nInner?.errorAlGuardarJugadas ?? 'Hubo un error al guardar algunas jugadas')),
+                                  content: Text(
+                                    success
+                                        ? (l10nInner?.jugadasGuardadasConExito ?? 'Jugadas guardadas con éxito')
+                                        : (l10nInner?.errorAlGuardarJugadas ?? 'Hubo un error al guardar algunas jugadas'),
+                                    style: GoogleFonts.montserrat(fontSize: 12),
+                                  ),
                                   backgroundColor: success ? Colors.green.shade800 : Colors.red.shade800,
                                 ),
                               );
                             } else {
                               if (!context.mounted) return;
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(l10n?.debesIniciarSesionParaGuardar ?? 'Debes iniciar sesión para guardar')),
+                                SnackBar(
+                                  content: Text(
+                                    l10nInner?.debesIniciarSesionParaGuardar ?? 'Debes iniciar sesión para guardar',
+                                    style: GoogleFonts.montserrat(fontSize: 12),
+                                  ),
+                                ),
                               );
                             }
                           },
-                          icon: const Icon(Icons.save_alt_rounded, color: Colors.black),
+                          icon: const Icon(Icons.file_download_outlined, color: AppColors.yellow, size: 20),
                           label: Text(
                             l10n?.guardarTodas ?? "Guardar todas",
-                            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15),
+                            style: GoogleFonts.montserrat(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.yellow,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            side: const BorderSide(color: AppColors.yellow, width: 1.2),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),
                       ),
@@ -521,21 +803,91 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
     );
   }
 
-  Widget _buildCounterBtn(IconData icon, VoidCallback onPressed) {
+  Widget _buildCounterBtn(IconData icon, VoidCallback onPressed, {bool enabled = true}) {
     return InkWell(
-      onTap: onPressed,
+      onTap: enabled ? onPressed : null,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        width: 32,
-        height: 32,
+        width: 34,
+        height: 34,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppColors.yellow.withValues(alpha: 0.15),
-          border: Border.all(color: AppColors.yellow.withValues(alpha: 0.5)),
+          color: enabled ? const Color(0xFF1E1E24) : Colors.white.withValues(alpha: 0.03),
+          border: Border.all(
+            color: enabled ? AppColors.yellow : Colors.white12,
+            width: 1.2,
+          ),
         ),
-        child: Icon(icon, color: AppColors.yellow, size: 18),
+        child: Icon(icon, color: enabled ? AppColors.yellow : Colors.white24, size: 18),
       ),
     );
+  }
+
+  Widget _buildInteractiveBalota({
+    required int number,
+    required bool isExcluded,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isExcluded ? Colors.white.withValues(alpha: 0.05) : AppColors.yellow,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isExcluded ? Colors.white24 : AppColors.yellow,
+            width: 1.2,
+          ),
+          boxShadow: isExcluded
+              ? null
+              : [
+                  BoxShadow(
+                    color: AppColors.yellow.withValues(alpha: 0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              number.toString(),
+              style: GoogleFonts.montserrat(
+                color: isExcluded ? Colors.white38 : Colors.black,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                decoration: isExcluded ? TextDecoration.lineThrough : null,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              isExcluded ? Icons.add_circle_outline : Icons.cancel,
+              size: 14,
+              color: isExcluded ? Colors.white38 : Colors.black87,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _countryFlag(String country) {
+    final c = country.toLowerCase().trim();
+    if (c.contains('colombia')) return '🇨🇴';
+    if (c.contains('españa') || c.contains('spain')) return '🇪🇸';
+    if (c.contains('méxico') || c.contains('mexico')) return '🇲🇽';
+    if (c.contains('estados unidos') || c.contains('usa') || c.contains('united states')) return '🇺🇸';
+    if (c.contains('perú') || c.contains('peru')) return '🇵🇪';
+    if (c.contains('brasil') || c.contains('brazil')) return '🇧🇷';
+    if (c.contains('costa rica')) return '🇨🇷';
+    if (c.contains('uruguay')) return '🇺🇾';
+    if (c.contains('chile')) return '🇨🇱';
+    if (c.contains('argentina')) return '🇦🇷';
+    return '🌎';
   }
 
   Widget _buildSectionContainer({
@@ -543,6 +895,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
     String? subtitle,
     required IconData icon,
     required Widget child,
+    Widget? action,
   }) {
     return Container(
       width: double.infinity,
@@ -550,7 +903,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
       decoration: BoxDecoration(
         color: AppColors.black,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white10),
+        border: Border.all(color: Colors.white12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -560,44 +913,24 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
               Icon(icon, color: AppColors.yellow, size: 18),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                child: Text(
+                  title,
+                  style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                ),
               ),
+              if (action != null) action,
             ],
           ),
           if (subtitle != null) ...[
-            const SizedBox(height: 3),
-            Text(subtitle, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 11),
+            ),
           ],
           const SizedBox(height: 12),
           child,
         ],
-      ),
-    );
-  }
-
-  Widget _buildBalota(int number, {bool isSpecial = false}) {
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isSpecial ? Colors.red : AppColors.yellow,
-        boxShadow: [
-          BoxShadow(
-            color: (isSpecial ? Colors.red : AppColors.yellow).withValues(alpha: 0.35),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Text(
-        number.toString(),
-        style: TextStyle(
-          color: isSpecial ? Colors.white : Colors.black,
-          fontWeight: FontWeight.bold,
-          fontSize: 13,
-        ),
       ),
     );
   }
@@ -619,7 +952,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
       ),
       child: Text(
         number.toString(),
-        style: TextStyle(
+        style: GoogleFonts.montserrat(
           color: isSpecial ? Colors.white : Colors.black,
           fontWeight: FontWeight.bold,
           fontSize: 11,
@@ -628,13 +961,29 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
     );
   }
 
-  String _formatShortDate(String dateStr) {
+  String _formatFullDate(String dateStr) {
     try {
       final parsed = DateTime.parse(dateStr);
-      final months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-      return "${parsed.day} ${months[parsed.month - 1]}";
+      const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+      const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+      final dayName = days[parsed.weekday - 1];
+      final monthName = months[parsed.month - 1];
+      return "$dayName, ${parsed.day} $monthName ${parsed.year}";
     } catch (_) {
       return dateStr;
+    }
+  }
+
+  String _getStrategyDescription(String strategy) {
+    switch (strategy) {
+      case 'only_mine':
+        return 'Usa únicamente los números que seleccionaste.';
+      case 'variations':
+        return 'Mantiene tus números y completa la combinación con otros válidos.';
+      case 'balanced':
+        return 'Combina tus números con otros valores de la lotería.';
+      default:
+        return 'Genera combinaciones según tus números.';
     }
   }
 }

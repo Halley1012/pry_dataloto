@@ -9,6 +9,9 @@ import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 
 import '../utils/secure_storage_helper.dart';
 
@@ -170,9 +173,20 @@ class _LoteriasPaisState extends State<LoteriasPais> {
                       SliverToBoxAdapter(
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                          child: Text(
-                            l10n?.explorarLoterias ?? "Explorar Loterías",
-                            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                          child: Row(
+                            children: [
+                              Text(
+                                l10n?.explorarLoterias ?? "Explorar Loterías",
+                                style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 8),
+                              Consumer<SubscriptionProvider>(
+                                builder: (_, sub, __) => PremiumCrownIcon(
+                                  isPremium: sub.isPremium,
+                                  size: 22,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),

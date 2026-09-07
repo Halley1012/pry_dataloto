@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from app.application.combination_use_cases import CombinationUseCases
 from app.api import dependencies
@@ -17,7 +17,8 @@ class GenerateRequest(BaseModel):
     lottery: str
     input: str
     quantity: int
-    strategy: str = "balanced"
+    strategy: str = "only_mine"
+    selected_numbers: Optional[List[int]] = None
 
 @router.get("/lotteries")
 def get_lotteries(use_cases: CombinationUseCases = Depends(get_combination_use_cases)):
@@ -33,7 +34,8 @@ def generate_combinations(req: GenerateRequest, use_cases: CombinationUseCases =
             lottery_id=req.lottery,
             input_str=req.input,
             quantity=req.quantity,
-            strategy=req.strategy
+            strategy=req.strategy,
+            selected_numbers=req.selected_numbers
         )
         return result
     except ValueError as e:
