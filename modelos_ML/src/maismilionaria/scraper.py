@@ -23,6 +23,33 @@ class MaisMilionariaScraper:
         }
         self.url_caixa = "https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5) -> dict:
+        """Realiza una petición HTTP con hasta max_retries reintentos y retroceso exponencial (backoff).
+        Nunca silencia errores definitivos.
+        """
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=10)
+                if r.status_code == 200:
+                    return r.json()
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [+Milionária] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [+Milionária] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [+Milionária] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato 'DD/MM/YYYY' o 'YYYY-MM-DD'."""
         if not text_raw:
@@ -42,8 +69,11 @@ class MaisMilionariaScraper:
         return None
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """
-        Los sorteos de +Milionária se realizan los Miércoles (2) y Sábados (5).
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE si la fuente oficial (Caixa) no declara explícitamente
+        la fecha del próximo sorteo en su respuesta JSON.
+        Nunca se utiliza para extraer ni descartar sorteos históricos reales.
+        Los sorteos de +Milionária se realizan habitualmente los Miércoles (2) y Sábados (5).
         """
         draw_days = (2, 5)
         candidate = ultima_fecha_real + timedelta(days=1)
@@ -74,11 +104,10 @@ class MaisMilionariaScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Obtiene la información del último sorteo disponible en la API oficial de Caixa."""
-        try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
+        """Obtiene la información del último sorteo disponible en la API oficial de Caixa con reintentos."""
+        data = self._fetch_with_retries(self.url_caixa, max_retries=3)
+        if data:
+            try:
                 concurso = int(data.get("numero")) if data.get("numero") else None
                 fecha_raw = data.get("dataApuracao")
                 fecha_str = self._parse_fecha(fecha_raw)
@@ -99,7 +128,7 @@ class MaisMilionariaScraper:
                 prox_concurso = int(data.get("numeroConcursoProximo")) if data.get("numeroConcursoProximo") else (concurso + 1 if concurso else None)
                 
                 jackpot_val = data.get("valorEstimadoProximoConcurso")
-                jackpot_str = "R$ 91.000.000,00"
+                jackpot_str = "R$ 92.000.000,00"
                 if jackpot_val:
                     try:
                         jackpot_str = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -116,15 +145,15 @@ class MaisMilionariaScraper:
                     "jackpot": jackpot_str,
                     "raw_data": data
                 }
-        except Exception as e:
-            print(f"⚠️ Error consultando API Caixa para último sorteo de +Milionária: {e}")
+            except Exception as e:
+                print(f"⚠️ Error parseando respuesta oficial de Caixa (+Milionária): {e}")
         return None
 
     def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
         """Extrae el sorteo más reciente desde la API oficial de Caixa preservando orden original."""
         print(f"➡️ Solicitando resultados recientes de +Milionária...")
         draws = []
-        jackpot_destacado = "R$ 91.000.000,00"
+        jackpot_destacado = "R$ 92.000.000,00"
         proxima_fecha_oficial = None
 
         fuente_info = self.extraer_ultimo_sorteo_fuente()
@@ -158,65 +187,65 @@ class MaisMilionariaScraper:
     def _descargar_concurso_caixa(self, num_concurso: int) -> dict:
         """Descarga un concurso específico desde la API de Caixa preservando orden original."""
         url = f"{self.url_caixa}/{num_concurso}"
-        import time
-        for _ in range(3):
+        d = self._fetch_with_retries(url, max_retries=3, base_delay=1.0)
+        if d:
             try:
-                r = requests.get(url, headers=self.headers, timeout=5)
-                if r.status_code == 200:
-                    d = r.json()
-                    fecha_str = self._parse_fecha(d.get("dataApuracao"))
-                    dezenas_ordem = d.get("dezenasSorteadasOrdemSorteio") or []
-                    lista_dezenas = d.get("listaDezenas") or []
-                    trevos = d.get("trevosSorteados") or []
+                fecha_str = self._parse_fecha(d.get("dataApuracao"))
+                dezenas_ordem = d.get("dezenasSorteadasOrdemSorteio") or []
+                lista_dezenas = d.get("listaDezenas") or []
+                trevos = d.get("trevosSorteados") or []
 
-                    if len(dezenas_ordem) >= 8:
-                        balls = [int(x) for x in dezenas_ordem[:6]]
-                        tr = [int(x) for x in dezenas_ordem[6:8]]
-                    else:
-                        balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
-                        tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
+                if len(dezenas_ordem) >= 8:
+                    balls = [int(x) for x in dezenas_ordem[:6]]
+                    tr = [int(x) for x in dezenas_ordem[6:8]]
+                else:
+                    balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
+                    tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
 
-                    if fecha_str and len(balls) == 6 and len(tr) == 2:
-                        return {
-                            "concurso": num_concurso,
-                            "loteria_id": self.loteria_id,
-                            "sorteo": "+Milionária",
-                            "fecha": fecha_str,
-                            "balota1": balls[0],
-                            "balota2": balls[1],
-                            "balota3": balls[2],
-                            "balota4": balls[3],
-                            "balota5": balls[4],
-                            "balota6": balls[5],
-                            "balotaroja": tr[0],
-                            "balotaroja2": tr[1]
-                        }
-            except Exception:
-                time.sleep(0.2)
+                if fecha_str and len(balls) == 6 and len(tr) == 2:
+                    return {
+                        "concurso": num_concurso,
+                        "loteria_id": self.loteria_id,
+                        "sorteo": "+Milionária",
+                        "fecha": fecha_str,
+                        "balota1": balls[0],
+                        "balota2": balls[1],
+                        "balota3": balls[2],
+                        "balota4": balls[3],
+                        "balota5": balls[4],
+                        "balota6": balls[5],
+                        "balotaroja": tr[0],
+                        "balotaroja2": tr[1]
+                    }
+            except Exception as e:
+                print(f"⚠️ Error parseando concurso #{num_concurso} de +Milionária: {e}")
         return None
 
     def extraer_historico_completo(self) -> pd.DataFrame:
         """Descarga todos los sorteos históricos de +Milionária (desde el concurso 1)."""
         print("📚 Iniciando extracción histórica completa de +Milionária...")
-        ultimo_sorteo_num = 386
-        try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                ultimo_sorteo_num = int(data.get("numero", 386))
-        except Exception:
-            pass
+        ultimo_sorteo_num = 387
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info and fuente_info.get("concurso"):
+            ultimo_sorteo_num = fuente_info["concurso"]
 
         sorteos_a_consultar = list(range(1, ultimo_sorteo_num + 1))
         print(f"⏳ Descargando {len(sorteos_a_consultar)} sorteos históricos (del 1 al {ultimo_sorteo_num})...")
 
         results = []
+        fallidos = []
         with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {executor.submit(self._descargar_concurso_caixa, num): num for num in sorteos_a_consultar}
             for f in as_completed(futures):
+                c_num = futures[f]
                 res = f.result()
                 if res:
                     results.append(res)
+                else:
+                    fallidos.append(c_num)
+
+        if fallidos:
+            print(f"⚠️ Sorteos no extraídos en el backfill ({len(fallidos)}): {sorted(fallidos)[:10]}")
 
         df = pd.DataFrame(results)
         print(f"📊 Total sorteos históricos extraídos con éxito: {len(df)}")
@@ -330,6 +359,9 @@ class MaisMilionariaScraper:
         # 2. Detección temprana
         db_ultimo = self.obtener_ultimo_sorteo_db()
         fuente_info = self.extraer_ultimo_sorteo_fuente()
+
+        if not fuente_info and not backfill:
+            raise RuntimeError("❌ No se pudo conectar con la API oficial de Caixa (+Milionária) tras 3 intentos. Fallo real de servicio.")
 
         if not backfill and fuente_info and db_ultimo:
             concurso_fuente = fuente_info.get("concurso")

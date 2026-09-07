@@ -15,6 +15,10 @@ class GenerateRequest(BaseModel):
     quantity: int
     strategy: str = "balanced"
 
+@router.get("/lotteries")
+def get_lotteries(use_cases: CombinationUseCases = Depends(get_combination_use_cases)):
+    return use_cases.get_supported_lotteries()
+
 @router.post("/generate")
 def generate_combinations(req: GenerateRequest, use_cases: CombinationUseCases = Depends(get_combination_use_cases)):
     try:

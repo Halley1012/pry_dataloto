@@ -29,6 +29,31 @@ class ChispazoScraper:
         self.url_csv = "https://www.pronosticos.gob.mx/Documentos/Historicos/Chispazo.csv"
         self.url_web = "https://www.loterianacional.gob.mx/Chispazo/Resultados"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Chispazo] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Chispazo] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Chispazo] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _determinar_modalidad(self, concurso: int) -> str:
         """
         Determina si el concurso corresponde a 'Chispazo de las Tres' (15:00) o 'Chispazo Clásico' (21:15).
@@ -99,10 +124,10 @@ class ChispazoScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Extrae el último sorteo REAL publicado en la fuente (tabla de la web oficial)."""
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=12, verify=False)
-            if r.status_code == 200:
+        """Extrae el último sorteo REAL publicado en la fuente (tabla de la web oficial) con reintentos."""
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
                 if len(tables) > 1:
@@ -124,18 +149,18 @@ class ChispazoScraper:
                                     "sorteo": self._determinar_modalidad(concurso),
                                     "balotas": balls
                                 }
-        except Exception as e:
-            print(f"⚠️ Error extrayendo último sorteo de la fuente Chispazo: {e}")
+            except Exception as e:
+                print(f"⚠️ Error extrayendo último sorteo de la fuente Chispazo: {e}")
         return None
 
     def extraer_csv(self) -> tuple[pd.DataFrame, str]:
-        """Descarga el archivo histórico oficial CSV con todos los sorteos de Chispazo."""
+        """Descarga el archivo histórico oficial CSV con todos los sorteos de Chispazo con reintentos."""
         print(f"➡️ Descargando histórico oficial CSV de Chispazo desde {self.url_csv}...")
         jackpot_destacado = "$1,500,000 MXN"
 
-        try:
-            r = requests.get(self.url_csv, headers=self.headers, timeout=20, verify=False)
-            if r.status_code == 200 and len(r.text) > 1000:
+        r = self._fetch_with_retries(self.url_csv, max_retries=3, base_delay=2.0)
+        if r and len(r.text) > 1000:
+            try:
                 df_raw = pd.read_csv(io.StringIO(r.text))
 
                 # Columnas esperadas: ['CONCURSO', 'R1', 'R2', 'R3', 'R4', 'R5', 'FECHA']
@@ -170,20 +195,20 @@ class ChispazoScraper:
                 df = pd.DataFrame(draws)
                 print(f"📊 Sorteos procesados desde CSV oficial de Chispazo: {len(df)}")
                 return df, jackpot_destacado
-        except Exception as e:
-            print(f"⚠️ Error al descargar CSV de Chispazo: {e}")
+            except Exception as e:
+                print(f"⚠️ Error al procesar CSV de Chispazo: {e}")
 
         return pd.DataFrame(), jackpot_destacado
 
     def extraer_recientes_web(self) -> tuple[pd.DataFrame, str]:
-        """Extrae sorteos recientes de la página web de Chispazo."""
+        """Extrae sorteos recientes de la página web de Chispazo con reintentos."""
         print(f"➡️ Solicitando resultados web recientes de Chispazo desde {self.url_web}...")
         draws = []
         jackpot_destacado = "$1,500,000 MXN"
 
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=15, verify=False)
-            if r.status_code == 200:
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
 
@@ -213,8 +238,8 @@ class ChispazoScraper:
                                     "balota5": balls[4],
                                     "balotaroja": 0
                                 })
-        except Exception as e:
-            print(f"⚠️ Error en scraping web de Chispazo: {e}")
+            except Exception as e:
+                print(f"⚠️ Error en scraping web de Chispazo: {e}")
 
         return pd.DataFrame(draws), jackpot_destacado
 
@@ -254,6 +279,9 @@ class ChispazoScraper:
         # 1. Detección temprana: comparar último sorteo real en BD vs fuente
         ultimo_db = self.obtener_ultimo_sorteo_db()
         ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not ultimo_fuente and not backfill:
+            raise RuntimeError("❌ No se pudo conectar con la fuente oficial de Chispazo tras 3 intentos. Fallo real de servicio.")
 
         if not backfill and ultimo_db and ultimo_fuente:
             concurso_db = ultimo_db.get("concurso")

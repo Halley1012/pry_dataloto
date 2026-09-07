@@ -5,6 +5,7 @@ from app.domain.combination_generator import CombinationGenerator, LotteryRules,
 SUPPORTED_LOTTERIES = {
     "baloto": LotteryRules(
         lottery_id="baloto",
+        country="Colombia",
         main_numbers_count=5,
         main_numbers_min=1,
         main_numbers_max=43,
@@ -14,6 +15,7 @@ SUPPORTED_LOTTERIES = {
     ),
     "miloto": LotteryRules(
         lottery_id="miloto",
+        country="Colombia",
         main_numbers_count=5,
         main_numbers_min=1,
         main_numbers_max=39,
@@ -23,6 +25,7 @@ SUPPORTED_LOTTERIES = {
     ),
     "colorloto": LotteryRules(
         lottery_id="colorloto",
+        country="Colombia",
         main_numbers_count=6,
         main_numbers_min=1,
         main_numbers_max=45,
@@ -33,8 +36,8 @@ SUPPORTED_LOTTERIES = {
 }
 
 class CombinationUseCases:
-    def get_supported_lotteries(self) -> List[str]:
-        return list(SUPPORTED_LOTTERIES.keys())
+    def get_supported_lotteries(self) -> List[Dict[str, Any]]:
+        return [rule.model_dump() for rule in SUPPORTED_LOTTERIES.values()]
 
     def get_lottery_rules(self, lottery_id: str) -> LotteryRules:
         rules = SUPPORTED_LOTTERIES.get(lottery_id.lower())

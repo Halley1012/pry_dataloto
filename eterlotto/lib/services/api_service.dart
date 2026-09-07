@@ -2026,5 +2026,18 @@ class ApiService {
       return {'success': false, 'error': e.toString()};
     }
   }
+
+  /// 🎲 Obtener reglas de loterías soportadas por el generador
+  static Future<List<dynamic>> getCombinationLotteries() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/combinations/lotteries')).timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+    } catch (e) {
+      debugPrint("Error obteniendo loterías para combinaciones: $e");
+    }
+    return [];
+  }
 }
 
