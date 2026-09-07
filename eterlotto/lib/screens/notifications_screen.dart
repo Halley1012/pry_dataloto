@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -71,6 +73,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.yellow),
         actions: [
+          Consumer<SubscriptionProvider>(
+            builder: (_, sub, __) => sub.isPremium
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0),
+                      child: PremiumCrownIcon(isPremium: true, size: 19),
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           Consumer<NotificationProvider>(
             builder: (context, provider, _) {
               if (provider.unreadCount == 0) return const SizedBox.shrink();

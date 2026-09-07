@@ -1,7 +1,6 @@
 import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -18,6 +17,7 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:provider/provider.dart';
 import '../utils/secure_storage_helper.dart';
@@ -1123,11 +1123,25 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   LotteryAvatar3D(nombre: config.nombre, size: 32),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
-                      style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
+                            style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Consumer<SubscriptionProvider>(
+                          builder: (_, sub, __) => PremiumCrownIcon(
+                            isPremium: sub.isPremium,
+                            size: 16,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
