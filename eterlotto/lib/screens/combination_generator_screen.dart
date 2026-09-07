@@ -114,11 +114,17 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             ),
                             style: const TextStyle(color: Colors.white),
-                            items: const [
-                              DropdownMenuItem(value: 'baloto', child: Text('Baloto')),
-                              DropdownMenuItem(value: 'miloto', child: Text('Miloto')),
-                              DropdownMenuItem(value: 'colorloto', child: Text('ColorLoto')),
-                            ],
+                            items: provider.supportedLotteries.map((rule) {
+                              // Capitalize first letter
+                              String name = rule.lotteryId;
+                              if (name.isNotEmpty) {
+                                name = name[0].toUpperCase() + name.substring(1);
+                              }
+                              return DropdownMenuItem(
+                                value: rule.lotteryId, 
+                                child: Text(name)
+                              );
+                            }).toList(),
                             onChanged: (val) {
                               if (val != null) provider.setLottery(val);
                             },
@@ -146,8 +152,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  provider.selectedLottery == 'baloto' ? "5 números principales del 1 al 43 y 1 balota del 1 al 16." :
-                                  provider.selectedLottery == 'miloto' ? "5 números principales del 1 al 39." : "6 números principales del 1 al 45.",
+                                  provider.selectedLotteryRules?.rulesDescription ?? "Cargando reglas...",
                                   style: const TextStyle(color: Colors.white70, fontSize: 11),
                                 ),
                               ],
