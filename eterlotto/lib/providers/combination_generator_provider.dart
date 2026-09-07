@@ -18,14 +18,14 @@ class CombinationGeneratorProvider with ChangeNotifier {
   List<GeneratedCombination> _combinations = [];
 
   CombinationGeneratorProvider() {
-    _loadLotteries();
+    _loadLotteries(force: true);
   }
 
-  Future<void> _loadLotteries() async {
+  Future<void> _loadLotteries({bool force = false}) async {
     _isLoadingLotteries = true;
     notifyListeners();
 
-    final list = await ApiService.getCombinationLotteries();
+    final list = await ApiService.getCombinationLotteries(forceRefresh: force);
     _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
     
     try {
@@ -37,7 +37,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
         bool bIsLocal = b.country.toLowerCase() == userPais.toLowerCase();
         if (aIsLocal && !bIsLocal) return -1;
         if (!aIsLocal && bIsLocal) return 1;
-        return a.lotteryId.compareTo(b.lotteryId);
+        return a.name.compareTo(b.name);
       });
     } catch (_) {}
 
@@ -50,7 +50,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   /// Reloads the lottery list from the server (called on pull-to-refresh)
-  Future<void> reload() => _loadLotteries();
+  Future<void> reload() => _loadLotteries(force: true);
 
   String? get selectedLottery => _selectedLottery;
   LotteryRules? get selectedLotteryRules {

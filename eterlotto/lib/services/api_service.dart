@@ -2028,12 +2028,18 @@ class ApiService {
   }
 
   /// 🎲 Obtener reglas de loterías soportadas por el generador
-  static Future<List<dynamic>> getCombinationLotteries() async {
+  static Future<List<dynamic>> getCombinationLotteries({bool forceRefresh = false}) async {
     const cacheKey = 'combination_lotteries_rules';
+    if (!forceRefresh) {
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached != null && cached is List && cached.isNotEmpty) {
+        return cached;
+      }
+    }
+
     try {
-      // Construct URL carefully to avoid double-slash issues
       final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 5));
+      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         CacheService.setJson(cacheKey, data);
@@ -2042,6 +2048,7 @@ class ApiService {
     } catch (e) {
       debugPrint("Error obteniendo loterías para combinaciones: $e");
     }
+    
     final cached = await CacheService.getJson(cacheKey);
     if (cached != null && cached is List) {
       return cached;
