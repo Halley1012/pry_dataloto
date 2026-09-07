@@ -2002,17 +2002,23 @@ class ApiService {
     required String lottery,
     required String input,
     required int quantity,
-    String strategy = 'balanced',
+    String strategy = 'only_mine',
+    List<int>? selectedNumbers,
   }) async {
     try {
+      final Map<String, dynamic> body = {
+        "lottery": lottery,
+        "input": input,
+        "quantity": quantity,
+        "strategy": strategy,
+      };
+      if (selectedNumbers != null) {
+        body["selected_numbers"] = selectedNumbers;
+      }
+
       final response = await post(
         "/combinations/generate",
-        {
-          "lottery": lottery,
-          "input": input,
-          "quantity": quantity,
-          "strategy": strategy,
-        },
+        body,
         withAuth: false,
       );
 
@@ -2027,30 +2033,28 @@ class ApiService {
     }
   }
 
-  /// 🎲 Obtener reglas de loterías soportadas por el generador
+  /// 🎲 Obtener reglas de loterías soportadas por el generador (Network-first, Cache fallback)
   static Future<List<dynamic>> getCombinationLotteries({bool forceRefresh = false}) async {
-    const cacheKey = 'combination_lotteries_rules';
-    if (!forceRefresh) {
-      final cached = await CacheService.getJson(cacheKey);
-      if (cached != null && cached is List && cached.isNotEmpty) {
-        return cached;
-      }
-    }
+    const cacheKey = 'combination_lotteries_rules_v2';
 
+    // 1. Intentar siempre primero obtener los datos frescos del servidor
     try {
       final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 8));
+      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        CacheService.setJson(cacheKey, data);
-        return data;
+        if (data is List && data.isNotEmpty) {
+          CacheService.setJson(cacheKey, data);
+          return data;
+        }
       }
     } catch (e) {
-      debugPrint("Error obteniendo loterías para combinaciones: $e");
+      debugPrint("Error obteniendo loterías para combinaciones del servidor: $e");
     }
     
+    // 2. Fallback únicamente si el backend falló o estuvo fuera de línea
     final cached = await CacheService.getJson(cacheKey);
-    if (cached != null && cached is List) {
+    if (cached != null && cached is List && cached.isNotEmpty) {
       return cached;
     }
     return [];

@@ -13,6 +13,9 @@ import 'package:shimmer/shimmer.dart';
 
 
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import '../utils/secure_storage_helper.dart';
 
 class ResultadosSelectorScreen extends StatefulWidget {
@@ -247,9 +250,20 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                  child: Text(
-                    l10n?.analisisYResultados ?? "Análisis y Resultados",
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  child: Row(
+                    children: [
+                      Text(
+                        l10n?.analisisYResultados ?? "Análisis y Resultados",
+                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(width: 8),
+                      Consumer<SubscriptionProvider>(
+                        builder: (_, sub, __) => PremiumCrownIcon(
+                          isPremium: sub.isPremium,
+                          size: 22,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

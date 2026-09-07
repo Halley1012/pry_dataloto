@@ -70,11 +70,17 @@ class CombinationUseCases:
         lottery_id: str, 
         input_str: str, 
         quantity: int, 
-        strategy: str = "balanced"
+        strategy: str = "only_mine",
+        selected_numbers: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         rules = self.get_lottery_rules(lottery_id)
         generator = CombinationGenerator(rules)
-        combinations = generator.generate(input_str, quantity, strategy)
+        combinations = generator.generate(
+            input_str=input_str,
+            quantity=quantity,
+            strategy=strategy,
+            selected_numbers=selected_numbers
+        )
         
         return {
             "lottery": lottery_id.lower(),

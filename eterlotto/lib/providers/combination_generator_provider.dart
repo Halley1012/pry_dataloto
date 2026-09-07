@@ -8,7 +8,8 @@ class CombinationGeneratorProvider with ChangeNotifier {
   String? _selectedLottery;
   String _inputData = '';
   int _quantity = 10;
-  String _strategy = 'balanced';
+  String _strategy = 'only_mine';
+  final Set<int> _excludedNumbers = {};
   
   bool _isLoading = false;
   bool _isLoadingLotteries = true;
@@ -42,19 +43,9 @@ class CombinationGeneratorProvider with ChangeNotifier {
     } catch (_) {}
 
     if (_supportedLotteries.isNotEmpty) {
-      // Si la lotería seleccionada (posiblemente de caché antigua) no existe en la nueva lista,
-      // intentar mapearla o resetearla.
       bool exists = _supportedLotteries.any((l) => l.lotteryId == _selectedLottery);
       if (!exists) {
-        if (_selectedLottery == 'baloto') {
-          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'bloto') ? 'bloto' : _supportedLotteries.first.lotteryId;
-        } else if (_selectedLottery == 'miloto') {
-          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'mloto') ? 'mloto' : _supportedLotteries.first.lotteryId;
-        } else if (_selectedLottery == 'colorloto') {
-          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'cloto') ? 'cloto' : _supportedLotteries.first.lotteryId;
-        } else {
-          _selectedLottery = _supportedLotteries.first.lotteryId;
-        }
+        _selectedLottery = _supportedLotteries.first.lotteryId;
       }
     }
 
@@ -86,37 +77,78 @@ class CombinationGeneratorProvider with ChangeNotifier {
   String? get error => _error;
   List<GeneratedCombination> get combinations => _combinations;
   
-  List<int> get detectedNumbers {
-    if (_inputData.isEmpty) return [];
+  Set<int> _extractDetectedNumbers(String data) {
+    if (data.isEmpty) return {};
+
+    final rules = selectedLotteryRules;
+    final int minVal = rules?.mainNumbersMin ?? 1;
+    final int maxVal = rules?.mainNumbersMax ?? 99;
+    final int specialMax = rules?.specialNumbersMax ?? 0;
+    // Permite candidatos válidos según el rango dinámico de la lotería activa
+    final int effectiveMax = maxVal > specialMax ? maxVal : specialMax;
     
     final RegExp regExp = RegExp(r'\d+');
-    final matches = regExp.allMatches(_inputData);
+    final matches = regExp.allMatches(data);
     final Set<int> numbers = {};
     for (var match in matches) {
       final str = match.group(0)!;
       final val = int.tryParse(str);
-      if (val != null && val > 0 && val <= 99) {
+      if (val != null && val >= minVal && val <= effectiveMax) {
         numbers.add(val);
       }
-      for (int i=0; i<str.length; i++) {
+      for (int i = 0; i < str.length; i++) {
         final v1 = int.tryParse(str[i]);
-        if (v1 != null && v1 > 0) numbers.add(v1);
+        if (v1 != null && v1 >= minVal && v1 <= effectiveMax) {
+          numbers.add(v1);
+        }
         if (i < str.length - 1) {
-          final v2 = int.tryParse(str.substring(i, i+2));
-          if (v2 != null && v2 > 0 && v2 <= 99) numbers.add(v2);
+          final v2 = int.tryParse(str.substring(i, i + 2));
+          if (v2 != null && v2 >= minVal && v2 <= effectiveMax) {
+            numbers.add(v2);
+          }
         }
       }
     }
-    return numbers.toList()..sort();
+    return numbers;
+  }
+
+  List<int> get detectedNumbers {
+    return _extractDetectedNumbers(_inputData).toList()..sort();
+  }
+
+  List<int> get activeNumbers {
+    return detectedNumbers.where((n) => !_excludedNumbers.contains(n)).toList();
+  }
+
+  bool isNumberExcluded(int number) => _excludedNumbers.contains(number);
+
+  void toggleExcludeNumber(int number) {
+    if (_excludedNumbers.contains(number)) {
+      _excludedNumbers.remove(number);
+    } else {
+      _excludedNumbers.add(number);
+    }
+    notifyListeners();
+  }
+
+  void removeNumber(int number) {
+    _excludedNumbers.add(number);
+    notifyListeners();
   }
 
   void setLottery(String lottery) {
+    if (_selectedLottery == lottery) return;
     _selectedLottery = lottery;
+    _combinations = [];
+    _error = null;
+    _excludedNumbers.clear();
     notifyListeners();
   }
 
   void setInputData(String data) {
     _inputData = data;
+    final currentDetected = _extractDetectedNumbers(data);
+    _excludedNumbers.removeWhere((n) => !currentDetected.contains(n));
     notifyListeners();
   }
 
@@ -136,11 +168,22 @@ class CombinationGeneratorProvider with ChangeNotifier {
 
   void setStrategy(String strategy) {
     _strategy = strategy;
+    _error = null;
     notifyListeners();
   }
 
   Future<void> generate() async {
     if (_selectedLottery == null) return;
+
+    final count = selectedLotteryRules?.mainNumbersCount ?? 5;
+    final currentActive = activeNumbers;
+
+    if (_strategy == 'only_mine' && currentActive.length < count) {
+      _error = "Para 'Solo mis números' necesitas al menos $count números válidos. Tienes ${currentActive.length}.";
+      notifyListeners();
+      return;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -150,6 +193,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
       input: _inputData,
       quantity: _quantity,
       strategy: _strategy,
+      selectedNumbers: currentActive,
     );
 
     if (result['success']) {
