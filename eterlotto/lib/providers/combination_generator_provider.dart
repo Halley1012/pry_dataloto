@@ -41,8 +41,21 @@ class CombinationGeneratorProvider with ChangeNotifier {
       });
     } catch (_) {}
 
-    if (_supportedLotteries.isNotEmpty && _selectedLottery == null) {
-      _selectedLottery = _supportedLotteries.first.lotteryId;
+    if (_supportedLotteries.isNotEmpty) {
+      // Si la lotería seleccionada (posiblemente de caché antigua) no existe en la nueva lista,
+      // intentar mapearla o resetearla.
+      bool exists = _supportedLotteries.any((l) => l.lotteryId == _selectedLottery);
+      if (!exists) {
+        if (_selectedLottery == 'baloto') {
+          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'bloto') ? 'bloto' : _supportedLotteries.first.lotteryId;
+        } else if (_selectedLottery == 'miloto') {
+          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'mloto') ? 'mloto' : _supportedLotteries.first.lotteryId;
+        } else if (_selectedLottery == 'colorloto') {
+          _selectedLottery = _supportedLotteries.any((l) => l.lotteryId == 'cloto') ? 'cloto' : _supportedLotteries.first.lotteryId;
+        } else {
+          _selectedLottery = _supportedLotteries.first.lotteryId;
+        }
+      }
     }
 
     _isLoadingLotteries = false;
