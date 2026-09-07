@@ -51,13 +51,13 @@ def validar_melateretro():
     else:
         print(f"  ✅ Continuidad perfecta: {len(concursos)}/{len(concursos)} (0 faltantes)")
 
-    # 3. Validar cero duplicados en (fecha, sorteo)
-    dup = df_real[df_real.duplicated(subset=['fecha', 'sorteo'], keep=False)]
+    # 3. Validar cero duplicados en concurso
+    dup = df_real[df_real.duplicated(subset=['concurso'], keep=False)]
     if not dup.empty:
-        print(f"❌ Duplicados encontrados en (fecha, sorteo): {len(dup)}")
+        print(f"❌ Duplicados encontrados en concurso: {len(dup)}")
         sys.exit(1)
     else:
-        print("✅ Cero duplicados en (fecha, sorteo)")
+        print("✅ Cero duplicados en concurso")
 
     # 4. Validar rangos de balotas (1..39, 6 números únicos por sorteo)
     balota_cols = ['balota1', 'balota2', 'balota3', 'balota4', 'balota5', 'balota6']

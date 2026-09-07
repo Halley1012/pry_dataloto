@@ -43,6 +43,31 @@ class GanaDiarioScraper:
         self.url_oficial = "https://www.latinka.com.pe/p/juega-ganadiario.html"
         self.url_sitemap = "https://tinkaresultados.com/sitemap.xml"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Gana Diario] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Gana Diario] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Gana Diario] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """Sorteos de Gana Diario: Todos los días (Diario)."""
         return ultima_fecha_real + timedelta(days=1)
@@ -50,85 +75,78 @@ class GanaDiarioScraper:
     def extraer_premio_oficial(self) -> str:
         """Extrae el Premio Diario en tiempo real desde el portal oficial."""
         print(f"➡️ Consultando Premio Diario oficial en {self.url_oficial}...")
-        try:
-            r = requests.get(self.url_oficial, headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
-                    txt = tag.get_text(strip=True)
-                    if "premio" in txt.lower() and "s/" in txt.lower():
-                        m = re.search(r'S/\s*([0-9\',.]+)', txt)
-                        if m:
-                            clean_m = m.group(1).replace("'", ",").replace(" ", "")
-                            return f"S/ {clean_m}"
-        except Exception as e:
-            print(f"⚠️ Error extrayendo Premio de Gana Diario: {e}")
+        r = self._fetch_with_retries(self.url_oficial, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
+                txt = tag.get_text(strip=True)
+                if "premio" in txt.lower() and "s/" in txt.lower():
+                    m = re.search(r'S/\s*([0-9\',.]+)', txt)
+                    if m:
+                        clean_m = m.group(1).replace("'", ",").replace(" ", "")
+                        return f"S/ {clean_m}"
 
         return "S/ 200,000"
 
     def _parsear_jugada(self, url: str, concurso_esperado: int = None) -> dict:
         """Descarga y parsea una página individual de sorteo de Gana Diario."""
-        try:
-            r = requests.get(url, headers=self.headers, timeout=10, verify=False)
-            if r.status_code != 200:
-                c_num = concurso_esperado
-                if not c_num:
-                    m = re.search(r'sorteo-(\d+)', url)
-                    if m:
-                        c_num = int(m.group(1))
-                if c_num and c_num in FALLBACK_HISTORICO_500:
-                    fb = FALLBACK_HISTORICO_500[c_num]
-                    return {
-                        "concurso": fb["concurso"],
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Gana Diario",
-                        "fecha": fb["fecha"],
-                        "balota1": fb["balota1"],
-                        "balota2": fb["balota2"],
-                        "balota3": fb["balota3"],
-                        "balota4": fb["balota4"],
-                        "balota5": fb["balota5"],
-                        "balotaroja": fb["balotaroja"]
-                    }
-                return None
+        r = self._fetch_with_retries(url, max_retries=3, base_delay=1.0)
+        if not r or r.status_code != 200:
+            c_num = concurso_esperado
+            if not c_num:
+                m = re.search(r'sorteo-(\d+)', url)
+                if m:
+                    c_num = int(m.group(1))
+            if c_num and c_num in FALLBACK_HISTORICO_500:
+                fb = FALLBACK_HISTORICO_500[c_num]
+                return {
+                    "concurso": fb["concurso"],
+                    "loteria_id": self.loteria_id,
+                    "sorteo": "Gana Diario",
+                    "fecha": fb["fecha"],
+                    "balota1": fb["balota1"],
+                    "balota2": fb["balota2"],
+                    "balota3": fb["balota3"],
+                    "balota4": fb["balota4"],
+                    "balota5": fb["balota5"],
+                    "balotaroja": fb["balotaroja"]
+                }
+            return None
 
-            soup = BeautifulSoup(r.text, "html.parser")
-            txt = soup.get_text()
+        soup = BeautifulSoup(r.text, "html.parser")
+        txt = soup.get_text()
 
-            m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
-            if m_date:
-                d, m, y = m_date.groups()
-                fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-            else:
-                return None
+        m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
+        if m_date:
+            d, m, y = m_date.groups()
+            fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+        else:
+            return None
 
-            # 5 números ganadores (en orden original de extracción)
-            m_balls = re.search(r'(?:Jugada Ganadora|Fecha:\s*\d{1,2}/\d{1,2}/\d{4})\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
-            if m_balls:
-                balls = [int(x) for x in m_balls.groups()]
-            else:
-                return None
+        # 5 números ganadores (en orden original de extracción)
+        m_balls = re.search(r'(?:Jugada Ganadora|Fecha:\s*\d{1,2}/\d{1,2}/\d{4})\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
+        if m_balls:
+            balls = [int(x) for x in m_balls.groups()]
+        else:
+            return None
 
-            m_sorteo = re.search(r'Sorteo\s*(?:Nro\.?|número)?\s*(\d+)', txt, re.IGNORECASE)
-            if not m_sorteo:
-                m_sorteo = re.search(r'sorteo-(\d+)', url)
-            concurso_num = int(m_sorteo.group(1)) if m_sorteo else concurso_esperado
+        m_sorteo = re.search(r'Sorteo\s*(?:Nro\.?|número)?\s*(\d+)', txt, re.IGNORECASE)
+        if not m_sorteo:
+            m_sorteo = re.search(r'sorteo-(\d+)', url)
+        concurso_num = int(m_sorteo.group(1)) if m_sorteo else concurso_esperado
 
-            return {
-                "concurso": concurso_num,
-                "loteria_id": self.loteria_id,
-                "sorteo": "Gana Diario",
-                "fecha": fecha_iso,
-                "balota1": balls[0],
-                "balota2": balls[1],
-                "balota3": balls[2],
-                "balota4": balls[3],
-                "balota5": balls[4],
-                "balotaroja": 0
-            }
-        except Exception:
-            pass
-        return None
+        return {
+            "concurso": concurso_num,
+            "loteria_id": self.loteria_id,
+            "sorteo": "Gana Diario",
+            "fecha": fecha_iso,
+            "balota1": balls[0],
+            "balota2": balls[1],
+            "balota3": balls[2],
+            "balota4": balls[3],
+            "balota5": balls[4],
+            "balotaroja": 0
+        }
 
     def obtener_ultimo_sorteo_db(self) -> dict:
         """Obtiene el último sorteo REAL en la base de datos (balota1 > 0)."""
@@ -154,36 +172,33 @@ class GanaDiarioScraper:
     def extraer_ultimo_sorteo_fuente(self) -> dict:
         """Extrae el último sorteo REAL directamente desde la página principal oficial."""
         url = "https://www.tinkaresultados.com/gana-diario"
-        try:
-            r = requests.get(url, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                txt = soup.get_text()
+        r = self._fetch_with_retries(url, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            txt = soup.get_text()
 
-                m_sorteo = re.search(r'(?:Sorteo|Número|Nro\.?)\s*:?\s*(\d{4,5})', txt, re.IGNORECASE)
-                m_fecha = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt, re.IGNORECASE)
-                m_balls = re.search(r'(?:Jugada Ganadora|Bolillas|Resultados)\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
+            m_sorteo = re.search(r'(?:Sorteo|Número|Nro\.?)\s*:?\s*(\d{4,5})', txt, re.IGNORECASE)
+            m_fecha = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt, re.IGNORECASE)
+            m_balls = re.search(r'(?:Jugada Ganadora|Bolillas|Resultados)\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
 
-                if m_fecha and m_balls:
-                    d, m, y = m_fecha.groups()
-                    fecha_date = date(int(y), int(m), int(d))
-                    raw_balls = [int(x) for x in m_balls.groups()]
-                    concurso_num = int(m_sorteo.group(1)) if m_sorteo else None
+            if m_fecha and m_balls:
+                d, m, y = m_fecha.groups()
+                fecha_date = date(int(y), int(m), int(d))
+                raw_balls = [int(x) for x in m_balls.groups()]
+                concurso_num = int(m_sorteo.group(1)) if m_sorteo else None
 
-                    return {
-                        "concurso": concurso_num,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Gana Diario",
-                        "fecha": fecha_date,
-                        "balota1": raw_balls[0],
-                        "balota2": raw_balls[1],
-                        "balota3": raw_balls[2],
-                        "balota4": raw_balls[3],
-                        "balota5": raw_balls[4],
-                        "balotaroja": 0
-                    }
-        except Exception as e:
-            print(f"⚠️ Error consultando último sorteo en la fuente: {e}")
+                return {
+                    "concurso": concurso_num,
+                    "loteria_id": self.loteria_id,
+                    "sorteo": "Gana Diario",
+                    "fecha": fecha_date,
+                    "balota1": raw_balls[0],
+                    "balota2": raw_balls[1],
+                    "balota3": raw_balls[2],
+                    "balota4": raw_balls[3],
+                    "balota5": raw_balls[4],
+                    "balotaroja": 0
+                }
         return None
 
     def extraer_historico_concurrente(self, max_draws: int = 30, desde_concurso: int = None, hasta_concurso: int = None) -> pd.DataFrame:
@@ -193,56 +208,51 @@ class GanaDiarioScraper:
         Si no se especifican, descarga los 'max_draws' sorteos más recientes.
         """
         print(f"➡️ Obteniendo lista de sorteos históricos de Gana Diario...")
-        try:
-            r = requests.get(self.url_sitemap, headers=self.headers, timeout=12, verify=False)
-            sitemap_map = {}
-            if r.status_code == 200:
-                urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                for u in urls:
-                    m = re.search(r'sorteo-(\d+)', u)
-                    if m and 'gana-diario' in u.lower():
-                        sitemap_map[int(m.group(1))] = u
+        r = self._fetch_with_retries(self.url_sitemap, max_retries=3, base_delay=1.5)
+        sitemap_map = {}
+        if r and r.status_code == 200:
+            urls = re.findall(r'<loc>(.*?)</loc>', r.text)
+            for u in urls:
+                m = re.search(r'sorteo-(\d+)', u)
+                if m and 'gana-diario' in u.lower():
+                    sitemap_map[int(m.group(1))] = u
 
-            draws = []
-            if desde_concurso is not None and hasta_concurso is not None:
-                esperados = hasta_concurso - desde_concurso + 1
-                print(f"Modo Rango Solicitado: #{desde_concurso} → #{hasta_concurso} ({esperados} sorteos)...")
-                items = []
-                for c_num in range(desde_concurso, hasta_concurso + 1):
-                    url = sitemap_map.get(c_num, f"https://www.tinkaresultados.com/gana-diario/resultados-anteriores/sorteo-{c_num}")
-                    items.append((url, c_num))
+        draws = []
+        if desde_concurso is not None and hasta_concurso is not None:
+            esperados = hasta_concurso - desde_concurso + 1
+            print(f"Modo Rango Solicitado: #{desde_concurso} → #{hasta_concurso} ({esperados} sorteos)...")
+            items = []
+            for c_num in range(desde_concurso, hasta_concurso + 1):
+                url = sitemap_map.get(c_num, f"https://www.tinkaresultados.com/gana-diario/resultados-anteriores/sorteo-{c_num}")
+                items.append((url, c_num))
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-                    futures = [executor.submit(self._parsear_jugada, item[0], item[1]) for item in items]
-                    for f in concurrent.futures.as_completed(futures):
-                        res = f.result()
-                        if res:
-                            draws.append(res)
-            else:
-                # Modo normal: tomar los sorteos más recientes (los últimos de la lista del sitemap)
-                sorted_nums = sorted(sitemap_map.keys())
-                recent_nums = sorted_nums[-max_draws:] if len(sorted_nums) > max_draws else sorted_nums
-                items = [(sitemap_map[n], n) for n in recent_nums]
-                print(f"Descargando {len(items)} sorteos recientes de Gana Diario concurrentemente...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+                futures = [executor.submit(self._parsear_jugada, item[0], item[1]) for item in items]
+                for f in concurrent.futures.as_completed(futures):
+                    res = f.result()
+                    if res:
+                        draws.append(res)
+        else:
+            # Modo normal: tomar los sorteos más recientes (los últimos de la lista del sitemap)
+            sorted_nums = sorted(sitemap_map.keys())
+            recent_nums = sorted_nums[-max_draws:] if len(sorted_nums) > max_draws else sorted_nums
+            items = [(sitemap_map[n], n) for n in recent_nums]
+            print(f"Descargando {len(items)} sorteos recientes de Gana Diario concurrentemente...")
 
-                with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-                    futures = [executor.submit(self._parsear_jugada, item[0], item[1]) for item in items]
-                    for f in concurrent.futures.as_completed(futures):
-                        res = f.result()
-                        if res:
-                            draws.append(res)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
+                futures = [executor.submit(self._parsear_jugada, item[0], item[1]) for item in items]
+                for f in concurrent.futures.as_completed(futures):
+                    res = f.result()
+                    if res:
+                        draws.append(res)
 
-                # También agregar el último sorteo de la página principal
-                ultimo_res = self._parsear_jugada("https://www.tinkaresultados.com/gana-diario")
-                if ultimo_res:
-                    draws.append(ultimo_res)
+            # También agregar el último sorteo de la página principal
+            ultimo_res = self._parsear_jugada("https://www.tinkaresultados.com/gana-diario")
+            if ultimo_res:
+                draws.append(ultimo_res)
 
-            print(f"📊 Sorteos procesados de Gana Diario: {len(draws)}")
-            return pd.DataFrame(draws)
-        except Exception as e:
-            print(f"⚠️ Error descargando histórico: {e}")
-
-        return pd.DataFrame()
+        print(f"📊 Sorteos procesados de Gana Diario: {len(draws)}")
+        return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el premio de Gana Diario en la tabla loterias_jackpots."""
@@ -276,13 +286,17 @@ class GanaDiarioScraper:
 
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de Gana Diario (Perú)...")
-        
+
         # 1. Obtener último sorteo REAL en BD
         ultimo_db = self.obtener_ultimo_sorteo_db()
 
         # 2. Detección temprana: Si no es backfill y ya hay datos en BD, verificar si la fuente tiene nuevo sorteo
         if not backfill and ultimo_db:
             ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+            if ultimo_fuente is None:
+                raise RuntimeError("❌ [Gana Diario] Error al comunicarse con la fuente oficial tinkaresultados.com/gana-diario tras 3 intentos.")
+
             if ultimo_fuente:
                 fecha_fuente = ultimo_fuente["fecha"]
                 concurso_fuente = ultimo_fuente["concurso"]
@@ -310,8 +324,8 @@ class GanaDiarioScraper:
         try:
             with self.engine.connect() as conn:
                 df_existente = pd.read_sql(text("SELECT * FROM resultados_ganadiario WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ No se pudo leer BD existente: {e}")
 
         # 4. Descargar histórico y premio oficial
         premio_oficial = self.extraer_premio_oficial()
@@ -347,8 +361,7 @@ class GanaDiarioScraper:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
         if df_scraped.empty and df_existente.empty:
-            print("❌ No se pudieron obtener resultados de Gana Diario.")
-            return None
+            raise RuntimeError("❌ [Gana Diario] No se pudieron obtener resultados de la fuente ni de la BD.")
 
         # 3. Combinar y limpiar (df_scraped primero para que prevalezcan los datos frescos con concurso)
         if not df_existente.empty and not df_scraped.empty:
@@ -365,8 +378,7 @@ class GanaDiarioScraper:
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
 
         if df_combined.empty:
-            print("❌ No hay datos válidos para procesar.")
-            return
+            raise RuntimeError("❌ [Gana Diario] No hay datos válidos para procesar tras filtrado.")
 
         # 4. Calcular próximo sorteo
         ultima_fecha_real = df_combined.iloc[0]['fecha']

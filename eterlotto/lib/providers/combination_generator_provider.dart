@@ -11,6 +11,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
   String _strategy = 'balanced';
   
   bool _isLoading = false;
+  bool _isLoadingLotteries = true;
   String? _error;
   
   List<LotteryRules> _supportedLotteries = [];
@@ -21,6 +22,9 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   Future<void> _loadLotteries() async {
+    _isLoadingLotteries = true;
+    notifyListeners();
+
     final list = await ApiService.getCombinationLotteries();
     _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
     
@@ -37,11 +41,16 @@ class CombinationGeneratorProvider with ChangeNotifier {
       });
     } catch (_) {}
 
-    if (_supportedLotteries.isNotEmpty) {
+    if (_supportedLotteries.isNotEmpty && _selectedLottery == null) {
       _selectedLottery = _supportedLotteries.first.lotteryId;
     }
+
+    _isLoadingLotteries = false;
     notifyListeners();
   }
+
+  /// Reloads the lottery list from the server (called on pull-to-refresh)
+  Future<void> reload() => _loadLotteries();
 
   String? get selectedLottery => _selectedLottery;
   LotteryRules? get selectedLotteryRules {
@@ -60,6 +69,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
   String get strategy => _strategy;
   
   bool get isLoading => _isLoading;
+  bool get isLoadingLotteries => _isLoadingLotteries;
   String? get error => _error;
   List<GeneratedCombination> get combinations => _combinations;
   

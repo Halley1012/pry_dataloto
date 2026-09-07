@@ -28,6 +28,31 @@ class MelateScraper:
         self.url_revanchita_csv = "https://www.loterianacional.gob.mx/Documentos/Historicos/Revanchita.csv"
         self.url_web = "https://www.loterianacional.gob.mx/Melate/Resultados"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Melate] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Melate] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Melate] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato 'DD/MM/YYYY' o 'YYYY-MM-DD' a 'YYYY-MM-DD'."""
         if not text_raw:
@@ -47,8 +72,10 @@ class MelateScraper:
         return None
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """
-        Los sorteos de Melate, Revancha y Revanchita se realizan los Miércoles (2), Viernes (4) y Domingos (6).
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE para proyectar la fecha de sorteos futuros.
+        Nunca se utiliza para extraer ni descartar sorteos históricos reales.
+        Los sorteos de Melate, Revancha y Revanchita se realizan habitualmente los Miércoles (2), Viernes (4) y Domingos (6).
         """
         draw_days = (2, 4, 6)
         candidate = ultima_fecha_real + timedelta(days=1)
@@ -63,8 +90,8 @@ class MelateScraper:
                 row = conn.execute(text("""
                     SELECT concurso, fecha, sorteo
                     FROM resultados_melate
-                    WHERE balota1 > 0
-                    ORDER BY fecha DESC, concurso DESC
+                    WHERE balota1 > 0 AND sorteo = 'Melate'
+                    ORDER BY concurso DESC, fecha DESC
                     LIMIT 1;
                 """)).fetchone()
                 if row:
@@ -78,10 +105,10 @@ class MelateScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Extrae el último sorteo REAL publicado en la web oficial."""
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=12, verify=False)
-            if r.status_code == 200:
+        """Extrae el último sorteo REAL publicado en la web oficial con reintentos."""
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
                 # Tabla 3 es Melate
@@ -106,21 +133,21 @@ class MelateScraper:
                                         "balotas": balls,
                                         "adicional": int(add_str) if add_str.isdigit() else 0
                                     }
-        except Exception as e:
-            print(f"⚠️ Error consultando último sorteo en la fuente Melate: {e}")
+            except Exception as e:
+                print(f"⚠️ Error consultando último sorteo en la fuente Melate: {e}")
         return None
 
     def extraer_csvs_completos(self) -> tuple[pd.DataFrame, str]:
-        """Descarga los archivos oficiales CSV de Melate, Revancha y Revanchita."""
+        """Descarga los archivos oficiales CSV de Melate, Revancha y Revanchita con reintentos."""
         print("➡️ Descargando históricos oficiales de Melate, Revancha y Revanchita...")
         draws = []
         bolsas = {"melate": 0, "revancha": 0, "revanchita": 0}
 
         # 1. Melate Principal
-        try:
-            r = requests.get(self.url_melate_csv, headers=self.headers, timeout=15, verify=False)
-            if r.status_code == 200:
-                df_m = pd.read_csv(io.StringIO(r.text))
+        r_m = self._fetch_with_retries(self.url_melate_csv, max_retries=3, base_delay=2.0)
+        if r_m and len(r_m.text) > 1000:
+            try:
+                df_m = pd.read_csv(io.StringIO(r_m.text))
                 if 'BOLSA' in df_m.columns and not df_m.empty:
                     b_val = df_m.iloc[0]['BOLSA']
                     if pd.notna(b_val): bolsas["melate"] = int(b_val)
@@ -130,7 +157,6 @@ class MelateScraper:
                     if f:
                         try:
                             c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
-                            # Conservar orden original extraído (sin sorted)
                             balls = [int(row['R1']), int(row['R2']), int(row['R3']), int(row['R4']), int(row['R5']), int(row['R6'])]
                             draws.append({
                                 "concurso": c_num,
@@ -144,14 +170,14 @@ class MelateScraper:
                         except Exception:
                             continue
                 print(f"  ✅ Melate procesado: {len(df_m)} sorteos")
-        except Exception as e:
-            print(f"  ⚠️ Error en Melate CSV: {e}")
+            except Exception as e:
+                print(f"  ⚠️ Error en Melate CSV: {e}")
 
         # 2. Revancha
-        try:
-            r = requests.get(self.url_revancha_csv, headers=self.headers, timeout=15, verify=False)
-            if r.status_code == 200:
-                df_rev = pd.read_csv(io.StringIO(r.text))
+        r_rev = self._fetch_with_retries(self.url_revancha_csv, max_retries=3, base_delay=2.0)
+        if r_rev and len(r_rev.text) > 1000:
+            try:
+                df_rev = pd.read_csv(io.StringIO(r_rev.text))
                 if 'BOLSA' in df_rev.columns and not df_rev.empty:
                     b_val = df_rev.iloc[0]['BOLSA']
                     if pd.notna(b_val): bolsas["revancha"] = int(b_val)
@@ -161,7 +187,6 @@ class MelateScraper:
                     if f:
                         try:
                             c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
-                            # Conservar orden original extraído (sin sorted)
                             balls = [int(row['R1']), int(row['R2']), int(row['R3']), int(row['R4']), int(row['R5']), int(row['R6'])]
                             draws.append({
                                 "concurso": c_num,
@@ -175,26 +200,24 @@ class MelateScraper:
                         except Exception:
                             continue
                 print(f"  ✅ Revancha procesada: {len(df_rev)} sorteos")
-        except Exception as e:
-            print(f"  ⚠️ Error en Revancha CSV: {e}")
+            except Exception as e:
+                print(f"  ⚠️ Error en Revancha CSV: {e}")
 
         # 3. Revanchita
-        try:
-            r = requests.get(self.url_revanchita_csv, headers=self.headers, timeout=15, verify=False)
-            if r.status_code == 200:
-                df_revi = pd.read_csv(io.StringIO(r.text))
+        r_revi = self._fetch_with_retries(self.url_revanchita_csv, max_retries=3, base_delay=2.0)
+        if r_revi and len(r_revi.text) > 1000:
+            try:
+                df_revi = pd.read_csv(io.StringIO(r_revi.text))
                 if 'BOLSA' in df_revi.columns and not df_revi.empty:
                     b_val = df_revi.iloc[0]['BOLSA']
                     if pd.notna(b_val): bolsas["revanchita"] = int(b_val)
 
-                # Columnas en Revanchita suelen ser F1..F6 o R1..R6
                 cols = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6'] if 'F1' in df_revi.columns else ['R1', 'R2', 'R3', 'R4', 'R5', 'R6']
                 for _, row in df_revi.iterrows():
                     f = self._parse_fecha(str(row.get('FECHA', '')))
                     if f:
                         try:
                             c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
-                            # Conservar orden original extraído (sin sorted)
                             balls = [int(row[cols[0]]), int(row[cols[1]]), int(row[cols[2]]), int(row[cols[3]]), int(row[cols[4]]), int(row[cols[5]])]
                             draws.append({
                                 "concurso": c_num,
@@ -208,8 +231,16 @@ class MelateScraper:
                         except Exception:
                             continue
                 print(f"  ✅ Revanchita procesada: {len(df_revi)} sorteos")
-        except Exception as e:
-            print(f"  ⚠️ Error en Revanchita CSV: {e}")
+            except Exception as e:
+                print(f"  ⚠️ Error en Revanchita CSV: {e}")
+
+        # Bolsa total acumulada
+        total_bolsa = bolsas["melate"] + bolsas["revancha"] + bolsas["revanchita"]
+        jackpot_destacado = f"${total_bolsa:,} MXN" if total_bolsa > 0 else "$260,700,000 MXN"
+
+        df = pd.DataFrame(draws)
+        print(f"📊 Total acumulado de sorteos combinados: {len(df)}")
+        return df, jackpot_destacado
 
         # Bolsa total acumulada
         total_bolsa = bolsas["melate"] + bolsas["revancha"] + bolsas["revanchita"]
@@ -220,14 +251,14 @@ class MelateScraper:
         return df, jackpot_destacado
 
     def extraer_recientes_web(self) -> tuple[pd.DataFrame, str]:
-        """Extrae sorteos recientes de Melate, Revancha y Revanchita desde la web."""
+        """Extrae sorteos recientes de Melate, Revancha y Revanchita desde la web con reintentos."""
         print(f"➡️ Solicitando resultados web recientes de Melate, Revancha y Revanchita...")
         draws = []
-        jackpot_destacado = "$220,000,000 MXN"
+        jackpot_destacado = "$260,700,000 MXN"
         
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=12, verify=False)
-            if r.status_code == 200:
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
                 
@@ -244,7 +275,6 @@ class MelateScraper:
                                 nat_str = parts[0].strip().split()
                                 add_str = parts[1].strip()
                                 if len(nat_str) == 6 and add_str.isdigit():
-                                    # Conservar orden original extraído (sin sorted)
                                     balls = [int(n) for n in nat_str if n.isdigit()]
                                     draws.append({
                                         "concurso": c_num, "loteria_id": self.loteria_id,
@@ -264,7 +294,6 @@ class MelateScraper:
                             comb = tds[2].get_text(strip=True)
                             nat_str = comb.strip().split()
                             if len(nat_str) == 6 and fecha_str:
-                                # Conservar orden original extraído (sin sorted)
                                 balls = [int(n) for n in nat_str if n.isdigit()]
                                 if len(balls) == 6:
                                     draws.append({
@@ -285,7 +314,6 @@ class MelateScraper:
                             comb = tds[2].get_text(strip=True)
                             nat_str = comb.strip().split()
                             if len(nat_str) == 6 and fecha_str:
-                                # Conservar orden original extraído (sin sorted)
                                 balls = [int(n) for n in nat_str if n.isdigit()]
                                 if len(balls) == 6:
                                     draws.append({
@@ -295,14 +323,14 @@ class MelateScraper:
                                         "balota4": balls[3], "balota5": balls[4], "balota6": balls[5],
                                         "balotaroja": 0
                                     })
-        except Exception as e:
-            print(f"⚠️ Error en scraping web: {e}")
+            except Exception as e:
+                print(f"⚠️ Error en scraping web de Melate: {e}")
 
         return pd.DataFrame(draws), jackpot_destacado
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el premio de Melate en la tabla loterias_jackpots."""
-        jackpot_val = jackpot_str or "$220,000,000 MXN"
+        jackpot_val = jackpot_str or "$260,700,000 MXN"
         print(f"💰 Actualizando jackpot para Melate: {jackpot_val} (Fecha: {proxima_fecha})")
         try:
             with self.engine.connect() as conn:
@@ -336,6 +364,9 @@ class MelateScraper:
         # 1. Detección temprana: comparar último sorteo real en BD vs fuente
         ultimo_db = self.obtener_ultimo_sorteo_db()
         ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not ultimo_fuente and not backfill:
+            raise RuntimeError("❌ No se pudo conectar con la fuente oficial de Melate tras 3 intentos. Fallo real de servicio.")
 
         if not backfill and ultimo_db and ultimo_fuente:
             fecha_db = ultimo_db.get("fecha")
@@ -396,7 +427,7 @@ class MelateScraper:
             df_combined = df_existente
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['concurso', 'sorteo'], keep='first').sort_values(['concurso', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
@@ -426,7 +457,7 @@ class MelateScraper:
             df_to_save = pd.concat([pd.DataFrame(filas_proximos), df_combined], ignore_index=True)
         else:
             df_to_save = pd.concat([pd.DataFrame(filas_proximos), df_scraped], ignore_index=True)
-            df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
+            df_to_save = df_to_save.drop_duplicates(subset=['concurso', 'sorteo'], keep='first')
 
         # 6. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
         with self.engine.begin() as conn:
@@ -447,17 +478,19 @@ class MelateScraper:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_melate_fecha_sorteo ON resultados_melate (fecha, sorteo);
+                DROP INDEX IF EXISTS uq_melate_fecha_sorteo;
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_melate_concurso_sorteo ON resultados_melate (concurso, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_melate_fecha ON resultados_melate (fecha DESC);
                 CREATE INDEX IF NOT EXISTS idx_melate_concurso ON resultados_melate (concurso);
                 CREATE INDEX IF NOT EXISTS idx_melate_loteria_id ON resultados_melate (loteria_id);
             """))
 
-        # Eliminar posibles placeholders obsoletos anteriores a la nueva fecha
+        # Eliminar posibles placeholders obsoletos anteriores al nuevo próximo concurso
         with self.engine.begin() as conn:
             conn.execute(text("""
                 DELETE FROM resultados_melate
-                WHERE balota1 = 0 AND fecha < :proxima_fecha;
-            """), {"proxima_fecha": proxima_fecha})
+                WHERE balota1 = 0 AND concurso < :prox_concurso;
+            """), {"prox_concurso": prox_concurso})
 
         insert_sql = """
             INSERT INTO resultados_melate (
@@ -465,9 +498,9 @@ class MelateScraper:
                 balota1, balota2, balota3, balota4, balota5, balota6, balotaroja,
                 created_at, updated_at
             ) VALUES %s
-            ON CONFLICT (fecha, sorteo) DO UPDATE SET
-                concurso = COALESCE(EXCLUDED.concurso, resultados_melate.concurso),
+            ON CONFLICT (concurso, sorteo) DO UPDATE SET
                 loteria_id = EXCLUDED.loteria_id,
+                fecha = EXCLUDED.fecha,
                 balota1 = EXCLUDED.balota1,
                 balota2 = EXCLUDED.balota2,
                 balota3 = EXCLUDED.balota3,
@@ -490,7 +523,7 @@ class MelateScraper:
                 int(r['balota4']),
                 int(r['balota5']),
                 int(r['balota6']),
-                int(r['balotaroja'])
+                int(r.get('balotaroja', 0))
             )
             for r in df_to_save.to_dict(orient='records')
         ]
@@ -519,4 +552,5 @@ class MelateScraper:
 
 if __name__ == "__main__":
     scraper = MelateScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)
+

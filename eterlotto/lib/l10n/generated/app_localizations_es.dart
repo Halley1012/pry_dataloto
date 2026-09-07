@@ -1381,4 +1381,80 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get disclaimerAfinidadHistorica =>
       'Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.';
+
+  @override
+  String get generaTusPropiasCombinaciones =>
+      'Genera tus propias combinaciones';
+
+  @override
+  String get usaTusNumerosFavoritos =>
+      'Usa tus números favoritos (fechas, edades, etc.) y crea hasta 10 jugadas personalizadas.';
+
+  @override
+  String get seleccionaLaLoteria => 'Selecciona la lotería';
+
+  @override
+  String get reglasDeEstaLoteria => 'Reglas de esta lotería';
+
+  @override
+  String get cargandoReglas => 'Cargando reglas...';
+
+  @override
+  String get tusNumeros => 'Tus números';
+
+  @override
+  String get ingresaNumerosFecha =>
+      'Ingresa números, una fecha o valores que tengan significado para ti.';
+
+  @override
+  String get ejemploNumeros => 'Ejemplo: 12/10/1986, 7 14 21, 100, etc.';
+
+  @override
+  String get numerosDetectados => 'Números detectados';
+
+  @override
+  String get cantidadDeJugadas => 'Cantidad de jugadas';
+
+  @override
+  String get seleccionaCuantasCombinaciones =>
+      'Selecciona cuántas combinaciones generar.';
+
+  @override
+  String get estrategia => 'Estrategia';
+
+  @override
+  String get usaTusNumerosComoBase =>
+      'Usa tus números como base y agrega variaciones.';
+
+  @override
+  String get estrategiaEquilibrada => 'Equilibrada';
+
+  @override
+  String get estrategiaAleatoria => 'Aleatoria';
+
+  @override
+  String get generando => 'GENERANDO...';
+
+  @override
+  String get generarCombinaciones => 'GENERAR COMBINACIONES';
+
+  @override
+  String get combinacionesGeneradas => 'combinaciones generadas';
+
+  @override
+  String get generarOtras => 'Generar otras';
+
+  @override
+  String get guardarTodas => 'Guardar todas';
+
+  @override
+  String get jugadasGuardadasConExito => 'Jugadas guardadas con éxito';
+
+  @override
+  String get errorAlGuardarJugadas =>
+      'Hubo un error al guardar algunas jugadas';
+
+  @override
+  String get debesIniciarSesionParaGuardar =>
+      'Debes iniciar sesión para guardar';
 }
