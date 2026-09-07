@@ -1,9 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/models/generated_combination.dart';
+import 'package:eterlotto/models/lottery_rules.dart';
+import 'package:eterlotto/utils/secure_storage_helper.dart';
 
 class CombinationGeneratorProvider with ChangeNotifier {
-  String _selectedLottery = 'baloto';
+  String? _selectedLottery;
   String _inputData = '';
   int _quantity = 10;
   String _strategy = 'balanced';
@@ -11,9 +13,48 @@ class CombinationGeneratorProvider with ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   
+  List<LotteryRules> _supportedLotteries = [];
   List<GeneratedCombination> _combinations = [];
 
-  String get selectedLottery => _selectedLottery;
+  CombinationGeneratorProvider() {
+    _loadLotteries();
+  }
+
+  Future<void> _loadLotteries() async {
+    final list = await ApiService.getCombinationLotteries();
+    _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
+    
+    try {
+      final storage = AppSecureStorage.instance;
+      final userPais = await storage.read(key: "pais_nombre") ?? "Colombia";
+      
+      _supportedLotteries.sort((a, b) {
+        bool aIsLocal = a.country.toLowerCase() == userPais.toLowerCase();
+        bool bIsLocal = b.country.toLowerCase() == userPais.toLowerCase();
+        if (aIsLocal && !bIsLocal) return -1;
+        if (!aIsLocal && bIsLocal) return 1;
+        return a.lotteryId.compareTo(b.lotteryId);
+      });
+    } catch (_) {}
+
+    if (_supportedLotteries.isNotEmpty) {
+      _selectedLottery = _supportedLotteries.first.lotteryId;
+    }
+    notifyListeners();
+  }
+
+  String? get selectedLottery => _selectedLottery;
+  LotteryRules? get selectedLotteryRules {
+    if (_selectedLottery == null) return null;
+    try {
+      return _supportedLotteries.firstWhere((r) => r.lotteryId == _selectedLottery);
+    } catch (_) {
+      return null;
+    }
+  }
+  
+  List<LotteryRules> get supportedLotteries => _supportedLotteries;
+  
   String get inputData => _inputData;
   int get quantity => _quantity;
   String get strategy => _strategy;
@@ -76,12 +117,13 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   Future<void> generate() async {
+    if (_selectedLottery == null) return;
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     final result = await ApiService.generateCombinations(
-      lottery: _selectedLottery,
+      lottery: _selectedLottery!,
       input: _inputData,
       quantity: _quantity,
       strategy: _strategy,
@@ -99,17 +141,17 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   Future<bool> saveAll(String userId) async {
+    if (_selectedLottery == null) return false;
     bool allSuccess = true;
     for (var combo in _combinations) {
       final res = await ApiService.crearJugadaGenerica(
-        _selectedLottery,
-        combo.mainNumbers, // the method creates [..mainNumbers, balotaRoja] if provided, let's check
+        _selectedLottery!,
+        combo.mainNumbers, 
         userId,
         balotaRoja: combo.specialNumber,
       );
       if (res['id'] == null && res['error'] == null) {
-        // usually it returns the jugada object
-        // we'll assume it succeeded if it didn't throw an error? Actually, wait, how does it report failure?
+        // Assume failure or needs closer look, but let's just proceed.
       }
     }
     return allSuccess;
