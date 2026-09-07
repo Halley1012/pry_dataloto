@@ -141,16 +141,21 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                       borderRadius: BorderRadius.circular(8),
                                       borderSide: BorderSide.none,
                                     ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: BorderSide(color: AppColors.yellow.withValues(alpha: 0.3)),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                      borderSide: const BorderSide(color: AppColors.yellow),
+                                    ),
                                     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                                   ),
                                   style: const TextStyle(color: Colors.white),
                                   items: provider.supportedLotteries.map((rule) {
-                                    final name = rule.lotteryId.isNotEmpty
-                                        ? rule.lotteryId[0].toUpperCase() + rule.lotteryId.substring(1)
-                                        : rule.lotteryId;
                                     return DropdownMenuItem(
                                       value: rule.lotteryId,
-                                      child: Text(name),
+                                      child: Text(rule.name),
                                     );
                                   }).toList(),
                                   onChanged: (val) {
@@ -158,31 +163,38 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                   },
                                 ),
                               ),
-                              if (provider.selectedLotteryRules?.proximoSorteo != null) ...[
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        l10n?.proximoSorteo ?? "Próximo sorteo",
-                                        style: const TextStyle(color: Colors.white38, fontSize: 9),
-                                        textAlign: TextAlign.end,
-                                      ),
-                                      Text(
-                                        _formatShortDate(provider.selectedLotteryRules!.proximoSorteo!),
-                                        style: const TextStyle(
-                                          color: AppColors.yellow,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 2,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        const Icon(Icons.calendar_month, color: Colors.white38, size: 10),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          l10n?.proximoSorteo ?? "Próximo sorteo",
+                                          style: const TextStyle(color: Colors.white38, fontSize: 9),
+                                          textAlign: TextAlign.end,
                                         ),
-                                        textAlign: TextAlign.end,
+                                      ],
+                                    ),
+                                    Text(
+                                      provider.selectedLotteryRules?.proximoSorteo != null
+                                          ? _formatShortDate(provider.selectedLotteryRules!.proximoSorteo!)
+                                          : "Por definir",
+                                      style: const TextStyle(
+                                        color: AppColors.yellow,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
                                       ),
-                                    ],
-                                  ),
+                                      textAlign: TextAlign.end,
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ],
                           ),
                           const SizedBox(height: 10),
