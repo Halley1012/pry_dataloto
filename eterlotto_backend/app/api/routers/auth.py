@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from app.api import schemas, dependencies
 from app.application.auth_use_cases import AuthUseCases
 from app.core import security

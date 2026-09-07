@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 from app.domain.ports import PublicidadRepositoryPort
 
 class PublicidadUseCases:

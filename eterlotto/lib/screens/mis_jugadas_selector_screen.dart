@@ -29,6 +29,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   Map<String, Map<String, dynamic>> _infoJugadas = {};
   String? _userCountry;
   bool _isLoading = true;
+  String _selectedFilter = 'proximos'; // 'proximos' or 'historial'
 
   @override
   void initState() {
@@ -78,7 +79,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         setState(() {
           _userCountry = uCountry;
           _loterias = List<Map<String, dynamic>>.from(cached);
-          _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
           if (cachedPaises != null) {
             _paises = List<Map<String, dynamic>>.from(cachedPaises);
           }
@@ -87,6 +87,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           }
           _isLoading = false;
         });
+        _aplicarFiltro();
       }
     }
 
@@ -126,9 +127,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _userCountry = uCountry;
           _infoJugadas = infoMap;
           _loterias = jugadasLoterias;
-          _filteredLoterias = jugadasLoterias;
           _isLoading = false;
         });
+        _aplicarFiltro();
         if (jugadasLoterias.isNotEmpty) {
           CacheService.setJson(cacheKey, jugadasLoterias);
           CacheService.setJson('mis_jugadas_info_cache', infoMap);
@@ -230,6 +231,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               ),
               SliverToBoxAdapter(
                 child: _buildInfoBanner(l10n),
+              ),
+              SliverToBoxAdapter(
+                child: _buildFilterToggleButtons(l10n),
               ),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
@@ -584,11 +588,146 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         builder: (_) => MisJugadasScreen(
           loteriaNombre: nombre,
           loteriaRoute: route,
+          soloProximos: _selectedFilter == 'proximos',
         ),
       ),
     ).then((_) {
       cargarLoterias();
     });
+  }
+
+  void _aplicarFiltro() {
+    List<Map<String, dynamic>> temp = List.from(_loterias);
+
+    temp = temp.where((loteria) {
+      final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+      final route = (rawRoute != null && rawRoute.isNotEmpty)
+          ? rawRoute
+          : _getRouteFromName(loteria['nombre'] ?? "");
+      final info = _infoJugadas[route];
+      final rawFecha = info?['fecha'] ?? loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+      
+      final diff = _getSorteoDiffDays(rawFecha?.toString());
+      if (_selectedFilter == 'proximos') {
+        return diff >= 0;
+      } else {
+        return diff < 0;
+      }
+    }).toList();
+
+    setState(() {
+      _filteredLoterias = temp;
+    });
+  }
+
+  int _getSorteoDiffDays(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return 0;
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return 0;
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      return target.difference(today).inDays;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Widget _buildFilterToggleButtons(AppLocalizations? l10n) {
+    final isProximos = _selectedFilter == 'proximos';
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedFilter = 'proximos';
+                });
+                _aplicarFiltro();
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: isProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isProximos ? AppColors.yellow : Colors.white12,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.access_time_rounded,
+                      size: 17,
+                      color: isProximos ? Colors.black : Colors.white70,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n?.proximoSorteo ?? "Próximos sorteos",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: isProximos ? Colors.black : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _selectedFilter = 'historial';
+                });
+                _aplicarFiltro();
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: !isProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: !isProximos ? AppColors.yellow : Colors.white12,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.format_list_bulleted_rounded,
+                      size: 17,
+                      color: !isProximos ? Colors.black : Colors.white70,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n?.historialJugadas ?? "Historial de jugadas",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: !isProximos ? Colors.black : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildSkeletonList() {

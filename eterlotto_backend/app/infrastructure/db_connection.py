@@ -1,3 +1,4 @@
+import logging
 import os
 import psycopg2
 import psycopg2.extras
@@ -64,11 +65,13 @@ def get_connection():
             if conn.closed != 0:
                 try:
                     sync_p.putconn(conn, close=True)
-                except Exception:
+                except Exception as e:
+                    logging.getLogger(__name__).error(f'Error capturado: {e}')
                     pass
                 conn = sync_p.getconn()
             from_pool = True
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).error(f'Error capturado: {e}')
             # Pool agotado o error al obtener conexión del pool
             conn = None
             from_pool = False
@@ -91,22 +94,26 @@ def get_connection():
     try:
         yield conn
         conn.commit()
-    except Exception:
+    except Exception as e:
+        logging.getLogger(__name__).error(f'Error capturado: {e}')
         try:
             conn.rollback()
-        except Exception:
+        except Exception as e:
+            logging.getLogger(__name__).error(f'Error capturado: {e}')
             pass
         raise
     finally:
         if from_pool and sync_p is not None:
             try:
                 sync_p.putconn(conn)
-            except Exception:
+            except Exception as e:
+                logging.getLogger(__name__).error(f'Error capturado: {e}')
                 pass
         elif conn is not None:
             try:
                 conn.close()
-            except Exception:
+            except Exception as e:
+                logging.getLogger(__name__).error(f'Error capturado: {e}')
                 pass
 
 async def init_pool():

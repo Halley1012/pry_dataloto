@@ -2,6 +2,7 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
+import time
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
@@ -10,6 +11,9 @@ from pathlib import Path
 from sqlalchemy import text
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2.extras import execute_values
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -32,6 +36,32 @@ class MegaSenaScraper:
             'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
             'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
         }
+
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5) -> dict:
+        """Realiza una petición HTTP con hasta max_retries reintentos y retroceso exponencial (backoff).
+        Nunca silencia errores definitivos.
+        """
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=10, verify=False)
+                if r.status_code == 200:
+                    return r.json()
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Mega-Sena] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Mega-Sena] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Mega-Sena] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
 
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato '23 de agosto de 2026' o '23/08/2026' a 'YYYY-MM-DD'."""
@@ -56,10 +86,12 @@ class MegaSenaScraper:
         return None
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE si la fuente oficial (Caixa) no declara explícitamente
+        la fecha del próximo sorteo en su respuesta JSON.
+        Nunca se utiliza para extraer ni descartar sorteos históricos reales.
         """
-        Los sorteos de Mega-Sena se realizan habitualmente los Martes (1), Jueves (3) y Sábados (5).
-        """
-        draw_days = (1, 3, 5)
+        draw_days = (1, 3, 5) # Martes (1), Jueves (3), Sábados (5) habituales
         candidate = ultima_fecha_real + timedelta(days=1)
         while candidate.weekday() not in draw_days:
             candidate += timedelta(days=1)
@@ -87,16 +119,15 @@ class MegaSenaScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Obtiene la información del último sorteo disponible en la API oficial de Caixa."""
-        try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
+        """Obtiene la información del último sorteo disponible en la API oficial de Caixa con hasta 3 reintentos."""
+        data = self._fetch_with_retries(self.url_caixa, max_retries=3)
+        if data:
+            try:
                 concurso = int(data.get("numero")) if data.get("numero") else None
                 fecha_raw = data.get("dataApuracao")
                 fecha_str = self._parse_fecha(fecha_raw)
                 
-                # Priorizar orden natural de extracción de balotas
+                # Priorizar orden natural de extracción de balotas (dezenasSorteadasOrdemSorteio)
                 dezenas = data.get("dezenasSorteadasOrdemSorteio")
                 if not dezenas or len(dezenas) < 6:
                     dezenas = data.get("listaDezenas")
@@ -123,89 +154,72 @@ class MegaSenaScraper:
                     "jackpot": jackpot_str,
                     "raw_data": data
                 }
-        except Exception as e:
-            print(f"⚠️ Error consultando API Caixa para último sorteo: {e}")
+            except Exception as e:
+                print(f"⚠️ Error parseando respuesta oficial de Caixa: {e}")
         return None
 
     def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
-        """Extrae el sorteo más reciente desde la API oficial de Caixa y megasena.com preservando orden original."""
+        """Extrae el sorteo más reciente desde la API oficial de Caixa preservando el orden original de extracción."""
         print(f"➡️ Solicitando resultados recientes de Mega-Sena...")
         draws = []
         jackpot_destacado = "R$ 48.000.000"
         proxima_fecha_oficial = None
 
-        # 1. Consultar API oficial de Caixa
-        try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                fecha_raw = data.get("dataApuracao")
-                dezenas = data.get("dezenasSorteadasOrdemSorteio")
-                if not dezenas or len(dezenas) < 6:
-                    dezenas = data.get("listaDezenas")
-                prox_raw = data.get("dataProximoConcurso")
-                jackpot_val = data.get("valorEstimadoProximoConcurso")
-                
-                fecha_str = self._parse_fecha(fecha_raw)
-                if prox_raw:
-                    proxima_fecha_oficial = self._parse_fecha(prox_raw)
-                
-                if jackpot_val:
-                    try:
-                        jackpot_destacado = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    except Exception:
-                        pass
+        # 1. Consultar API oficial de Caixa con reintentos
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info and fuente_info.get("concurso") and fuente_info.get("fecha") and len(fuente_info.get("balotas", [])) == 6:
+            concurso = fuente_info["concurso"]
+            fecha_str = fuente_info["fecha"]
+            balls = fuente_info["balotas"] # Conserva orden natural de extracción
+            jackpot_destacado = fuente_info.get("jackpot") or jackpot_destacado
+            proxima_fecha_oficial = fuente_info.get("proxima_fecha")
 
-                if dezenas and len(dezenas) >= 6 and fecha_str:
-                    balls = [int(d) for d in dezenas[:6]] # Preservar orden natural de extracción
-                    draws.append({
-                        "concurso": int(data.get('numero')) if data.get('numero') else None,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Mega-Sena",
-                        "fecha": fecha_str,
-                        "balota1": balls[0],
-                        "balota2": balls[1],
-                        "balota3": balls[2],
-                        "balota4": balls[3],
-                        "balota5": balls[4],
-                        "balota6": balls[5]
-                    })
-                    print(f"✅ Último sorteo de Caixa obtenido: Concurso {data.get('numero')} ({fecha_str}) -> {balls}")
-        except Exception as e:
-            print(f"⚠️ Error consultando API Caixa: {e}")
+            draws.append({
+                "concurso": concurso,
+                "loteria_id": self.loteria_id,
+                "sorteo": "Mega-Sena",
+                "fecha": fecha_str,
+                "balota1": balls[0],
+                "balota2": balls[1],
+                "balota3": balls[2],
+                "balota4": balls[3],
+                "balota5": balls[4],
+                "balota6": balls[5]
+            })
+            print(f"✅ Sorteo de Caixa obtenido: Concurso #{concurso} ({fecha_str}) -> {balls}")
 
-        # 2. Consultar megasena.com para sorteos recientes adicionales
-        try:
-            r = requests.get(self.url_megasena_com, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                tables = soup.find_all("table", class_="_results")
-                if len(tables) > 1:
-                    for row in tables[1].find_all("tr"):
-                        tds = row.find_all("td")
-                        if len(tds) >= 3:
-                            draw_div = tds[0].find("div", class_="draw-number")
-                            c_num = int(re.search(r'(\d+)', draw_div.get_text()).group(1)) if draw_div and re.search(r'(\d+)', draw_div.get_text()) else None
-                            date_div = tds[0].find("div", class_="date")
-                            date_raw = date_div.get_text(strip=True) if date_div else tds[0].get_text(strip=True)
-                            fecha_str = self._parse_fecha(date_raw)
-                            balls = [int(b.get_text(strip=True)) for b in tds[1].find_all(['li', 'span', 'div']) if b.get_text(strip=True).isdigit()]
-                            if len(balls) == 6 and fecha_str:
-                                # Preservar orden original sin sorted()
-                                draws.append({
-                                    "concurso": c_num,
-                                    "loteria_id": self.loteria_id,
-                                    "sorteo": "Mega-Sena",
-                                    "fecha": fecha_str,
-                                    "balota1": balls[0],
-                                    "balota2": balls[1],
-                                    "balota3": balls[2],
-                                    "balota4": balls[3],
-                                    "balota5": balls[4],
-                                    "balota6": balls[5]
-                                })
-        except Exception as e:
-            print(f"ℹ️ megasena.com scraping info: {e}")
+        # 2. Consultar megasena.com como respaldo secundario si fuera necesario
+        if not draws:
+            try:
+                r = requests.get(self.url_megasena_com, headers=self.headers, timeout=10, verify=False)
+                if r.status_code == 200:
+                    soup = BeautifulSoup(r.text, "html.parser")
+                    tables = soup.find_all("table", class_="_results")
+                    if len(tables) > 1:
+                        for row in tables[1].find_all("tr"):
+                            tds = row.find_all("td")
+                            if len(tds) >= 3:
+                                draw_div = tds[0].find("div", class_="draw-number")
+                                c_num = int(re.search(r'(\d+)', draw_div.get_text()).group(1)) if draw_div and re.search(r'(\d+)', draw_div.get_text()) else None
+                                date_div = tds[0].find("div", class_="date")
+                                date_raw = date_div.get_text(strip=True) if date_div else tds[0].get_text(strip=True)
+                                fecha_str = self._parse_fecha(date_raw)
+                                balls = [int(b.get_text(strip=True)) for b in tds[1].find_all(['li', 'span', 'div']) if b.get_text(strip=True).isdigit()]
+                                if len(balls) == 6 and fecha_str:
+                                    draws.append({
+                                        "concurso": c_num,
+                                        "loteria_id": self.loteria_id,
+                                        "sorteo": "Mega-Sena",
+                                        "fecha": fecha_str,
+                                        "balota1": balls[0],
+                                        "balota2": balls[1],
+                                        "balota3": balls[2],
+                                        "balota4": balls[3],
+                                        "balota5": balls[4],
+                                        "balota6": balls[5]
+                                    })
+            except Exception as e:
+                print(f"ℹ️ megasena.com scraping info: {e}")
 
         df = pd.DataFrame(draws)
         if not df.empty:
@@ -214,37 +228,32 @@ class MegaSenaScraper:
         return df, jackpot_destacado, proxima_fecha_oficial
 
     def extraer_historico_completo(self, total_sorteos: int = 800) -> pd.DataFrame:
+        """Descarga sorteos históricos mediante la API oficial de Caixa preservando el orden de extracción
+        y aplicando hasta 3 reintentos con backoff por concurso individual.
         """
-        Descarga sorteos históricos mediante la API oficial de Caixa preservando el orden de extracción.
-        """
-        print("📚 Iniciando extracción histórica completa de Mega-Sena...")
+        print("📚 Iniciando extracción histórica de Mega-Sena...")
         
-        ultimo_sorteo_num = 3053
-        try:
-            r = requests.get(self.url_caixa, headers=self.headers, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                ultimo_sorteo_num = int(data.get("numero", 3053))
-        except Exception:
-            pass
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        ultimo_sorteo_num = fuente_info.get("concurso", 3054) if fuente_info else 3054
 
         primer_sorteo = max(1, ultimo_sorteo_num - total_sorteos)
         sorteos_a_consultar = list(range(primer_sorteo, ultimo_sorteo_num + 1))
-        print(f"⏳ Descargando {len(sorteos_a_consultar)} sorteos históricos (del {primer_sorteo} al {ultimo_sorteo_num})...")
+        print(f"⏳ Descargando {len(sorteos_a_consultar)} sorteos históricos (del #{primer_sorteo} al #{ultimo_sorteo_num})...")
+
+        fallidos = []
 
         def _fetch_single_sorteo(num: int):
             url = f"https://servicebus2.caixa.gov.br/portaldeloterias/api/megasena/{num}"
-            try:
-                r = requests.get(url, headers=self.headers, timeout=5)
-                if r.status_code == 200:
-                    d = r.json()
+            d = self._fetch_with_retries(url, max_retries=3, base_delay=1.0)
+            if d:
+                try:
                     fecha_raw = d.get("dataApuracao")
                     dezenas = d.get("dezenasSorteadasOrdemSorteio")
                     if not dezenas or len(dezenas) < 6:
                         dezenas = d.get("listaDezenas")
                     fecha_str = self._parse_fecha(fecha_raw)
                     if dezenas and len(dezenas) >= 6 and fecha_str:
-                        balls = [int(x) for x in dezenas[:6]] # Sin sorted()
+                        balls = [int(x) for x in dezenas[:6]] # Sin sorted(), orden natural
                         return {
                             "concurso": num,
                             "loteria_id": self.loteria_id,
@@ -257,17 +266,23 @@ class MegaSenaScraper:
                             "balota5": balls[4],
                             "balota6": balls[5]
                         }
-            except Exception:
-                pass
+                except Exception as e:
+                    print(f"⚠️ Error parseando concurso #{num}: {e}")
+            fallidos.append(num)
             return None
 
         results = []
-        with ThreadPoolExecutor(max_workers=25) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {executor.submit(_fetch_single_sorteo, num): num for num in sorteos_a_consultar}
             for f in as_completed(futures):
                 res = f.result()
                 if res:
                     results.append(res)
+
+        if fallidos:
+            print(f"⚠️ [Mega-Sena] Hubo {len(fallidos)} concursos que fallaron tras 3 reintentos: {sorted(fallidos)[:10]}")
+        else:
+            print(f"✅ Todos los {len(results)} sorteos históricos se descargaron con 100% de éxito.")
 
         df = pd.DataFrame(results)
         print(f"📊 Total sorteos históricos extraídos con éxito: {len(df)}")
@@ -378,6 +393,9 @@ class MegaSenaScraper:
         db_ultimo = self.obtener_ultimo_sorteo_db()
         fuente_info = self.extraer_ultimo_sorteo_fuente()
 
+        if not fuente_info and not backfill:
+            raise RuntimeError("❌ No se pudo conectar con la API oficial de Caixa tras 3 intentos. Fallo real de servicio.")
+
         if not backfill and fuente_info and db_ultimo:
             concurso_fuente = fuente_info.get("concurso")
             fecha_fuente = fuente_info.get("fecha")
@@ -418,10 +436,9 @@ class MegaSenaScraper:
             df_scraped = df_recientes
 
         if df_scraped.empty and df_existente.empty:
-            print("❌ No se pudieron obtener resultados de Mega-Sena.")
-            return False
+            raise RuntimeError("❌ No se pudieron obtener resultados de Mega-Sena.")
 
-        # Combinar y limpiar
+        # Combinar y deduplicar
         if not df_existente.empty:
             df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
@@ -435,8 +452,7 @@ class MegaSenaScraper:
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
 
         if df_combined.empty:
-            print("❌ No hay datos válidos para procesar.")
-            return False
+            raise RuntimeError("❌ No hay datos válidos para procesar.")
 
         # 4. Calcular próximo sorteo
         if prox_fecha_oficial and datetime.strptime(prox_fecha_oficial, "%Y-%m-%d").date() > df_combined.iloc[0]['fecha']:
@@ -446,10 +462,10 @@ class MegaSenaScraper:
             proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha_real)
             
         proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
-        print(f"📅 Fecha del próximo sorteo agregada para Mega-Sena: {proxima_fecha_str}")
+        print(f"📅 Fecha del próximo sorteo oficial para Mega-Sena: {proxima_fecha_str}")
 
         max_concurso = df_combined['concurso'].dropna().max()
-        prox_concurso = int(max_concurso) + 1 if pd.notna(max_concurso) else None
+        prox_concurso = fuente_info.get("proximo_concurso") if fuente_info and fuente_info.get("proximo_concurso") else (int(max_concurso) + 1 if pd.notna(max_concurso) else None)
 
         # Fila placeholder en ceros
         fila_proximo = {
@@ -531,7 +547,11 @@ class MegaSenaScraper:
 
         print(f"✅ Resultados de Mega-Sena guardados exitosamente! Filas procesadas: {len(df_to_save)}")
         self.actualizar_jackpot(proxima_fecha_str, jackpot_reciente)
-        return True
+        return {
+            "hubo_sorteo": True,
+            "ultimo_sorteo": f"Concurso #{max_concurso}",
+            "proximo_esperado": f"Concurso #{prox_concurso} ({proxima_fecha_str})"
+        }
 
 if __name__ == "__main__":
     scraper = MegaSenaScraper()

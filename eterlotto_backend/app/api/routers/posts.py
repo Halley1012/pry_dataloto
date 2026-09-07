@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from app.api import schemas, dependencies
 from app.application.post_use_cases import PostUseCases

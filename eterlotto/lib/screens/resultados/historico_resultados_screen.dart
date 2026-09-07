@@ -67,46 +67,29 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   int _getTopLimit(int poolSize) {
+    if (widget.config.maxBalotasBlancas > 0) {
+      return widget.config.maxBalotasBlancas ~/ 2;
+    }
+    if (poolSize > 0) {
+      return (poolSize ~/ 2);
+    }
     final lower = widget.config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
     if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
     if (lower.contains("miloto") || lower.contains("mloto")) return 20;
     if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
     if (lower.contains("baloto") || lower.contains("bloto")) return 21;
-    if (widget.config.maxBalotasBlancas > 0) {
-      return widget.config.maxBalotasBlancas ~/ 2;
-    }
-    return poolSize > 0 ? (poolSize ~/ 2) : 20;
+    return 20;
   }
 
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
     if (isoDate.isEmpty) return null;
-    List<int>? fullList;
     if (_prediccionesPorFecha.containsKey(isoDate)) {
-      fullList = _prediccionesPorFecha[isoDate];
-    } else if (_prediccionesPorFecha.isNotEmpty) {
-      final drawDt = DateTime.tryParse(isoDate);
-      if (drawDt != null) {
-        String? bestMatch;
-        int minDiff = 999;
-        for (var pDate in _prediccionesPorFecha.keys) {
-          final pDt = DateTime.tryParse(pDate);
-          if (pDt != null) {
-            final diff = (drawDt.difference(pDt).inDays).abs();
-            if (diff <= 3 && diff < minDiff) {
-              minDiff = diff;
-              bestMatch = pDate;
-            }
-          }
-        }
-        if (bestMatch != null) {
-          fullList = _prediccionesPorFecha[bestMatch];
-        }
-      }
+      final fullList = _prediccionesPorFecha[isoDate]!;
+      final limit = _getTopLimit(fullList.length);
+      return fullList.take(limit).toList();
     }
-    if (fullList == null) return null;
-    final limit = _getTopLimit(fullList.length);
-    return fullList.take(limit).toList();
+    return null;
   }
 
   String _formatearFechaCorta(String rawDate) {
@@ -172,7 +155,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   Future<void> _cargarHistorico({bool force = false}) async {
-    final cacheKey = '${widget.config.route}_ultimos50_historico';
+    final cacheKey = '${widget.config.route}_ultimos50_historico_v2';
 
     // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
     if (_todosResultados.isEmpty && !force) {
@@ -593,10 +576,13 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
         final specialStr = red?.toString() ?? "";
 
         if (widget.modoResultadosIA) {
-          final predParaFecha = _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") ?? _top20;
-          final hits = mainBalls.where((n) => predParaFecha.contains(n)).length;
-          final covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
-          buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr","$covPercent%","$hits / ${mainBalls.length}"');
+          final predParaFecha = _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "");
+          final bool tienePred = predParaFecha != null && predParaFecha.isNotEmpty;
+          final hits = tienePred ? mainBalls.where((n) => predParaFecha.contains(n)).length : 0;
+          final covPercent = (mainBalls.isNotEmpty && tienePred) ? ((hits / mainBalls.length) * 100).round() : 0;
+          final covStr = tienePred ? "$covPercent%" : "--";
+          final aciertosStr = tienePred ? "$hits / ${mainBalls.length}" : "--";
+          buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr","$covStr","$aciertosStr"');
         } else {
           buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"');
         }
@@ -958,10 +944,13 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                   ? nums.last
                                   : null;
 
-                              final predParaFecha = _obtenerPrediccionParaFecha(resultado["fecha"]?.toString() ?? "") ?? _top20;
-                              final int hits = mainBalls.where((n) => predParaFecha.contains(n)).length;
-                              final int covPercent = mainBalls.isNotEmpty ? ((hits / mainBalls.length) * 100).round() : 0;
-                              final Color coverageColor = covPercent >= 60 ? Colors.greenAccent : Colors.amber;
+                              final predParaFecha = _obtenerPrediccionParaFecha(resultado["fecha"]?.toString() ?? "");
+                              final bool tienePred = predParaFecha != null && predParaFecha.isNotEmpty;
+                              final int hits = tienePred ? mainBalls.where((n) => predParaFecha.contains(n)).length : 0;
+                              final int covPercent = (mainBalls.isNotEmpty && tienePred) ? ((hits / mainBalls.length) * 100).round() : 0;
+                              final Color coverageColor = tienePred
+                                  ? (covPercent >= 60 ? Colors.greenAccent : Colors.amber)
+                                  : Colors.white38;
 
                               final int totalBalls = mainBalls.length +
                                   (compBall != null ? 1 : 0) +
@@ -1040,7 +1029,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                         flex: 3,
                                         child: Center(
                                           child: Text(
-                                            "$covPercent%",
+                                            tienePred ? "$covPercent%" : "--",
                                             style: GoogleFonts.montserrat(
                                               fontSize: 12.5,
                                               fontWeight: FontWeight.bold,
@@ -1053,7 +1042,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                         flex: 3,
                                         child: Center(
                                           child: Text(
-                                            "$hits / ${mainBalls.length}",
+                                            tienePred ? "$hits / ${mainBalls.length}" : "--",
                                             style: GoogleFonts.montserrat(
                                               fontSize: 12.5,
                                               fontWeight: FontWeight.bold,

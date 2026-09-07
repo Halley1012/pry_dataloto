@@ -1996,5 +1996,35 @@ class ApiService {
     }
     return null;
   }
+
+  /// 🎲 Generador de combinaciones personalizadas
+  static Future<Map<String, dynamic>> generateCombinations({
+    required String lottery,
+    required String input,
+    required int quantity,
+    String strategy = 'balanced',
+  }) async {
+    try {
+      final response = await post(
+        "/combinations/generate",
+        {
+          "lottery": lottery,
+          "input": input,
+          "quantity": quantity,
+          "strategy": strategy,
+        },
+        withAuth: false,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        return {'success': false, 'error': 'Error del servidor: ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
 }
 
