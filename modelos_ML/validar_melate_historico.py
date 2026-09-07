@@ -62,13 +62,13 @@ def validar_melate():
     else:
         print(f"  ✅ Continuidad perfecta: {len(concursos_m)}/{len(concursos_m)} (0 faltantes)")
 
-    # 4. Validar cero duplicados en (fecha, sorteo)
-    dup = df_real[df_real.duplicated(subset=['fecha', 'sorteo'], keep=False)]
+    # 4. Validar cero duplicados en (concurso, sorteo)
+    dup = df_real[df_real.duplicated(subset=['concurso', 'sorteo'], keep=False)]
     if not dup.empty:
-        print(f"❌ Duplicados encontrados en (fecha, sorteo): {len(dup)}")
+        print(f"❌ Duplicados encontrados en (concurso, sorteo): {len(dup)}")
         sys.exit(1)
     else:
-        print("\n✅ Cero duplicados en (fecha, sorteo)")
+        print("\n✅ Cero duplicados en (concurso, sorteo)")
 
     # 5. Validar rangos de balotas (1..56, 6 números únicos por sorteo)
     balota_cols = ['balota1', 'balota2', 'balota3', 'balota4', 'balota5', 'balota6']
@@ -95,6 +95,20 @@ def validar_melate():
     print(f"\nPlaceholders encontrados ({len(df_ph)}):")
     for _, r in df_ph.iterrows():
         print(f"  - {r['sorteo']} #{r['concurso']} ({r['fecha']}): Balotas={[r[c] for c in balota_cols]}")
+
+    # 7. Sincronización con la fuente oficial
+    print("\n➡️ Verificando sincronización con la fuente oficial (loterianacional.gob.mx)...")
+    fuente = scraper.extraer_ultimo_sorteo_fuente()
+    db_last = scraper.obtener_ultimo_sorteo_db()
+    if fuente:
+        print(f"  Último en Fuente: #{fuente['concurso']} ({fuente['fecha']}) - Balotas: {fuente['balotas']} Adicional: {fuente.get('adicional')}")
+    else:
+        print("  ⚠️ No se pudo consultar la fuente en este momento.")
+    if db_last:
+        print(f"  Último real en BD: #{db_last['concurso']} ({db_last['fecha']})")
+
+    if fuente and db_last and fuente['concurso'] == db_last['concurso']:
+        print("✅ La base de datos está perfectamente sincronizada con la fuente oficial!")
 
     print("\n==================================================")
     print("🎉 AUDITORÍA DE DATOS DE MELATE COMPLETADA")

@@ -29,6 +29,25 @@ class MegaMillionsScraper:
         }
         self.draw_days = (1, 4) # Martes (1), Viernes (4)
 
+    def _fetch_with_retries(self, url, method="get", max_retries=3, base_delay=1.5, **kwargs):
+        """HTTP request con backoff exponencial. Retorna Response o None si todos los intentos fallan."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                if method == "post":
+                    r = requests.post(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+                else:
+                    r = requests.get(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+                if r.status_code < 500:
+                    return r
+                print(f"⚠️ HTTP {r.status_code} en intento {attempt}/{max_retries} para {url}")
+            except Exception as e:
+                print(f"⚠️ Error en intento {attempt}/{max_retries} para {url}: {e}")
+            if attempt < max_retries:
+                delay = base_delay * (2 ** (attempt - 1))
+                time.sleep(delay)
+        print(f"❌ Todos los intentos fallaron para {url}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         candidate = ultima_fecha_real + timedelta(days=1)
         while candidate.weekday() not in self.draw_days:
@@ -56,31 +75,30 @@ class MegaMillionsScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        try:
-            payload = {"pageNumber": 1, "pageSize": 5, "startDate": "", "endDate": ""}
-            r = requests.post(self.api_url, headers=self.headers, json=payload, timeout=10)
-            if r.status_code == 200:
-                d = r.json()
-                raw = d.get("d")
-                data = json.loads(raw) if isinstance(raw, str) else d
-                draws = data.get("DrawingData", [])
-                if draws:
-                    first = draws[0]
-                    play_date = first.get("PlayDate")
-                    if play_date:
-                        fecha_str = play_date[:10]
-                        balls = [first.get(f"N{i}") for i in range(1, 6)]
-                        mb = first.get("MBall")
-                        jackpot_raw = first.get("Jackpot")
-                        return {
-                            "fecha": fecha_str,
-                            "balotas": balls,
-                            "mega_ball": mb,
-                            "jackpot": jackpot_raw
-                        }
-        except Exception as e:
-            print(f"⚠️ Error consultando megamillions.com API: {e}")
-        return None
+        payload = {"pageNumber": 1, "pageSize": 5, "startDate": "", "endDate": ""}
+        r = self._fetch_with_retries(self.api_url, method="post", headers=self.headers, json=payload)
+        if r is None:
+            return None
+        if r.status_code == 200:
+            d = r.json()
+            raw = d.get("d")
+            data = json.loads(raw) if isinstance(raw, str) else d
+            draws = data.get("DrawingData", [])
+            if draws:
+                first = draws[0]
+                play_date = first.get("PlayDate")
+                if play_date:
+                    fecha_str = play_date[:10]
+                    balls = [first.get(f"N{i}") for i in range(1, 6)]
+                    mb = first.get("MBall")
+                    jackpot_raw = first.get("Jackpot")
+                    return {
+                        "fecha": fecha_str,
+                        "balotas": balls,
+                        "mega_ball": mb,
+                        "jackpot": jackpot_raw
+                    }
+        return {}
 
     def update_jackpot(self, engine, loteria, jackpot, fecha):
         if not jackpot or not fecha:
@@ -159,6 +177,9 @@ class MegaMillionsScraper:
         db_ultimo = self.obtener_ultimo_sorteo_db()
         fuente_info = self.extraer_ultimo_sorteo_fuente()
 
+        if fuente_info is None:
+            raise RuntimeError("❌ [Mega Millions] Error al comunicarse con la fuente oficial megamillions.com tras 3 intentos.")
+
         if fuente_info and db_ultimo:
             fecha_fuente = str(fuente_info.get("fecha"))
             fecha_db = str(db_ultimo.get("fecha"))
@@ -167,7 +188,7 @@ class MegaMillionsScraper:
                 print(f"\nℹ️ [DETECCIÓN TEMPRANA] No hay sorteos nuevos para Mega Millions.")
                 print(f"  Último sorteo en fuente: {fecha_fuente}")
                 print(f"  Último sorteo en BD:     {fecha_db}")
-                
+
                 prox_f = self._asegurar_placeholder(db_ultimo["fecha"])
                 if fuente_info.get("jackpot"):
                     self.update_jackpot(self.engine, "megamillions", str(fuente_info["jackpot"]), prox_f)
@@ -183,8 +204,8 @@ class MegaMillionsScraper:
         try:
             with self.engine.connect() as conn:
                 existing_df = pd.read_sql(text("SELECT * FROM resultados_megamillions WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ No se pudo leer BD existente: {e}")
 
         pages_to_scrape = max_pages or (2 if len(existing_df) > 100 else 100)
         resultados = []
@@ -198,37 +219,33 @@ class MegaMillionsScraper:
                 "endDate": ""
             }
 
-            try:
-                response = requests.post(self.api_url, headers=self.headers, json=payload, timeout=15)
-                if response.status_code == 200:
-                    data = response.json()
-                    raw = data.get("d")
-                    data_obj = json.loads(raw) if isinstance(raw, str) else data
-                    drawing_data = data_obj.get("DrawingData", [])
-                    if not drawing_data:
-                        break
-
-                    for item in drawing_data:
-                        try:
-                            play_date = item.get("PlayDate")
-                            if not play_date:
-                                continue
-                            fecha_str = play_date[:10]
-                            n1 = item.get("N1")
-                            n2 = item.get("N2")
-                            n3 = item.get("N3")
-                            n4 = item.get("N4")
-                            n5 = item.get("N5")
-                            mb = item.get("MBall")
-
-                            if all(x is not None for x in [n1, n2, n3, n4, n5, mb]):
-                                resultados.append(["Mega Millions", fecha_str, int(n1), int(n2), int(n3), int(n4), int(n5), int(mb)])
-                        except Exception:
-                            continue
-                else:
+            response = self._fetch_with_retries(self.api_url, method="post", headers=self.headers, json=payload)
+            if response and response.status_code == 200:
+                data = response.json()
+                raw = data.get("d")
+                data_obj = json.loads(raw) if isinstance(raw, str) else data
+                drawing_data = data_obj.get("DrawingData", [])
+                if not drawing_data:
                     break
-            except Exception as e:
-                print(f"⚠️ Error en página {pagina}: {e}")
+
+                for item in drawing_data:
+                    try:
+                        play_date = item.get("PlayDate")
+                        if not play_date:
+                            continue
+                        fecha_str = play_date[:10]
+                        n1 = item.get("N1")
+                        n2 = item.get("N2")
+                        n3 = item.get("N3")
+                        n4 = item.get("N4")
+                        n5 = item.get("N5")
+                        mb = item.get("MBall")
+
+                        if all(x is not None for x in [n1, n2, n3, n4, n5, mb]):
+                            resultados.append(["Mega Millions", fecha_str, int(n1), int(n2), int(n3), int(n4), int(n5), int(mb)])
+                    except Exception:
+                        continue
+            else:
                 break
 
             pagina += 1
@@ -243,8 +260,7 @@ class MegaMillionsScraper:
             df_combined = df_new
 
         if df_combined.empty:
-            print("❌ No se lograron recuperar registros de Mega Millions.")
-            return False
+            raise RuntimeError("❌ [Mega Millions] No se lograron recuperar registros de la fuente ni de la BD.")
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce')
         df_combined = df_combined.dropna(subset=['fecha'])

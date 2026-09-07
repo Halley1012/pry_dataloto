@@ -2546,6 +2546,144 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.'**
   String get disclaimerAfinidadHistorica;
+
+  /// No description provided for @generaTusPropiasCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Genera tus propias combinaciones'**
+  String get generaTusPropiasCombinaciones;
+
+  /// No description provided for @usaTusNumerosFavoritos.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa tus números favoritos (fechas, edades, etc.) y crea hasta 10 jugadas personalizadas.'**
+  String get usaTusNumerosFavoritos;
+
+  /// No description provided for @seleccionaLaLoteria.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona la lotería'**
+  String get seleccionaLaLoteria;
+
+  /// No description provided for @reglasDeEstaLoteria.
+  ///
+  /// In es, this message translates to:
+  /// **'Reglas de esta lotería'**
+  String get reglasDeEstaLoteria;
+
+  /// No description provided for @cargandoReglas.
+  ///
+  /// In es, this message translates to:
+  /// **'Cargando reglas...'**
+  String get cargandoReglas;
+
+  /// No description provided for @tusNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Tus números'**
+  String get tusNumeros;
+
+  /// No description provided for @ingresaNumerosFecha.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa números, una fecha o valores que tengan significado para ti.'**
+  String get ingresaNumerosFecha;
+
+  /// No description provided for @ejemploNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Ejemplo: 12/10/1986, 7 14 21, 100, etc.'**
+  String get ejemploNumeros;
+
+  /// No description provided for @numerosDetectados.
+  ///
+  /// In es, this message translates to:
+  /// **'Números detectados'**
+  String get numerosDetectados;
+
+  /// No description provided for @cantidadDeJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Cantidad de jugadas'**
+  String get cantidadDeJugadas;
+
+  /// No description provided for @seleccionaCuantasCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona cuántas combinaciones generar.'**
+  String get seleccionaCuantasCombinaciones;
+
+  /// No description provided for @estrategia.
+  ///
+  /// In es, this message translates to:
+  /// **'Estrategia'**
+  String get estrategia;
+
+  /// No description provided for @usaTusNumerosComoBase.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa tus números como base y agrega variaciones.'**
+  String get usaTusNumerosComoBase;
+
+  /// No description provided for @estrategiaEquilibrada.
+  ///
+  /// In es, this message translates to:
+  /// **'Equilibrada'**
+  String get estrategiaEquilibrada;
+
+  /// No description provided for @estrategiaAleatoria.
+  ///
+  /// In es, this message translates to:
+  /// **'Aleatoria'**
+  String get estrategiaAleatoria;
+
+  /// No description provided for @generando.
+  ///
+  /// In es, this message translates to:
+  /// **'GENERANDO...'**
+  String get generando;
+
+  /// No description provided for @generarCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'GENERAR COMBINACIONES'**
+  String get generarCombinaciones;
+
+  /// No description provided for @combinacionesGeneradas.
+  ///
+  /// In es, this message translates to:
+  /// **'combinaciones generadas'**
+  String get combinacionesGeneradas;
+
+  /// No description provided for @generarOtras.
+  ///
+  /// In es, this message translates to:
+  /// **'Generar otras'**
+  String get generarOtras;
+
+  /// No description provided for @guardarTodas.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar todas'**
+  String get guardarTodas;
+
+  /// No description provided for @jugadasGuardadasConExito.
+  ///
+  /// In es, this message translates to:
+  /// **'Jugadas guardadas con éxito'**
+  String get jugadasGuardadasConExito;
+
+  /// No description provided for @errorAlGuardarJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Hubo un error al guardar algunas jugadas'**
+  String get errorAlGuardarJugadas;
+
+  /// No description provided for @debesIniciarSesionParaGuardar.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes iniciar sesión para guardar'**
+  String get debesIniciarSesionParaGuardar;
 }
 
 class _AppLocalizationsDelegate

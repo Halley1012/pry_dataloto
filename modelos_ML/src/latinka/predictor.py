@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import pandas as pd
 import numpy as np
 from datetime import datetime

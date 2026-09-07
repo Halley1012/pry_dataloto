@@ -3,11 +3,15 @@ from pydantic import BaseModel
 from typing import Optional
 
 from app.application.combination_use_cases import CombinationUseCases
+from app.api import dependencies
+from app.application.publicidad_use_cases import PublicidadUseCases
 
 router = APIRouter(prefix="/combinations", tags=["combinations"])
 
-def get_combination_use_cases():
-    return CombinationUseCases()
+def get_combination_use_cases(
+    publicidad_use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)
+):
+    return CombinationUseCases(publicidad_use_cases.publicidad_repo)
 
 class GenerateRequest(BaseModel):
     lottery: str

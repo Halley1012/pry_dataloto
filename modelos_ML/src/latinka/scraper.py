@@ -42,6 +42,31 @@ class LaTinkaScraper:
         self.url_home = "https://tinkaresultados.com/"
         self.url_sitemap = "https://tinkaresultados.com/sitemap.xml"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [La Tinka] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [La Tinka] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [La Tinka] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """Sorteos de La Tinka: Miércoles (2) y Domingos (6)."""
         dias_validos = {2, 6}
@@ -78,50 +103,44 @@ class LaTinkaScraper:
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
         """Extrae la información del último sorteo publicado en la página principal."""
-        try:
-            r = requests.get(self.url_home, headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                txt = soup.get_text(separator=' ')
+        r = self._fetch_with_retries(self.url_home, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            txt = soup.get_text(separator=' ')
 
-                m_concurso = re.search(r'Tinka\s+Sorteo\s*(\d+)', txt, re.IGNORECASE)
-                m_fecha = re.search(r'Fecha:\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})', txt, re.IGNORECASE)
-                m_balls = re.search(r'Jugada Ganadora\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
-                m_by = re.search(r'Boliyapa\s*(\d{1,2})', txt, re.IGNORECASE)
+            m_concurso = re.search(r'Tinka\s+Sorteo\s*(\d+)', txt, re.IGNORECASE)
+            m_fecha = re.search(r'Fecha:\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})', txt, re.IGNORECASE)
+            m_balls = re.search(r'Jugada Ganadora\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
+            m_by = re.search(r'Boliyapa\s*(\d{1,2})', txt, re.IGNORECASE)
 
-                if m_concurso and m_fecha and m_balls:
-                    concurso = int(m_concurso.group(1))
-                    d, m, y = m_fecha.groups()
-                    fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-                    balls = [int(x) for x in m_balls.groups()]
-                    boliyapa = int(m_by.group(1)) if m_by else 0
+            if m_concurso and m_fecha and m_balls:
+                concurso = int(m_concurso.group(1))
+                d, m, y = m_fecha.groups()
+                fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+                balls = [int(x) for x in m_balls.groups()]
+                boliyapa = int(m_by.group(1)) if m_by else 0
 
-                    return {
-                        "concurso": concurso,
-                        "fecha": datetime.strptime(fecha_iso, "%Y-%m-%d").date(),
-                        "balotas": balls,
-                        "boliyapa": boliyapa
-                    }
-        except Exception as e:
-            print(f"⚠️ Error consultando último sorteo de La Tinka en la fuente: {e}")
+                return {
+                    "concurso": concurso,
+                    "fecha": datetime.strptime(fecha_iso, "%Y-%m-%d").date(),
+                    "balotas": balls,
+                    "boliyapa": boliyapa
+                }
         return None
 
     def extraer_pozo_oficial(self) -> str:
         """Extrae el Pozo Millonario acumulado en tiempo real desde el portal oficial."""
         print(f"➡️ Consultando Pozo Millonario oficial en {self.url_oficial}...")
-        try:
-            r = requests.get(self.url_oficial, headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
-                    txt = tag.get_text(strip=True)
-                    if "pozo millonario" in txt.lower() and "s/" in txt.lower():
-                        m = re.search(r'S/\s*([0-9\',.]+)', txt)
-                        if m:
-                            clean_m = m.group(1).replace("'", ",").replace(" ", "")
-                            return f"S/ {clean_m}"
-        except Exception as e:
-            print(f"⚠️ Error extrayendo Pozo de La Tinka: {e}")
+        r = self._fetch_with_retries(self.url_oficial, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
+                txt = tag.get_text(strip=True)
+                if "pozo millonario" in txt.lower() and "s/" in txt.lower():
+                    m = re.search(r'S/\s*([0-9\',.]+)', txt)
+                    if m:
+                        clean_m = m.group(1).replace("'", ",").replace(" ", "")
+                        return f"S/ {clean_m}"
 
         return "S/ 25,507,198"
 
@@ -146,49 +165,46 @@ class LaTinkaScraper:
                     "balotaroja": fb["boliyapa"]
                 }
 
-        try:
-            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                txt = soup.get_text()
+        r = self._fetch_with_retries(url, max_retries=3, base_delay=1.0)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            txt = soup.get_text()
 
-                m_date_url = re.search(r'del-(\d{1,2})-(\d{1,2})-(\d{4})', url)
-                if m_date_url:
-                    d, m, y = m_date_url.groups()
-                    fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
-                else:
-                    return None
+            m_date_url = re.search(r'del-(\d{1,2})-(\d{1,2})-(\d{4})', url)
+            if m_date_url:
+                d, m, y = m_date_url.groups()
+                fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            else:
+                return None
 
-                m_balls = re.search(r'Jugada Ganadora\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
-                if m_balls:
-                    # ORDEN ORIGINAL DE EXTRACCIÓN (sin sorted)
-                    balls = [int(x) for x in m_balls.groups()]
-                else:
-                    return None
+            m_balls = re.search(r'Jugada Ganadora\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.IGNORECASE)
+            if m_balls:
+                # ORDEN ORIGINAL DE EXTRACCIÓN (sin sorted)
+                balls = [int(x) for x in m_balls.groups()]
+            else:
+                return None
 
-                m_by = re.search(r'Boliyapa\s*(\d{1,2})', txt, re.IGNORECASE)
-                boliyapa = int(m_by.group(1)) if m_by else 0
+            m_by = re.search(r'Boliyapa\s*(\d{1,2})', txt, re.IGNORECASE)
+            boliyapa = int(m_by.group(1)) if m_by else 0
 
-                m_concurso = re.search(r'Sorteo\s*(?:Nro\.?|número)?\s*(\d+)', txt, re.IGNORECASE)
-                if not m_concurso:
-                    m_concurso = re.search(r'jugada-(\d+)', url)
-                concurso_num = int(m_concurso.group(1)) if m_concurso else None
+            m_concurso = re.search(r'Sorteo\s*(?:Nro\.?|número)?\s*(\d+)', txt, re.IGNORECASE)
+            if not m_concurso:
+                m_concurso = re.search(r'jugada-(\d+)', url)
+            concurso_num = int(m_concurso.group(1)) if m_concurso else None
 
-                return {
-                    "concurso": concurso_num,
-                    "loteria_id": self.loteria_id,
-                    "sorteo": "La Tinka",
-                    "fecha": fecha_iso,
-                    "balota1": balls[0],
-                    "balota2": balls[1],
-                    "balota3": balls[2],
-                    "balota4": balls[3],
-                    "balota5": balls[4],
-                    "balota6": balls[5],
-                    "balotaroja": boliyapa
-                }
-        except Exception:
-            pass
+            return {
+                "concurso": concurso_num,
+                "loteria_id": self.loteria_id,
+                "sorteo": "La Tinka",
+                "fecha": fecha_iso,
+                "balota1": balls[0],
+                "balota2": balls[1],
+                "balota3": balls[2],
+                "balota4": balls[3],
+                "balota5": balls[4],
+                "balota6": balls[5],
+                "balotaroja": boliyapa
+            }
         return None
 
     def extraer_historico_concurrente(self, max_draws: int = 400, desde_concurso: int = None, hasta_concurso: int = None) -> pd.DataFrame:
@@ -198,17 +214,14 @@ class LaTinkaScraper:
         if desde_concurso is not None and hasta_concurso is not None:
             # Modo Rango Sistemático (para Backfill completo)
             sitemap_map = {}
-            try:
-                r = requests.get(self.url_sitemap, headers=self.headers, timeout=10, verify=False)
-                if r.status_code == 200:
-                    urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                    for u in urls:
-                        if 'jugada-' in u.lower():
-                            m_c = re.search(r'jugada-(\d+)', u)
-                            if m_c:
-                                sitemap_map[int(m_c.group(1))] = u
-            except Exception as e:
-                print(f"⚠️ Error consultando sitemap: {e}")
+            r = self._fetch_with_retries(self.url_sitemap, max_retries=3, base_delay=1.5)
+            if r and r.status_code == 200:
+                urls = re.findall(r'<loc>(.*?)</loc>', r.text)
+                for u in urls:
+                    if 'jugada-' in u.lower():
+                        m_c = re.search(r'jugada-(\d+)', u)
+                        if m_c:
+                            sitemap_map[int(m_c.group(1))] = u
 
             cal_cur = date(2021, 3, 17) # #760
             cal_urls = {}
@@ -232,28 +245,22 @@ class LaTinkaScraper:
         else:
             # Modo Normal / Recientes
             urls_set = set()
-            try:
-                r_home = requests.get(self.url_home, headers=self.headers, timeout=10, verify=False)
-                if r_home.status_code == 200:
-                    soup = BeautifulSoup(r_home.text, "html.parser")
-                    for a in soup.find_all("a", href=True):
-                        href = a["href"]
-                        if "jugada-" in href:
-                            if not href.startswith("http"):
-                                href = "https://www.tinkaresultados.com" + href
-                            urls_set.add(href)
-            except Exception as e:
-                print(f"⚠️ Error obteniendo URLs desde home: {e}")
+            r_home = self._fetch_with_retries(self.url_home, max_retries=3, base_delay=1.5)
+            if r_home and r_home.status_code == 200:
+                soup = BeautifulSoup(r_home.text, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if "jugada-" in href:
+                        if not href.startswith("http"):
+                            href = "https://www.tinkaresultados.com" + href
+                        urls_set.add(href)
 
-            try:
-                r = requests.get(self.url_sitemap, headers=self.headers, timeout=10, verify=False)
-                if r.status_code == 200:
-                    urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                    for u in urls:
-                        if 'jugada-' in u:
-                            urls_set.add(u)
-            except Exception as e:
-                print(f"⚠️ Error consultando sitemap: {e}")
+            r_sm = self._fetch_with_retries(self.url_sitemap, max_retries=3, base_delay=1.5)
+            if r_sm and r_sm.status_code == 200:
+                urls = re.findall(r'<loc>(.*?)</loc>', r_sm.text)
+                for u in urls:
+                    if 'jugada-' in u:
+                        urls_set.add(u)
 
             if not urls_set:
                 print("❌ No se encontraron URLs para descargar sorteos.")
@@ -318,6 +325,9 @@ class LaTinkaScraper:
         ultimo_db = self.obtener_ultimo_sorteo_db()
         ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
 
+        if ultimo_fuente is None and not backfill and desde_concurso is None:
+            raise RuntimeError("❌ [La Tinka] Error al comunicarse con la fuente oficial tinkaresultados.com tras 3 intentos.")
+
         if not backfill and desde_concurso is None and ultimo_db and ultimo_fuente:
             concurso_db = ultimo_db.get("concurso")
             fecha_db = ultimo_db.get("fecha")
@@ -357,8 +367,7 @@ class LaTinkaScraper:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
         if df_scraped.empty and df_existente.empty:
-            print("❌ No se pudieron obtener resultados de La Tinka.")
-            return False
+            raise RuntimeError("❌ [La Tinka] No se pudieron obtener resultados de La Tinka tras reintentos.")
 
         # 4. Combinar y limpiar
         if not df_existente.empty:
