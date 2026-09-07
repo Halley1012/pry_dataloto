@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 class LotteryRules(BaseModel):
     lottery_id: str
+    name: str
     country: str
     main_numbers_count: int
     main_numbers_min: int

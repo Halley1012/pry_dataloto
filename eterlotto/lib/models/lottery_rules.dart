@@ -1,5 +1,6 @@
 class LotteryRules {
   final String lotteryId;
+  final String name;
   final String country;
   final int mainNumbersCount;
   final int mainNumbersMin;
@@ -11,6 +12,7 @@ class LotteryRules {
 
   LotteryRules({
     required this.lotteryId,
+    required this.name,
     required this.country,
     required this.mainNumbersCount,
     required this.mainNumbersMin,
@@ -24,6 +26,7 @@ class LotteryRules {
   factory LotteryRules.fromJson(Map<String, dynamic> json) {
     return LotteryRules(
       lotteryId: json['lottery_id'] as String,
+      name: json['name'] as String? ?? json['lottery_id'] as String,
       country: json['country'] as String? ?? '',
       mainNumbersCount: json['main_numbers_count'] as int,
       mainNumbersMin: json['main_numbers_min'] as int,
