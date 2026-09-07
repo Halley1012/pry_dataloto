@@ -26,3 +26,6 @@ CORS_ORIGINS = [os.getenv("FRONTEND_URL", "http://localhost:3000"), "https://pry
 if os.getenv("CORS_ORIGINS"):
     CORS_ORIGINS.extend(os.getenv("CORS_ORIGINS").split(","))
 
+PACKAGE_NAME = os.getenv("PACKAGE_NAME", "com.lumieter.eterlotto")
+_products = os.getenv("ALLOWED_PRODUCTS", "eterlotto_monthly_sub")
+ALLOWED_PRODUCTS = set(_products.split(",")) if _products else {"eterlotto_monthly_sub"}

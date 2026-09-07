@@ -24,9 +24,5 @@ python-jose[cryptography]==3.5.0
 aiofiles==25.1.0
 httpx==0.28.1
 
-# --- Logging mejorado (opcional) ---
-loguru==0.7.3
-requests==2.34.2
-
 google-api-python-client==2.162.0
 google-auth==2.34.0

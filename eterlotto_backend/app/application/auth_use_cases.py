@@ -2,7 +2,7 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from app.domain.ports import UserRepositoryPort, EmailSenderPort
-from app.core import security, config
+from app.core import security
 
 class AuthUseCases:
     def __init__(self, user_repo: UserRepositoryPort, email_sender: Optional[EmailSenderPort] = None):

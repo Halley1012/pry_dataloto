@@ -820,30 +820,47 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   }
 
   String _formatearFecha(String fecha) {
+    if (fecha.isEmpty) return fecha;
     try {
-      final langCode = mounted ? Localizations.localeOf(context).languageCode : 'es';
-      if (fecha.contains('T')) {
-        DateTime parsed = DateTime.parse(fecha);
-        return DateFormat('dd MMM yyyy', langCode).format(parsed);
-      }
-      if (fecha.length >= 10 && fecha.contains('-')) {
-        DateTime parsed = DateTime.parse(fecha.substring(0, 10));
-        return DateFormat('dd MMM yyyy', langCode).format(parsed);
-      }
-      if (fecha.contains('/')) {
-        final parts = fecha.split('/');
-        if (parts.length == 3) {
-          final day = int.parse(parts[0]);
-          final month = int.parse(parts[1]);
-          final year = int.parse(parts[2]);
-          final parsed = DateTime(year, month, day);
-          return DateFormat('dd MMM yyyy', langCode).format(parsed);
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) {
+        if (clean.contains('/')) {
+          final parts = clean.split('/');
+          if (parts.length == 3) {
+            final day = int.parse(parts[0]);
+            final month = int.parse(parts[1]);
+            final year = int.parse(parts[2]);
+            final dt = DateTime(year, month, day);
+            return _formatDateTime(dt);
+          }
         }
+        return fecha;
       }
-      return fecha;
+      return _formatDateTime(parsed);
     } catch (_) {
       return fecha;
     }
+  }
+
+  String _formatDateTime(DateTime parsed) {
+    final langCode = mounted ? Localizations.localeOf(context).languageCode : 'es';
+    final dias = langCode == 'en' 
+        ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        : (langCode == 'pt' 
+            ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+            : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+
+    final meses = langCode == 'en'
+        ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        : (langCode == 'pt'
+            ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+            : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+
+    final diaSemana = dias[parsed.weekday - 1];
+    final mes = meses[parsed.month - 1];
+
+    return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
   }
 
   String _getFechaProximoSorteo(AppLocalizations? l10n) {

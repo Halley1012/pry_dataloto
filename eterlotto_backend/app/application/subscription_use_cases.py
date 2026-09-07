@@ -1,10 +1,10 @@
 from datetime import datetime
 from typing import Dict, Any, Optional
+from app.core import config
 from app.domain.ports import UserRepositoryPort, GooglePlayPort
 
 class SubscriptionUseCases:
-    ALLOWED_PRODUCTS = {"eterlotto_monthly_sub"}
-
+    
     def __init__(self, user_repo: UserRepositoryPort, google_play: GooglePlayPort):
         self.user_repo = user_repo
         self.google_play = google_play
@@ -14,11 +14,11 @@ class SubscriptionUseCases:
         if not user:
             raise ValueError("Usuario no encontrado")
 
-        if product_id not in self.ALLOWED_PRODUCTS:
+        if product_id not in config.ALLOWED_PRODUCTS:
             raise ValueError("Producto de suscripción no autorizado")
 
         google_result = await self.google_play.verify_subscription_token(
-            package_name="com.lumieter.eterlotto",
+            package_name=config.PACKAGE_NAME,
             product_id=product_id,
             purchase_token=purchase_token
         )
@@ -82,12 +82,12 @@ class SubscriptionUseCases:
             logger.warning("[SUBSCRIPTION] event=RTDN_WARNING metric=rtdn_retries_requested message=Token not found. Deferring processing for Pub/Sub retry.")
             raise RuntimeError("purchase_token_not_found: deferred processing")
 
-        resolved_product_id = product_id or "eterlotto_monthly_sub"
-        if resolved_product_id not in self.ALLOWED_PRODUCTS:
+        resolved_product_id = product_id or list(config.ALLOWED_PRODUCTS)[0]
+        if resolved_product_id not in config.ALLOWED_PRODUCTS:
             raise ValueError("Producto de suscripción no autorizado")
 
         google_data = await self.google_play.verify_subscription_token(
-            package_name="com.lumieter.eterlotto",
+            package_name=config.PACKAGE_NAME,
             product_id=resolved_product_id,
             purchase_token=purchase_token
         )

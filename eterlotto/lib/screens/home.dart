@@ -19,6 +19,7 @@ import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/screens/createpostscreen.dart';
 import 'package:eterlotto/screens/notifications_screen.dart';
 import 'package:eterlotto/screens/post.dart';
+import 'package:eterlotto/screens/combination_generator_screen.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
@@ -340,9 +341,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
-                style: const TextStyle(fontSize: 40),
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()));
+                },
+                child: Text(
+                  PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
+                  style: const TextStyle(fontSize: 40),
+                ),
               ),
             ],
           ),

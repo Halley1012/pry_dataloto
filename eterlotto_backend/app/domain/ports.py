@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, date
-from app.domain.models import User, Jugada, Post, Comment, Publicidad
 
 class UserRepositoryPort(ABC):
     @abstractmethod

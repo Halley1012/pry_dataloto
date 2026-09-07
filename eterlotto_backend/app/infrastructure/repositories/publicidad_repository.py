@@ -431,7 +431,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 except Exception as et:
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception as e:
+                        logging.getLogger(__name__).error(f'Error capturado: {e}')
                         pass
                     logger.debug(f"Error precargando tablas de resultados: {et}")
 
@@ -454,7 +455,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 except Exception as ej:
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception as e:
+                        logging.getLogger(__name__).error(f'Error capturado: {e}')
                         pass
                     logger.debug(f"Error precargando jackpots: {ej}")
 
@@ -499,10 +501,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
-                        except Exception:
+                        except Exception as e:
+                            logging.getLogger(__name__).error(f'Error capturado: {e}')
                             try:
                                 conn.rollback()
-                            except Exception:
+                            except Exception as e:
+                                logging.getLogger(__name__).error(f'Error capturado: {e}')
                                 pass
 
                     # Fallback a tabla predicciones si proximo_sorteo no se encontró en la tabla de resultados
@@ -514,10 +518,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                 p_fecha = p_res['p_fecha'] if isinstance(p_res, dict) and 'p_fecha' in p_res else p_res[0]
                                 if p_fecha:
                                     lot['proximo_sorteo'] = str(p_fecha)
-                        except Exception:
+                        except Exception as e:
+                            logging.getLogger(__name__).error(f'Error capturado: {e}')
                             try:
                                 conn.rollback()
-                            except Exception:
+                            except Exception as e:
+                                logging.getLogger(__name__).error(f'Error capturado: {e}')
                                 pass
 
                     # Búsqueda instantánea en mapa de jackpots en memoria (0 ms)
