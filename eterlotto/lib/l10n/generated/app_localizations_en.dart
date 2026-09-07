@@ -1373,4 +1373,77 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get disclaimerAfinidadHistorica =>
       'Based on historical patterns. Does not represent a real probability of being drawn.';
+
+  @override
+  String get generaTusPropiasCombinaciones => 'Generate your own combinations';
+
+  @override
+  String get usaTusNumerosFavoritos =>
+      'Use your favorite numbers (dates, ages, etc.) and create up to 10 customized plays.';
+
+  @override
+  String get seleccionaLaLoteria => 'Select the lottery';
+
+  @override
+  String get reglasDeEstaLoteria => 'Rules for this lottery';
+
+  @override
+  String get cargandoReglas => 'Loading rules...';
+
+  @override
+  String get tusNumeros => 'Your numbers';
+
+  @override
+  String get ingresaNumerosFecha =>
+      'Enter numbers, a date, or meaningful values to you.';
+
+  @override
+  String get ejemploNumeros => 'Example: 12/10/1986, 7 14 21, 100, etc.';
+
+  @override
+  String get numerosDetectados => 'Detected numbers';
+
+  @override
+  String get cantidadDeJugadas => 'Quantity of plays';
+
+  @override
+  String get seleccionaCuantasCombinaciones =>
+      'Select how many combinations to generate.';
+
+  @override
+  String get estrategia => 'Strategy';
+
+  @override
+  String get usaTusNumerosComoBase =>
+      'Use your numbers as a base and add variations.';
+
+  @override
+  String get estrategiaEquilibrada => 'Balanced';
+
+  @override
+  String get estrategiaAleatoria => 'Random';
+
+  @override
+  String get generando => 'GENERATING...';
+
+  @override
+  String get generarCombinaciones => 'GENERATE COMBINATIONS';
+
+  @override
+  String get combinacionesGeneradas => 'combinations generated';
+
+  @override
+  String get generarOtras => 'Generate others';
+
+  @override
+  String get guardarTodas => 'Save all';
+
+  @override
+  String get jugadasGuardadasConExito => 'Plays saved successfully';
+
+  @override
+  String get errorAlGuardarJugadas => 'There was an error saving some plays';
+
+  @override
+  String get debesIniciarSesionParaGuardar => 'You must log in to save';
 }

@@ -12,6 +12,7 @@ class LotteryRules(BaseModel):
     special_numbers_count: Optional[int] = None
     special_numbers_min: Optional[int] = None
     special_numbers_max: Optional[int] = None
+    proximo_sorteo: Optional[str] = None
 
 class GeneratedCombination(BaseModel):
     number: int

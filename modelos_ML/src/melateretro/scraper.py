@@ -26,6 +26,31 @@ class MelateRetroScraper:
         self.url_csv = "https://www.pronosticos.gob.mx/Documentos/Historicos/Melate-Retro.csv"
         self.url_web = "https://www.loterianacional.gob.mx/MelateRetro/Resultados"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Melate Retro] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Melate Retro] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Melate Retro] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato 'DD/MM/YYYY' o 'YYYY-MM-DD' a 'YYYY-MM-DD'."""
         if not text_raw:
@@ -45,8 +70,10 @@ class MelateRetroScraper:
         return None
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """
-        Los sorteos de Melate Retro se realizan los Martes (1) y Sábados (5).
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE para proyectar la fecha de sorteos futuros.
+        Nunca se utiliza para extraer ni descartar sorteos históricos reales.
+        Los sorteos de Melate Retro se realizan habitualmente los Martes (1) y Sábados (5).
         """
         draw_days = (1, 5)
         candidate = ultima_fecha_real + timedelta(days=1)
@@ -62,7 +89,7 @@ class MelateRetroScraper:
                     SELECT concurso, fecha, sorteo
                     FROM resultados_melateretro
                     WHERE balota1 > 0
-                    ORDER BY fecha DESC, concurso DESC
+                    ORDER BY concurso DESC, fecha DESC
                     LIMIT 1;
                 """)).fetchone()
                 if row:
@@ -76,10 +103,10 @@ class MelateRetroScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Extrae el último sorteo REAL publicado en la web oficial."""
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=12, verify=False)
-            if r.status_code == 200:
+        """Extrae el último sorteo REAL publicado en la web oficial con reintentos."""
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
                 if len(tables) > 1:
@@ -103,22 +130,20 @@ class MelateRetroScraper:
                                         "balotas": balls,
                                         "adicional": int(add_str) if add_str.isdigit() else 0
                                     }
-        except Exception as e:
-            print(f"⚠️ Error consultando último sorteo en la fuente Melate Retro: {e}")
+            except Exception as e:
+                print(f"⚠️ Error consultando último sorteo en la fuente Melate Retro: {e}")
         return None
 
     def extraer_csv(self) -> tuple[pd.DataFrame, str]:
-        """Descarga el archivo histórico oficial CSV con todos los sorteos de Melate Retro."""
+        """Descarga el archivo histórico oficial CSV con todos los sorteos de Melate Retro con reintentos."""
         print(f"➡️ Descargando histórico oficial CSV de Melate Retro desde {self.url_csv}...")
         jackpot_destacado = "$17,500,000 MXN"
         
-        try:
-            r = requests.get(self.url_csv, headers=self.headers, timeout=15, verify=False)
-            if r.status_code == 200 and len(r.text) > 1000:
+        r = self._fetch_with_retries(self.url_csv, max_retries=3, base_delay=2.0)
+        if r and len(r.text) > 1000:
+            try:
                 df_raw = pd.read_csv(io.StringIO(r.text))
                 
-                # Columnas esperadas: ['NPRODUCTO', 'CONCURSO', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'BOLSA', 'FECHA']
-                # o R1..R7
                 f_cols = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7'] if 'F1' in df_raw.columns else ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7']
                 draws = []
                 
@@ -139,7 +164,6 @@ class MelateRetroScraper:
                             r6 = int(row[f_cols[5]])
                             r7 = int(row[f_cols[6]]) # Adicional
                             c_num = int(row['CONCURSO']) if pd.notna(row.get('CONCURSO')) else None
-                            # Conservar orden original extraído (sin sorted)
                             balls = [r1, r2, r3, r4, r5, r6]
                             draws.append({
                                 "concurso": c_num,
@@ -160,20 +184,20 @@ class MelateRetroScraper:
                 df = pd.DataFrame(draws)
                 print(f"📊 Sorteos procesados desde CSV oficial de Melate Retro: {len(df)}")
                 return df, jackpot_destacado
-        except Exception as e:
-            print(f"⚠️ Error al descargar CSV de Melate Retro: {e}")
+            except Exception as e:
+                print(f"⚠️ Error al procesar CSV de Melate Retro: {e}")
 
         return pd.DataFrame(), jackpot_destacado
 
     def extraer_recientes_web(self) -> tuple[pd.DataFrame, str]:
-        """Extrae sorteos recientes de la página web de Melate Retro."""
+        """Extrae sorteos recientes de la página web de Melate Retro con reintentos."""
         print(f"➡️ Solicitando resultados web recientes de Melate Retro desde {self.url_web}...")
         draws = []
         jackpot_destacado = "$17,500,000 MXN"
         
-        try:
-            r = requests.get(self.url_web, headers=self.headers, timeout=12, verify=False)
-            if r.status_code == 200:
+        r = self._fetch_with_retries(self.url_web, max_retries=3)
+        if r:
+            try:
                 soup = BeautifulSoup(r.text, "html.parser")
                 tables = soup.find_all("table")
                 
@@ -192,7 +216,6 @@ class MelateRetroScraper:
                                 nat_str = parts[0].strip().split()
                                 add_str = parts[1].strip()
                                 if len(nat_str) == 6 and add_str.isdigit():
-                                    # Conservar orden original extraído (sin sorted)
                                     balls = [int(n) for n in nat_str if n.isdigit()]
                                     draws.append({
                                         "concurso": c_num,
@@ -207,8 +230,8 @@ class MelateRetroScraper:
                                         "balota6": balls[5],
                                         "balotaroja": int(add_str)
                                     })
-        except Exception as e:
-            print(f"⚠️ Error en scraping web de Melate Retro: {e}")
+            except Exception as e:
+                print(f"⚠️ Error en scraping web de Melate Retro: {e}")
 
         return pd.DataFrame(draws), jackpot_destacado
 
@@ -248,6 +271,9 @@ class MelateRetroScraper:
         # 1. Detección temprana: comparar último sorteo real en BD vs fuente
         ultimo_db = self.obtener_ultimo_sorteo_db()
         ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+
+        if not ultimo_fuente and not backfill:
+            raise RuntimeError("❌ No se pudo conectar con la fuente oficial de Melate Retro tras 3 intentos. Fallo real de servicio.")
 
         if not backfill and ultimo_db and ultimo_fuente:
             concurso_db = ultimo_db.get("concurso")
@@ -308,7 +334,7 @@ class MelateRetroScraper:
             df_combined = df_existente
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values('fecha', ascending=False).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['concurso'], keep='first').sort_values('concurso', ascending=False).reset_index(drop=True)
 
         # Filtrar fechas futuras accidentales
         hoy_max = datetime.now().date()
@@ -346,7 +372,7 @@ class MelateRetroScraper:
             df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
         else:
             df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_scraped], ignore_index=True)
-            df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
+            df_to_save = df_to_save.drop_duplicates(subset=['concurso'], keep='first')
 
         # 6. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
         with self.engine.begin() as conn:
@@ -367,17 +393,19 @@ class MelateRetroScraper:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_melateretro_fecha_sorteo ON resultados_melateretro (fecha, sorteo);
+                DROP INDEX IF EXISTS uq_melateretro_fecha_sorteo;
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_melateretro_concurso ON resultados_melateretro (concurso);
+                CREATE INDEX IF NOT EXISTS idx_melateretro_fecha ON resultados_melateretro (fecha DESC);
                 CREATE INDEX IF NOT EXISTS idx_melateretro_concurso ON resultados_melateretro (concurso);
                 CREATE INDEX IF NOT EXISTS idx_melateretro_loteria_id ON resultados_melateretro (loteria_id);
             """))
 
-        # Eliminar posibles placeholders obsoletos anteriores a la nueva fecha
+        # Eliminar posibles placeholders obsoletos anteriores al nuevo próximo concurso
         with self.engine.begin() as conn:
             conn.execute(text("""
                 DELETE FROM resultados_melateretro
-                WHERE balota1 = 0 AND fecha < :proxima_fecha;
-            """), {"proxima_fecha": proxima_fecha})
+                WHERE balota1 = 0 AND concurso < :prox_concurso;
+            """), {"prox_concurso": prox_concurso})
 
         insert_sql = """
             INSERT INTO resultados_melateretro (
@@ -385,9 +413,10 @@ class MelateRetroScraper:
                 balota1, balota2, balota3, balota4, balota5, balota6, balotaroja,
                 created_at, updated_at
             ) VALUES %s
-            ON CONFLICT (fecha, sorteo) DO UPDATE SET
-                concurso = COALESCE(EXCLUDED.concurso, resultados_melateretro.concurso),
+            ON CONFLICT (concurso) DO UPDATE SET
                 loteria_id = EXCLUDED.loteria_id,
+                sorteo = EXCLUDED.sorteo,
+                fecha = EXCLUDED.fecha,
                 balota1 = EXCLUDED.balota1,
                 balota2 = EXCLUDED.balota2,
                 balota3 = EXCLUDED.balota3,
@@ -439,4 +468,5 @@ class MelateRetroScraper:
 
 if __name__ == "__main__":
     scraper = MelateRetroScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)
+

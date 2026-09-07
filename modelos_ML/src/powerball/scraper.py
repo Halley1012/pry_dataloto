@@ -31,6 +31,25 @@ class PowerballScraper:
         # Sorteos: Lunes (0), Miércoles (2), Sábados (5)
         self.draw_days = (0, 2, 5)
 
+    def _fetch_with_retries(self, url, method="get", max_retries=3, base_delay=1.5, **kwargs):
+        """HTTP request con backoff exponencial. Retorna Response o None si todos los intentos fallan."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                if method == "post":
+                    r = requests.post(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+                else:
+                    r = requests.get(url, timeout=kwargs.pop("timeout", 15), **kwargs)
+                if r.status_code < 500:
+                    return r
+                print(f"⚠️ HTTP {r.status_code} en intento {attempt}/{max_retries} para {url}")
+            except Exception as e:
+                print(f"⚠️ Error en intento {attempt}/{max_retries} para {url}: {e}")
+            if attempt < max_retries:
+                delay = base_delay * (2 ** (attempt - 1))
+                time.sleep(delay)
+        print(f"❌ Todos los intentos fallaron para {url}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         candidate = ultima_fecha_real + timedelta(days=1)
         while candidate.weekday() not in self.draw_days:
@@ -58,25 +77,24 @@ class PowerballScraper:
         return None
 
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        try:
-            r = requests.get(self.base_url, params={"gc": self.game_code, "pg": 1}, headers=self.headers, timeout=10)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                card = soup.select_one("a.card")
-                if card:
-                    href = card.get("href", "")
-                    fecha_str = parse_qs(urlparse(href).query).get("date", [None])[0]
-                    ball_divs = card.select(".game-ball-group .form-control div")
-                    balls = [int(b.get_text(strip=True)) for b in ball_divs if b.get_text(strip=True).isdigit()]
-                    if fecha_str and len(balls) == 6:
-                        return {
-                            "fecha": fecha_str,
-                            "balotas": balls[:5],
-                            "powerball": balls[5]
-                        }
-        except Exception as e:
-            print(f"⚠️ Error consultando powerball.com: {e}")
-        return None
+        r = self._fetch_with_retries(self.base_url, params={"gc": self.game_code, "pg": 1}, headers=self.headers)
+        if r is None:
+            return None
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            card = soup.select_one("a.card")
+            if card:
+                href = card.get("href", "")
+                fecha_str = parse_qs(urlparse(href).query).get("date", [None])[0]
+                ball_divs = card.select(".game-ball-group .form-control div")
+                balls = [int(b.get_text(strip=True)) for b in ball_divs if b.get_text(strip=True).isdigit()]
+                if fecha_str and len(balls) == 6:
+                    return {
+                        "fecha": fecha_str,
+                        "balotas": balls[:5],
+                        "powerball": balls[5]
+                    }
+        return {}
 
     def update_jackpot(self, engine, loteria, jackpot, fecha_str):
         if not jackpot or not fecha_str:
@@ -188,6 +206,9 @@ class PowerballScraper:
         db_ultimo = self.obtener_ultimo_sorteo_db()
         fuente_info = self.extraer_ultimo_sorteo_fuente()
 
+        if fuente_info is None:
+            raise RuntimeError("❌ [Powerball] Error al comunicarse con la fuente oficial powerball.com tras 3 intentos.")
+
         if fuente_info and db_ultimo:
             fecha_fuente = str(fuente_info.get("fecha"))
             fecha_db = str(db_ultimo.get("fecha"))
@@ -196,7 +217,7 @@ class PowerballScraper:
                 print(f"\nℹ️ [DETECCIÓN TEMPRANA] No hay sorteos nuevos para Powerball.")
                 print(f"  Último sorteo en fuente: {fecha_fuente}")
                 print(f"  Último sorteo en BD:     {fecha_db}")
-                
+
                 self._actualizar_jackpot_oficial()
                 prox_f = self._asegurar_placeholder(db_ultimo["fecha"])
 
@@ -211,8 +232,8 @@ class PowerballScraper:
         try:
             with self.engine.connect() as conn:
                 existing_df = pd.read_sql(text("SELECT * FROM resultados_powerball WHERE balota1 > 0;"), conn)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"⚠️ No se pudo leer BD existente: {e}")
 
         pages_to_scrape = max_pages or (5 if len(existing_df) > 100 else 100)
         resultados = []
@@ -220,33 +241,29 @@ class PowerballScraper:
         while pagina <= pages_to_scrape:
             print(f"➡️ Scrapeando página {pagina} de Powerball...")
             params = {"gc": self.game_code, "pg": pagina}
-            try:
-                response = requests.get(self.base_url, params=params, headers=self.headers, timeout=15)
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, "html.parser")
-                    cards = soup.select("a.card")
-                    if not cards:
-                        break
-
-                    for card in cards:
-                        href = card.get("href", "")
-                        fecha_str = parse_qs(urlparse(href).query).get("date", [None])[0]
-                        if not fecha_str:
-                            continue
-
-                        ball_group = card.select_one(".game-ball-group")
-                        if not ball_group:
-                            continue
-
-                        ball_divs = ball_group.select(".form-control div")
-                        numeros = [int(b.get_text(strip=True)) for b in ball_divs if b.get_text(strip=True).isdigit()]
-
-                        if len(numeros) == 6:
-                            resultados.append(["Powerball", fecha_str] + numeros)
-                else:
+            response = self._fetch_with_retries(self.base_url, params=params, headers=self.headers)
+            if response and response.status_code == 200:
+                soup = BeautifulSoup(response.text, "html.parser")
+                cards = soup.select("a.card")
+                if not cards:
                     break
-            except Exception as e:
-                print(f"⚠️ Error en página {pagina}: {e}")
+
+                for card in cards:
+                    href = card.get("href", "")
+                    fecha_str = parse_qs(urlparse(href).query).get("date", [None])[0]
+                    if not fecha_str:
+                        continue
+
+                    ball_group = card.select_one(".game-ball-group")
+                    if not ball_group:
+                        continue
+
+                    ball_divs = ball_group.select(".form-control div")
+                    numeros = [int(b.get_text(strip=True)) for b in ball_divs if b.get_text(strip=True).isdigit()]
+
+                    if len(numeros) == 6:
+                        resultados.append(["Powerball", fecha_str] + numeros)
+            else:
                 break
 
             pagina += 1
@@ -261,8 +278,7 @@ class PowerballScraper:
             df_combined = df_new
 
         if df_combined.empty:
-            print("❌ No se lograron recuperar registros de Powerball.")
-            return False
+            raise RuntimeError("❌ [Powerball] No se lograron recuperar registros de la fuente ni de la BD.")
 
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha'], errors='coerce')
         df_combined = df_combined.dropna(subset=['fecha'])

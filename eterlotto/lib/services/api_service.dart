@@ -2029,13 +2029,22 @@ class ApiService {
 
   /// 🎲 Obtener reglas de loterías soportadas por el generador
   static Future<List<dynamic>> getCombinationLotteries() async {
+    const cacheKey = 'combination_lotteries_rules';
     try {
-      final response = await http.get(Uri.parse('$baseUrl/combinations/lotteries')).timeout(const Duration(seconds: 5));
+      // Construct URL carefully to avoid double-slash issues
+      final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 5));
       if (response.statusCode == 200) {
-        return jsonDecode(response.body);
+        final data = jsonDecode(response.body);
+        CacheService.setJson(cacheKey, data);
+        return data;
       }
     } catch (e) {
       debugPrint("Error obteniendo loterías para combinaciones: $e");
+    }
+    final cached = await CacheService.getJson(cacheKey);
+    if (cached != null && cached is List) {
+      return cached;
     }
     return [];
   }
