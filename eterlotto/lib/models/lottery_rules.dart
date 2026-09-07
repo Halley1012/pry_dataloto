@@ -7,6 +7,7 @@ class LotteryRules {
   final int? specialNumbersCount;
   final int? specialNumbersMin;
   final int? specialNumbersMax;
+  final String? proximoSorteo;
 
   LotteryRules({
     required this.lotteryId,
@@ -17,6 +18,7 @@ class LotteryRules {
     this.specialNumbersCount,
     this.specialNumbersMin,
     this.specialNumbersMax,
+    this.proximoSorteo,
   });
 
   factory LotteryRules.fromJson(Map<String, dynamic> json) {
@@ -29,6 +31,7 @@ class LotteryRules {
       specialNumbersCount: json['special_numbers_count'] as int?,
       specialNumbersMin: json['special_numbers_min'] as int?,
       specialNumbersMax: json['special_numbers_max'] as int?,
+      proximoSorteo: json['proximo_sorteo'] as String?,
     );
   }
 

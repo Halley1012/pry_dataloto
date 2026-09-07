@@ -59,6 +59,31 @@ class KabalaScraper:
         self.url_oficial = "https://www.latinka.com.pe/p/juega-kabala.html"
         self.url_sitemap = "https://tinkaresultados.com/sitemap.xml"
 
+    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5):
+        """Realiza peticiones HTTP a la fuente oficial con reintentos y retroceso exponencial."""
+        import time
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15, verify=False)
+                if r.status_code == 200:
+                    return r
+                elif r.status_code == 404:
+                    return None
+                else:
+                    last_error = f"HTTP {r.status_code}"
+                    print(f"⚠️ [Kábala] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [Kábala] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+            if attempt < max_retries:
+                sleep_time = base_delay * (2 ** (attempt - 1))
+                time.sleep(sleep_time)
+
+        print(f"❌ [Kábala] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """Sorteos de Kábala: Martes (1), Jueves (3) y Sábados (5)."""
         dias_validos = {1, 3, 5}
@@ -70,19 +95,16 @@ class KabalaScraper:
     def extraer_pozo_oficial(self) -> str:
         """Extrae el Pozo Buenazo en tiempo real desde el portal oficial."""
         print(f"➡️ Consultando Pozo Buenazo oficial en {self.url_oficial}...")
-        try:
-            r = requests.get(self.url_oficial, headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
-                    txt = tag.get_text(strip=True)
-                    if "pozo" in txt.lower() and "s/" in txt.lower():
-                        m = re.search(r'S/\s*([0-9\',.]+)', txt)
-                        if m:
-                            clean_m = m.group(1).replace("'", ",").replace(" ", "")
-                            return f"S/ {clean_m}"
-        except Exception as e:
-            print(f"⚠️ Error extrayendo Pozo de Kábala: {e}")
+        r = self._fetch_with_retries(self.url_oficial, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            for tag in soup.find_all(["div", "span", "h1", "h2", "h3"]):
+                txt = tag.get_text(strip=True)
+                if "pozo" in txt.lower() and "s/" in txt.lower():
+                    m = re.search(r'S/\s*([0-9\',.]+)', txt)
+                    if m:
+                        clean_m = m.group(1).replace("'", ",").replace(" ", "")
+                        return f"S/ {clean_m}"
 
         return "S/ 564,872"
 
@@ -110,60 +132,57 @@ class KabalaScraper:
     def extraer_ultimo_sorteo_fuente(self) -> dict:
         """Extrae el último sorteo REAL publicado en la fuente (Home de Kábala)."""
         url = "https://www.tinkaresultados.com/kabala"
-        try:
-            r = requests.get(url, headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                txt = soup.get_text()
+        r = self._fetch_with_retries(url, max_retries=3, base_delay=1.5)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            txt = soup.get_text()
 
-                m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
-                if not m_date:
-                    return None
-                d, m, y = m_date.groups()
-                fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
+            if not m_date:
+                return None
+            d, m, y = m_date.groups()
+            fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
 
-                m_sorteo = re.search(r'Sorteo[:\s]*(?:Nro\.?|número)?\s*(\d+)', txt, re.I)
-                concurso_num = int(m_sorteo.group(1)) if m_sorteo else None
+            m_sorteo = re.search(r'Sorteo[:\s]*(?:Nro\.?|número)?\s*(\d+)', txt, re.I)
+            concurso_num = int(m_sorteo.group(1)) if m_sorteo else None
 
-                buenazo_balls = []
-                chamba_balls = []
+            buenazo_balls = []
+            chamba_balls = []
 
-                m_b = re.search(r'Pozo Buenazo\s*Sorteo:[^\n\r\d]*(\d+)[^\n\r\d]*Fecha:[^\n\r\d]*\d+/\d+/\d+\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                if m_b:
-                    buenazo_balls = [int(x) for x in m_b.groups()[1:]]
-                else:
-                    m_b2 = re.search(r'Pozo Buenazo[^\n\r]*?\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                    if m_b2:
-                        buenazo_balls = [int(x) for x in m_b2.groups()]
+            m_b = re.search(r'Pozo Buenazo\s*Sorteo:[^\n\r\d]*(\d+)[^\n\r\d]*Fecha:[^\n\r\d]*\d+/\d+/\d+\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+            if m_b:
+                buenazo_balls = [int(x) for x in m_b.groups()[1:]]
+            else:
+                m_b2 = re.search(r'Pozo Buenazo[^\n\r]*?\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+                if m_b2:
+                    buenazo_balls = [int(x) for x in m_b2.groups()]
 
-                m_c = re.search(r'Chau Chamba\s*Sorteo:[^\n\r\d]*(\d+)[^\n\r\d]*Fecha:[^\n\r\d]*\d+/\d+/\d+\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                if m_c:
-                    chamba_balls = [int(x) for x in m_c.groups()[1:]]
-                else:
-                    m_c2 = re.search(r'Chau Chamba[^\n\r]*?\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                    if m_c2:
-                        chamba_balls = [int(x) for x in m_c2.groups()]
+            m_c = re.search(r'Chau Chamba\s*Sorteo:[^\n\r\d]*(\d+)[^\n\r\d]*Fecha:[^\n\r\d]*\d+/\d+/\d+\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+            if m_c:
+                chamba_balls = [int(x) for x in m_c.groups()[1:]]
+            else:
+                m_c2 = re.search(r'Chau Chamba[^\n\r]*?\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+                if m_c2:
+                    chamba_balls = [int(x) for x in m_c2.groups()]
 
-                if len(buenazo_balls) != 6 or len(chamba_balls) != 6:
-                    for table in soup.find_all('table'):
-                        t_txt = table.get_text()
-                        td_nums = [int(td.get_text(strip=True)) for td in table.find_all(['td', 'span', 'div']) if td.get_text(strip=True).isdigit() and 1 <= int(td.get_text(strip=True)) <= 40]
-                        if 'buenazo' in t_txt.lower() or ('chau chamba' not in t_txt.lower() and not buenazo_balls):
-                            if len(td_nums) >= 6 and not buenazo_balls:
-                                buenazo_balls = td_nums[:6]
-                        if 'chau chamba' in t_txt.lower() or 'chamba' in t_txt.lower():
-                            if len(td_nums) >= 6 and not chamba_balls:
-                                chamba_balls = td_nums[:6]
+            if len(buenazo_balls) != 6 or len(chamba_balls) != 6:
+                for table in soup.find_all('table'):
+                    t_txt = table.get_text()
+                    td_nums = [int(td.get_text(strip=True)) for td in table.find_all(['td', 'span', 'div']) if td.get_text(strip=True).isdigit() and 1 <= int(td.get_text(strip=True)) <= 40]
+                    if 'buenazo' in t_txt.lower() or ('chau chamba' not in t_txt.lower() and not buenazo_balls):
+                        if len(td_nums) >= 6 and not buenazo_balls:
+                            buenazo_balls = td_nums[:6]
+                    if 'chau chamba' in t_txt.lower() or 'chamba' in t_txt.lower():
+                        if len(td_nums) >= 6 and not chamba_balls:
+                            chamba_balls = td_nums[:6]
 
-                if concurso_num and len(buenazo_balls) == 6 and len(chamba_balls) == 6:
-                    return {
-                        "concurso": concurso_num,
-                        "fecha": fecha_iso,
-                        "buenazo_balls": buenazo_balls,
-                        "chamba_balls": chamba_balls
-                    }
-        except Exception as e:
-            print(f"⚠️ Error extrayendo último sorteo de la fuente: {e}")
+            if concurso_num and len(buenazo_balls) == 6 and len(chamba_balls) == 6:
+                return {
+                    "concurso": concurso_num,
+                    "fecha": fecha_iso,
+                    "buenazo_balls": buenazo_balls,
+                    "chamba_balls": chamba_balls
+                }
         return None
 
     def _parsear_jugada(self, url: str) -> list[dict]:
@@ -173,85 +192,82 @@ class KabalaScraper:
         if c_url == 1690:
             return FALLBACK_1690
 
-        try:
-            r = requests.get(url, headers=self.headers, timeout=8, verify=False)
-            if r.status_code == 500 and c_url == 1690:
-                return FALLBACK_1690
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                txt = soup.get_text()
+        r = self._fetch_with_retries(url, max_retries=3, base_delay=1.0)
+        if not r and c_url == 1690:
+            return FALLBACK_1690
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            txt = soup.get_text()
 
-                m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
-                if not m_date:
-                    return []
-                d, m, y = m_date.groups()
-                fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
+            m_date = re.search(r'Fecha:\s*(\d{1,2})/(\d{1,2})/(\d{4})', txt)
+            if not m_date:
+                return []
+            d, m, y = m_date.groups()
+            fecha_iso = f"{y}-{m.zfill(2)}-{d.zfill(2)}"
 
-                buenazo_balls = []
-                chamba_balls = []
+            buenazo_balls = []
+            chamba_balls = []
 
-                # Búsqueda por regex directo
-                m_b = re.search(r'Pozo Buenazo\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                if m_b:
-                    buenazo_balls = [int(x) for x in m_b.groups()]
+            # Búsqueda por regex directo
+            m_b = re.search(r'Pozo Buenazo\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+            if m_b:
+                buenazo_balls = [int(x) for x in m_b.groups()]
 
-                m_c = re.search(r'Chau Chamba\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
-                if m_c:
-                    chamba_balls = [int(x) for x in m_c.groups()]
+            m_c = re.search(r'Chau Chamba\s*(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})\s+(\d{1,2})', txt, re.I)
+            if m_c:
+                chamba_balls = [int(x) for x in m_c.groups()]
 
-                # Fallback a tablas
-                if not buenazo_balls or not chamba_balls:
-                    for table in soup.find_all('table'):
-                        t_txt = table.get_text()
-                        td_nums = [int(td.get_text(strip=True)) for td in table.find_all(['td', 'span', 'div']) if td.get_text(strip=True).isdigit() and 1 <= int(td.get_text(strip=True)) <= 40]
-                        if 'buenazo' in t_txt.lower() or ('chau chamba' not in t_txt.lower() and not buenazo_balls):
-                            if len(td_nums) >= 6 and not buenazo_balls:
-                                buenazo_balls = td_nums[:6]
-                        if 'chau chamba' in t_txt.lower() or 'chamba' in t_txt.lower():
-                            if len(td_nums) >= 6 and not chamba_balls:
-                                chamba_balls = td_nums[:6]
+            # Fallback a tablas
+            if not buenazo_balls or not chamba_balls:
+                for table in soup.find_all('table'):
+                    t_txt = table.get_text()
+                    td_nums = [int(td.get_text(strip=True)) for td in table.find_all(['td', 'span', 'div']) if td.get_text(strip=True).isdigit() and 1 <= int(td.get_text(strip=True)) <= 40]
+                    if 'buenazo' in t_txt.lower() or ('chau chamba' not in t_txt.lower() and not buenazo_balls):
+                        if len(td_nums) >= 6 and not buenazo_balls:
+                            buenazo_balls = td_nums[:6]
+                    if 'chau chamba' in t_txt.lower() or 'chamba' in t_txt.lower():
+                        if len(td_nums) >= 6 and not chamba_balls:
+                            chamba_balls = td_nums[:6]
 
-                m_sorteo = re.search(r'Sorteo[:\s]*(?:Nro\.?|número)?\s*(\d+)', txt, re.I)
-                if not m_sorteo and c_url:
-                    concurso_num = c_url
-                else:
-                    concurso_num = int(m_sorteo.group(1)) if m_sorteo else c_url
+            m_sorteo = re.search(r'Sorteo[:\s]*(?:Nro\.?|número)?\s*(\d+)', txt, re.I)
+            if not m_sorteo and c_url:
+                concurso_num = c_url
+            else:
+                concurso_num = int(m_sorteo.group(1)) if m_sorteo else c_url
 
-                items = []
-                # Orden de extracción original conservado (sin sorted)
-                if len(buenazo_balls) == 6:
-                    items.append({
-                        "concurso": concurso_num,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Kábala",
-                        "fecha": fecha_iso,
-                        "balota1": buenazo_balls[0],
-                        "balota2": buenazo_balls[1],
-                        "balota3": buenazo_balls[2],
-                        "balota4": buenazo_balls[3],
-                        "balota5": buenazo_balls[4],
-                        "balota6": buenazo_balls[5],
-                        "balotaroja": 0
-                    })
+            items = []
+            # Orden de extracción original conservado (sin sorted)
+            if len(buenazo_balls) == 6:
+                items.append({
+                    "concurso": concurso_num,
+                    "loteria_id": self.loteria_id,
+                    "sorteo": "Kábala",
+                    "fecha": fecha_iso,
+                    "balota1": buenazo_balls[0],
+                    "balota2": buenazo_balls[1],
+                    "balota3": buenazo_balls[2],
+                    "balota4": buenazo_balls[3],
+                    "balota5": buenazo_balls[4],
+                    "balota6": buenazo_balls[5],
+                    "balotaroja": 0
+                })
 
-                if len(chamba_balls) == 6:
-                    items.append({
-                        "concurso": concurso_num,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "Chau Chamba",
-                        "fecha": fecha_iso,
-                        "balota1": chamba_balls[0],
-                        "balota2": chamba_balls[1],
-                        "balota3": chamba_balls[2],
-                        "balota4": chamba_balls[3],
-                        "balota5": chamba_balls[4],
-                        "balota6": chamba_balls[5],
-                        "balotaroja": 0
-                    })
+            if len(chamba_balls) == 6:
+                items.append({
+                    "concurso": concurso_num,
+                    "loteria_id": self.loteria_id,
+                    "sorteo": "Chau Chamba",
+                    "fecha": fecha_iso,
+                    "balota1": chamba_balls[0],
+                    "balota2": chamba_balls[1],
+                    "balota3": chamba_balls[2],
+                    "balota4": chamba_balls[3],
+                    "balota5": chamba_balls[4],
+                    "balota6": chamba_balls[5],
+                    "balotaroja": 0
+                })
 
-                return items
-        except Exception:
-            pass
+            return items
         return []
 
     def extraer_historico_concurrente(self, desde_concurso: int = None, hasta_concurso: int = None, max_draws: int = 350) -> pd.DataFrame:
@@ -261,15 +277,11 @@ class KabalaScraper:
             kabala_urls = [f"https://www.tinkaresultados.com/kabala/resultados-anteriores/sorteo-{c}" for c in range(desde_concurso, hasta_concurso + 1)]
         else:
             print(f"➡️ Obteniendo lista de sorteos recientes de Kábala desde sitemap...")
-            try:
-                r = requests.get(self.url_sitemap, headers=self.headers, timeout=10, verify=False)
-                if r.status_code == 200:
-                    urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                    kabala_urls = [u for u in urls if 'kabala' in u.lower() and 'sorteo-' in u.lower()][:max_draws]
-                else:
-                    kabala_urls = []
-            except Exception as e:
-                print(f"⚠️ Error obteniendo sitemap: {e}")
+            r = self._fetch_with_retries(self.url_sitemap, max_retries=3, base_delay=1.5)
+            if r and r.status_code == 200:
+                urls = re.findall(r'<loc>(.*?)</loc>', r.text)
+                kabala_urls = [u for u in urls if 'kabala' in u.lower() and 'sorteo-' in u.lower()][:max_draws]
+            else:
                 kabala_urls = []
 
         print(f"Descargando {len(kabala_urls)} sorteos de Kábala y Chau Chamba concurrentemente...")
@@ -331,6 +343,9 @@ class KabalaScraper:
         ultimo_db = self.obtener_ultimo_sorteo_db()
         ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
 
+        if ultimo_fuente is None and not backfill and desde_concurso is None:
+            raise RuntimeError("❌ [Kábala] Error al comunicarse con la fuente oficial tinkaresultados.com tras 3 intentos.")
+
         if not backfill and desde_concurso is None and ultimo_db and ultimo_fuente:
             concurso_db = ultimo_db.get("concurso")
             concurso_fuente = ultimo_fuente.get("concurso")
@@ -368,8 +383,7 @@ class KabalaScraper:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
         if df_scraped.empty and df_existente.empty:
-            print("❌ No se pudieron obtener resultados de Kábala.")
-            return False
+            raise RuntimeError("❌ [Kábala] No se pudieron obtener resultados de Kábala tras reintentos.")
 
         # 4. Combinar y limpiar (prevalecen los datos extraídos de la fuente)
         if not df_existente.empty and not df_scraped.empty:
