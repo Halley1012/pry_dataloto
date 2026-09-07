@@ -38,10 +38,23 @@ class CombinationUseCases:
 
     def get_lottery_rules(self, lottery_id: str) -> LotteryRules:
         loterias = self.publicidad_repo.list_loterias()
+        
+        # Mapeo de compatibilidad para IDs antiguos
+        aliases = {
+            "baloto": "bloto",
+            "miloto": "mloto",
+            "colorloto": "cloto",
+            "cloto": "colorloto"
+        }
+        
+        target_ids = {lottery_id.lower()}
+        if lottery_id.lower() in aliases:
+            target_ids.add(aliases[lottery_id.lower()])
+
         lot = None
         for l in loterias:
             curr_id = l.get("route") if l.get("route") else l["nombre"].lower().replace(" ", "_")
-            if curr_id == lottery_id.lower():
+            if curr_id in target_ids:
                 lot = l
                 break
         
