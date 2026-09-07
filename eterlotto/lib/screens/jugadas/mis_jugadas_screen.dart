@@ -27,11 +27,13 @@ import 'package:shimmer/shimmer.dart';
 class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
   final String loteriaRoute;
+  final bool soloProximos;
 
   const MisJugadasScreen({
     super.key,
     required this.loteriaNombre,
     required this.loteriaRoute,
+    this.soloProximos = true,
   });
 
   @override
@@ -44,7 +46,36 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   bool _cargando = true;
   String? _userId;
   LoteriaConfig? _config;
+  late bool _soloProximos = widget.soloProximos;
   final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(null);
+
+  List<Map<String, dynamic>> get _jugadasFiltradas {
+    return _jugadasList.where((item) {
+      final fecha = item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"];
+      final diff = _getDiffDays(fecha?.toString());
+      if (_soloProximos) {
+        return diff >= 0;
+      } else {
+        return diff < 0;
+      }
+    }).toList();
+  }
+
+  int _getDiffDays(String? fecha) {
+    if (fecha == null || fecha.isEmpty) return 0;
+    try {
+      final clean = fecha.trim();
+      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      if (parsed == null) return 0;
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      return target.difference(today).inDays;
+    } catch (_) {
+      return 0;
+    }
+  }
 
   @override
   void initState() {
@@ -121,10 +152,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
   void _toggleSelectAll() {
     setState(() {
-      if (_selectedIds.length == _jugadasList.length) {
+      if (_selectedIds.length == _jugadasFiltradas.length) {
         _selectedIds.clear();
       } else {
-        _selectedIds = _jugadasList
+        _selectedIds = _jugadasFiltradas
             .map((j) => j["id"] as int? ?? 0)
             .where((id) => id > 0)
             .toSet();
@@ -666,18 +697,20 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                       ],
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  _buildMisJugadasToggleButtons(l10n),
                   const SizedBox(height: 16),
                   Center(
                     child: Column(
                       children: [
                         Text(
-                          l10n?.historialJugadas ?? "Historial de Jugadas",
+                          _soloProximos ? (l10n?.proximoSorteo ?? "Próximo sorteo") : (l10n?.historialJugadas ?? "Historial de Jugadas"),
                           style: AppTextStyles.h2.copyWith(fontSize: 18),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          "${_jugadasList.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
+                          "${_jugadasFiltradas.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
                           style: AppTextStyles.caption.copyWith(
                             color: AppColors.yellow,
                             fontWeight: FontWeight.bold,
@@ -691,7 +724,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   const SizedBox(height: 8),
                   _cargando
                       ? _buildSkeletonJugadas()
-                      : _jugadasList.isEmpty
+                      : _jugadasFiltradas.isEmpty
                           ? Center(
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(vertical: 40),
@@ -766,8 +799,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                   const Divider(color: Colors.white12, height: 16),
 
                                   // Filas de jugadas
-                                  ...List.generate(_jugadasList.length, (index) {
-                                    final item = _jugadasList[index];
+                                  ...List.generate(_jugadasFiltradas.length, (index) {
+                                    final item = _jugadasFiltradas[index];
                                     final id = item["id"] as int? ?? 0;
                                     final isSelected = _selectedIds.contains(id);
                                     final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
@@ -1240,6 +1273,99 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildMisJugadasToggleButtons(AppLocalizations? l10n) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _soloProximos = true;
+                  _selectedIds.clear();
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: _soloProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _soloProximos ? AppColors.yellow : Colors.white12,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.access_time_rounded,
+                      size: 17,
+                      color: _soloProximos ? Colors.black : Colors.white70,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n?.proximoSorteo ?? "Próximos sorteos",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: _soloProximos ? Colors.black : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                setState(() {
+                  _soloProximos = false;
+                  _selectedIds.clear();
+                });
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  color: !_soloProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: !_soloProximos ? AppColors.yellow : Colors.white12,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.format_list_bulleted_rounded,
+                      size: 17,
+                      color: !_soloProximos ? Colors.black : Colors.white70,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n?.historialJugadas ?? "Historial de jugadas",
+                      style: GoogleFonts.montserrat(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                        color: !_soloProximos ? Colors.black : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

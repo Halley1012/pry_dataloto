@@ -5,7 +5,7 @@ from app.core import config
 from app.infrastructure import db_connection
 from app.infrastructure.repositories.jugada_repository import PostgresJugadaRepository
 from app.infrastructure.repositories.user_repository import PostgresUserRepository
-from app.api.routers import auth, jugadas, posts, publicidad, metadata, notifications, subscriptions
+from app.api.routers import auth, jugadas, posts, publicidad, metadata, notifications, subscriptions, combinations
 
 from contextlib import asynccontextmanager
 
@@ -109,6 +109,7 @@ app.include_router(metadata.router)
 app.include_router(notifications.router)
 app.include_router(jugadas.router)
 app.include_router(subscriptions.router)
+app.include_router(combinations.router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

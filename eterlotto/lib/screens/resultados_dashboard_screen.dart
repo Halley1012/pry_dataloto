@@ -72,32 +72,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
     if (isoDate.isEmpty) return null;
-    List<int>? fullList;
     if (_prediccionesPorFecha.containsKey(isoDate)) {
-      fullList = _prediccionesPorFecha[isoDate];
-    } else if (_prediccionesPorFecha.isNotEmpty) {
-      final drawDt = DateTime.tryParse(isoDate);
-      if (drawDt != null) {
-        String? bestMatch;
-        int minDiff = 999;
-        for (var pDate in _prediccionesPorFecha.keys) {
-          final pDt = DateTime.tryParse(pDate);
-          if (pDt != null) {
-            final diff = (drawDt.difference(pDt).inDays).abs();
-            if (diff <= 3 && diff < minDiff) {
-              minDiff = diff;
-              bestMatch = pDate;
-            }
-          }
-        }
-        if (bestMatch != null) {
-          fullList = _prediccionesPorFecha[bestMatch];
-        }
-      }
+      final fullList = _prediccionesPorFecha[isoDate]!;
+      final limit = _getTopLimitForLoteria(_selectedLoteria, fullList.length);
+      return fullList.take(limit).toList();
     }
-    if (fullList == null) return null;
-    final limit = _getTopLimitForLoteria(_selectedLoteria, fullList.length);
-    return fullList.take(limit).toList();
+    return null;
   }
 
   String _nombreSorteo(Map<String, dynamic> sorteo) {
@@ -178,31 +158,33 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
-    final lower = name.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-    if (lower.contains("megamillions") || lower.contains("megamillion"))
-      return 35;
-    if (lower.contains("powerball")) return 34;
-    if (lower.contains("doubleplay")) return 34;
-    if (lower.contains("millionaire") || lower.contains("millionairelife"))
-      return 29;
-    if (lower.contains("lottoamerica")) return 26;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
-    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
-    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
-
-    if (widget.loteriaData != null &&
-        widget.loteriaData!['max_balotas_blancas'] != null) {
+    // 1. Dinámico por configuración de la lotería en BD
+    if (widget.loteriaData != null) {
       final m = int.tryParse(
-        widget.loteriaData!['max_balotas_blancas'].toString(),
+        widget.loteriaData!['max_balotas_blancas']?.toString() ??
+        widget.loteriaData!['maxBalotasBlancas']?.toString() ??
+        widget.loteriaData!['total_balotas']?.toString() ??
+        widget.loteriaData!['totalBalotas']?.toString() ?? '',
       );
       if (m != null && m > 0) {
         return (m ~/ 2);
       }
     }
+    // 2. Dinámico por el tamaño del conjunto de números recibido de la IA
     if (totalPoolSize != null && totalPoolSize > 0) {
       return (totalPoolSize ~/ 2);
     }
+
+    // 3. Fallback auxiliar
+    final lower = name.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+    if (lower.contains("megamillions") || lower.contains("megamillion")) return 35;
+    if (lower.contains("powerball") || lower.contains("doubleplay")) return 34;
+    if (lower.contains("millionaire") || lower.contains("millionairelife")) return 29;
+    if (lower.contains("lottoamerica")) return 26;
+    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
+    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
+    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
+    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
     return 21;
   }
 
@@ -225,7 +207,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_v7_$route';
+    final cacheKey = 'resultados_dashboard_cache_v8_$route';
 
     // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
     if (!forceRefresh) {
@@ -942,6 +924,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         final langCode = mounted
             ? Localizations.localeOf(context).languageCode
             : 'es';
+        final dias = langCode == 'en' 
+            ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            : (langCode == 'pt' 
+                ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+                : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
         final meses = langCode == 'en'
             ? [
                 "Jan",
@@ -986,7 +973,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                       "Nov",
                       "Dic",
                     ]);
-        return "${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
+        final diaSemana = dias[parsed.weekday - 1];
+        return "$diaSemana, ${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
       }
     } catch (_) {}
     return rawDate;
@@ -1152,12 +1140,13 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 : nums;
 
             // Evaluar contra la predicción específica de esa fecha
-            final predParaFecha =
-                _obtenerPrediccionParaFecha(rawDate) ?? _top20List;
-            final hits = mainNums
-                .where((n) => predParaFecha.contains(n))
-                .length;
-            final covPercent = mainNums.isNotEmpty
+            final predParaFecha = _obtenerPrediccionParaFecha(rawDate);
+            final bool tienePred =
+                predParaFecha != null && predParaFecha.isNotEmpty;
+            final hits = tienePred
+                ? mainNums.where((n) => predParaFecha.contains(n)).length
+                : 0;
+            final covPercent = (mainNums.isNotEmpty && tienePred)
                 ? ((hits / mainNums.length) * 100).round()
                 : 0;
 
@@ -1165,9 +1154,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               "fecha": dateDisplay,
               "nums": nums,
               "red": red,
-              "cobertura": "$covPercent%",
-              "aciertos": "$hits / ${mainNums.length}",
-              "color": covPercent >= 60 ? Colors.greenAccent : Colors.amber,
+              "cobertura": tienePred ? "$covPercent%" : "--",
+              "aciertos": tienePred ? "$hits / ${mainNums.length}" : "--",
+              "color": tienePred
+                  ? (covPercent >= 60 ? Colors.greenAccent : Colors.amber)
+                  : Colors.white38,
             };
           }).toList()
         : [

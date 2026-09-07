@@ -6,7 +6,7 @@ import requests
 import pandas as pd
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text, Integer, Date, String
+from sqlalchemy import text
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from psycopg2.extras import execute_values
 
@@ -22,13 +22,12 @@ class MaisMilionariaScraper:
             "Accept": "application/json, text/html, */*",
         }
         self.url_caixa = "https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria"
-        self.url_api_backup = "https://loteriascaixa-api.herokuapp.com/api/maismilionaria/latest"
 
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato 'DD/MM/YYYY' o 'YYYY-MM-DD'."""
         if not text_raw:
             return None
-        text_clean = text_raw.strip()
+        text_clean = str(text_raw).strip()
         
         m_slash = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', text_clean)
         if m_slash:
@@ -52,69 +51,134 @@ class MaisMilionariaScraper:
             candidate += timedelta(days=1)
         return candidate
 
-    def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
-        """Extrae el último sorteo de +Milionária."""
-        print(f"➡️ Solicitando resultados recientes de +Milionária...")
-        draws = []
-        jackpot_destacado = "R$ 80.000.000"
-        proxima_fecha_oficial = None
+    def obtener_ultimo_sorteo_db(self) -> dict:
+        """Obtiene el último sorteo real guardado en la base de datos (balota1 > 0)."""
+        try:
+            with self.engine.connect() as conn:
+                row = conn.execute(text("""
+                    SELECT concurso, fecha, balota1, balota2, balota3, balota4, balota5, balota6, balotaroja, balotaroja2
+                    FROM resultados_maismilionaria
+                    WHERE balota1 > 0
+                    ORDER BY concurso DESC, fecha DESC
+                    LIMIT 1;
+                """)).fetchone()
+                if row:
+                    return {
+                        "concurso": row[0],
+                        "fecha": row[1],
+                        "balotas": [row[2], row[3], row[4], row[5], row[6], row[7]],
+                        "trevos": [row[8], row[9]]
+                    }
+        except Exception as e:
+            print(f"⚠️ Error obteniendo último sorteo de BD: {e}")
+        return None
 
-        # 1. Consultar API oficial de Caixa
+    def extraer_ultimo_sorteo_fuente(self) -> dict:
+        """Obtiene la información del último sorteo disponible en la API oficial de Caixa."""
         try:
             r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
             if r.status_code == 200:
                 data = r.json()
+                concurso = int(data.get("numero")) if data.get("numero") else None
                 fecha_raw = data.get("dataApuracao")
-                dezenas = data.get("listaDezenas")
-                trevos = data.get("trevosSorteados")
-                prox_raw = data.get("dataProximoConcurso")
-                jackpot_val = data.get("valorEstimadoProximoConcurso")
-                
                 fecha_str = self._parse_fecha(fecha_raw)
-                if prox_raw:
-                    proxima_fecha_oficial = self._parse_fecha(prox_raw)
                 
+                dezenas_ordem = data.get("dezenasSorteadasOrdemSorteio") or []
+                lista_dezenas = data.get("listaDezenas") or []
+                trevos = data.get("trevosSorteados") or []
+
+                if len(dezenas_ordem) >= 8:
+                    balls = [int(x) for x in dezenas_ordem[:6]]
+                    tr = [int(x) for x in dezenas_ordem[6:8]]
+                else:
+                    balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
+                    tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
+
+                prox_raw = data.get("dataProximoConcurso")
+                prox_fecha = self._parse_fecha(prox_raw) if prox_raw else None
+                prox_concurso = int(data.get("numeroConcursoProximo")) if data.get("numeroConcursoProximo") else (concurso + 1 if concurso else None)
+                
+                jackpot_val = data.get("valorEstimadoProximoConcurso")
+                jackpot_str = "R$ 91.000.000,00"
                 if jackpot_val:
                     try:
-                        jackpot_destacado = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        jackpot_str = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
                     except Exception:
                         pass
 
-                if dezenas and len(dezenas) == 6 and fecha_str:
-                    balls = sorted([int(d) for d in dezenas])
-                    trevos_ints = sorted([int(t) for t in trevos]) if trevos and len(trevos) >= 2 else [1, 2]
-                    draws.append({
-                        "concurso": int(data.get("numero")) if data.get("numero") else None,
-                        "loteria_id": self.loteria_id,
-                        "sorteo": "+Milionária",
-                        "fecha": fecha_str,
-                        "balota1": balls[0],
-                        "balota2": balls[1],
-                        "balota3": balls[2],
-                        "balota4": balls[3],
-                        "balota5": balls[4],
-                        "balota6": balls[5],
-                        "balotaroja": trevos_ints[0],
-                        "balotaroja2": trevos_ints[1]
-                    })
-                    print(f"✅ Último sorteo obtenido: Concurso {data.get('numero')} ({fecha_str}) -> Números: {balls}, Tréboles: {trevos_ints}")
+                return {
+                    "concurso": concurso,
+                    "fecha": fecha_str,
+                    "balotas": balls,
+                    "trevos": tr,
+                    "proxima_fecha": prox_fecha,
+                    "proximo_concurso": prox_concurso,
+                    "jackpot": jackpot_str,
+                    "raw_data": data
+                }
         except Exception as e:
-            print(f"⚠️ Error consultando API Caixa: {e}")
+            print(f"⚠️ Error consultando API Caixa para último sorteo de +Milionária: {e}")
+        return None
 
-        # 2. Fallback a API secundaria si es necesario
-        if not draws:
+    def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
+        """Extrae el sorteo más reciente desde la API oficial de Caixa preservando orden original."""
+        print(f"➡️ Solicitando resultados recientes de +Milionária...")
+        draws = []
+        jackpot_destacado = "R$ 91.000.000,00"
+        proxima_fecha_oficial = None
+
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info and fuente_info.get("balotas") and fuente_info.get("trevos"):
+            balls = fuente_info["balotas"]
+            tr = fuente_info["trevos"]
+            jackpot_destacado = fuente_info.get("jackpot", jackpot_destacado)
+            proxima_fecha_oficial = fuente_info.get("proxima_fecha")
+            c_num = fuente_info.get("concurso")
+            f_str = fuente_info.get("fecha")
+
+            draws.append({
+                "concurso": c_num,
+                "loteria_id": self.loteria_id,
+                "sorteo": "+Milionária",
+                "fecha": f_str,
+                "balota1": balls[0],
+                "balota2": balls[1],
+                "balota3": balls[2],
+                "balota4": balls[3],
+                "balota5": balls[4],
+                "balota6": balls[5],
+                "balotaroja": tr[0],
+                "balotaroja2": tr[1]
+            })
+            print(f"✅ Último sorteo obtenido: Concurso {c_num} ({f_str}) -> Números: {balls}, Tréboles: {tr}")
+
+        df = pd.DataFrame(draws)
+        return df, jackpot_destacado, proxima_fecha_oficial
+
+    def _descargar_concurso_caixa(self, num_concurso: int) -> dict:
+        """Descarga un concurso específico desde la API de Caixa preservando orden original."""
+        url = f"{self.url_caixa}/{num_concurso}"
+        import time
+        for _ in range(3):
             try:
-                r = requests.get(self.url_api_backup, headers=self.headers, timeout=10)
+                r = requests.get(url, headers=self.headers, timeout=5)
                 if r.status_code == 200:
                     d = r.json()
-                    fecha_str = self._parse_fecha(d.get("data"))
-                    dezenas = d.get("dezenas")
-                    trevos = d.get("trevos")
-                    if dezenas and len(dezenas) == 6 and fecha_str:
-                        balls = sorted([int(x) for x in dezenas])
-                        trevos_ints = sorted([int(t) for t in trevos]) if trevos and len(trevos) >= 2 else [1, 2]
-                        draws.append({
-                            "concurso": int(d.get("numero")) if d.get("numero") else None,
+                    fecha_str = self._parse_fecha(d.get("dataApuracao"))
+                    dezenas_ordem = d.get("dezenasSorteadasOrdemSorteio") or []
+                    lista_dezenas = d.get("listaDezenas") or []
+                    trevos = d.get("trevosSorteados") or []
+
+                    if len(dezenas_ordem) >= 8:
+                        balls = [int(x) for x in dezenas_ordem[:6]]
+                        tr = [int(x) for x in dezenas_ordem[6:8]]
+                    else:
+                        balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
+                        tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
+
+                    if fecha_str and len(balls) == 6 and len(tr) == 2:
+                        return {
+                            "concurso": num_concurso,
                             "loteria_id": self.loteria_id,
                             "sorteo": "+Milionária",
                             "fecha": fecha_str,
@@ -124,67 +188,31 @@ class MaisMilionariaScraper:
                             "balota4": balls[3],
                             "balota5": balls[4],
                             "balota6": balls[5],
-                            "balotaroja": trevos_ints[0],
-                            "balotaroja2": trevos_ints[1]
-                        })
-            except Exception as e:
-                print(f"⚠️ Error en API secundaria: {e}")
-
-        df = pd.DataFrame(draws)
-        return df, jackpot_destacado, proxima_fecha_oficial
+                            "balotaroja": tr[0],
+                            "balotaroja2": tr[1]
+                        }
+            except Exception:
+                time.sleep(0.2)
+        return None
 
     def extraer_historico_completo(self) -> pd.DataFrame:
-        """
-        Descarga todos los sorteos históricos de +Milionária (desde el concurso 1).
-        """
+        """Descarga todos los sorteos históricos de +Milionária (desde el concurso 1)."""
         print("📚 Iniciando extracción histórica completa de +Milionária...")
-        
-        ultimo_sorteo_num = 383
+        ultimo_sorteo_num = 386
         try:
             r = requests.get(self.url_caixa, headers=self.headers, timeout=8)
             if r.status_code == 200:
                 data = r.json()
-                ultimo_sorteo_num = int(data.get("numero", 383))
+                ultimo_sorteo_num = int(data.get("numero", 386))
         except Exception:
             pass
 
         sorteos_a_consultar = list(range(1, ultimo_sorteo_num + 1))
         print(f"⏳ Descargando {len(sorteos_a_consultar)} sorteos históricos (del 1 al {ultimo_sorteo_num})...")
 
-        def _fetch_single_sorteo(num: int):
-            url = f"https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria/{num}"
-            try:
-                r = requests.get(url, headers=self.headers, timeout=5)
-                if r.status_code == 200:
-                    d = r.json()
-                    fecha_raw = d.get("dataApuracao")
-                    dezenas = d.get("listaDezenas")
-                    trevos = d.get("trevosSorteados")
-                    fecha_str = self._parse_fecha(fecha_raw)
-                    if dezenas and len(dezenas) == 6 and fecha_str:
-                        balls = sorted([int(x) for x in dezenas])
-                        trevos_ints = sorted([int(t) for t in trevos]) if trevos and len(trevos) >= 2 else [1, 2]
-                        return {
-                            "concurso": num,
-                            "loteria_id": self.loteria_id,
-                            "sorteo": "+Milionária",
-                            "fecha": fecha_str,
-                            "balota1": balls[0],
-                            "balota2": balls[1],
-                            "balota3": balls[2],
-                            "balota4": balls[3],
-                            "balota5": balls[4],
-                            "balota6": balls[5],
-                            "balotaroja": trevos_ints[0],
-                            "balotaroja2": trevos_ints[1]
-                        }
-            except Exception:
-                pass
-            return None
-
         results = []
-        with ThreadPoolExecutor(max_workers=25) as executor:
-            futures = {executor.submit(_fetch_single_sorteo, num): num for num in sorteos_a_consultar}
+        with ThreadPoolExecutor(max_workers=20) as executor:
+            futures = {executor.submit(self._descargar_concurso_caixa, num): num for num in sorteos_a_consultar}
             for f in as_completed(futures):
                 res = f.result()
                 if res:
@@ -196,7 +224,7 @@ class MaisMilionariaScraper:
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el premio de +Milionária en la tabla loterias_jackpots."""
-        jackpot_val = jackpot_str or "R$ 80.000.000,00"
+        jackpot_val = jackpot_str or "R$ 91.000.000,00"
         print(f"💰 Actualizando jackpot para +Milionária: {jackpot_val} (Fecha: {proxima_fecha})")
         try:
             with self.engine.connect() as conn:
@@ -224,10 +252,110 @@ class MaisMilionariaScraper:
         except Exception as e:
             print(f"⚠️ Error actualizando jackpot para +Milionária: {e}")
 
+    def _asegurar_placeholder(self, fuente_info: dict, db_ultimo: dict):
+        """Limpia placeholders obsoletos y asegura el placeholder futuro en ceros."""
+        prox_fecha = fuente_info.get("proxima_fecha") if fuente_info else None
+        prox_concurso = fuente_info.get("proximo_concurso") if fuente_info else None
+
+        if not prox_fecha and db_ultimo and db_ultimo.get("fecha"):
+            prox_date_obj = self._calcular_proximo_sorteo(db_ultimo["fecha"])
+            prox_fecha = prox_date_obj.strftime("%Y-%m-%d")
+        if not prox_concurso and db_ultimo and db_ultimo.get("concurso"):
+            prox_concurso = db_ultimo["concurso"] + 1
+
+        if not prox_fecha:
+            return
+
+        with self.engine.begin() as conn:
+            # Limpiar placeholders pasados de forma segura
+            conn.execute(text("""
+                DELETE FROM resultados_maismilionaria
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": prox_fecha})
+
+            # Insertar o actualizar placeholder para el próximo sorteo
+            conn.execute(text("""
+                INSERT INTO resultados_maismilionaria (
+                    concurso, loteria_id, sorteo, fecha,
+                    balota1, balota2, balota3, balota4, balota5, balota6,
+                    balotaroja, balotaroja2,
+                    created_at, updated_at
+                ) VALUES (
+                    :concurso, :loteria_id, '+Milionária', :fecha,
+                    0, 0, 0, 0, 0, 0, 0, 0,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                )
+                ON CONFLICT (fecha, sorteo) DO UPDATE SET
+                    concurso = COALESCE(EXCLUDED.concurso, resultados_maismilionaria.concurso),
+                    balota1 = 0, balota2 = 0, balota3 = 0,
+                    balota4 = 0, balota5 = 0, balota6 = 0,
+                    balotaroja = 0, balotaroja2 = 0,
+                    updated_at = CURRENT_TIMESTAMP;
+            """), {
+                "concurso": prox_concurso,
+                "loteria_id": self.loteria_id,
+                "fecha": prox_fecha
+            })
+
+        print(f"🎯 Placeholder verificado para Concurso #{prox_concurso} ({prox_fecha})")
+
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de +Milionária (Brasil)...")
         
-        # 1. Obtener datos existentes en BD
+        # 1. Asegurar tabla e índices
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_maismilionaria (
+                    id SERIAL PRIMARY KEY,
+                    concurso INTEGER,
+                    loteria_id INTEGER DEFAULT 30 REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL,
+                    balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL,
+                    balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL,
+                    balota6 INTEGER NOT NULL,
+                    balotaroja INTEGER NOT NULL DEFAULT 0,
+                    balotaroja2 INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_maismilionaria_fecha_sorteo ON resultados_maismilionaria (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_maismilionaria_concurso ON resultados_maismilionaria (concurso);
+                CREATE INDEX IF NOT EXISTS idx_maismilionaria_loteria_id ON resultados_maismilionaria (loteria_id);
+            """))
+
+        # 2. Detección temprana
+        db_ultimo = self.obtener_ultimo_sorteo_db()
+        fuente_info = self.extraer_ultimo_sorteo_fuente()
+
+        if not backfill and fuente_info and db_ultimo:
+            concurso_fuente = fuente_info.get("concurso")
+            fecha_fuente = fuente_info.get("fecha")
+            concurso_db = db_ultimo.get("concurso")
+            fecha_db = str(db_ultimo.get("fecha"))
+
+            # Si el último concurso o fecha de la fuente ya existe en la BD
+            if (concurso_fuente and concurso_db and concurso_fuente <= concurso_db) or (fecha_fuente and fecha_db and fecha_fuente <= fecha_db):
+                print(f"\nℹ️ [DETECCIÓN TEMPRANA] No hay sorteos nuevos para +Milionária.")
+                print(f"  Último sorteo en fuente: Concurso #{concurso_fuente} ({fecha_fuente})")
+                print(f"  Último sorteo en BD:     Concurso #{concurso_db} ({fecha_db})")
+                
+                # Actualizar jackpot y placeholder
+                prox_fecha = fuente_info.get("proxima_fecha")
+                if prox_fecha:
+                    self.actualizar_jackpot(prox_fecha, fuente_info.get("jackpot"))
+                self._asegurar_placeholder(fuente_info, db_ultimo)
+
+                return {
+                    "hubo_sorteo": False,
+                    "ultimo_sorteo": f"Concurso #{concurso_db} ({fecha_db})",
+                    "proximo_esperado": f"Concurso #{fuente_info.get('proximo_concurso')} ({prox_fecha})"
+                }
+
+        # 3. Descarga de datos
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
@@ -235,7 +363,6 @@ class MaisMilionariaScraper:
         except Exception:
             pass
 
-        # 2. Descargar datos
         df_recientes, jackpot_reciente, prox_fecha_oficial = self.extraer_recientes()
         if backfill or df_existente.empty or len(df_existente) < 50:
             df_historico = self.extraer_historico_completo()
@@ -245,9 +372,9 @@ class MaisMilionariaScraper:
 
         if df_scraped.empty and df_existente.empty:
             print("❌ No se pudieron obtener resultados de +Milionária.")
-            return
+            return False
 
-        # 3. Combinar y limpiar
+        # Combinar y limpiar
         if not df_existente.empty:
             df_combined = pd.concat([df_scraped, df_existente], ignore_index=True)
         else:
@@ -262,7 +389,7 @@ class MaisMilionariaScraper:
 
         if df_combined.empty:
             print("❌ No hay datos válidos para procesar.")
-            return
+            return False
 
         # 4. Calcular próximo sorteo
         if prox_fecha_oficial and datetime.strptime(prox_fecha_oficial, "%Y-%m-%d").date() > df_combined.iloc[0]['fecha']:
@@ -283,42 +410,27 @@ class MaisMilionariaScraper:
             "loteria_id": self.loteria_id,
             "sorteo": "+Milionária",
             "fecha": proxima_fecha,
-            "balota1": 0,
-            "balota2": 0,
-            "balota3": 0,
-            "balota4": 0,
-            "balota5": 0,
-            "balota6": 0,
-            "balotaroja": 0,
-            "balotaroja2": 0
+            "balota1": 0, "balota2": 0, "balota3": 0,
+            "balota4": 0, "balota5": 0, "balota6": 0,
+            "balotaroja": 0, "balotaroja2": 0
         }
-        df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL (UPSERT seguro sin destruir la tabla)
+        # Determinar qué guardar: si no es backfill, guardar solo lo nuevo + placeholder
+        if not backfill and not df_existente.empty:
+            fechas_existentes = set(pd.to_datetime(df_existente['fecha']).dt.date)
+            df_nuevos = df_combined[~df_combined['fecha'].isin(fechas_existentes)]
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_nuevos], ignore_index=True)
+        else:
+            df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
+
+        # 5. Limpieza segura de placeholders obsoletos
         with self.engine.begin() as conn:
             conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS resultados_maismilionaria (
-                    id SERIAL PRIMARY KEY,
-                    concurso INTEGER,
-                    loteria_id INTEGER DEFAULT 30 REFERENCES loterias(id),
-                    sorteo VARCHAR(50) NOT NULL,
-                    fecha DATE NOT NULL,
-                    balota1 INTEGER NOT NULL,
-                    balota2 INTEGER NOT NULL,
-                    balota3 INTEGER NOT NULL,
-                    balota4 INTEGER NOT NULL,
-                    balota5 INTEGER NOT NULL,
-                    balota6 INTEGER NOT NULL,
-                    balotaroja INTEGER NOT NULL,
-                    balotaroja2 INTEGER NOT NULL,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_maismilionaria_fecha_sorteo ON resultados_maismilionaria (fecha, sorteo);
-                CREATE INDEX IF NOT EXISTS idx_maismilionaria_concurso ON resultados_maismilionaria (concurso);
-                CREATE INDEX IF NOT EXISTS idx_maismilionaria_loteria_id ON resultados_maismilionaria (loteria_id);
-            """))
+                DELETE FROM resultados_maismilionaria
+                WHERE balota1 = 0 AND fecha < :cur_date;
+            """), {"cur_date": proxima_fecha})
 
+        # 6. Guardar en PostgreSQL (UPSERT seguro)
         insert_sql = """
             INSERT INTO resultados_maismilionaria (
                 concurso, loteria_id, sorteo, fecha,
@@ -352,10 +464,10 @@ class MaisMilionariaScraper:
                 int(r['balota4']),
                 int(r['balota5']),
                 int(r['balota6']),
-                int(r['balotaroja']),
-                int(r['balotaroja2'])
+                int(r.get('balotaroja', 0)),
+                int(r.get('balotaroja2', 0))
             )
-            for r in df_final.to_dict(orient='records')
+            for r in df_to_save.to_dict(orient='records')
         ]
 
         raw_conn = self.engine.raw_connection()
@@ -372,10 +484,10 @@ class MaisMilionariaScraper:
         finally:
             raw_conn.close()
 
-        print(f"✅ Resultados de +Milionária guardados exitosamente! Total filas: {len(df_final)}")
+        print(f"✅ Resultados de +Milionária guardados exitosamente! Filas procesadas: {len(df_to_save)}")
         self.actualizar_jackpot(proxima_fecha_str, jackpot_reciente)
         return True
 
 if __name__ == "__main__":
     scraper = MaisMilionariaScraper()
-    scraper.run(backfill=True)
+    scraper.run(backfill=False)

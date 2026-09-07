@@ -29,10 +29,12 @@ class CincoDeOroScraper:
         self.base_url = "https://www.combinacionganadora.com/uy/5-de-oro/resultados"
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """Sorteos de 5 de Oro: Miércoles (2) y Domingos (6).
-        Calcula la próxima fecha de sorteo válida que sea >= a hoy y posterior a la última fecha real.
+        """FALLBACK DE CALENDARIO EXCLUSIVO:
+        Se invoca ÚNICAMENTE si la fuente oficial en vivo no declara explícitamente
+        la fecha del próximo sorteo en su texto/HTML.
+        Nunca se utiliza para extraer ni filtrar sorteos históricos reales.
         """
-        dias_validos = {2, 6} # Miércoles (2), Domingo (6)
+        dias_validos = {2, 6} # Miércoles (2), Domingo (6) habituales
         hoy = datetime.now().date()
         base = max(ultima_fecha_real, hoy)
         
@@ -94,8 +96,11 @@ class CincoDeOroScraper:
                 soup = BeautifulSoup(r.text, "html.parser")
                 spans = soup.find_all("span", style=re.compile(r"font-size:18px"))
 
-                # 1. Extraer fecha del último sorteo
-                m_fecha = re.search(r'([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text)
+                # 1. Extraer fecha del último sorteo (soporta '-' y '/')
+                m_fecha = re.search(r'RESULTADOS DEL 5 DE ORO\s*([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text, re.IGNORECASE)
+                if not m_fecha:
+                    m_fecha = re.search(r'([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text)
+
                 if m_fecha and len(spans) >= 3:
                     dia, mes, anio = m_fecha.group(2), m_fecha.group(3), m_fecha.group(4)
                     fecha_ult_str = f"{anio}-{int(mes):02d}-{int(dia):02d}"
@@ -135,8 +140,8 @@ class CincoDeOroScraper:
 
                     print(f"✅ Sorteo en vivo obtenido de InfoUruguay para fecha: {fecha_ult_str}")
 
-                # 2. Extraer fecha oficial del próximo sorteo (considera traslados por feriados nacionales)
-                m_prox = re.search(r'Pozos estimados para el pr.*?ximo sorteo.*?>\s*([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text, re.DOTALL | re.IGNORECASE)
+                # 2. Extraer fecha oficial del próximo sorteo (soporta '-' y '/')
+                m_prox = re.search(r'Pozos estimados para el pr.*?ximo sorteo.*?([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text, re.DOTALL | re.IGNORECASE)
                 if m_prox:
                     d_p, m_p, y_p = m_prox.group(2), m_prox.group(3), m_prox.group(4)
                     fecha_proximo_oficial = f"{y_p}-{int(m_p):02d}-{int(d_p):02d}"
@@ -180,80 +185,115 @@ class CincoDeOroScraper:
         return "$ 48.000.000"
 
     def _parsear_sorteo_fecha(self, fecha_str: str) -> list:
-        """Descarga y parsea el sorteo de una fecha específica retornando filas para 5 de Oro y Revancha."""
+        """Descarga y parsea el sorteo de una fecha específica retornando filas para 5 de Oro y Revancha.
+        No asume estructura rígida y extrae la fecha y números en orden original.
+        """
         url = f"{self.base_url}/{fecha_str}/"
         try:
-            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                uls = soup.find_all("ul", class_=re.compile(r"numbers"))
-                if len(uls) >= 1:
-                    # Primer UL: Pozo de Oro (5 números + Extra)
-                    oro_items = [li.get_text(strip=True) for li in uls[0].find_all("li")]
-                    main_balls = []
-                    extra_ball = 0
-                    for item in oro_items:
-                        if "E" in item:
-                            m_e = re.search(r'(\d+)', item)
-                            if m_e:
-                                extra_ball = int(m_e.group(1))
-                        else:
-                            m_b = re.search(r'(\d+)', item)
-                            if m_b:
-                                main_balls.append(int(m_b.group(1)))
+            r = requests.get(url, headers=self.headers, timeout=8, verify=False)
+            if r.status_code == 404:
+                # No hubo sorteo en esta fecha (normal al escanear días calendario continuos)
+                return None
+            if r.status_code != 200:
+                print(f"⚠️ [5 de Oro] Código HTTP {r.status_code} al consultar {url}")
+                return None
 
-                    # Segundo UL: Pozo Revancha (5 números)
-                    rev_balls = []
-                    if len(uls) >= 2:
-                        for li in uls[1].find_all("li"):
-                            m_r = re.search(r'(\d+)', li.get_text(strip=True))
-                            if m_r:
-                                rev_balls.append(int(m_r.group(1)))
+            soup = BeautifulSoup(r.text, "html.parser")
+            uls = soup.find_all("ul", class_=re.compile(r"numbers"))
+            if len(uls) >= 1:
+                # Primer UL: Pozo de Oro (5 números + Extra)
+                oro_items = [li.get_text(strip=True) for li in uls[0].find_all("li")]
+                main_balls = []
+                extra_ball = 0
+                for item in oro_items:
+                    if "E" in item:
+                        m_e = re.search(r'(\d+)', item)
+                        if m_e:
+                            extra_ball = int(m_e.group(1))
+                    else:
+                        m_b = re.search(r'(\d+)', item)
+                        if m_b:
+                            main_balls.append(int(m_b.group(1)))
 
-                    # Conservar orden exacto entregado por la fuente (sin sorted)
-                    if len(main_balls) == 5:
-                        items = [
-                            {
-                                "sorteo": "5 de Oro",
-                                "fecha": fecha_str,
-                                "balota1": main_balls[0],
-                                "balota2": main_balls[1],
-                                "balota3": main_balls[2],
-                                "balota4": main_balls[3],
-                                "balota5": main_balls[4],
-                                "balotaroja": extra_ball
-                            }
-                        ]
-                        if len(rev_balls) == 5:
-                            items.append({
-                                "sorteo": "Revancha",
-                                "fecha": fecha_str,
-                                "balota1": rev_balls[0],
-                                "balota2": rev_balls[1],
-                                "balota3": rev_balls[2],
-                                "balota4": rev_balls[3],
-                                "balota5": rev_balls[4],
-                                "balotaroja": 0
-                            })
-                        return items
-        except Exception:
-            pass
+                # Segundo UL: Pozo Revancha (5 números)
+                rev_balls = []
+                if len(uls) >= 2:
+                    for li in uls[1].find_all("li"):
+                        m_r = re.search(r'(\d+)', li.get_text(strip=True))
+                        if m_r:
+                            rev_balls.append(int(m_r.group(1)))
+
+                # Validar y conservar orden exacto entregado por la fuente (sin sorted)
+                if len(main_balls) == 5:
+                    items = [
+                        {
+                            "sorteo": "5 de Oro",
+                            "fecha": fecha_str,
+                            "balota1": main_balls[0],
+                            "balota2": main_balls[1],
+                            "balota3": main_balls[2],
+                            "balota4": main_balls[3],
+                            "balota5": main_balls[4],
+                            "balotaroja": extra_ball
+                        }
+                    ]
+                    if len(rev_balls) == 5:
+                        items.append({
+                            "sorteo": "Revancha",
+                            "fecha": fecha_str,
+                            "balota1": rev_balls[0],
+                            "balota2": rev_balls[1],
+                            "balota3": rev_balls[2],
+                            "balota4": rev_balls[3],
+                            "balota5": rev_balls[4],
+                            "balotaroja": 0
+                        })
+                    return items
+                else:
+                    print(f"⚠️ [5 de Oro] Estructura inesperada de balotas en {url} (encontradas {len(main_balls)})")
+        except requests.exceptions.RequestException as e:
+            print(f"⚠️ [5 de Oro] Error de red consultando {url}: {e}")
+        except Exception as e:
+            print(f"⚠️ [5 de Oro] Error parseando {url}: {e}")
         return None
 
-    def extraer_historico_concurrente(self, max_draws: int = 350) -> pd.DataFrame:
-        """Genera fechas pasadas de Miércoles y Domingos y descarga los sorteos concurrentemente."""
-        print(f"➡️ Generando fechas de sorteos pasados (Miércoles y Domingos)...")
-        fechas = []
-        curr = datetime.now().date()
-        while len(fechas) < max_draws:
-            if curr.weekday() in (2, 6): # Miércoles (2), Domingo (6)
-                fechas.append(curr.strftime("%Y-%m-%d"))
-            curr -= timedelta(days=1)
+    def descubrir_fechas_indice(self) -> list:
+        """Descubre fechas de sorteos reales directamente desde los enlaces del índice HTML."""
+        fechas = set()
+        try:
+            r = requests.get(f"{self.base_url}/", headers=self.headers, timeout=10, verify=False)
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                for a in soup.find_all("a", href=re.compile(r"/uy/5-de-oro/resultados/\d{4}-\d{2}-\d{2}/")):
+                    m = re.search(r'(\d{4}-\d{2}-\d{2})', a.get("href", ""))
+                    if m:
+                        fechas.add(m.group(1))
+        except Exception as e:
+            print(f"⚠️ Error descubriendo enlaces del índice de 5 de Oro: {e}")
+        return sorted(list(fechas), reverse=True)
 
-        print(f"Descargando {len(fechas)} sorteos históricos de 5 de Oro concurrentemente...")
+    def extraer_historico_concurrente(self, max_draws: int = 350) -> pd.DataFrame:
+        """Descubre y descarga sorteos históricos de forma dinámica sin restricciones artificiales de días de la semana."""
+        print(f"➡️ Iniciando descubrimiento dinámico de sorteos históricos...")
+        
+        # 1. Descubrir fechas explícitas del índice
+        fechas_descubiertas = self.descubrir_fechas_indice()
+        fechas_set = set(fechas_descubiertas)
+        
+        # 2. Generar secuencia temporal continua para profundizar el histórico si se requiere
+        curr = datetime.now().date()
+        dias_retroceso = max_draws * 4  # Escanear ventana continua de días sin sesgo de días de semana
+        for _ in range(dias_retroceso):
+            f_str = curr.strftime("%Y-%m-%d")
+            fechas_set.add(f_str)
+            curr -= timedelta(days=1)
+            
+        fechas_a_consultar = sorted(list(fechas_set), reverse=True)
+        print(f"Consultando {len(fechas_a_consultar)} fechas candidatas concurrentemente...")
+        
         draws = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            results = list(executor.map(self._parsear_sorteo_fecha, fechas))
+            results = list(executor.map(self._parsear_sorteo_fecha, fechas_a_consultar))
 
         for res in results:
             if res:
@@ -262,7 +302,7 @@ class CincoDeOroScraper:
                 else:
                     draws.append(res)
 
-        print(f"📊 Filas procesadas de 5 de Oro y Revancha: {len(draws)}")
+        print(f"📊 Filas históricas procesadas de 5 de Oro y Revancha: {len(draws)}")
         return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
@@ -320,6 +360,7 @@ class CincoDeOroScraper:
                         f_dt = fecha_db
                     proxima_fecha = self._calcular_proximo_sorteo(f_dt)
 
+                self._asegurar_placeholders(proxima_fecha)
                 pozo_oficial = ultimo_fuente.get("pozo") or self.extraer_pozo_estimado()
                 if pozo_oficial:
                     self.actualizar_jackpot(proxima_fecha.strftime("%Y-%m-%d"), pozo_oficial)
@@ -428,7 +469,10 @@ class CincoDeOroScraper:
                 dfs_new.append(pd.DataFrame(live_draws))
             if not df_scraped.empty:
                 dfs_new.append(df_scraped)
-            df_to_save = pd.concat(dfs_new, ignore_index=True).drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
+            df_to_save = pd.concat(dfs_new, ignore_index=True)
+
+        df_to_save['fecha'] = pd.to_datetime(df_to_save['fecha']).dt.date
+        df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         # 5. Guardar en PostgreSQL de manera segura (UPSERT sin destruir estructura ni foreign keys)
         with self.engine.begin() as conn:
@@ -478,21 +522,27 @@ class CincoDeOroScraper:
                 updated_at = CURRENT_TIMESTAMP;
         """
 
-        data_tuples = [
-            (
+        seen_keys = set()
+        data_tuples = []
+        for r in df_to_save.to_dict(orient='records'):
+            f_val = r['fecha'] if isinstance(r['fecha'], (date, datetime)) else pd.to_datetime(r['fecha']).date()
+            s_str = str(r['sorteo'])
+            key = (f_val.strftime("%Y-%m-%d"), s_str)
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            data_tuples.append((
                 int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
                 int(self.loteria_id),
-                str(r['sorteo']),
-                str(r['fecha']),
+                s_str,
+                f_val,
                 int(r['balota1']),
                 int(r['balota2']),
                 int(r['balota3']),
                 int(r['balota4']),
                 int(r['balota5']),
                 int(r.get('balotaroja', 0))
-            )
-            for r in df_to_save.to_dict(orient='records')
-        ]
+            ))
 
         raw_conn = self.engine.raw_connection()
         try:
@@ -508,7 +558,7 @@ class CincoDeOroScraper:
         finally:
             raw_conn.close()
 
-        print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas procesadas: {len(df_to_save)}")
+        print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas procesadas: {len(data_tuples)}")
         self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
 
         return {
@@ -516,6 +566,20 @@ class CincoDeOroScraper:
             "ultimo_sorteo": f"{ultima_fecha_real.strftime('%d/%m/%Y')}" if hasattr(ultima_fecha_real, 'strftime') else str(ultima_fecha_real),
             "proximo_esperado": f"{proxima_fecha.strftime('%d/%m/%Y')}"
         }
+
+    def _asegurar_placeholders(self, proxima_fecha: date):
+        """Garantiza la existencia de los placeholders para 5 de Oro y Revancha."""
+        try:
+            with self.engine.begin() as conn:
+                conn.execute(text("DELETE FROM resultados_5deoro WHERE balota1 = 0 AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
+                for s in ["5 de Oro", "Revancha"]:
+                    conn.execute(text("""
+                        INSERT INTO resultados_5deoro (loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, created_at, updated_at)
+                        VALUES (:loteria_id, :sorteo, :fecha, 0, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (fecha, sorteo) DO NOTHING;
+                    """), {"loteria_id": self.loteria_id, "sorteo": s, "fecha": proxima_fecha})
+        except Exception as e:
+            print(f"⚠️ Error asegurando placeholders: {e}")
 
 if __name__ == "__main__":
     scraper = CincoDeOroScraper()

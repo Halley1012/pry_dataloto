@@ -2,7 +2,6 @@ import base64
 import json
 import logging
 import os
-from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from google.auth.transport.requests import Request as GoogleAuthRequest

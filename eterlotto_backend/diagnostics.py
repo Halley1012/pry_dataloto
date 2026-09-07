@@ -1,9 +1,10 @@
 import asyncio
 import asyncpg
-import datetime
 
-DATABASE_URL = 'postgresql://postgres.plrgbnzsvenpbibrqyqw:LuferHalley0011..@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require'
-
+import os
+from dotenv import load_dotenv
+load_dotenv()
+DATABASE_URL = os.getenv("DATABASE_URL")
 async def diagnostics():
     conn = await asyncpg.connect(DATABASE_URL)
     

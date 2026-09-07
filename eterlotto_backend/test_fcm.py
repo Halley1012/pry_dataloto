@@ -1,7 +1,6 @@
 import firebase_admin
 from firebase_admin import credentials, messaging
 from pathlib import Path
-import os
 import sys
 
 # Ruta al archivo de credenciales
