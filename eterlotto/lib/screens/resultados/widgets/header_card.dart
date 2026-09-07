@@ -4,6 +4,9 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 
 class HeaderCard extends StatelessWidget {
   final String selectedLoteria;
@@ -12,12 +15,12 @@ class HeaderCard extends StatelessWidget {
   final bool canPop;
 
   const HeaderCard({
-    Key? key,
+    super.key,
     required this.selectedLoteria,
     required this.fechaSorteo,
     required this.jackpot,
     this.canPop = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -53,14 +56,27 @@ class HeaderCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        selectedLoteria,
-                        style: GoogleFonts.montserrat(
-                          fontSize: 19,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              selectedLoteria,
+                              style: GoogleFonts.montserrat(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Consumer<SubscriptionProvider>(
+                            builder: (_, sub, __) => PremiumCrownIcon(
+                              isPremium: sub.isPremium,
+                              size: 16,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

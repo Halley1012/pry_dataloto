@@ -1,5 +1,6 @@
 import sys
 import re
+import time
 import requests
 import pandas as pd
 import concurrent.futures
@@ -27,6 +28,25 @@ class LottoCostaRicaScraper:
         }
         self.base_url = "https://www.combinacionganadora.com/cr/lotto-costa-rica/resultados"
 
+    def _fetch_with_retries(self, url, method="get", max_retries=3, base_delay=1.5, **kwargs):
+        """HTTP request con backoff exponencial. Retorna Response o None si todos los intentos fallan."""
+        for attempt in range(1, max_retries + 1):
+            try:
+                if method == "post":
+                    r = requests.post(url, timeout=kwargs.pop("timeout", 15), verify=False, **kwargs)
+                else:
+                    r = requests.get(url, timeout=kwargs.pop("timeout", 15), verify=False, **kwargs)
+                if r.status_code < 500:
+                    return r
+                print(f"⚠️ HTTP {r.status_code} en intento {attempt}/{max_retries} para {url}")
+            except Exception as e:
+                print(f"⚠️ Error en intento {attempt}/{max_retries} para {url}: {e}")
+            if attempt < max_retries:
+                delay = base_delay * (2 ** (attempt - 1))
+                time.sleep(delay)
+        print(f"❌ Todos los intentos fallaron para {url}")
+        return None
+
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """Sorteos de Lotto Costa Rica: Lunes (0), Miércoles (2) y Sábados (5)."""
         dias_validos = {0, 2, 5}
@@ -45,8 +65,8 @@ class LottoCostaRicaScraper:
         """Extrae el pozo acumulado para el próximo sorteo en Colones (CRC)."""
         print("➡️ Consultando pozo estimado de Lotto Costa Rica...")
         try:
-            r = requests.get("https://www.combinacionganadora.com/cr/lotto-costa-rica/", headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
+            r = self._fetch_with_retries("https://www.combinacionganadora.com/cr/lotto-costa-rica/", headers=self.headers, timeout=10)
+            if r and r.status_code == 200:
                 soup = BeautifulSoup(r.text, "html.parser")
                 for tag in soup.find_all(["div", "span", "p", "h1", "h2", "h3"]):
                     txt = tag.get_text(strip=True)
@@ -66,7 +86,7 @@ class LottoCostaRicaScraper:
         """Obtiene la fecha del último sorteo real registrado en la base de datos."""
         try:
             with self.engine.connect() as conn:
-                query = text("SELECT fecha, sorteo FROM resultados_lotto_cr WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1;")
+                query = text("SELECT fecha, sorteo FROM resultados_lotto_cr WHERE (balota1 + balota2 + balota3 + balota4 + balota5) > 0 ORDER BY fecha DESC LIMIT 1;")
                 row = conn.execute(query).fetchone()
                 if row:
                     f_val = row[0]
@@ -78,65 +98,61 @@ class LottoCostaRicaScraper:
 
     def extraer_ultimo_sorteo_fuente(self):
         """Extrae la fecha del último sorteo publicado en la fuente oficial."""
-        try:
-            r = requests.get(self.base_url + "/", headers=self.headers, timeout=10, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                link = soup.find("a", href=re.compile(r"/cr/lotto-costa-rica/resultados/\d{4}-\d{2}-\d{2}"))
-                if link:
-                    href = link.get("href", "")
-                    m = re.search(r"(\d{4}-\d{2}-\d{2})", href)
-                    if m:
-                        return {"fecha": m.group(1), "sorteo": "Lotto"}
-        except Exception as e:
-            print(f"⚠️ Error al consultar último sorteo en fuente: {e}")
-        return None
+        r = self._fetch_with_retries(self.base_url + "/", headers=self.headers, timeout=10)
+        if r is None:
+            return None
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            link = soup.find("a", href=re.compile(r"/cr/lotto-costa-rica/resultados/\d{4}-\d{2}-\d{2}"))
+            if link:
+                href = link.get("href", "")
+                m = re.search(r"(\d{4}-\d{2}-\d{2})", href)
+                if m:
+                    return {"fecha": m.group(1), "sorteo": "Lotto"}
+        return {}
 
     def _parsear_sorteo_fecha(self, fecha_str: str) -> list:
         """Descarga y parsea el sorteo de una fecha retornando filas para Lotto y Revancha sin sorted()."""
         url = f"{self.base_url}/{fecha_str}/"
-        try:
-            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
-            if r.status_code == 200:
-                soup = BeautifulSoup(r.text, "html.parser")
-                uls = soup.find_all("ul", class_=re.compile(r"numbers"))
-                if len(uls) >= 1:
-                    # Primer UL: Lotto (5 números en orden de fuente)
-                    lotto_items = [int(re.search(r'\d+', li.get_text(strip=True)).group(0)) for li in uls[0].find_all("li") if re.search(r'\d+', li.get_text(strip=True))]
-                    
-                    # Segundo UL: Revancha (5 números en orden de fuente)
-                    rev_items = []
-                    if len(uls) >= 2:
-                        rev_items = [int(re.search(r'\d+', li.get_text(strip=True)).group(0)) for li in uls[1].find_all("li") if re.search(r'\d+', li.get_text(strip=True))]
+        r = self._fetch_with_retries(url, headers=self.headers, timeout=8)
+        if r and r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            uls = soup.find_all("ul", class_=re.compile(r"numbers"))
+            if len(uls) >= 1:
+                # Primer UL: Lotto (5 números en orden de fuente)
+                lotto_items = [int(re.search(r'\d+', li.get_text(strip=True)).group(0)) for li in uls[0].find_all("li") if re.search(r'\d+', li.get_text(strip=True))]
 
-                    items = []
-                    if len(lotto_items) == 5:
-                        items.append({
-                            "sorteo": "Lotto",
-                            "fecha": fecha_str,
-                            "balota1": lotto_items[0],
-                            "balota2": lotto_items[1],
-                            "balota3": lotto_items[2],
-                            "balota4": lotto_items[3],
-                            "balota5": lotto_items[4],
-                            "balotaroja": 0
-                        })
+                # Segundo UL: Revancha (5 números en orden de fuente)
+                rev_items = []
+                if len(uls) >= 2:
+                    rev_items = [int(re.search(r'\d+', li.get_text(strip=True)).group(0)) for li in uls[1].find_all("li") if re.search(r'\d+', li.get_text(strip=True))]
 
-                    if len(rev_items) == 5:
-                        items.append({
-                            "sorteo": "Revancha",
-                            "fecha": fecha_str,
-                            "balota1": rev_items[0],
-                            "balota2": rev_items[1],
-                            "balota3": rev_items[2],
-                            "balota4": rev_items[3],
-                            "balota5": rev_items[4],
-                            "balotaroja": 0
-                        })
+                items = []
+                if len(lotto_items) == 5:
+                    items.append({
+                        "sorteo": "Lotto",
+                        "fecha": fecha_str,
+                        "balota1": lotto_items[0],
+                        "balota2": lotto_items[1],
+                        "balota3": lotto_items[2],
+                        "balota4": lotto_items[3],
+                        "balota5": lotto_items[4],
+                        "balotaroja": 0
+                    })
 
-                    return items
-        except Exception:
-            pass
+                if len(rev_items) == 5:
+                    items.append({
+                        "sorteo": "Revancha",
+                        "fecha": fecha_str,
+                        "balota1": rev_items[0],
+                        "balota2": rev_items[1],
+                        "balota3": rev_items[2],
+                        "balota4": rev_items[3],
+                        "balota5": rev_items[4],
+                        "balotaroja": 0
+                    })
+
+                return items
         return []
 
     def extraer_historico_concurrente(self, max_draws: int = 30) -> pd.DataFrame:
@@ -208,13 +224,16 @@ class LottoCostaRicaScraper:
         db_last = self.obtener_ultimo_sorteo_db()
         fuente_last = self.extraer_ultimo_sorteo_fuente()
 
+        if fuente_last is None and not backfill:
+            raise RuntimeError("❌ [Lotto CR] Error al comunicarse con la fuente oficial combinacionganadora.com tras 3 intentos.")
+
         if db_last:
             print(f"📦 Último sorteo real en BD: {db_last['fecha']}")
         if fuente_last:
-            print(f"🌐 Último sorteo en fuente:   {fuente_last['fecha']}")
+            print(f"🌐 Último sorteo en fuente:   {fuente_last.get('fecha')}")
 
         if not backfill and db_last and fuente_last:
-            if db_last['fecha'] >= fuente_last['fecha']:
+            if db_last['fecha'] >= fuente_last.get('fecha', ''):
                 ultima_fecha = datetime.strptime(db_last['fecha'], "%Y-%m-%d").date()
                 proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha)
                 proxima_fecha_str = proxima_fecha.strftime("%Y-%m-%d")
@@ -234,16 +253,7 @@ class LottoCostaRicaScraper:
         df_scraped = self.extraer_historico_concurrente(max_draws=max_d)
 
         if df_scraped.empty:
-            print("❌ No se pudieron obtener resultados de Lotto Costa Rica.")
-            if db_last:
-                ultima_fecha = datetime.strptime(db_last['fecha'], "%Y-%m-%d").date()
-                proxima_fecha = self._calcular_proximo_sorteo(ultima_fecha)
-                return {
-                    "hubo_sorteo": False,
-                    "ultimo_sorteo": db_last['fecha'],
-                    "proximo_esperado": proxima_fecha.strftime("%Y-%m-%d")
-                }
-            return False
+            raise RuntimeError("❌ [Lotto CR] No se pudieron obtener resultados de Lotto Costa Rica de la fuente.")
 
         df_scraped['fecha'] = pd.to_datetime(df_scraped['fecha']).dt.date
         df_scraped = df_scraped.drop_duplicates(subset=['fecha', 'sorteo']).sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
@@ -252,7 +262,7 @@ class LottoCostaRicaScraper:
         df_scraped = df_scraped[df_scraped['fecha'] <= hoy_max]
 
         # 3. Determinar fecha del próximo sorteo
-        df_real = df_scraped[df_scraped['balota1'] > 0]
+        df_real = df_scraped[(df_scraped['balota1'] + df_scraped['balota2'] + df_scraped['balota3'] + df_scraped['balota4'] + df_scraped['balota5']) > 0]
         if not df_real.empty:
             ultima_fecha_real = df_real.iloc[0]['fecha']
         elif db_last:
@@ -316,7 +326,7 @@ class LottoCostaRicaScraper:
             """))
 
             # Limpiar placeholders obsoletos de fechas anteriores
-            conn.execute(text("DELETE FROM resultados_lotto_cr WHERE balota1 = 0 AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
+            conn.execute(text("DELETE FROM resultados_lotto_cr WHERE (balota1 = 0 AND balota2 = 0 AND balota3 = 0 AND balota4 = 0 AND balota5 = 0) AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
 
         insert_sql = """
             INSERT INTO resultados_lotto_cr (
@@ -376,7 +386,7 @@ class LottoCostaRicaScraper:
         """Garantiza la existencia de los placeholders para Lotto y Revancha."""
         try:
             with self.engine.begin() as conn:
-                conn.execute(text("DELETE FROM resultados_lotto_cr WHERE balota1 = 0 AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
+                conn.execute(text("DELETE FROM resultados_lotto_cr WHERE (balota1 = 0 AND balota2 = 0 AND balota3 = 0 AND balota4 = 0 AND balota5 = 0) AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
                 for s in ["Lotto", "Revancha"]:
                     conn.execute(text("""
                         INSERT INTO resultados_lotto_cr (loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, created_at, updated_at)

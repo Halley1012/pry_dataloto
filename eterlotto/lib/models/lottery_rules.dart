@@ -41,7 +41,7 @@ class LotteryRules {
   String get rulesDescription {
     String desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax.";
     if (specialNumbersCount != null && specialNumbersCount! > 0) {
-      String word = specialNumbersCount == 1 ? "balota" : "balotas";
+      String word = specialNumbersCount == 1 ? "número especial" : "números especiales";
       desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax y $specialNumbersCount $word del $specialNumbersMin al $specialNumbersMax.";
     }
     return desc;

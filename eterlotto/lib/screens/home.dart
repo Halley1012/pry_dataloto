@@ -27,6 +27,8 @@ import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:eterlotto/widgets/premium_header_background.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/subscription_provider.dart';
@@ -55,6 +57,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<dynamic> _globalLoterias = [];
   int _selectedIndex = 0;
   DateTime? _lastBackPressTime;
+  final ValueNotifier<Offset?> _flagPositionNotifier = ValueNotifier<Offset?>(null);
+  final GlobalKey _homeTabStackKey = GlobalKey();
 
   @override
   void initState() {
@@ -71,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
+    _flagPositionNotifier.dispose();
     super.dispose();
   }
 
@@ -292,7 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCountryHeader() {
+  Widget _buildCountryHeader(bool isPremium) {
     final langCode = Localizations.localeOf(context).languageCode;
     final nombrePaisDisplay = PaisHelper.getNombreTraducido(pais ?? "Internacional", langCode);
     final esInternacional = (pais == null || pais == "Internacional" || pais == "Todos");
@@ -311,8 +316,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 12.0),
       child: GestureDetector(
-        onTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais()));
+        onTap: () async {
+          await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais()));
+          if (mounted) _loadUserAndData(forceRefresh: true);
         },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
@@ -341,17 +347,125 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              GestureDetector(
-                onTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()));
-                },
-                child: Text(
-                  PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
-                  style: const TextStyle(fontSize: 40),
-                ),
-              ),
+              _buildHeaderFlagWidget(isPremium),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderFlagWidget(bool isPremium) {
+    // 🟡 Usuario No VIP: Solo la banderita sin circulito ni arrastre
+    if (!isPremium) {
+      return GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()),
+          );
+        },
+        child: Text(
+          PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
+          style: const TextStyle(fontSize: 40),
+        ),
+      );
+    }
+
+    // 👑 Usuario VIP: Por defecto se muestra aquí dentro de la tarjeta con el circulito dorado (como en la foto).
+    // Si el usuario la arrastra con el dedo, se muestra un placeholder mientras flota por la pantalla.
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: _flagPositionNotifier,
+      builder: (context, pos, child) {
+        if (pos != null) {
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              _flagPositionNotifier.value = null;
+            },
+            child: Container(
+              width: 55.0,
+              height: 55.0,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: AppColors.yellow.withValues(alpha: 0.25),
+                  width: 1.5,
+                ),
+              ),
+              child: const Center(
+                child: Icon(
+                  Icons.open_with,
+                  size: 20,
+                  color: Colors.white24,
+                ),
+              ),
+            ),
+          );
+        }
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()),
+            );
+          },
+          onPanStart: (details) {
+            final renderBox = _homeTabStackKey.currentContext?.findRenderObject() as RenderBox?;
+            if (renderBox != null) {
+              final local = renderBox.globalToLocal(details.globalPosition);
+              _flagPositionNotifier.value = Offset(
+                (local.dx - 27.5).clamp(10.0, renderBox.size.width - 55.0 - 10.0),
+                (local.dy - 27.5).clamp(10.0, renderBox.size.height - 55.0 - 10.0),
+              );
+            }
+          },
+          onPanUpdate: (details) {
+            final renderBox = _homeTabStackKey.currentContext?.findRenderObject() as RenderBox?;
+            if (renderBox != null) {
+              final local = renderBox.globalToLocal(details.globalPosition);
+              _flagPositionNotifier.value = Offset(
+                (local.dx - 27.5).clamp(10.0, renderBox.size.width - 55.0 - 10.0),
+                (local.dy - 27.5).clamp(10.0, renderBox.size.height - 55.0 - 10.0),
+              );
+            }
+          },
+          child: _buildFlagCircle(size: 55.0),
+        );
+      },
+    );
+  }
+
+  Widget _buildFlagCircle({double size = 55.0}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFF1E2029),
+        border: Border.all(
+          color: AppColors.yellow,
+          width: 2.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+          BoxShadow(
+            color: AppColors.yellow.withValues(alpha: 0.35),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Center(
+        child: Text(
+          PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
+          style: TextStyle(fontSize: size * 0.52),
         ),
       ),
     );
@@ -855,7 +969,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildHeaderRow(BuildContext context) {
+  Widget _buildTopHeaderSection(BuildContext context, bool isPremium) {
+    return Stack(
+      children: [
+        if (isPremium)
+          const Positioned.fill(
+            child: PremiumHeaderBackground(),
+          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildHeaderRow(context, isPremium),
+            _buildWelcomeGreeting(),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderRow(BuildContext context, bool isPremium) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 4.0),
       child: SizedBox(
@@ -869,7 +1002,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Padding(
-                  padding: const EdgeInsets.only( top: 8,), // Lo empuja ligeramente hacia abajo para alinearse con los iconos
+                  padding: const EdgeInsets.only(top: 8), // Lo empuja ligeramente hacia abajo para alinearse con los iconos
                   child: Image.asset(
                     "assets/images/eterlotto_gold_trans.png",
                     width: 140,
@@ -878,7 +1011,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            // Acciones: Campanita de Notificaciones + Avatar de Perfil
+            // Acciones: Campanita de Notificaciones + Avatar de Perfil con Corona Premium
             Row(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -950,14 +1083,18 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     );
                   },
-                  child: UserBalotaAvatar(
-                    avatarUrl: avatarUrl,
-                    userName: userName,
-                    userId: int.tryParse(currentUserId ?? "0"),
-                    radius: 26,
-                    showGlow: true,
-                    showBorder: true,
-                    borderColor: AppColors.yellow,
+                  child: PremiumCrownBadge(
+                    isPremium: isPremium,
+                    crownSize: 19.0,
+                    child: UserBalotaAvatar(
+                      avatarUrl: avatarUrl,
+                      userName: userName,
+                      userId: int.tryParse(currentUserId ?? "0"),
+                      radius: 26,
+                      showGlow: true,
+                      showBorder: true,
+                      borderColor: isPremium ? const Color(0xFFFFD700) : AppColors.yellow,
+                    ),
                   ),
                 ),
               ],
@@ -1141,68 +1278,129 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeTab() {
+    final isPremium = context.watch<SubscriptionProvider>().isPremium;
     return SafeArea(
-      child: RefreshIndicator(
-        color: AppColors.yellow,
-        backgroundColor: const Color(0xFF1E1E1E),
-        displacement: 40.0,
-        onRefresh: _refreshHome,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: _buildHeaderRow(context),
-            ),
-            SliverToBoxAdapter(
-              child: _buildWelcomeGreeting(),
-            ),
-            SliverToBoxAdapter(
-              child: _buildCountryHeader(),
-            ),
-            if (isLoading && _loterias.isEmpty)
-              SliverToBoxAdapter(
-                child: _buildHomeSkeleton(),
-              )
-            else if (_filteredLoterias.isEmpty) ...[
-              SliverToBoxAdapter(
-                child: _buildEmptyLoteriasState(),
-              ),
-              if (_globalLoterias.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 10),
-                    child: _buildGlobalFallbackSection(),
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Stack(
+            key: _homeTabStackKey,
+            children: [
+              RefreshIndicator(
+                color: AppColors.yellow,
+                backgroundColor: const Color(0xFF1E1E1E),
+                displacement: 40.0,
+                onRefresh: _refreshHome,
+                child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: _buildTopHeaderSection(context, isPremium),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildCountryHeader(isPremium),
+                    ),
+                    if (isLoading && _loterias.isEmpty)
+                      SliverToBoxAdapter(
+                        child: _buildHomeSkeleton(),
+                      )
+                    else if (_filteredLoterias.isEmpty) ...[
+                      SliverToBoxAdapter(
+                        child: _buildEmptyLoteriasState(),
+                      ),
+                      if (_globalLoterias.isNotEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: _buildGlobalFallbackSection(),
+                          ),
+                        ),
+                    ] else ...[
+                      SliverToBoxAdapter(
+                        child: _buildPopularesSection(),
+                      ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 15),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _buildTodasLoteriasSection(),
+                      ),
+                    ],
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 30),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildBuscaloAquiSection(),
+                    ),
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 30),
+                    ),
+                    SliverToBoxAdapter(
+                      child: _buildComunidadSection(),
+                    ),
+                    const SliverToBoxAdapter(
+                      child: SizedBox(height: 80),
+                    ),
+                  ],
                 ),
-            ] else ...[
-              SliverToBoxAdapter(
-                child: _buildPopularesSection(),
               ),
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 15),
-              ),
-              SliverToBoxAdapter(
-                child: _buildTodasLoteriasSection(),
-              ),
+              _buildDraggableFlagFab(context, constraints, isPremium),
             ],
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 30),
-            ),
-            SliverToBoxAdapter(
-              child: _buildBuscaloAquiSection(),
-            ),
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 30),
-            ),
-            SliverToBoxAdapter(
-              child: _buildComunidadSection(),
-            ),
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 40),
-            ),
-          ],
-        ),
+          );
+        },
       ),
+    );
+  }
+
+  Widget _buildDraggableFlagFab(BuildContext context, BoxConstraints constraints, bool isPremium) {
+    if (!isPremium) return const SizedBox.shrink();
+
+    const double fabSize = 56.0;
+
+    final double maxW = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width;
+    final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
+
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: _flagPositionNotifier,
+      builder: (context, pos, child) {
+        // Por defecto se muestra dentro de la tarjeta del país (como en la foto).
+        // Solo cuando el usuario VIP lo arrastra (pos != null) flota por la pantalla.
+        if (pos == null) {
+          return const SizedBox.shrink();
+        }
+
+        final currentX = pos.dx.clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
+        final currentY = pos.dy.clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+
+        return Positioned(
+          left: currentX,
+          top: currentY,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onPanUpdate: (details) {
+              final cur = _flagPositionNotifier.value ?? Offset(currentX, currentY);
+              double newX = cur.dx + details.delta.dx;
+              double newY = cur.dy + details.delta.dy;
+
+              // Restringir dentro del área visible
+              newX = newX.clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
+              newY = newY.clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+
+              _flagPositionNotifier.value = Offset(newX, newY);
+            },
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()),
+              );
+            },
+            onDoubleTap: () {
+              // Regresar a la tarjeta del país (posición por defecto)
+              _flagPositionNotifier.value = null;
+            },
+            child: _buildFlagCircle(size: fabSize),
+          ),
+        );
+      },
     );
   }
 

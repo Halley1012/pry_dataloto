@@ -21,6 +21,7 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   bool _isSubscribed = false;
   bool get isSubscribed => _isSubscribed;
+  bool get isPremium => _isSubscribed;
 
   bool _isLoading = true;
   bool get isLoading => _isLoading;
