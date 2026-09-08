@@ -7,16 +7,23 @@ class CombinationUseCases:
         self.publicidad_repo = publicidad_repo
 
     def _map_to_rules(self, lot: Dict[str, Any], country_map: Dict[int, str]) -> LotteryRules:
+        main_numbers_count = lot.get("max_seleccion", 5)
+        total_numbers = lot.get("total_balotas_sorteo", main_numbers_count)
+        special_numbers_count = max(0, total_numbers - main_numbers_count)
+        special_numbers_max = lot.get("max_balotas_rojas") or None
+
         return LotteryRules(
             lottery_id=lot["route"] if lot.get("route") else lot["nombre"].lower().replace(" ", "_"),
             name=lot["nombre"],
             country=country_map.get(lot["pais_id"], "Unknown"),
-            main_numbers_count=lot.get("max_seleccion", 5),
+            main_numbers_count=main_numbers_count,
             main_numbers_min=1,
             main_numbers_max=lot.get("max_balotas_blancas", 45),
-            special_numbers_count=1 if (lot.get("max_balotas_rojas") or 0) > 0 else None,
-            special_numbers_min=1 if (lot.get("max_balotas_rojas") or 0) > 0 else None,
-            special_numbers_max=lot.get("max_balotas_rojas") if (lot.get("max_balotas_rojas") or 0) > 0 else None,
+            special_numbers_count=(
+                special_numbers_count if special_numbers_count and special_numbers_max else None
+            ),
+            special_numbers_min=1 if special_numbers_count and special_numbers_max else None,
+            special_numbers_max=special_numbers_max if special_numbers_count else None,
             proximo_sorteo=lot.get("proximo_sorteo")
         )
 

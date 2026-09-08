@@ -2,7 +2,7 @@ import itertools
 import random
 import re
 from typing import List, Optional, Set, Tuple
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class LotteryRules(BaseModel):
     lottery_id: str
@@ -19,6 +19,8 @@ class LotteryRules(BaseModel):
 class GeneratedCombination(BaseModel):
     number: int
     main_numbers: List[int]
+    special_numbers: List[int] = Field(default_factory=list)
+    # Se conserva para clientes antiguos que solo conocen una especial.
     special_number: Optional[int] = None
 
 class CombinationGenerator:
@@ -97,33 +99,34 @@ class CombinationGenerator:
         all_combinations = list(itertools.combinations(candidates, count))
         random.shuffle(all_combinations)
 
-        # Construir todas las jugadas únicas posibles (números principales + balota especial)
+        # Construir todas las jugadas únicas posibles (principales + especiales).
         unique_plays = []
-        has_special = self.rules.special_numbers_count == 1
+        special_count = self.rules.special_numbers_count or 0
 
-        if has_special:
-            sb_pool = special_candidates if special_candidates else (
+        if special_count:
+            sb_pool = special_candidates if len(special_candidates) >= special_count else (
                 list(range(self.rules.special_numbers_min, self.rules.special_numbers_max + 1))
                 if (self.rules.special_numbers_min is not None and self.rules.special_numbers_max is not None)
-                else [None]
+                else []
             )
             for main in all_combinations:
-                for sb in sb_pool:
-                    unique_plays.append((sorted(list(main)), sb))
+                for special in itertools.combinations(sb_pool, special_count):
+                    unique_plays.append((sorted(list(main)), list(special)))
         else:
             for main in all_combinations:
-                unique_plays.append((sorted(list(main)), None))
+                unique_plays.append((sorted(list(main)), []))
 
         random.shuffle(unique_plays)
         selected_plays = unique_plays[:quantity]
 
         combinations: List[GeneratedCombination] = []
-        for i, (main_nums, sb) in enumerate(selected_plays):
+        for i, (main_nums, special_nums) in enumerate(selected_plays):
             combinations.append(
                 GeneratedCombination(
                     number=i + 1,
                     main_numbers=main_nums,
-                    special_number=sb
+                    special_numbers=special_nums,
+                    special_number=special_nums[0] if len(special_nums) == 1 else None,
                 )
             )
 
@@ -180,21 +183,14 @@ class CombinationGenerator:
             if not main_nums:
                 main_nums = sorted(list(result_set))
 
-            special_number = None
-            if self.rules.special_numbers_count and self.rules.special_numbers_count == 1:
-                if special_candidates:
-                    special_number = random.choice(special_candidates)
-                elif self.rules.special_numbers_min is not None and self.rules.special_numbers_max is not None:
-                    special_number = random.randint(
-                        self.rules.special_numbers_min,
-                        self.rules.special_numbers_max
-                    )
+            special_numbers = self._generate_special_numbers(special_candidates)
 
             combinations.append(
                 GeneratedCombination(
                     number=i + 1,
                     main_numbers=main_nums,
-                    special_number=special_number
+                    special_numbers=special_numbers,
+                    special_number=special_numbers[0] if len(special_numbers) == 1 else None,
                 )
             )
 
@@ -229,21 +225,14 @@ class CombinationGenerator:
 
             seen.add(tuple(sorted(main_nums)))
 
-            special_number = None
-            if self.rules.special_numbers_count and self.rules.special_numbers_count == 1:
-                special_nums = self._generate_balanced_set(
-                    special_candidates,
-                    self.rules.special_numbers_min,
-                    self.rules.special_numbers_max,
-                    self.rules.special_numbers_count
-                )
-                special_number = special_nums[0] if special_nums else None
+            special_numbers = self._generate_special_numbers(special_candidates)
 
             combinations.append(
                 GeneratedCombination(
                     number=i + 1,
                     main_numbers=sorted(main_nums),
-                    special_number=special_number
+                    special_numbers=special_numbers,
+                    special_number=special_numbers[0] if len(special_numbers) == 1 else None,
                 )
             )
 
@@ -267,23 +256,34 @@ class CombinationGenerator:
                     main_nums = sorted(sample)
                     break
 
-            special_number = None
-            if self.rules.special_numbers_count and self.rules.special_numbers_count == 1:
-                if self.rules.special_numbers_min is not None and self.rules.special_numbers_max is not None:
-                    special_number = random.randint(
-                        self.rules.special_numbers_min,
-                        self.rules.special_numbers_max
-                    )
+            special_numbers = self._generate_special_numbers([])
 
             combinations.append(
                 GeneratedCombination(
                     number=i + 1,
                     main_numbers=main_nums,
-                    special_number=special_number
+                    special_numbers=special_numbers,
+                    special_number=special_numbers[0] if len(special_numbers) == 1 else None,
                 )
             )
 
         return combinations
+
+    def _generate_special_numbers(self, candidates: List[int]) -> List[int]:
+        """Genera las especiales por posición, sin compararlas con principales."""
+        count = self.rules.special_numbers_count or 0
+        if not count:
+            return []
+        if self.rules.special_numbers_min is None or self.rules.special_numbers_max is None:
+            return []
+
+        pool = sorted(set(candidates))
+        if len(pool) < count:
+            pool = list(range(
+                self.rules.special_numbers_min,
+                self.rules.special_numbers_max + 1,
+            ))
+        return sorted(random.sample(pool, count))
 
     def _extract_candidates(self, input_str: str, min_val: int, max_val: int) -> List[int]:
         candidates = set()

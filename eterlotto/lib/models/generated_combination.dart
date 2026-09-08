@@ -1,11 +1,13 @@
 class GeneratedCombination {
   final int number;
   final List<int> mainNumbers;
+  final List<int> specialNumbers;
   final int? specialNumber;
 
   GeneratedCombination({
     required this.number,
     required this.mainNumbers,
+    this.specialNumbers = const [],
     this.specialNumber,
   });
 
@@ -13,6 +15,10 @@ class GeneratedCombination {
     return GeneratedCombination(
       number: json['number'] as int,
       mainNumbers: List<int>.from(json['main_numbers'] ?? []),
+      specialNumbers: List<int>.from(
+        json['special_numbers'] ??
+            (json['special_number'] != null ? [json['special_number']] : const []),
+      ),
       specialNumber: json['special_number'] as int?,
     );
   }
@@ -21,6 +27,7 @@ class GeneratedCombination {
     return {
       'number': number,
       'main_numbers': mainNumbers,
+      'special_numbers': specialNumbers,
       'special_number': specialNumber,
     };
   }
