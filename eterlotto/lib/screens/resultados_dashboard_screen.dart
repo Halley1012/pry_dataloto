@@ -1332,43 +1332,24 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   void _abrirHistoricoResultados() {
     final route = _getRouteForLoteria(_selectedLoteria);
-    final int dynamicMaxSel =
-        _selectedLoteria.toLowerCase().contains("colorloto")
-        ? 6
-        : (widget.loteriaData?['max_seleccion'] ??
-              widget.loteriaData?['maxSeleccion'] ??
-              5);
-    final int dynamicMaxRojas =
-        (widget.loteriaData?['max_balotas_rojas'] ??
-        widget.loteriaData?['maxBalotasRojas'] ??
-        (_selectedLoteria.toLowerCase().contains("baloto") ? 1 : 0));
-
-    final int dynamicTotalBalotas =
-        dynamicMaxSel +
-        dynamicMaxRojas +
-        ((widget.loteriaData?['tiene_complementario'] == true ||
-                widget.loteriaData?['tieneComplementario'] == true)
-            ? 1
-            : 0);
-
-    final config = LoteriaConfig(
-      nombre: _selectedLoteria,
-      route: route,
-      maxSeleccion: dynamicMaxSel,
-      maxBalotasBlancas:
-          widget.loteriaData?['max_balotas_blancas'] ??
-          widget.loteriaData?['maxBalotasBlancas'] ??
-          45,
-      maxBalotasRojas: dynamicMaxRojas,
-      totalBalotasSorteo: dynamicTotalBalotas,
-      tieneComplementario:
-          widget.loteriaData?['tiene_complementario'] == true ||
-          widget.loteriaData?['tieneComplementario'] == true ||
-          (_winningNums.length > dynamicMaxSel),
-      tieneReintegro:
-          widget.loteriaData?['tiene_reintegro'] == true ||
-          widget.loteriaData?['tieneReintegro'] == true,
+    final configData = Map<String, dynamic>.from(widget.loteriaData ?? {});
+    configData['route'] = route;
+    configData.putIfAbsent('nombre', () => _selectedLoteria);
+    var config = LoteriaConfig.fromJson(
+      configData,
+      fallbackNombre: _selectedLoteria,
     );
+
+    // Si el API no entregó el total, el resultado visible es la única fuente
+    // de respaldo. No se infiere por el nombre de una lotería concreta.
+    if (!configData.containsKey('total_balotas_sorteo') &&
+        !configData.containsKey('totalBalotasSorteo') &&
+        _winningNums.length > config.totalBalotasSorteo) {
+      config = config.copyWith(
+        totalBalotasSorteo: _winningNums.length,
+        tieneComplementario: _winningNums.length > config.maxSeleccion,
+      );
+    }
 
     final isPremium = context.read<SubscriptionProvider>().isSubscribed;
     final l10n = AppLocalizations.of(context);

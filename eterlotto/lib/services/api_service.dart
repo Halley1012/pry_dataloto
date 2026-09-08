@@ -6,6 +6,7 @@ import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
+import 'package:eterlotto/data/default_combination_lottery_rules.dart';
 
 import '../utils/secure_storage_helper.dart';
 
@@ -2064,6 +2065,9 @@ class ApiService {
   static Future<void>? _combinationLotteriesRefreshFuture;
   static DateTime? _lastCombinationLotteriesRefresh;
   static const Duration _combinationLotteriesRefreshInterval = Duration(minutes: 5);
+  // Render puede tardar más que el timeout normal al despertar. Esta petición
+  // no bloquea la interfaz cuando ya se usa caché o el respaldo incluido.
+  static const Duration _combinationRulesBootstrapTimeout = Duration(seconds: 45);
 
   static Future<List<dynamic>> getCombinationLotteries({
     bool forceRefresh = false,
@@ -2085,6 +2089,13 @@ class ApiService {
         _scheduleCombinationLotteriesRefresh(cacheKey);
         return _combinationLotteriesMemoryCache!;
       }
+
+      // Primer inicio sin red/caché: la pantalla sigue siendo funcional con
+      // reglas incluidas. El servidor las reemplaza al terminar de despertar.
+      _combinationLotteriesMemoryCache =
+          List<dynamic>.from(defaultCombinationLotteryRules);
+      _scheduleCombinationLotteriesRefresh(cacheKey);
+      return _combinationLotteriesMemoryCache!;
     }
 
     // 3. Sin caché o refresh manual: consultar backend.
@@ -2132,7 +2143,7 @@ class ApiService {
 
       final response = await http
           .get(Uri.parse('$base/combinations/lotteries'))
-          .timeout(_requestTimeout);
+          .timeout(_combinationRulesBootstrapTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -2163,7 +2174,7 @@ class ApiService {
 
       final response = await http
           .get(Uri.parse('$base/combinations/lotteries'))
-          .timeout(_requestTimeout);
+          .timeout(_combinationRulesBootstrapTimeout);
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -2193,7 +2204,7 @@ class ApiService {
       return _combinationLotteriesMemoryCache!;
     }
 
-    return [];
+    return List<dynamic>.from(defaultCombinationLotteryRules);
   }
 
 }
