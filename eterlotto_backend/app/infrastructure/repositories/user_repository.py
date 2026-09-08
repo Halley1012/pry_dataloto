@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from app.domain.ports import UserRepositoryPort
@@ -97,7 +98,10 @@ class PostgresUserRepository(UserRepositoryPort):
             """)
             cls._schema_ensured = True
         except Exception as e:
-            print(f"⚠️ Error en ensure_schema de PostgresUserRepository: {e}")
+            logging.getLogger(__name__).error(
+                "Error en ensure_schema de PostgresUserRepository: %s",
+                type(e).__name__,
+            )
 
     async def _ensure_table(self, conn):
         if not PostgresUserRepository._schema_ensured:

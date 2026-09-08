@@ -34,8 +34,22 @@ class LotteryRules {
       specialNumbersCount: json['special_numbers_count'] as int?,
       specialNumbersMin: json['special_numbers_min'] as int?,
       specialNumbersMax: json['special_numbers_max'] as int?,
-      proximoSorteo: json['proximo_sorteo'] as String?,
+      proximoSorteo: _validNextDraw(json['proximo_sorteo']),
     );
+  }
+
+  /// Una regla incluida como respaldo puede tener una fecha ya vencida. No se
+  /// usa para guardar una jugada si no corresponde a hoy o al futuro.
+  static String? _validNextDraw(dynamic rawDate) {
+    final value = rawDate?.toString().trim();
+    if (value == null || value.isEmpty) return null;
+
+    final parsed = DateTime.tryParse(value);
+    if (parsed == null) return value;
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return parsed.isBefore(today) ? null : value;
   }
 
   String get rulesDescription {

@@ -126,16 +126,14 @@ class ResendEmailSender(EmailSenderPort):
             "text": text_content
         }
 
-        print(f"📧 [Resend] Enviando correo a {to_email} desde '{from_email}'...")
+        logger.info("Solicitando envío de correo mediante Resend")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code in [200, 201]:
-                res_data = response.json()
-                print(f"✅ [Resend] Correo enviado exitosamente a {to_email} (id: {res_data.get('id')})")
+                logger.info("Correo enviado correctamente mediante Resend")
                 return True
             else:
-                print(f"❌ [Resend Error {response.status_code}]: {response.text}")
-                logger.error(f"❌ Error al enviar correo vía Resend ({response.status_code}): {response.text}")
+                logger.error("Error al enviar correo vía Resend (status=%s)", response.status_code)
                 return False
 
     async def _send_via_smtp(self, to_email: str, subject: str, html_content: str, text_content: str) -> bool:
@@ -155,11 +153,10 @@ class ResendEmailSender(EmailSenderPort):
                     smtp.ehlo()
                     smtp.login(config.EMAIL_USER, config.EMAIL_PASS)
                     smtp.send_message(msg)
-                print(f"✅ [SMTP] Correo enviado a {to_email}")
+                logger.info("Correo enviado correctamente mediante SMTP")
                 return True
             except Exception as e:
-                print(f"❌ [SMTP Error]: {e}")
-                logger.error(f"❌ Error al enviar correo vía SMTP: {e}")
+                logger.error("Error al enviar correo vía SMTP: %s", type(e).__name__)
                 return False
 
         return await asyncio.to_thread(_send_sync)
@@ -170,8 +167,7 @@ class ResendEmailSender(EmailSenderPort):
         elif config.EMAIL_USER and config.EMAIL_PASS:
             return await self._send_via_smtp(to_email, subject, html_content, text_content)
         else:
-            print(f"⚠️ [Resend/Email Warning] No se encontró RESEND_API_KEY ni credenciales SMTP en las variables de entorno.")
-            print(f"📧 [SIMULADO] Para: {to_email} | Asunto: {subject}\n{text_content}")
+            logger.warning("No hay proveedor de correo configurado; el mensaje no se enviará")
             return True
 
     async def send_reset_password_code(self, email: str, code: str) -> bool:
