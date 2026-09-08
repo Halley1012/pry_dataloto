@@ -41,7 +41,10 @@ def get_sync_pool() -> Optional[psycopg2.pool.ThreadedConnectionPool]:
                         sslmode="require"
                     )
         except Exception as e:
-            print(f"⚠️ No se pudo inicializar ThreadedConnectionPool: {e}")
+            logging.getLogger(__name__).error(
+                "No se pudo inicializar ThreadedConnectionPool: %s",
+                type(e).__name__,
+            )
             _sync_pool = None
     return _sync_pool
 

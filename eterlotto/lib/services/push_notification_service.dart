@@ -86,7 +86,6 @@ class PushNotificationService {
 
       // Escuchar renovación de token
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) {
-        debugPrint("🔄 FCM Token renovado: $newToken");
         ApiService.updateFCMToken(newToken);
       });
 
@@ -101,18 +100,15 @@ class PushNotificationService {
     Future.microtask(() async {
       try {
         final messaging = FirebaseMessaging.instance;
-        final settings = await messaging.requestPermission(
+        await messaging.requestPermission(
           alert: true,
           badge: true,
           sound: true,
           provisional: false,
         ).timeout(const Duration(seconds: 5));
 
-        debugPrint("🔔 Permiso de Notificaciones: ${settings.authorizationStatus}");
-
         final token = await messaging.getToken().timeout(const Duration(seconds: 6));
         if (token != null) {
-          debugPrint("🔥 FCM Token obtenido: $token");
           await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 8));
         }
       } catch (e) {
@@ -126,7 +122,6 @@ class PushNotificationService {
     try {
       final token = await FirebaseMessaging.instance.getToken().timeout(const Duration(seconds: 5));
       if (token != null && token.isNotEmpty) {
-        debugPrint("🔥 FCM Token obtenido en sync: $token");
         await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 6));
       }
     } catch (e) {

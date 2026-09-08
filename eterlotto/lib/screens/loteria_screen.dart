@@ -52,6 +52,25 @@ class LoteriaConfig {
 
   bool get tieneBalotaRoja => maxBalotasRojas > 0;
 
+  Map<String, dynamic> toJson() {
+    final specialNumbersCount =
+        (totalBalotasSorteo - maxSeleccion - (tieneComplementario ? 1 : 0))
+            .clamp(0, totalBalotasSorteo) as int;
+    return {
+      'nombre': nombre,
+      'route': route,
+      'max_seleccion': maxSeleccion,
+      'max_balotas_blancas': maxBalotasBlancas,
+      'max_balotas_rojas': maxBalotasRojas,
+      'special_numbers_count': specialNumbersCount,
+      'superbalota_nombre': superbalotaNombre,
+      'has_revancha': hasRevancha,
+      'total_balotas_sorteo': totalBalotasSorteo,
+      'tiene_complementario': tieneComplementario,
+      'tiene_reintegro': tieneReintegro,
+    };
+  }
+
   LoteriaConfig copyWith({
     String? nombre,
     String? route,
@@ -114,7 +133,13 @@ class LoteriaConfig {
     final tieneReintegro = json["tiene_reintegro"] == true ||
         json["tieneReintegro"] == true;
 
-    final int totalSorteoFallback = (maxSel ?? 5) + ((maxRojas ?? 0) > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
+    final specialCount = json["special_numbers_count"] != null
+        ? int.tryParse(json["special_numbers_count"].toString())
+        : (json["specialNumbersCount"] != null
+            ? int.tryParse(json["specialNumbersCount"].toString())
+            : null);
+    final int totalSorteoFallback =
+        (maxSel ?? 5) + (specialCount ?? ((maxRojas ?? 0) > 0 ? 1 : 0)) + (tieneComp ? 1 : 0);
     final totalSorteo = json["total_balotas_sorteo"] != null
         ? int.tryParse(json["total_balotas_sorteo"].toString())
         : (json["totalBalotasSorteo"] != null
@@ -1244,6 +1269,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           builder: (_) => EstadisticasDashboardScreen(
             loteriaNombreInicial: config.nombre,
             loteriaRoute: config.route,
+            loteriaData: config.toJson(),
           ),
         ),
       );
