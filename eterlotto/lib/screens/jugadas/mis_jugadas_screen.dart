@@ -1177,17 +1177,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                     loteriaNombreInicial: widget.loteriaNombre,
                                     loteriaRoute: widget.loteriaRoute,
                                     jugadaComparacion: jugadaComparacionData,
-                                    loteriaData: _config != null
-                                        ? {
-                                            'nombre': _config!.nombre,
-                                            'route': _config!.route,
-                                            'max_seleccion': _config!.maxSeleccion,
-                                            'max_balotas_blancas': _config!.maxBalotasBlancas,
-                                            'max_balotas_rojas': _config!.maxBalotasRojas,
-                                            'tiene_complementario': _config!.tieneComplementario,
-                                            'tiene_reintegro': _config!.tieneReintegro,
-                                          }
-                                        : null,
+                                    loteriaData: _config?.toJson(),
                                   ),
                                 ),
                               );

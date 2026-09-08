@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:eterlotto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,12 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final LocaleProvider localeProvider = LocaleProvider();
 
 void main() {
+  // Las trazas detalladas se conservan durante el desarrollo, pero ninguna
+  // información de diagnóstico se escribe en la consola de una app publicada.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   runZonedGuarded(
     () async {
       // Inicializar bindings y configuraciones dentro de la misma zona

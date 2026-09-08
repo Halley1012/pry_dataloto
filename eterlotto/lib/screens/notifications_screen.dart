@@ -385,35 +385,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           // Deslizar a la derecha: Marcar como leído
           if (!notification.leido) {
             await provider.markAsRead(notification.id);
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).clearSnackBars();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Notificación marcada como leída"),
-                  duration: Duration(milliseconds: 1200),
-                  backgroundColor: Color(0xFF1E1E1E),
-                ),
-              );
-            }
           }
           return false; // Mantiene la tarjeta en la lista
         } else if (direction == DismissDirection.endToStart) {
           // Deslizar a la izquierda: Eliminar notificación
           final deleted = await provider.deleteNotification(notification.id);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).clearSnackBars();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  deleted
-                      ? "Notificación eliminada"
-                      : "No se pudo eliminar la notificación",
-                ),
-                duration: Duration(milliseconds: 1200),
-                backgroundColor: deleted ? const Color(0xFF1E1E1E) : Colors.redAccent,
-              ),
-            );
-          }
           return deleted; // Solo quita la tarjeta si el servidor la ocultó.
         }
         return false;
