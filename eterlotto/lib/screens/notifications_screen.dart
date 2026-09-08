@@ -20,7 +20,9 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  int _selectedFilterIndex = 0; // 0: Mi País, 1: Internacionales, 2: Todas
+  // “Todas” reúne los avisos relevantes para esta cuenta: país, loterías que
+  // juega y avisos generales. Así una lotería extranjera no queda oculta.
+  int _selectedFilterIndex = 2; // 0: Mi País, 1: Internacionales, 2: Todas
   String? _userPaisId;
   final _storage = AppSecureStorage.instance;
 
@@ -397,18 +399,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           return false; // Mantiene la tarjeta en la lista
         } else if (direction == DismissDirection.endToStart) {
           // Deslizar a la izquierda: Eliminar notificación
-          await provider.deleteNotification(notification.id);
+          final deleted = await provider.deleteNotification(notification.id);
           if (context.mounted) {
             ScaffoldMessenger.of(context).clearSnackBars();
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Notificación eliminada"),
+              SnackBar(
+                content: Text(
+                  deleted
+                      ? "Notificación eliminada"
+                      : "No se pudo eliminar la notificación",
+                ),
                 duration: Duration(milliseconds: 1200),
-                backgroundColor: Color(0xFF1E1E1E),
+                backgroundColor: deleted ? const Color(0xFF1E1E1E) : Colors.redAccent,
               ),
             );
           }
-          return true; // Elimina la tarjeta de la lista
+          return deleted; // Solo quita la tarjeta si el servidor la ocultó.
         }
         return false;
       },
