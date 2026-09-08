@@ -37,6 +37,18 @@ class Post {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'user_id': userId,
+      'user_name': userName,
+      'created_at': createdAt.toIso8601String(),
+      'comments_count': commentsCount,
+    };
+  }
+
   String get formattedDate {
     return DateFormat('dd/MM/yyyy HH:mm').format(createdAt);
   }

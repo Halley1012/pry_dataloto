@@ -144,9 +144,9 @@ class JugadasListWidgetState extends State<JugadasListWidget>
   }) async {
     final tempId = DateTime.now().millisecondsSinceEpoch;
     
-    // Si viene balota roja y los números son 5, asegurar que el array o campo estén listos
+    // El array se conserva por posición: una especial puede repetir un principal.
     final List<int> numerosCompletos = List<int>.from(numeros);
-    if (balotaRoja != null && (numerosCompletos.isEmpty || numerosCompletos.last != balotaRoja)) {
+    if (balotaRoja != null) {
       numerosCompletos.add(balotaRoja);
     }
 

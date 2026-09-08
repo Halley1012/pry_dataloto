@@ -56,37 +56,6 @@ class CacheService {
     return null;
   }
 
-  /// Obtiene la fecha y hora en que se guardó la caché para una clave dada
-  static Future<DateTime?> getCacheTimestamp(String key) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString('$_prefix$key');
-      if (raw != null && raw.isNotEmpty) {
-        final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic> && decoded.containsKey('__ts')) {
-          final int ts = decoded['__ts'] as int;
-          return DateTime.fromMillisecondsSinceEpoch(ts);
-        }
-      }
-    } catch (_) {}
-    return null;
-  }
-
-  /// Comprueba si una clave de caché ha expirado según el [maxAge] indicado
-  static Future<bool> isKeyExpired(String key, Duration maxAge) async {
-    final timestamp = await getCacheTimestamp(key);
-    if (timestamp == null) return true;
-    return DateTime.now().difference(timestamp) >= maxAge;
-  }
-
-  /// Elimina una clave específica de la caché local
-  static Future<void> deleteKey(String key) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('$_prefix$key');
-    } catch (_) {}
-  }
-
   /// ⚡ Invalida activamente todos los caches de selectores (Resultados, Mis Jugadas, Info)
   /// y notifica inmediatamente a todas las pantallas activas para que se auto-sincronicen sin pull-to-refresh.
   static Future<void> invalidarCachesDeJugadas({String? specificRoute}) async {
@@ -104,8 +73,8 @@ class CacheService {
       for (final k in keys) {
         await prefs.remove(k);
       }
-    } catch (e) {
-      debugPrint("⚠️ Error invalidando caches de jugadas: $e");
+    } catch (_) {
+      // La invalidación de caché no debe interrumpir el flujo de la aplicación.
     } finally {
       notificarCambioJugadas();
     }
@@ -147,20 +116,17 @@ class CacheService {
           await setJson(cacheKey, list);
         }
       }
-    } catch (e) {
-      debugPrint("⚠️ Error al registrar jugada optimista: $e");
+    } catch (_) {
+      // El registro optimista es una mejora de UX; el backend sigue siendo la fuente de verdad.
     } finally {
       notificarCambioJugadas();
     }
   }
 
   static String _getRouteFromName(String nombre) {
-    String clean = nombre.trim().toLowerCase();
-    if (clean.contains("baloto") || clean == "bloto") return "bloto";
-    if (clean.contains("miloto") || clean == "mloto") return "mloto";
-    if (clean.contains("colorloto") || clean.contains("color_loto") || clean == "cloto") return "colorloto";
-
-    clean = clean
+    final clean = nombre
+        .trim()
+        .toLowerCase()
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
         .replaceAll(RegExp(r'[íìïî]'), 'i')

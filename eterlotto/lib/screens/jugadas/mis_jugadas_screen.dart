@@ -113,10 +113,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final uId = await ApiService.getUserId();
     final uIdStr = uId?.toString();
     final cacheKeyUser = 'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
-    final cacheKeyGeneral = 'mis_jugadas_${widget.loteriaRoute}';
 
     if (!force) {
-      final cached = await CacheService.getJson(cacheKeyUser) ?? await CacheService.getJson(cacheKeyGeneral);
+      final cached = await CacheService.getJson(cacheKeyUser);
       if (cached != null && mounted) {
         setState(() {
           _userId = uIdStr;
@@ -141,7 +140,6 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _cargando = false;
         });
         await CacheService.setJson(cacheKeyUser, data);
-        await CacheService.setJson(cacheKeyGeneral, data);
       }
     } catch (e) {
       if (mounted) {
@@ -216,7 +214,6 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     // 2. Sincronizar cache persistente en SharedPreferences de inmediato
     final uIdStr = _userId ?? "anon";
     await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', _jugadasList);
-    await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', _jugadasList);
     await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
 
     // 3. Ejecutar eliminación en el backend (en paralelo)
@@ -231,7 +228,6 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _jugadasList = backupList;
         });
         await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', backupList);
-        await CacheService.setJson('mis_jugadas_${widget.loteriaRoute}', backupList);
         await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -248,48 +244,46 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     await _cargarJugadas(force: true);
   }
 
-  bool get _usaSuperbalota {
-    if (_config != null) return _config!.tieneBalotaRoja;
-    for (var j in _jugadasList) {
-      if (j['balota_roja'] != null || j['superbalota'] != null) return true;
-      final nums = j['numeros'];
-      if (nums is List && nums.length > 6) return true;
-    }
-    return false;
-  }
-
-  (List<int>, int?) _parsearJugada(Map<String, dynamic> item) {
+  (List<int>, List<int>) _parsearJugada(Map<String, dynamic> item) {
     final rawNums = (item["numeros"] as List<dynamic>? ?? []);
     final nums = rawNums
         .map((n) => int.tryParse(n.toString()) ?? -1)
         .where((n) => n >= 0)
         .toList();
 
-    final bRoja = item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
-    final int maxSel = _config?.maxSeleccion ??
-        (nums.length >= 7 ? 6 : (nums.length == 6 && !_usaSuperbalota ? 6 : 5));
+    // La configuración define los roles. Nunca separamos por igualdad de valor:
+    // [1, 4, 8, 9, 20, 9] conserva ambos 9 en posiciones diferentes.
+    final config = _config;
+    if (config != null) {
+      final principales = nums.take(config.maxSeleccion).toList();
+      final cantidadEspeciales = (config.totalBalotasSorteo - config.maxSeleccion)
+          .clamp(0, nums.length) as int;
+      final especiales = nums
+          .skip(config.maxSeleccion)
+          .take(cantidadEspeciales)
+          .toList();
 
-    final bool tieneRoja = _config?.tieneBalotaRoja ?? _usaSuperbalota;
-
-    int? red;
-    List<int> whites;
-
-    if (bRoja != null) {
-      red = int.tryParse(bRoja.toString());
-      if (nums.length > maxSel) {
-        whites = nums.sublist(0, maxSel);
-      } else {
-        whites = nums.where((n) => n != red).toList();
+      // Compatibilidad con jugadas antiguas que guardaban la especial fuera
+      // del arreglo de números.
+      final legacyEspecial = item["balota_roja"] ??
+          item["balotaroja"] ??
+          item["superbalota"];
+      if (especiales.isEmpty && legacyEspecial != null && cantidadEspeciales > 0) {
+        final valor = int.tryParse(legacyEspecial.toString());
+        if (valor != null) especiales.add(valor);
       }
-    } else if (tieneRoja && nums.length > maxSel) {
-      whites = nums.sublist(0, maxSel);
-      red = nums.last;
-    } else {
-      whites = nums;
-      red = null;
+      return (principales, especiales);
     }
 
-    return (whites, red);
+    // Fallback temporal únicamente cuando aún no llega la configuración.
+    final legacyEspecial = item["balota_roja"] ??
+        item["balotaroja"] ??
+        item["superbalota"];
+    final valor = legacyEspecial == null ? null : int.tryParse(legacyEspecial.toString());
+    if (valor != null && nums.length > 5) {
+      return (nums.take(nums.length - 1).toList(), [nums.last]);
+    }
+    return (nums, valor == null ? [] : [valor]);
   }
 
   void _compartirWhatsApp() async {
@@ -318,10 +312,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
         for (int i = 0; i < jugadasACompartir.length; i++) {
           final play = jugadasACompartir[i];
-          final (whites, redVal) = _parsearJugada(play);
+          final (whites, specials) = _parsearJugada(play);
           final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
-          if (redVal != null) {
-            final String superbalota = l10n?.superbalotaConValor(redVal) ?? "[Roja: $redVal]";
+          if (specials.isNotEmpty) {
+            final String superbalota = "${_config?.superbalotaNombre ?? 'Especial'}: ${specials.join(', ')}";
             buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
           } else {
             buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')}");
@@ -413,11 +407,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                       data: jugadasAImprimir.asMap().entries.map((entry) {
                         final index = entry.key + 1;
                         final item = entry.value;
-                        final (whites, red) = _parsearJugada(item);
+                        final (whites, specials) = _parsearJugada(item);
                         final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
-                        final balotasStr = red != null
-                            ? "${whites.join(' - ')}  ${l10n?.superbalotaConValor(red) ?? '[Roja: $red]'}"
+                        final balotasStr = specials.isNotEmpty
+                            ? "${whites.join(' - ')}  [${_config?.superbalotaNombre ?? 'Especial'}: ${specials.join(' - ')}]"
                             : whites.join(' - ');
 
                         return [
@@ -804,9 +798,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                     final id = item["id"] as int? ?? 0;
                                     final isSelected = _selectedIds.contains(id);
                                     final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-                                    final (whites, red) = _parsearJugada(item);
+                                    final (whites, specials) = _parsearJugada(item);
 
-                                    final int totalBalls = whites.length + (red != null ? 1 : 0);
+                                    final int totalBalls = whites.length + specials.length;
                                     final double ballSize = totalBalls <= 5
                                         ? 32.0
                                         : (totalBalls == 6 ? 30.0 : (totalBalls == 7 ? 27.0 : 24.0));
@@ -901,24 +895,30 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                                     mainAxisSize: MainAxisSize.min,
                                                     mainAxisAlignment: MainAxisAlignment.center,
                                                     children: [
-                                                      ...whites.map((n) => Padding(
-                                                            padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                      for (final n in whites)
+                                                        Padding(
+                                                          padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                          child: RepaintBoundary(
                                                             child: _build3DBall(
                                                               n,
                                                               baseColor: color,
                                                               size: ballSize,
                                                             ),
-                                                          )),
-                                                      if (red != null) ...[
-                                                        SizedBox(width: hPadding * 1.5),
-                                                        Padding(
-                                                          padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                          child: _build3DBall(
-                                                            red,
-                                                            baseColor: const Color(0xFFB91C1C),
-                                                            size: ballSize,
                                                           ),
                                                         ),
+                                                      if (specials.isNotEmpty) ...[
+                                                        SizedBox(width: hPadding * 1.5),
+                                                        for (final special in specials)
+                                                          Padding(
+                                                            padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                                            child: RepaintBoundary(
+                                                              child: _build3DBall(
+                                                                special,
+                                                                baseColor: const Color(0xFFB91C1C),
+                                                                size: ballSize,
+                                                              ),
+                                                            ),
+                                                          ),
                                                       ],
                                                     ],
                                                   ),
@@ -955,7 +955,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final index = _jugadasList.indexWhere((j) => (j["id"] as int? ?? 0) == id);
     if (index == -1) return;
     final item = _jugadasList[index];
-    final (whites, red) = _parsearJugada(item);
+    final (whites, specials) = _parsearJugada(item);
     final jugadaIndex = index + 1;
     final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
 
@@ -1093,16 +1093,17 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                     size: 38,
                                   ),
                                 )),
-                            if (red != null) ...[
+                            if (specials.isNotEmpty) ...[
                               const SizedBox(width: 4),
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 3),
-                                child: _build3DBall(
-                                  red,
-                                  baseColor: const Color(0xFFB91C1C),
-                                  size: 38,
+                              for (final special in specials)
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  child: _build3DBall(
+                                    special,
+                                    baseColor: const Color(0xFFB91C1C),
+                                    size: 38,
+                                  ),
                                 ),
-                              ),
                             ],
                           ],
                         ),
@@ -1165,7 +1166,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                 "titulo": "Jugada #$jugadaIndex",
                                 "color": rowColor.toARGB32(),
                                 "numeros": whites,
-                                "balota_roja": red,
+                                "balota_roja": specials.isNotEmpty ? specials.first : null,
+                                "especiales": specials,
                                 "fecha": fechaStr,
                               };
                               final bool? editada = await Navigator.push<bool>(

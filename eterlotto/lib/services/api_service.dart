@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -12,13 +13,13 @@ class ApiService {
   static const String baseUrl = "https://pry-dataloto.onrender.com";
   static final _storage = AppSecureStorage.instance;
 
+  static const Duration _requestTimeout = Duration(seconds: 10);
+  static const Duration _refreshTimeout = Duration(seconds: 6);
+  static Future<bool>? _refreshFuture;
+
   /// Headers dinámicos, con o sin token
   static Future<Map<String, String>> _getHeaders({bool withAuth = true}) async {
-    String? token;
-    if (withAuth) {
-      await ensureValidSession();
-      token = await _storage.read(key: "auth_token");
-    }
+    final token = withAuth ? await _storage.read(key: "auth_token") : null;
 
     return {
       "Content-Type": "application/json",
@@ -243,12 +244,24 @@ class ApiService {
     return await _storage.read(key: "auth_token");
   }
 
-  /// Intentar refrescar el access_token usando refresh_token
+  /// Intentar refrescar el access_token usando refresh_token.
+  /// Coalesces concurrent refresh requests into one HTTP call.
   static Future<bool> refreshAccessToken() async {
-    final refreshToken = await _storage.read(key: "refresh_token");
-    if (refreshToken == null || refreshToken.isEmpty) {
-      return false;
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshAccessTokenInternal();
+    _refreshFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshFuture, future)) _refreshFuture = null;
     }
+  }
+
+  static Future<bool> _refreshAccessTokenInternal() async {
+    final refreshToken = await _storage.read(key: "refresh_token");
+    if (refreshToken == null || refreshToken.isEmpty) return false;
 
     try {
       final encodedToken = Uri.encodeComponent(refreshToken);
@@ -258,39 +271,32 @@ class ApiService {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"refresh_token": refreshToken}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_refreshTimeout);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final newAccessToken = data["access_token"];
-        final newRefreshToken = data["refresh_token"];
+      if (response.statusCode != 200) return false;
 
-        if (newAccessToken != null) {
-          await _storage.write(key: "auth_token", value: newAccessToken);
-          if (newRefreshToken != null) {
-            await _storage.write(key: "refresh_token", value: newRefreshToken);
-          }
+      final data = jsonDecode(response.body);
+      final newAccessToken = data["access_token"];
+      final newRefreshToken = data["refresh_token"];
+      if (newAccessToken == null || newAccessToken.toString().isEmpty) return false;
 
-          // Extraer y persistir user_id
-          try {
-            final parts = (newAccessToken as String).split('.');
-            if (parts.length == 3) {
-              final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
-              final pData = jsonDecode(payload);
-              final sub = pData['sub'];
-              if (sub != null) {
-                await _storage.write(key: "user_id", value: sub.toString());
-              }
-            }
-          } catch (_) {}
-
-          return true;
-        }
-        return false;
-      } else {
-        return false;
+      await _storage.write(key: "auth_token", value: newAccessToken.toString());
+      if (newRefreshToken != null && newRefreshToken.toString().isNotEmpty) {
+        await _storage.write(key: "refresh_token", value: newRefreshToken.toString());
       }
-    } catch (e) {
+
+      try {
+        final parts = newAccessToken.toString().split('.');
+        if (parts.length == 3) {
+          final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+          final pData = jsonDecode(payload);
+          final sub = pData['sub'];
+          if (sub != null) await _storage.write(key: "user_id", value: sub.toString());
+        }
+      } catch (_) {}
+
+      return true;
+    } catch (_) {
       return false;
     }
   }
@@ -321,16 +327,12 @@ class ApiService {
 
   /// 🔁 Asegura sesión válida (valida o refresca)
   static Future<bool> ensureValidSession() async {
-    if (await isTokenValid()) {
-      return true;
+    try {
+      if (await isTokenValid()) return true;
+      return await refreshAccessToken();
+    } catch (_) {
+      return false;
     }
-
-    final refreshed = await refreshAccessToken();
-    if (refreshed) {
-      return true;
-    }
-
-    return false;
   }
 
   static Future<Map<String, dynamic>> deleteUser(int userId) async {
@@ -371,6 +373,7 @@ class ApiService {
     int userId,
     Map<String, dynamic> updateData,
   ) async {
+    await ensureValidSession();
     final response = await http.put(
       Uri.parse('$baseUrl/users/$userId'),
       headers: await _getHeaders(withAuth: true),
@@ -693,9 +696,11 @@ class ApiService {
       route = "cloto";
     }
 
-    final List<int> numerosParaGuardar = (balotaRoja != null)
-        ? (numeros.isNotEmpty && numeros.last == balotaRoja ? numeros : [...numeros, balotaRoja])
-        : numeros;
+    // `numeros` es posicional: principales primero y especiales después.
+    // Nunca se deduplica por valor; 9 principal + 9 especial son dos balotas.
+    final List<int> numerosParaGuardar = balotaRoja != null
+        ? [...numeros, balotaRoja]
+        : List<int>.from(numeros);
 
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
@@ -714,7 +719,7 @@ class ApiService {
       Uri.parse("$baseUrl/jugadas_$route"),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode(payload),
-    ).timeout(const Duration(seconds: 15));
+    ).timeout(_requestTimeout);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       CacheService.registrarJugadaOptimista(route);
@@ -806,9 +811,10 @@ class ApiService {
       route = "cloto";
     }
 
-    final List<int> numerosParaGuardar = (balotaRoja != null)
-        ? (numeros.isNotEmpty && numeros.last == balotaRoja ? numeros : [...numeros, balotaRoja])
-        : numeros;
+    // Mantiene la misma semántica posicional del alta de jugadas.
+    final List<int> numerosParaGuardar = balotaRoja != null
+        ? [...numeros, balotaRoja]
+        : List<int>.from(numeros);
 
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
@@ -1022,7 +1028,7 @@ class ApiService {
     String endpoint, {
     bool withAuth = true,
     bool forceRefresh = false,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     if (forceRefresh) {
@@ -1056,7 +1062,7 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> body, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
@@ -1089,7 +1095,7 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> body, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
@@ -1121,7 +1127,7 @@ class ApiService {
   static Future<http.Response> delete(
     String endpoint, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
@@ -1397,6 +1403,7 @@ class ApiService {
     int? categoriaId,
     String? titulo,
   }) async {
+    await ensureValidSession();
     try {
       // 🧱 1. Construir la URL base con filtros dinámicos
       final Map<String, String> queryParams = {};
@@ -1998,6 +2005,10 @@ class ApiService {
   }
 
   /// 🎲 Generador de combinaciones personalizadas
+  /// ⏱️ Generación de combinaciones puede tardar más que una petición normal
+  /// porque el backend puede ejecutar procesamiento de generación/ML.
+  static const Duration _generationTimeout = Duration(seconds: 30);
+
   static Future<Map<String, dynamic>> generateCombinations({
     required String lottery,
     required String input,
@@ -2020,44 +2031,169 @@ class ApiService {
         "/combinations/generate",
         body,
         withAuth: false,
+        timeout: _generationTimeout,
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return {'success': true, 'data': data};
       } else {
-        return {'success': false, 'error': 'Error del servidor: ${response.statusCode}'};
+        return {
+          'success': false,
+          'error': 'Error del servidor: ${response.statusCode}',
+        };
       }
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
   }
 
-  /// 🎲 Obtener reglas de loterías soportadas por el generador (Network-first, Cache fallback)
-  static Future<List<dynamic>> getCombinationLotteries({bool forceRefresh = false}) async {
+  /// 🎲 Obtener reglas de loterías soportadas por el generador.
+  ///
+  /// Las reglas son datos PÚBLICOS y compartidos por todos los usuarios.
+  /// Por eso esta caché NO depende de user_id.
+  ///
+  /// Apertura normal:
+  ///   1. memoria RAM
+  ///   2. SharedPreferences
+  ///   3. servidor solo si no existe caché
+  ///
+  /// Cuando ya existe caché, la actualización del servidor se ejecuta en
+  /// segundo plano y no bloquea la pantalla.
+  static List<dynamic>? _combinationLotteriesMemoryCache;
+  static Future<void>? _combinationLotteriesRefreshFuture;
+  static DateTime? _lastCombinationLotteriesRefresh;
+  static const Duration _combinationLotteriesRefreshInterval = Duration(minutes: 5);
+
+  static Future<List<dynamic>> getCombinationLotteries({
+    bool forceRefresh = false,
+  }) async {
     const cacheKey = 'combination_lotteries_rules_v2';
 
-    // 1. Intentar siempre primero obtener los datos frescos del servidor
+    if (!forceRefresh) {
+      // 1. Memoria RAM: ruta más rápida al volver a la pantalla.
+      final memory = _combinationLotteriesMemoryCache;
+      if (memory != null && memory.isNotEmpty) {
+        _scheduleCombinationLotteriesRefresh(cacheKey);
+        return memory;
+      }
+
+      // 2. Caché persistente: compartida por todos los usuarios del dispositivo.
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached is List && cached.isNotEmpty) {
+        _combinationLotteriesMemoryCache = List<dynamic>.from(cached);
+        _scheduleCombinationLotteriesRefresh(cacheKey);
+        return _combinationLotteriesMemoryCache!;
+      }
+    }
+
+    // 3. Sin caché o refresh manual: consultar backend.
+    return _fetchCombinationLotteries(cacheKey);
+  }
+
+
+  static void _scheduleCombinationLotteriesRefresh(String cacheKey) {
+    final now = DateTime.now();
+    final last = _lastCombinationLotteriesRefresh;
+
+    if (last != null && now.difference(last) < _combinationLotteriesRefreshInterval) {
+      return;
+    }
+
+    _lastCombinationLotteriesRefresh = now;
+    unawaited(_refreshCombinationLotteriesCache(cacheKey));
+  }
+
+  /// Actualiza la caché sin bloquear la pantalla actual.
+  ///
+  /// Se coalescen llamadas simultáneas para evitar varias peticiones
+  /// idénticas si el usuario entra/sale rápidamente de la pantalla.
+  static Future<void> _refreshCombinationLotteriesCache(String cacheKey) {
+    final inFlight = _combinationLotteriesRefreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshCombinationLotteriesCacheInternal(cacheKey);
+    _combinationLotteriesRefreshFuture = future;
+
+    return future.whenComplete(() {
+      if (identical(_combinationLotteriesRefreshFuture, future)) {
+        _combinationLotteriesRefreshFuture = null;
+      }
+    });
+  }
+
+  static Future<void> _refreshCombinationLotteriesCacheInternal(
+    String cacheKey,
+  ) async {
     try {
-      final base = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
-      final response = await http.get(Uri.parse('$base/combinations/lotteries')).timeout(const Duration(seconds: 15));
+      final base = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+
+      final response = await http
+          .get(Uri.parse('$base/combinations/lotteries'))
+          .timeout(_requestTimeout);
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+
         if (data is List && data.isNotEmpty) {
-          CacheService.setJson(cacheKey, data);
-          return data;
+          _combinationLotteriesMemoryCache = List<dynamic>.from(data);
+          _lastCombinationLotteriesRefresh = DateTime.now();
+          await CacheService.setJson(cacheKey, data);
         }
       }
     } catch (e) {
-      debugPrint("Error obteniendo loterías para combinaciones del servidor: $e");
+      // Actualización silenciosa: la caché actual continúa disponible.
+      debugPrint(
+        "Error actualizando reglas de combinaciones en segundo plano: $e",
+      );
     }
-    
-    // 2. Fallback únicamente si el backend falló o estuvo fuera de línea
+  }
+
+  /// Consulta las reglas desde el backend.
+  /// Si falla, utiliza la caché como fallback.
+  static Future<List<dynamic>> _fetchCombinationLotteries(
+    String cacheKey,
+  ) async {
+    try {
+      final base = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+
+      final response = await http
+          .get(Uri.parse('$base/combinations/lotteries'))
+          .timeout(_requestTimeout);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List && data.isNotEmpty) {
+          _combinationLotteriesMemoryCache = List<dynamic>.from(data);
+          _lastCombinationLotteriesRefresh = DateTime.now();
+          await CacheService.setJson(cacheKey, data);
+          return _combinationLotteriesMemoryCache!;
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        "Error obteniendo loterías para combinaciones del servidor: $e",
+      );
+    }
+
+    // Fallback final: memoria o caché persistente.
+    final memory = _combinationLotteriesMemoryCache;
+    if (memory != null && memory.isNotEmpty) {
+      return memory;
+    }
+
     final cached = await CacheService.getJson(cacheKey);
-    if (cached != null && cached is List && cached.isNotEmpty) {
-      return cached;
+    if (cached is List && cached.isNotEmpty) {
+      _combinationLotteriesMemoryCache = List<dynamic>.from(cached);
+      return _combinationLotteriesMemoryCache!;
     }
+
     return [];
   }
-}
 
+}

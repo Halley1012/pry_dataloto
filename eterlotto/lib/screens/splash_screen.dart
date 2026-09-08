@@ -1,14 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:in_app_update/in_app_update.dart';
+
 import 'package:eterlotto/screens/registro.dart';
 import '../services/api_service.dart';
 import '../services/push_notification_service.dart';
-import 'package:package_info_plus/package_info_plus.dart';
-import 'package:eterlotto/screens/update_screen.dart';
-import 'package:in_app_update/in_app_update.dart';
-
 import '../utils/secure_storage_helper.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -21,7 +19,11 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   final storage = AppSecureStorage.instance;
-  late AnimationController _controller;
+
+  late final AnimationController _controller;
+
+  // Evita que dos procesos async intenten navegar al mismo tiempo.
+  bool _hasNavigated = false;
 
   @override
   void initState() {
@@ -33,153 +35,196 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     _controller.forward();
-    _checkAuth();
+    unawaited(_checkAuth());
 
-    // 🛡️ Temporizador de seguridad: Si por cualquier motivo tarda más de 3.5s, forzar navegación a /welcome
-    Future.delayed(const Duration(milliseconds: 3500), () {
-      if (mounted) {
-        debugPrint('🛡️ Safety timeout activado en SplashScreen -> navegando a /welcome');
-        Navigator.pushReplacementNamed(context, '/welcome');
-      }
-    });
+    // IMPORTANTE:
+    // No existe un Future.delayed que fuerce la navegación a /welcome.
+    // La navegación queda bajo el control exclusivo de _checkAuth().
   }
 
   Future<void> _checkAuth() async {
     try {
-      final splashDelay = Future.delayed(const Duration(milliseconds: 1500));
+      final splashDelay = Future.delayed(
+        const Duration(milliseconds: 1500),
+      );
 
-      // 🛑 1. CHECK DE VERSIÓN VÍA GOOGLE PLAY (In-App Updates)
+      // 1. CHECK DE VERSIÓN VÍA GOOGLE PLAY (In-App Updates)
+      //
+      // Este chequeo no debe bloquear indefinidamente el arranque.
+      // Si Google Play no responde rápidamente, continuamos normalmente.
       try {
         if (Theme.of(context).platform == TargetPlatform.android) {
-          final info = await InAppUpdate.checkForUpdate();
-          
+          final info = await InAppUpdate.checkForUpdate().timeout(
+            const Duration(seconds: 3),
+          );
+
           if (info.updateAvailability == UpdateAvailability.updateAvailable) {
-            
-            // Prioridad 4 o 5 (crítico) Y Play Store permite inmediato
+            // Actualización crítica e inmediata.
             if (info.updatePriority >= 4 && info.immediateUpdateAllowed) {
               await InAppUpdate.performImmediateUpdate();
-              
             } else if (info.flexibleUpdateAllowed) {
-              // Actualización normal/flexible
               InAppUpdate.installUpdateListener.listen((state) async {
                 if (state == InstallStatus.downloaded) {
-                  await InAppUpdate.completeFlexibleUpdate();
+                  try {
+                    await InAppUpdate.completeFlexibleUpdate();
+                  } catch (e) {
+                    debugPrint(
+                      'Error completando actualización flexible: $e',
+                    );
+                  }
                 }
               });
-              
-              await InAppUpdate.startFlexibleUpdate();
+
+              try {
+                await InAppUpdate.startFlexibleUpdate();
+              } catch (e) {
+                debugPrint(
+                  'Error iniciando actualización flexible: $e',
+                );
+              }
             }
           }
         }
+      } on TimeoutException {
+        debugPrint(
+          'In-App Update tardó demasiado. Continuando con el arranque normal.',
+        );
       } catch (e) {
-        debugPrint("Error in InAppUpdate: $e");
+        debugPrint('Error en InAppUpdate: $e');
       }
 
+      // 2. Recuperar tokens locales.
       final accessToken = await storage.read(key: "auth_token").timeout(
         const Duration(seconds: 2),
         onTimeout: () => null,
       );
+
       final refreshToken = await storage.read(key: "refresh_token").timeout(
         const Duration(seconds: 2),
         onTimeout: () => null,
       );
 
-      // Si no existe ningún token guardado, el usuario nunca ha iniciado sesión o hizo logout explícito
+      // No hay sesión local: ir a Welcome.
       if (accessToken == null && refreshToken == null) {
         await splashDelay;
+
         if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/welcome');
+        _navigateToWelcome();
         return;
       }
 
-      // Validar o refrescar la sesión si hay conexión (con timeout estricto para evitar bloqueos)
+      // 3. Validar/refrescar sesión.
+      //
+      // El timeout evita que Splash quede esperando indefinidamente
+      // al backend. Si ya existen tokens locales, se conserva la sesión
+      // como fallback para permitir el funcionamiento offline/lag.
       final hasSession = await ApiService.ensureValidSession().timeout(
         const Duration(milliseconds: 2000),
         onTimeout: () => (accessToken != null || refreshToken != null),
       );
 
       await splashDelay;
+
       if (!mounted) return;
 
-      // Si la sesión es válida O si tenemos tokens guardados (ej. modo offline o lag de servidor), mantenemos en /home
       final stayLoggedIn =
-          hasSession || (accessToken != null || refreshToken != null);
+          hasSession || accessToken != null || refreshToken != null;
 
       if (stayLoggedIn) {
         final paisId = await storage.read(key: "pais_id");
+
         if (!mounted) return;
+
         if (paisId == null || paisId.isEmpty || paisId == "null") {
-          final userId = await storage.read(key: "user_id");
-          final name = await storage.read(key: "name");
-          final email = await storage.read(key: "email");
-          final user = {
-            'id': int.tryParse(userId ?? '0'),
-            'name': name,
-            'email': email,
-          };
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => RegistroScreen(
-                user: user,
-                userId: int.tryParse(userId ?? '0'),
-                isSocialOnboarding: true,
-              ),
-            ),
-          );
+          await _navigateToRegistration();
           return;
         }
 
-        // 🔥 Sincronizar token FCM en segundo plano
+        // Sincronizar FCM en segundo plano.
         unawaited(PushNotificationService.syncToken());
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacementNamed(context, '/welcome');
+
+        _navigateToHome();
+        return;
       }
 
+      _navigateToWelcome();
     } catch (e) {
       debugPrint(
-        '💥 Error en auth check (red/splash): $e. Manteniendo sesión local si existen tokens.',
+        '💥 Error en auth check (red/splash): $e. '
+        'Manteniendo sesión local si existen tokens.',
       );
+
       if (!mounted) return;
 
-      final hasToken = (await storage.read(key: "auth_token")) != null ||
-          (await storage.read(key: "refresh_token")) != null;
+      // Fallback: si existen tokens locales, no expulsamos al usuario
+      // por un problema temporal de red/backend.
+      final accessToken = await storage.read(key: "auth_token");
+      final refreshToken = await storage.read(key: "refresh_token");
+
+      final hasToken = accessToken != null || refreshToken != null;
 
       if (hasToken) {
         final paisId = await storage.read(key: "pais_id");
+
         if (!mounted) return;
+
         if (paisId == null || paisId.isEmpty || paisId == "null") {
-          final userId = await storage.read(key: "user_id");
-          final name = await storage.read(key: "name");
-          final email = await storage.read(key: "email");
-          final user = {
-            'id': int.tryParse(userId ?? '0'),
-            'name': name,
-            'email': email,
-          };
-          if (!mounted) return;
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => RegistroScreen(
-                user: user,
-                userId: int.tryParse(userId ?? '0'),
-                isSocialOnboarding: true,
-              ),
-            ),
-          );
+          await _navigateToRegistration();
           return;
         }
-        if (!mounted) return;
-        PushNotificationService.syncToken();
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/welcome');
+
+        unawaited(PushNotificationService.syncToken());
+        _navigateToHome();
+        return;
       }
+
+      _navigateToWelcome();
     }
+  }
+
+  Future<void> _navigateToRegistration() async {
+    if (!mounted || _hasNavigated) return;
+
+    final userId = await storage.read(key: "user_id");
+    final name = await storage.read(key: "name");
+    final email = await storage.read(key: "email");
+
+    if (!mounted || _hasNavigated) return;
+
+    final parsedUserId = int.tryParse(userId ?? '0');
+
+    final user = {
+      'id': parsedUserId,
+      'name': name,
+      'email': email,
+    };
+
+    _hasNavigated = true;
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RegistroScreen(
+          user: user,
+          userId: parsedUserId,
+          isSocialOnboarding: true,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToHome() {
+    if (!mounted || _hasNavigated) return;
+
+    _hasNavigated = true;
+    Navigator.pushReplacementNamed(context, '/home');
+  }
+
+  void _navigateToWelcome() {
+    if (!mounted || _hasNavigated) return;
+
+    _hasNavigated = true;
+    Navigator.pushReplacementNamed(context, '/welcome');
   }
 
   @override
@@ -201,7 +246,7 @@ class _SplashScreenState extends State<SplashScreen>
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40.0),
                 child: Image.asset(
-                  "assets/images/logo_letras_.png", 
+                  "assets/images/logo_letras_.png",
                   fit: BoxFit.contain,
                 ),
               ),

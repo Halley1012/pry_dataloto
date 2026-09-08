@@ -46,7 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final storage = AppSecureStorage.instance;
   bool cargando = false;
   List<Map<String, dynamic>> anuncios = [];
-  bool isLoading = false;
+  bool isLoading = true;
   List<Post> posts = [];
   String? currentUserId;
   String? pais;
@@ -59,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DateTime? _lastBackPressTime;
   final ValueNotifier<Offset?> _flagPositionNotifier = ValueNotifier<Offset?>(null);
   final GlobalKey _homeTabStackKey = GlobalKey();
+  Future<void>? _homeLoadFuture;
 
   @override
   void initState() {
@@ -89,7 +90,38 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _loadUserAndData({bool forceRefresh = false}) async {
+  Future<T?> _keepCachedValueOnFailure<T>(Future<T> future) async {
+    try {
+      return await future;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Post> _postsFromCache(dynamic cachedPosts) {
+    if (cachedPosts is! List) return <Post>[];
+    try {
+      return cachedPosts
+          .whereType<Map>()
+          .map((post) => Post.fromJson(Map<String, dynamic>.from(post)))
+          .toList();
+    } catch (_) {
+      return <Post>[];
+    }
+  }
+
+  Future<void> _loadUserAndData({bool forceRefresh = false}) {
+    final inFlight = _homeLoadFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _loadUserAndDataInternal(forceRefresh: forceRefresh);
+    _homeLoadFuture = future;
+    return future.whenComplete(() {
+      if (identical(_homeLoadFuture, future)) _homeLoadFuture = null;
+    });
+  }
+
+  Future<void> _loadUserAndDataInternal({bool forceRefresh = false}) async {
     try {
       if (mounted) {
         context.read<SubscriptionProvider>().refreshSubscriptionStatus();
@@ -127,20 +159,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // ⚡ 1. Cargar desde caché local para despliegue instantáneo (0 ms) si no es forceRefresh
       if (!forceRefresh) {
-        final cachedLoterias = await CacheService.getJson('home_loterias_$cacheKeySuffix');
-        final cachedAnuncios = await CacheService.getJson('home_anuncios_$cacheKeySuffix');
-        final cachedGlobal = await CacheService.getJson('home_loterias_globales');
-        if (cachedLoterias != null && mounted) {
+        final cachedValues = await Future.wait([
+          CacheService.getJson('home_loterias_$cacheKeySuffix'),
+          CacheService.getJson('home_anuncios_$cacheKeySuffix'),
+          CacheService.getJson('home_loterias_globales'),
+          CacheService.getJson('home_posts_v1'),
+        ]);
+        final cachedLoterias = cachedValues[0];
+        final cachedAnuncios = cachedValues[1];
+        final cachedGlobal = cachedValues[2];
+        final cachedPosts = cachedValues[3];
+        final postsCache = _postsFromCache(cachedPosts);
+
+        if (mounted &&
+            (cachedLoterias is List ||
+                cachedAnuncios is List ||
+                cachedGlobal is List ||
+                postsCache.isNotEmpty)) {
           setState(() {
             currentUserId = userIdStr;
             pais = paisNombreStr ?? "Internacional";
             userName = nameStr;
             avatarUrl = avatarUrlStr;
-            _loterias = List<dynamic>.from(cachedLoterias);
+            if (cachedLoterias is List) {
+              _loterias = List<dynamic>.from(cachedLoterias);
+            }
             _filteredLoterias = List<dynamic>.from(_loterias);
-            if (cachedGlobal != null) _globalLoterias = List<dynamic>.from(cachedGlobal);
-            if (cachedAnuncios != null) anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
-            isLoading = false;
+            if (cachedGlobal is List) {
+              _globalLoterias = List<dynamic>.from(cachedGlobal);
+            }
+            if (cachedAnuncios is List) {
+              anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
+            }
+            if (postsCache.isNotEmpty) posts = postsCache;
+            isLoading = cachedLoterias is! List && cachedGlobal is! List;
             cargando = false;
           });
         }
@@ -149,25 +201,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_loterias.isEmpty) setState(() => isLoading = true);
 
       // 2. Cargar Posts, Anuncios y Loterías en PARALELO directamente desde el servidor
-      final Future<List<Post>> postsFuture = ApiService.getPosts().catchError((e) {
-        debugPrint("⚠️ Error al obtener posts: $e");
-        return <Post>[];
-      });
-
-      final anunciosFuture = ApiService.getPublicidades(paisId: paisIdInt).catchError((e) {
-        debugPrint("⚠️ Error al obtener publicidad: $e");
-        return <Map<String, dynamic>>[];
-      });
-
-      final loteriasFuture = (paisIdStr != null && paisIdStr.isNotEmpty)
-          ? ApiService.getLoteriasPorPais(paisIdStr).catchError((e) {
-              debugPrint("⚠️ Error al obtener loterías: $e");
-              return <dynamic>[];
-            })
-          : ApiService.getAllLoterias().catchError((e) {
-              debugPrint("⚠️ Error al obtener loterías globales: $e");
-              return <dynamic>[];
-            });
+      final postsFuture = _keepCachedValueOnFailure(ApiService.getPosts());
+      final anunciosFuture = _keepCachedValueOnFailure(
+        ApiService.getPublicidades(paisId: paisIdInt),
+      );
+      final loteriasFuture = _keepCachedValueOnFailure(
+        paisIdStr != null && paisIdStr.isNotEmpty
+            ? ApiService.getLoteriasPorPais(paisIdStr)
+            : ApiService.getAllLoterias(),
+      );
 
       final resultados = await Future.wait([
         postsFuture,
@@ -175,17 +217,21 @@ class _HomeScreenState extends State<HomeScreen> {
         loteriasFuture,
       ]);
 
-      final rawPosts = resultados[0] as List<Post>;
-
-      List<dynamic> loteriasRes = resultados[2];
-      List<dynamic> globalRes = [];
-      if (loteriasRes.isEmpty) {
+      final networkPosts = resultados[0] as List<Post>?;
+      final networkAnuncios = resultados[1] as List<Map<String, dynamic>>?;
+      final networkLoterias = resultados[2] as List<dynamic>?;
+      var refreshedFromNetwork =
+          networkPosts != null || networkAnuncios != null || networkLoterias != null;
+      final rawPosts = networkPosts ?? posts;
+      final anunciosRes = networkAnuncios ?? anuncios;
+      final loteriasRes = networkLoterias ?? _loterias;
+      var globalRes = _globalLoterias;
+      if (loteriasRes.isEmpty && globalRes.isEmpty) {
         try {
           globalRes = await ApiService.getAllLoterias();
-          CacheService.setJson('home_loterias_globales', globalRes);
-        } catch (e) {
-          debugPrint("⚠️ Error obteniendo loterías globales: $e");
-        }
+          await CacheService.setJson('home_loterias_globales', globalRes);
+          refreshedFromNetwork = true;
+        } catch (_) {}
       }
 
       String? finalName = nameStr;
@@ -237,7 +283,7 @@ class _HomeScreenState extends State<HomeScreen> {
         userName = finalName;
         avatarUrl = finalAvatar;
         posts = rawPosts;
-        anuncios = List<Map<String, dynamic>>.from(resultados[1]);
+        anuncios = List<Map<String, dynamic>>.from(anunciosRes);
         _loterias = loteriasRes;
         _filteredLoterias = List<dynamic>.from(_loterias);
         _globalLoterias = globalRes;
@@ -246,9 +292,20 @@ class _HomeScreenState extends State<HomeScreen> {
       });
 
       // 💾 Guardar en caché local
-      CacheService.setJson('home_loterias_$cacheKeySuffix', resultados[2]);
-      CacheService.setJson('home_anuncios_$cacheKeySuffix', resultados[1]);
-      DataRefreshManager.instance.markUpdated(RefreshModules.home);
+      await Future.wait([
+        if (networkLoterias != null)
+          CacheService.setJson('home_loterias_$cacheKeySuffix', networkLoterias),
+        if (networkAnuncios != null)
+          CacheService.setJson('home_anuncios_$cacheKeySuffix', networkAnuncios),
+        if (networkPosts != null)
+          CacheService.setJson(
+            'home_posts_v1',
+            networkPosts.map((post) => post.toJson()).toList(),
+          ),
+      ]);
+      if (refreshedFromNetwork) {
+        DataRefreshManager.instance.markUpdated(RefreshModules.home);
+      }
     } catch (e) {
       debugPrint("❌ Error al cargar la página principal: $e");
       if (!mounted) return;
@@ -1279,6 +1336,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHomeTab() {
     final isPremium = context.watch<SubscriptionProvider>().isPremium;
+    final showInitialSkeleton = isLoading && _loterias.isEmpty;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1293,53 +1351,55 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-                    SliverToBoxAdapter(
-                      child: _buildTopHeaderSection(context, isPremium),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildCountryHeader(isPremium),
-                    ),
-                    if (isLoading && _loterias.isEmpty)
+                    if (showInitialSkeleton)
                       SliverToBoxAdapter(
                         child: _buildHomeSkeleton(),
                       )
-                    else if (_filteredLoterias.isEmpty) ...[
+                    else ...[
                       SliverToBoxAdapter(
-                        child: _buildEmptyLoteriasState(),
+                        child: _buildTopHeaderSection(context, isPremium),
                       ),
-                      if (_globalLoterias.isNotEmpty)
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: _buildGlobalFallbackSection(),
-                          ),
-                        ),
-                    ] else ...[
                       SliverToBoxAdapter(
-                        child: _buildPopularesSection(),
+                        child: _buildCountryHeader(isPremium),
+                      ),
+                      if (_filteredLoterias.isEmpty) ...[
+                        SliverToBoxAdapter(
+                          child: _buildEmptyLoteriasState(),
+                        ),
+                        if (_globalLoterias.isNotEmpty)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 10),
+                              child: _buildGlobalFallbackSection(),
+                            ),
+                          ),
+                      ] else ...[
+                        SliverToBoxAdapter(
+                          child: _buildPopularesSection(),
+                        ),
+                        const SliverToBoxAdapter(
+                          child: SizedBox(height: 15),
+                        ),
+                        SliverToBoxAdapter(
+                          child: _buildTodasLoteriasSection(),
+                        ),
+                      ],
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 30),
+                      ),
+                      SliverToBoxAdapter(
+                        child: _buildBuscaloAquiSection(),
                       ),
                       const SliverToBoxAdapter(
-                        child: SizedBox(height: 15),
+                        child: SizedBox(height: 30),
                       ),
                       SliverToBoxAdapter(
-                        child: _buildTodasLoteriasSection(),
+                        child: _buildComunidadSection(),
+                      ),
+                      const SliverToBoxAdapter(
+                        child: SizedBox(height: 80),
                       ),
                     ],
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 30),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildBuscaloAquiSection(),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 30),
-                    ),
-                    SliverToBoxAdapter(
-                      child: _buildComunidadSection(),
-                    ),
-                    const SliverToBoxAdapter(
-                      child: SizedBox(height: 80),
-                    ),
                   ],
                 ),
               ),
@@ -1674,56 +1734,108 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHomeSkeleton() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1A1A1A),
-      highlightColor: const Color(0xFF2C2C2C),
-      period: const Duration(milliseconds: 1400),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const SizedBox(height: 10),
-          // Populares carousel skeleton
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
+    Widget box({double? width, required double height, double radius = 10}) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+    }
+
+    Widget sectionTitle({double width = 150}) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
+        child: box(width: width, height: 19, radius: 6),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // El logo es local: se muestra real incluso mientras el perfil carga.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: SizedBox(
+            height: 58,
             child: Row(
-              children: List.generate(
-                3,
-                (index) => Container(
-                  width: 150,
-                  height: 180,
-                  margin: const EdgeInsets.only(right: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+              children: [
+                Image.asset(
+                  'assets/images/eterlotto_gold_trans.png',
+                  width: 140,
+                  fit: BoxFit.contain,
+                ),
+                const Spacer(),
+                const Icon(
+                  Icons.notifications_outlined,
+                  color: AppColors.yellow,
+                  size: 30,
+                ),
+                const SizedBox(width: 14),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF252525),
+                    shape: BoxShape.circle,
                   ),
                 ),
-              ),
+              ],
             ),
           ),
-          const SizedBox(height: 20),
-          // Grid skeleton
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 1.1,
-            ),
-            itemBuilder: (context, index) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+        ),
+        Shimmer.fromColors(
+          baseColor: const Color(0xFF1A1A1A),
+          highlightColor: const Color(0xFF2C2C2C),
+          period: const Duration(milliseconds: 1400),
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 80),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 30, 16, 4),
+                  child: box(width: 210, height: 23, radius: 7),
                 ),
-              );
-            },
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: box(width: 160, height: 14, radius: 5),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 30, 16, 12),
+                  child: box(height: 92, radius: 16),
+                ),
+                sectionTitle(),
+                ...List.generate(
+                  3,
+                  (_) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: box(height: 86, radius: 16),
+                  ),
+                ),
+                sectionTitle(width: 125),
+                ...List.generate(
+                  2,
+                  (_) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                    child: box(height: 70, radius: 14),
+                  ),
+                ),
+                sectionTitle(width: 110),
+                ...List.generate(
+                  3,
+                  (_) => Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    child: box(height: 58, radius: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
