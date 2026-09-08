@@ -271,7 +271,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         module == RefreshModules.jugadas ||
         module == 'all') {
       if (mounted) {
-        debugPrint("🔄 [LoteriaScreen] Auto-refrescando ${config.nombre} por ciclo de vida / TTL");
         _cargarDataOptimizado(force: false);
       }
     }
@@ -357,8 +356,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         _jugadasController.reset();
         _jugadasController.forward();
       }
-    } catch (e) {
-      debugPrint("❌ Error cargando datos de ${config.nombre}: $e");
+    } catch (_) {
+      // Los errores individuales ya son aislados en cada carga.
     } finally {
       if (mounted) setState(() => cargando = false);
     }
@@ -406,8 +405,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson('${config.route}_prediccion', data);
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo predicción (${config.route}): $e");
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
     }
   }
 
@@ -443,8 +442,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson('${config.route}_ultimos5', {"resultados": list});
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo últimos resultados (${config.route}): $e");
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
     }
   }
 
@@ -465,18 +464,16 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson(cacheKey, {"resultados": list});
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo histórico (${config.route}): $e");
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
     }
   }
 
   Future<void> _loadJugadas() async {
-    final uId = userId ?? (await ApiService.getUserId())?.toString() ?? "anon";
-    final cacheKeyUser = 'user_jugadas_${config.route}_$uId';
-    final cacheKeyGeneral = 'mis_jugadas_${config.route}';
+    final uId = userId ?? (await ApiService.getUserId())?.toString();
+    final cacheKeyUser = 'user_jugadas_${config.route}_${uId ?? "anon"}';
 
-    final cached = await CacheService.getJson(cacheKeyUser) ??
-        await CacheService.getJson(cacheKeyGeneral);
+    final cached = await CacheService.getJson(cacheKeyUser);
     if (cached is List && mounted) {
       setState(() => _jugadasList = List<Map<String, dynamic>>.from(cached));
     }
@@ -487,7 +484,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         final list = List<Map<String, dynamic>>.from(response);
         setState(() => _jugadasList = list);
         await CacheService.setJson(cacheKeyUser, list);
-        await CacheService.setJson(cacheKeyGeneral, list);
       }
     } catch (_) {}
   }
@@ -616,7 +612,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     final Set<int> whitesSet = whites.toSet();
 
     if (_jugadasList.isEmpty) {
-      final cacheKey = 'mis_jugadas_${config.route}';
+      final cacheKey = 'user_jugadas_${config.route}_$currentUid';
       final cached = await CacheService.getJson(cacheKey);
       if (cached is List && cached.isNotEmpty) {
         _jugadasList = List<Map<String, dynamic>>.from(cached);
@@ -716,7 +712,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       _jugadasList.insert(0, nuevaJugada);
       final uIdStr = currentUid;
       await CacheService.setJson('user_jugadas_${config.route}_$uIdStr', _jugadasList);
-      await CacheService.setJson('mis_jugadas_${config.route}', _jugadasList);
 
       await _loadJugadas();
 
@@ -736,8 +731,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           ignoreThreshold: true,
         );
       }
-    } catch (e) {
-      debugPrint("❌ Error al guardar jugada: $e");
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

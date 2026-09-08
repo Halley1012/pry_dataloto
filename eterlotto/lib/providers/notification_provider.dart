@@ -1,20 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:eterlotto/models/notification_model.dart';
-import 'package:eterlotto/services/notification_service.dart';
+import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:eterlotto/services/notification_service.dart';
 
 class NotificationProvider with ChangeNotifier {
   List<NotificationModel> _notifications = [];
   bool _isLoading = false;
+  String? _activeUserId;
+  bool _userContextInitialized = false;
 
   List<NotificationModel> get notifications => _notifications;
   bool get isLoading => _isLoading;
   int get unreadCount => _notifications.where((n) => !n.leido).length;
 
   NotificationProvider() {
-    _loadFromCache();
+    _ensureUserContext();
     DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
+  }
+
+  String _cacheKey(String? userId) => 'notifications_cache_${userId ?? 'anon'}';
+
+  /// Las notificaciones contienen estado privado (leída/eliminada), por eso la
+  /// caché debe cambiar inmediatamente al cambiar de cuenta en el dispositivo.
+  Future<void> _ensureUserContext() async {
+    final userId = (await ApiService.getUserId())?.toString();
+    if (_userContextInitialized && _activeUserId == userId) return;
+
+    _userContextInitialized = true;
+    _activeUserId = userId;
+    _notifications = [];
+    await _loadFromCache(userId);
   }
 
   void _onDataRefreshNotification() {
@@ -24,15 +41,31 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _loadFromCache() async {
-    final cached = await CacheService.getJson('notifications_cache');
-    if (cached != null && cached is List && _notifications.isEmpty) {
-      _notifications = cached.map((item) => NotificationModel.fromJson(Map<String, dynamic>.from(item))).toList();
-      notifyListeners();
+  Future<void> _loadFromCache([String? userId]) async {
+    final cached = await CacheService.getJson(_cacheKey(userId ?? _activeUserId));
+    if (cached is List && _notifications.isEmpty) {
+      try {
+        _notifications = cached
+            .map((item) => NotificationModel.fromJson(
+                  Map<String, dynamic>.from(item as Map),
+                ))
+            .toList();
+        notifyListeners();
+      } catch (e) {
+        debugPrint('Error leyendo caché de notificaciones: $e');
+      }
     }
   }
 
+  Future<void> _saveCache() {
+    return CacheService.setJson(
+      _cacheKey(_activeUserId),
+      _notifications.map((notification) => notification.toJson()).toList(),
+    );
+  }
+
   Future<void> fetchNotifications({bool force = false}) async {
+    await _ensureUserContext();
     if (_notifications.isEmpty || force) {
       _isLoading = true;
       notifyListeners();
@@ -40,10 +73,9 @@ class NotificationProvider with ChangeNotifier {
     try {
       final fresh = await NotificationService.getNotifications();
       _notifications = fresh;
-      final rawList = fresh.map((n) => n.toJson()).toList();
-      CacheService.setJson('notifications_cache', rawList);
+      await _saveCache();
     } catch (e) {
-      debugPrint("Error fetching notifications: $e");
+      debugPrint('Error fetching notifications: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -51,55 +83,79 @@ class NotificationProvider with ChangeNotifier {
   }
 
   Future<void> markAsRead(int id) async {
+    await _ensureUserContext();
+    final index = _notifications.indexWhere((notification) => notification.id == id);
+    if (index == -1 || _notifications[index].leido) return;
+
+    final previous = _notifications[index];
+    _notifications[index] = previous.copyWith(leido: true);
+    notifyListeners();
+    await _saveCache();
+
     try {
       await NotificationService.markAsRead(id);
-      final index = _notifications.indexWhere((n) => n.id == id);
-      if (index != -1) {
-        _notifications[index] = _notifications[index].copyWith(leido: true);
-        notifyListeners();
-        final rawList = _notifications.map((n) => n.toJson()).toList();
-        CacheService.setJson('notifications_cache', rawList);
-      }
     } catch (e) {
-      debugPrint("Error marking as read: $e");
+      _notifications[index] = previous;
+      notifyListeners();
+      await _saveCache();
+      debugPrint('Error marking notification as read: $e');
     }
   }
 
   Future<void> markAllAsRead() async {
-    bool changed = false;
-    for (int i = 0; i < _notifications.length; i++) {
-      if (!_notifications[i].leido) {
-        changed = true;
-        final notifId = _notifications[i].id;
-        _notifications[i] = _notifications[i].copyWith(leido: true);
-        NotificationService.markAsRead(notifId).catchError((e) {
-          debugPrint("Error marking notification $notifId as read: $e");
-        });
-      }
-    }
-    if (changed) {
-      notifyListeners();
-      final rawList = _notifications.map((n) => n.toJson()).toList();
-      CacheService.setJson('notifications_cache', rawList);
-    }
+    await _ensureUserContext();
+    final unreadIds = _notifications
+        .where((notification) => !notification.leido)
+        .map((notification) => notification.id)
+        .toList();
+    if (unreadIds.isEmpty) return;
+
+    final previous = List<NotificationModel>.from(_notifications);
+    _notifications = _notifications
+        .map((notification) => notification.leido
+            ? notification
+            : notification.copyWith(leido: true))
+        .toList();
+    notifyListeners();
+    await _saveCache();
+
+    final results = await Future.wait<bool>(
+      unreadIds.map((id) async {
+        try {
+          await NotificationService.markAsRead(id);
+          return true;
+        } catch (e) {
+          debugPrint('Error marking notification $id as read: $e');
+          return false;
+        }
+      }),
+    );
+    if (results.every((success) => success)) return;
+
+    // Recupera del servidor el estado que no se pudo sincronizar.
+    _notifications = previous;
+    notifyListeners();
+    await _saveCache();
   }
 
-  Future<void> deleteNotification(int id) async {
-    final index = _notifications.indexWhere((n) => n.id == id);
-    if (index != -1) {
-      _notifications.removeAt(index);
+  Future<bool> deleteNotification(int id) async {
+    await _ensureUserContext();
+    final index = _notifications.indexWhere((notification) => notification.id == id);
+    if (index == -1) return false;
+
+    final removed = _notifications.removeAt(index);
+    notifyListeners();
+    await _saveCache();
+
+    try {
+      await NotificationService.deleteNotification(id);
+      return true;
+    } catch (e) {
+      _notifications.insert(index, removed);
       notifyListeners();
-
-      final rawList = _notifications.map((n) => n.toJson()).toList();
-      CacheService.setJson('notifications_cache', rawList);
-
-      try {
-        await NotificationService.deleteNotification(id);
-      } catch (e) {
-        debugPrint("Error deleting notification from server: $e");
-        // No reinsertamos para evitar parpadeos molestos en UI si fue eliminada localmente
-      }
+      await _saveCache();
+      debugPrint('Error deleting notification from server: $e');
+      return false;
     }
   }
 }
-

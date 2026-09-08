@@ -19,38 +19,50 @@ class CombinationGeneratorProvider with ChangeNotifier {
   List<GeneratedCombination> _combinations = [];
 
   CombinationGeneratorProvider() {
-    _loadLotteries(force: true);
+    // La apertura normal aprovecha la caché; el refresh manual usa force=true.
+    _loadLotteries();
   }
 
   Future<void> _loadLotteries({bool force = false}) async {
     _isLoadingLotteries = true;
+    _error = null;
     notifyListeners();
 
-    final list = await ApiService.getCombinationLotteries(forceRefresh: force);
-    _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
-    
     try {
-      final storage = AppSecureStorage.instance;
-      final userPais = await storage.read(key: "pais_nombre") ?? "Colombia";
-      
-      _supportedLotteries.sort((a, b) {
-        bool aIsLocal = a.country.toLowerCase() == userPais.toLowerCase();
-        bool bIsLocal = b.country.toLowerCase() == userPais.toLowerCase();
-        if (aIsLocal && !bIsLocal) return -1;
-        if (!aIsLocal && bIsLocal) return 1;
-        return a.name.compareTo(b.name);
-      });
-    } catch (_) {}
+      final list = await ApiService.getCombinationLotteries(forceRefresh: force);
+      _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
 
-    if (_supportedLotteries.isNotEmpty) {
-      bool exists = _supportedLotteries.any((l) => l.lotteryId == _selectedLottery);
-      if (!exists) {
-        _selectedLottery = _supportedLotteries.first.lotteryId;
+      try {
+        final storage = AppSecureStorage.instance;
+        final userPais = await storage.read(key: "pais_nombre") ?? "Colombia";
+
+        _supportedLotteries.sort((a, b) {
+          final aIsLocal = a.country.toLowerCase() == userPais.toLowerCase();
+          final bIsLocal = b.country.toLowerCase() == userPais.toLowerCase();
+
+          if (aIsLocal && !bIsLocal) return -1;
+          if (!aIsLocal && bIsLocal) return 1;
+          return a.name.compareTo(b.name);
+        });
+      } catch (_) {}
+
+      if (_supportedLotteries.isNotEmpty) {
+        final exists = _supportedLotteries.any(
+          (l) => l.lotteryId == _selectedLottery,
+        );
+
+        if (!exists) {
+          _selectedLottery = _supportedLotteries.first.lotteryId;
+        }
+      } else {
+        _error = 'No se pudieron cargar las loterías disponibles.';
       }
+    } catch (_) {
+      _error = 'No se pudieron cargar las loterías disponibles.';
+    } finally {
+      _isLoadingLotteries = false;
+      notifyListeners();
     }
-
-    _isLoadingLotteries = false;
-    notifyListeners();
   }
 
   /// Reloads the lottery list from the server (called on pull-to-refresh)
@@ -208,19 +220,39 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   Future<bool> saveAll(String userId) async {
-    if (_selectedLottery == null) return false;
+    if (_selectedLottery == null || _combinations.isEmpty) return false;
+
     bool allSuccess = true;
-    for (var combo in _combinations) {
-      final res = await ApiService.crearJugadaGenerica(
-        _selectedLottery!,
-        combo.mainNumbers, 
-        userId,
-        balotaRoja: combo.specialNumber,
-      );
-      if (res['id'] == null && res['error'] == null) {
-        // Assume failure or needs closer look, but let's just proceed.
+
+    // Las combinaciones generadas pertenecen al próximo sorteo mostrado
+    // en las reglas de la lotería. Guardamos esa fecha para que Mis Jugadas
+    // no las marque erróneamente con la fecha de hoy.
+    final rawNextDrawDate = selectedLotteryRules?.proximoSorteo;
+    final String? nextDrawDate =
+        rawNextDrawDate != null && rawNextDrawDate.trim().isNotEmpty
+            ? ApiService.getProximoSorteoFecha(
+                _selectedLottery!,
+                fechaPrediccion: rawNextDrawDate,
+              )
+            : null;
+
+    for (final combo in _combinations) {
+      try {
+        final numerosCompletos = <int>[
+          ...combo.mainNumbers,
+          ...combo.specialNumbers,
+        ];
+        await ApiService.crearJugadaGenerica(
+          _selectedLottery!,
+          numerosCompletos,
+          userId,
+          fechaSorteo: nextDrawDate,
+        );
+      } catch (_) {
+        allSuccess = false;
       }
     }
+
     return allSuccess;
   }
 }

@@ -10,6 +10,166 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
+class _CombinationGeneratorSkeleton extends StatefulWidget {
+  const _CombinationGeneratorSkeleton();
+
+  @override
+  State<_CombinationGeneratorSkeleton> createState() =>
+      _CombinationGeneratorSkeletonState();
+}
+
+class _CombinationGeneratorSkeletonState
+    extends State<_CombinationGeneratorSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Widget _box({
+    double height = 16,
+    double? width,
+    double radius = 8,
+  }) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (_, __) {
+        final opacity = 0.12 + (_controller.value * 0.10);
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: opacity),
+            borderRadius: BorderRadius.circular(radius),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _section({required Widget child}) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 18),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E24),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _box(height: 52, width: 52, radius: 26),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _box(height: 17, width: 230),
+                    const SizedBox(height: 8),
+                    _box(height: 12, width: double.infinity),
+                    const SizedBox(height: 5),
+                    _box(height: 12, width: 190),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          _section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _box(height: 14, width: 150),
+                const SizedBox(height: 12),
+                _box(height: 50, width: double.infinity, radius: 10),
+              ],
+            ),
+          ),
+          _section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _box(height: 14, width: 125),
+                const SizedBox(height: 12),
+                _box(height: 54, width: double.infinity, radius: 10),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _box(height: 28, width: 70, radius: 14),
+                    const SizedBox(width: 8),
+                    _box(height: 28, width: 70, radius: 14),
+                    const SizedBox(width: 8),
+                    _box(height: 28, width: 70, radius: 14),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          _section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _box(height: 14, width: 145),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _box(height: 48, radius: 10)),
+                    const SizedBox(width: 10),
+                    _box(height: 48, width: 70, radius: 10),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          _section(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _box(height: 14, width: 120),
+                const SizedBox(height: 12),
+                _box(height: 48, width: double.infinity, radius: 10),
+                const SizedBox(height: 12),
+                _box(height: 40, width: double.infinity, radius: 10),
+              ],
+            ),
+          ),
+          _box(height: 52, width: double.infinity, radius: 14),
+          const SizedBox(height: 24),
+          _box(height: 18, width: 170),
+          const SizedBox(height: 12),
+          _box(height: 100, width: double.infinity, radius: 14),
+        ],
+      ),
+    );
+  }
+}
+
 class CombinationGeneratorScreen extends StatefulWidget {
   const CombinationGeneratorScreen({super.key});
 
@@ -80,9 +240,10 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
           builder: (context, provider, child) {
             final l10n = AppLocalizations.of(context);
 
-            // Show full-screen loader while lotteries are being fetched for the first time
-            if (provider.isLoadingLotteries) {
-              return const Center(child: CircularProgressIndicator(color: AppColors.yellow));
+            // Si aún no hay datos, mostramos Skeleton en lugar de bloquear
+            // toda la pantalla con un spinner.
+            if (provider.isLoadingLotteries && provider.supportedLotteries.isEmpty) {
+              return const _CombinationGeneratorSkeleton();
             }
 
             return RefreshIndicator(
@@ -691,8 +852,9 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                     crossAxisAlignment: WrapCrossAlignment.center,
                                     children: [
                                       ...combo.mainNumbers.map((n) => _buildMiniBalota(n, false)),
-                                      if (combo.specialNumber != null)
-                                        _buildMiniBalota(combo.specialNumber!, true),
+                                      ...combo.specialNumbers.map(
+                                        (n) => _buildMiniBalota(n, true),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -703,7 +865,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                   constraints: const BoxConstraints(),
                                   tooltip: "Copiar",
                                   onPressed: () {
-                                    final text = "${combo.mainNumbers.join(' · ')}${combo.specialNumber != null ? ' + ${combo.specialNumber}' : ''}";
+                                    final text = "${combo.mainNumbers.join(' · ')}${combo.specialNumbers.isNotEmpty ? ' + ${combo.specialNumbers.join(' · ')}' : ''}";
                                     Clipboard.setData(ClipboardData(text: text));
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
