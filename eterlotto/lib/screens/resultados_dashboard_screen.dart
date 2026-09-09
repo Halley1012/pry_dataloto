@@ -32,6 +32,10 @@ class ResultadosDashboardScreen extends StatefulWidget {
   final String? loteriaRoute;
   final Map<String, dynamic>? loteriaData;
   final bool openHistory;
+  /// Fecha de un sorteo concreto, por ejemplo al abrir Resultados desde una
+  /// jugada guardada. Si es nula, se conserva el comportamiento normal: se
+  /// muestra el último sorteo oficial disponible.
+  final String? targetDrawDate;
 
   const ResultadosDashboardScreen({
     super.key,
@@ -39,6 +43,7 @@ class ResultadosDashboardScreen extends StatefulWidget {
     this.loteriaRoute,
     this.loteriaData,
     this.openHistory = false,
+    this.targetDrawDate,
   });
 
   @override
@@ -221,10 +226,16 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
+    final requestedDrawDate = _normalizarFechaISO(
+      widget.targetDrawDate?.toString() ?? '',
+    );
     // Este payload incluye las jugadas del usuario, por eso nunca puede
     // compartirse entre sesiones aunque los resultados sean públicos.
     final userId = (await ApiService.getUserId())?.toString() ?? 'anon';
-    final cacheKey = 'resultados_dashboard_cache_v9_${route}_$userId';
+    // Una consulta dirigida a un sorteo histórico no puede reutilizar el
+    // resultado de la última fecha (ni viceversa).
+    final cacheKey =
+        'resultados_dashboard_cache_v10_${route}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
     // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
     if (!forceRefresh) {
@@ -289,7 +300,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final necesitaHistorico =
           sorteosList.length < 10 ||
           conteoPorSorteo.values.any((conteo) => conteo < 10);
-      if (necesitaHistorico) {
+      // Una jugada puede pertenecer a un sorteo que ya no está entre los
+      // últimos cinco. En ese caso se consulta el histórico para localizar
+      // exactamente su fecha, sin nombres ni reglas particulares por lotería.
+      if (necesitaHistorico || requestedDrawDate.isNotEmpty) {
         try {
           final extraSorteos = await ApiService.getHistorico50(route);
           if (extraSorteos.isNotEmpty) {
@@ -302,8 +316,18 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         } catch (_) {}
       }
 
+      if (requestedDrawDate.isNotEmpty) {
+        sorteosList = sorteosList
+            .where(
+              (s) =>
+                  _normalizarFechaISO(s['fecha']?.toString() ?? '') ==
+                  requestedDrawDate,
+            )
+            .toList();
+      }
+
       // Determinar la fecha exacta del sorteo evaluado
-      String targetDrawDate = "";
+      String targetDrawDate = requestedDrawDate;
       if (sorteosList.isNotEmpty) {
         final isBalotoSession = _selectedLoteria.toLowerCase().contains(
           "baloto",

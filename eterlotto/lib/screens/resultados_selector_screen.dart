@@ -31,6 +31,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _paises = [];
   final _storage = AppSecureStorage.instance;
   String? _userCountry;
+  String? _userCountryId;
+  Set<String> _activePlayedRoutes = <String>{};
+  Set<String> _pastPlayedRoutes = <String>{};
   bool _isLoading = true;
   String _selectedFilter = 'recientes';
 
@@ -68,9 +71,12 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     if (!mounted) return;
 
     final uCountry = await _storage.read(key: 'pais_nombre') ?? "Internacional";
+    final uCountryId = await _storage.read(key: 'pais_id');
     // Los resultados son públicos. La preferencia de país sólo organiza la
     // lista, por lo que la caché puede ser compartida y no depende del usuario.
-    const cacheKey = 'resultados_selector_v5';
+    const cacheKey = 'resultados_selector_v6';
+    final userPlaysFuture = ApiService.getLoteriasInfoJugadas()
+        .catchError((_) => <String, Map<String, dynamic>>{});
 
     if (!forceRefresh) {
       // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
@@ -83,6 +89,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             .toList();
         setState(() {
           _userCountry = uCountry;
+          _userCountryId = uCountryId;
+          _activePlayedRoutes = <String>{};
+          _pastPlayedRoutes = <String>{};
           _loterias = cachedWithResults;
           _filteredLoterias = _filterBySelectedView(_loterias);
           if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
@@ -96,15 +105,20 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     if (_loterias.isEmpty) setState(() => _isLoading = true);
 
     try {
-      // Sólo una lotería con resultados oficiales entra en Recientes. No se
-      // usa "activa", jugadas del usuario ni próximo sorteo como sustitutos.
-      final todas = await _obtenerTodasLasLoterias(force: forceRefresh);
+      final results = await Future.wait([
+        _obtenerTodasLasLoterias(force: forceRefresh),
+        userPlaysFuture,
+      ]);
+      final todas = results[0] as List<Map<String, dynamic>>;
+      final userPlays = results[1] as Map<String, Map<String, dynamic>>;
       final finalLoterias = todas.where(_hasRecordedDraw).toList()
         ..sort((a, b) => _lastDrawDate(b).compareTo(_lastDrawDate(a)));
 
       if (mounted) {
         setState(() {
           _userCountry = uCountry;
+          _userCountryId = uCountryId;
+          _setPlayedRoutes(userPlays);
           _loterias = finalLoterias;
           _filteredLoterias = _filterBySelectedView(finalLoterias);
           _isLoading = false;
@@ -170,22 +184,72 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   bool _hasRecordedDraw(Map<String, dynamic> loteria) =>
       _lastDrawRaw(loteria) != null;
 
-  int _recordedDrawCount(Map<String, dynamic> loteria) {
-    final count = int.tryParse(loteria['sorteos_registrados']?.toString() ?? '');
-    // Compatibilidad temporal con caché de una versión previa: si existe la
-    // última fecha oficial, por lo menos hay un sorteo reciente.
-    return count ?? (_hasRecordedDraw(loteria) ? 1 : 0);
+  String _routeOf(Map<String, dynamic> loteria) {
+    final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+    if (rawRoute != null && rawRoute.isNotEmpty) return rawRoute;
+    return loteria['nombre']
+        .toString()
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[áàäâ]'), 'a')
+        .replaceAll(RegExp(r'[éèëê]'), 'e')
+        .replaceAll(RegExp(r'[íìïî]'), 'i')
+        .replaceAll(RegExp(r'[óòöô]'), 'o')
+        .replaceAll(RegExp(r'[úùüû]'), 'u')
+        .replaceAll(RegExp(r'[ñ]'), 'n')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
+  void _setPlayedRoutes(Map<String, Map<String, dynamic>> userPlays) {
+    _activePlayedRoutes = <String>{};
+    _pastPlayedRoutes = <String>{};
+    for (final entry in userPlays.entries) {
+      final route = entry.key.trim().toLowerCase();
+      if (route.isEmpty) continue;
+      final drawDate = entry.value['fecha']?.toString();
+      if (_drawDayDifference(drawDate) >= 0) {
+        _activePlayedRoutes.add(route);
+      } else {
+        _pastPlayedRoutes.add(route);
+      }
+    }
+  }
+
+  bool _isFromUserCountry(Map<String, dynamic> loteria) {
+    final countryId = loteria['pais_id']?.toString();
+    if (_userCountryId != null && _userCountryId!.isNotEmpty) {
+      return countryId == _userCountryId;
+    }
+    return _getPaisNombre(loteria['pais_id']).trim().toLowerCase() ==
+        (_userCountry ?? '').trim().toLowerCase();
+  }
+
+  int _drawDayDifference(String? fecha) {
+    if (fecha == null || fecha.trim().isEmpty) return -1;
+    final clean = fecha.trim();
+    final parsed = DateTime.tryParse(clean) ??
+        (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+    if (parsed == null) return -1;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final drawDay = DateTime(parsed.year, parsed.month, parsed.day);
+    return drawDay.difference(today).inDays;
   }
 
   List<Map<String, dynamic>> _filterBySelectedView(
     List<Map<String, dynamic>> source,
   ) {
     if (_selectedFilter == 'historial') {
-      // El último resultado permanece en Recientes. Historial comienza sólo
-      // cuando ya existe al menos un sorteo oficial anterior.
-      return source.where((lot) => _recordedDrawCount(lot) > 1).toList();
+      // Una lotería internacional se mueve aquí cuando su última jugada ya
+      // pasó y el usuario no conserva otra para un sorteo futuro.
+      return source.where((lot) =>
+          !_isFromUserCountry(lot) && _pastPlayedRoutes.contains(_routeOf(lot))).toList();
     }
-    return source.where(_hasRecordedDraw).toList();
+    // El país del usuario siempre se mantiene visible; del resto del mundo
+    // sólo se muestran las loterías donde aún hay una jugada pendiente.
+    return source.where((lot) =>
+        _isFromUserCountry(lot) || _activePlayedRoutes.contains(_routeOf(lot))).toList();
   }
 
   void _selectView(String view) {
@@ -614,7 +678,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final rawFecha = _lastDrawRaw(loteria);
     final fechaDisplay = _formatearFechaSimple(rawFecha);
     final estadoDisplay = _calcularEstadoSorteo(rawFecha);
-    final historicalCount = (_recordedDrawCount(loteria) - 1).clamp(0, 9999);
     final openingHistory = _selectedFilter == 'historial';
 
     return Container(
@@ -672,35 +735,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           ],
         ),
         trailing: openingHistory
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF141414),
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(color: Colors.white12),
-                    ),
-                    child: Text(
-                      '$historicalCount',
-                      style: const TextStyle(
-                        color: AppColors.yellow,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(
-                    Icons.history_rounded,
-                    color: AppColors.yellow,
-                    size: 18,
-                  ),
-                ],
+            ? const Icon(
+                Icons.history_rounded,
+                color: AppColors.yellow,
+                size: 18,
               )
             : const Icon(
                 Icons.analytics_outlined,

@@ -2730,13 +2730,13 @@ abstract class AppLocalizations {
   /// No description provided for @sinHistorialResultados.
   ///
   /// In es, this message translates to:
-  /// **'Aún no hay resultados históricos'**
+  /// **'Aún no tienes resultados en el historial'**
   String get sinHistorialResultados;
 
   /// No description provided for @sinHistorialResultadosDescripcion.
   ///
   /// In es, this message translates to:
-  /// **'Los sorteos anteriores aparecerán aquí cuando cada lotería tenga más de un resultado oficial.'**
+  /// **'Aquí aparecerán las loterías internacionales cuando ya haya pasado el sorteo de tu última jugada.'**
   String get sinHistorialResultadosDescripcion;
 
   /// No description provided for @porDefinir.
