@@ -338,6 +338,25 @@ class PostgresUserRepository(UserRepositoryPort):
             )
             return int(row["user_id"]) if row else None
 
+    async def find_current_subscription(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Devuelve la suscripción vigente que determina el acceso VIP."""
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            row = await conn.fetchrow(
+                """
+                SELECT status, expires_at
+                FROM user_subscriptions
+                WHERE user_id = $1
+                  AND status IN ('active', 'canceled', 'grace_period')
+                  AND expires_at > CURRENT_TIMESTAMP
+                ORDER BY expires_at DESC, created_at DESC
+                LIMIT 1
+                """,
+                user_id,
+            )
+            return dict(row) if row else None
+
     async def update_subscription_state(
         self,
         user_id: int,
