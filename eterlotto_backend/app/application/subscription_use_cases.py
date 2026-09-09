@@ -216,6 +216,14 @@ class SubscriptionUseCases:
                 # La reactivación debe venir de Google Play mediante /confirm o RTDN.
                 pass
 
+        current_subscription = await self.user_repo.find_current_subscription(user_id)
+        subscription_status = (
+            current_subscription.get("status") if current_subscription else None
+        )
+        can_restore_subscription = (
+            is_premium is True and subscription_status == "canceled"
+        )
+
         return {
             "success": True,
             "user_id": user_id,
@@ -224,5 +232,7 @@ class SubscriptionUseCases:
                 expires_at.isoformat()
                 if isinstance(expires_at, datetime)
                 else expires_at
-            )
+            ),
+            "subscription_status": subscription_status,
+            "can_restore_subscription": can_restore_subscription,
         }
