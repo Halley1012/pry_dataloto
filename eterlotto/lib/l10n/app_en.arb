@@ -617,7 +617,7 @@
   "pagarEpayco": "Pay with ePayco",
   "errorAnuncios": "Error loading ads.",
   "numerosLabel": "Numbers",
-  "descripcionHistoricoResultados": "Check the 50 most recent draws or download the full history to analyze the data on your own.",
+  "descripcionHistoricoResultados": "Check the 25 most recent draws or download the full history to analyze the data on your own.",
   "cargarMasSorteos": "Load 50 more ({count} remaining)",
   "@cargarMasSorteos": {
     "placeholders": {

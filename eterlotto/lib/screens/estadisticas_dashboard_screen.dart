@@ -51,6 +51,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   late int maxBalota;
   late int maxRoja;
   late int maxSeleccion;
+  late int cantidadEspeciales;
   late bool hasRevancha;
   late String nombreSorteoPrincipal;
   late String nombreSorteoSecundario;
@@ -58,7 +59,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
 
   // Comparación de Jugada Flotante (Draggable)
   List<int> _balotasComparacion = [];
-  int? _superbalotaComparacion;
+  List<int> _especialesComparacion = [];
   int? _jugadaId;
   String? _fechaSorteoOriginal;
   bool _isSavingJugada = false;
@@ -92,6 +93,27 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     maxBalota = int.tryParse(widget.loteriaData?['max_balotas_blancas']?.toString() ?? '') ?? 45;
     maxRoja = int.tryParse(widget.loteriaData?['max_balotas_rojas']?.toString() ?? '') ?? 0;
     maxSeleccion = int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ?? 5;
+    final totalBalotasSorteo = int.tryParse(
+      (widget.loteriaData?['total_balotas_sorteo'] ??
+              widget.loteriaData?['totalBalotasSorteo'])
+          ?.toString() ??
+          '',
+    );
+    final cantidadEspecialesExplicita = int.tryParse(
+      (widget.loteriaData?['special_numbers_count'] ??
+              widget.loteriaData?['specialNumbersCount'])
+          ?.toString() ??
+          '',
+    );
+    final tieneComplementario = widget.loteriaData?['tiene_complementario'] == true ||
+        widget.loteriaData?['tieneComplementario'] == true;
+    cantidadEspeciales = math.max(
+      0,
+      cantidadEspecialesExplicita ??
+          (totalBalotasSorteo != null
+              ? totalBalotasSorteo - maxSeleccion - (tieneComplementario ? 1 : 0)
+              : (maxRoja > 0 ? 1 : 0)),
+    ).toInt();
     hasRevancha = widget.loteriaData?['has_revancha'] == true;
     nombreSorteoPrincipal = widget.loteriaNombreInicial;
     nombreSorteoSecundario = "Secundario";
@@ -109,9 +131,21 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           maxSeleccion = _balotasComparacion.length;
         }
       }
+      final rawEspeciales = widget.jugadaComparacion!["especiales"];
+      if (rawEspeciales is List) {
+        _especialesComparacion = rawEspeciales
+            .map((e) => int.tryParse(e.toString()) ?? -1)
+            .where((n) => n > 0)
+            .take(cantidadEspeciales)
+            .toList();
+      }
+      // Compatibilidad con jugadas antiguas que sólo guardaban una especial.
       final rawRoja = widget.jugadaComparacion!["balota_roja"] ?? widget.jugadaComparacion!["superbalota"];
-      if (rawRoja != null) {
-        _superbalotaComparacion = int.tryParse(rawRoja.toString());
+      if (_especialesComparacion.isEmpty && rawRoja != null) {
+        final especial = int.tryParse(rawRoja.toString());
+        if (especial != null && cantidadEspeciales > 0) {
+          _especialesComparacion = [especial];
+        }
       }
       final rawTitulo = widget.jugadaComparacion!["titulo"]?.toString() ?? "Jugada #1";
       _tituloComparacion = rawTitulo.replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
@@ -461,7 +495,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
     final double maxW = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width;
     final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
 
-    final int totalBalls = _balotasComparacion.length + (_superbalotaComparacion != null ? 1 : 0);
+    final int totalBalls = _balotasComparacion.length + _especialesComparacion.length;
     final double estimatedWidth = (totalBalls * 46.0 + 80.0).clamp(240.0, maxW - 20.0);
     const double estimatedHeight = 106.0;
 
@@ -643,8 +677,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               ),
                             );
                           }),
-                          if (_superbalotaComparacion != null) ...[
-                            Container(
+                          ..._especialesComparacion.map((especial) {
+                            return Container(
                               margin: const EdgeInsets.symmetric(horizontal: 3.5),
                               width: 38,
                               height: 38,
@@ -674,7 +708,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                               ),
                               child: Center(
                                 child: Text(
-                                  "$_superbalotaComparacion",
+                                  "$especial",
                                   style: const TextStyle(
                                     color: Colors.white,
                                     fontSize: 14.5,
@@ -682,8 +716,8 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            );
+                          }),
                         ],
                       ),
                     ),
@@ -825,10 +859,14 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
       return;
     }
 
-    if (maxRoja > 0 && _superbalotaComparacion == null) {
+    if (cantidadEspeciales > 0 && _especialesComparacion.length != cantidadEspeciales) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Debes seleccionar la balota roja / superbalota."),
+        SnackBar(
+          content: Text(
+            cantidadEspeciales == 1
+                ? "Debes seleccionar una balota especial."
+                : "Debes seleccionar exactamente $cantidadEspeciales balotas especiales.",
+          ),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -862,7 +900,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           _jugadaId!,
           sortedWhites,
           userId,
-          balotaRoja: _superbalotaComparacion,
+          specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
         );
       } else {
@@ -871,7 +909,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           routeName,
           sortedWhites,
           userId,
-          balotaRoja: _superbalotaComparacion,
+          specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
         );
         success = res.isNotEmpty;
@@ -1005,8 +1043,11 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
   }
 
   Widget _buildRedBallsSection(AppLocalizations? l10n) {
-    if (maxRoja <= 0) return const SizedBox.shrink();
+    if (maxRoja <= 0 || cantidadEspeciales <= 0) return const SizedBox.shrink();
     final rojas = _obtenerListaBalotaRoja();
+    final titulo = cantidadEspeciales == 1
+        ? (l10n?.balotasRojas ?? "Balota especial")
+        : "Balotas especiales";
 
     return AppContainer3(
       child: Column(
@@ -1016,16 +1057,16 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                l10n?.balotasRojas ?? "Balotas Rojas",
+                titulo,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 16,
                 ),
               ),
-              if (_superbalotaComparacion != null)
+              if (_especialesComparacion.isNotEmpty)
                 InkWell(
-                  onTap: () => setState(() => _superbalotaComparacion = null),
+                  onTap: () => setState(() => _especialesComparacion = []),
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4.0),
@@ -1036,7 +1077,7 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
           ),
           const SizedBox(height: 4),
           Text(
-            l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad.",
+            "Selecciona $cantidadEspeciales ${cantidadEspeciales == 1 ? 'número especial' : 'números especiales'}. ${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."}",
             style: const TextStyle(color: Colors.white38, fontSize: 11),
           ),
           const SizedBox(height: 18),
@@ -1054,13 +1095,17 @@ class _EstadisticasDashboardScreenState extends State<EstadisticasDashboardScree
                 crossAxisSpacing: spacing,
                 mainAxisSpacing: spacing,
                 children: rojas.map((numero) {
-                  final bool isSelected = _superbalotaComparacion == numero;
+                  final bool isSelected = _especialesComparacion.contains(numero);
                   final Color baseColor = isSelected ? Colors.amber : const Color(0xFFC62828);
 
                   return GestureDetector(
                     onTap: () {
                       setState(() {
-                        _superbalotaComparacion = isSelected ? null : numero;
+                        if (isSelected) {
+                          _especialesComparacion.remove(numero);
+                        } else if (_especialesComparacion.length < cantidadEspeciales) {
+                          _especialesComparacion.add(numero);
+                        }
                       });
                     },
                     child: _build3DBall(

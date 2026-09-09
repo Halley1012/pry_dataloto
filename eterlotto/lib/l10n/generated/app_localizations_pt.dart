@@ -1106,7 +1106,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get descripcionHistoricoResultados =>
-      'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.';
+      'Consulte os 25 sorteios mais recentes ou baixe o histórico completo para analisar os dados por conta própria.';
 
   @override
   String cargarMasSorteos(int count) {

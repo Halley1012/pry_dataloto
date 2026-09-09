@@ -1103,7 +1103,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get descripcionHistoricoResultados =>
-      'Check the 50 most recent draws or download the full history to analyze the data on your own.';
+      'Check the 25 most recent draws or download the full history to analyze the data on your own.';
 
   @override
   String cargarMasSorteos(int count) {

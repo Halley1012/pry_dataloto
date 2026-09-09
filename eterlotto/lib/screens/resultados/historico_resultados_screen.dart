@@ -40,6 +40,8 @@ class HistoricoResultadosScreen extends StatefulWidget {
 }
 
 class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
+  static const int _visibleResultsLimit = 25;
+
   bool _isLoading = true;
   bool _isExporting = false;
   String? _errorMessage;
@@ -305,11 +307,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
       final evaluados = dedup.where((r) => _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") != null).toList();
       if (evaluados.isNotEmpty) {
-        return evaluados.take(50).toList();
+        return evaluados.take(_visibleResultsLimit).toList();
       }
     }
 
-    return dedup.take(50).toList();
+    return dedup.take(_visibleResultsLimit).toList();
   }
 
   Widget _buildActionButton({
@@ -696,7 +698,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                l10n?.descripcionHistoricoResultados ?? "Consulta los 50 sorteos más recientes o pulsa el botón Excel para descargar el histórico completo de la base de datos.",
+                                l10n?.descripcionHistoricoResultados ?? "Consulta los 25 sorteos más recientes o pulsa el botón Excel para descargar el histórico completo de la base de datos.",
                                 style: GoogleFonts.montserrat(
                                   fontSize: 11,
                                   color: Colors.white70,
@@ -910,7 +912,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                               ),
                             const Divider(color: Colors.white12, height: 16),
 
-                            // Filas de sorteos visibles (hasta 50)
+                            // Filas de sorteos visibles (hasta 25 por pestaña).
                             ...List.generate(listToShow.length, (rowIndex) {
                               final resultado = listToShow[rowIndex];
                               final rawDate = resultado["fecha"]?.toString() ?? "";
