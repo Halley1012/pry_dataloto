@@ -462,6 +462,9 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
 
                 # ⚡ 3. Asignar próximo sorteo y jackpot sin consultas redundantes
                 for lot in loterias:
+                    # Este contador sólo contempla filas con balotas oficiales;
+                    # nunca predicciones ni marcadores de próximo sorteo.
+                    lot['sorteos_registrados'] = 0
                     r = (lot.get('route') or '').strip().lower()
                     if not r:
                         r = lot['nombre'].lower().strip().replace(' ', '_')
@@ -487,6 +490,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
+
+                                cur.execute(f"SELECT COUNT(*) AS total_sorteos FROM {tabla} WHERE numero > 0")
+                                res_count = cur.fetchone()
+                                if res_count:
+                                    total = res_count['total_sorteos'] if isinstance(res_count, dict) and 'total_sorteos' in res_count else res_count[0]
+                                    lot['sorteos_registrados'] = int(total or 0)
                             else:
                                 cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0")
                                 res = cur.fetchone()
@@ -501,6 +510,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
+
+                                cur.execute(f"SELECT COUNT(*) AS total_sorteos FROM {tabla} WHERE balota1 > 0")
+                                res_count = cur.fetchone()
+                                if res_count:
+                                    total = res_count['total_sorteos'] if isinstance(res_count, dict) and 'total_sorteos' in res_count else res_count[0]
+                                    lot['sorteos_registrados'] = int(total or 0)
                         except Exception as e:
                             logging.getLogger(__name__).error(f'Error capturado: {e}')
                             try:

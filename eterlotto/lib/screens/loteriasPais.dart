@@ -77,8 +77,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       // ⚡ Cargar países y todas las loterías de forma ultra rápida en 1 sola petición
       final results = await Future.wait([
         ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
-        ApiService.getAllLoterias().catchError((e) {
-          debugPrint("Error cargando todas las loterías: $e");
+        ApiService.getAllLoterias().catchError((_) {
           return <dynamic>[];
         }),
       ]);
@@ -105,9 +104,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           CacheService.setJson('explorar_loterias_mundial', todas);
         }
       }
-    } catch (e) {
-      debugPrint("❌ Error crítico en Explorar Mundial: $e");
-    } finally {
+    } catch (_) {} finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }

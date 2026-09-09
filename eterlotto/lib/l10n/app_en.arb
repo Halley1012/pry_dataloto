@@ -779,5 +779,15 @@
   "guardando": "Saving...",
   "jugadasGuardadasConExito": "Plays saved successfully",
   "errorAlGuardarJugadas": "There was an error saving some plays",
-  "debesIniciarSesionParaGuardar": "You must log in to save"
+  "debesIniciarSesionParaGuardar": "You must log in to save",
+  "informacionNoDisponible": "Information unavailable",
+  "datosLoteriaNoDisponibles": "This lottery does not have results or predictions available yet.",
+  "datosLoteriaSinConexion": "We could not update the data. Check your connection and try again.",
+  "reintentar": "Try again",
+  "sinResultadosRegistrados": "No results have been recorded yet",
+  "sinResultadosRegistradosDescripcion": "Lotteries will appear here once their first official draw is recorded.",
+  "resultadosRecientes": "Recent",
+  "sinHistorialResultados": "No historical results yet",
+  "sinHistorialResultadosDescripcion": "Previous draws will appear here once each lottery has more than one official result.",
+  "porDefinir": "To be confirmed"
 }

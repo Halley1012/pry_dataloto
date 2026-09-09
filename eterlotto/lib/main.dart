@@ -61,8 +61,7 @@ void main() {
       unawaited(AdService.instance.initialize());
     },
 
-    (error, stack) {
-      debugPrint("❌ Error capturado en runZonedGuarded: $error");
+    (error, _) {
       if (error.toString().contains("401") ||
           error.toString().contains("Token inválido")) {
         // Si el token está inválido → limpiar stack y mandar a Login
@@ -70,8 +69,6 @@ void main() {
           '/login',
           (route) => false,
         );
-      } else {
-        debugPrint("🔥 Error no controlado: $error");
       }
     },
   );
@@ -96,6 +93,20 @@ class EterlottoApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           initialRoute: '/splash',
           title: 'Eterlotto',
+          // Mantiene la interfaz legible con la escala de accesibilidad del
+          // dispositivo, sin permitir que una escala extrema rompa filas o
+          // tarjetas que ya se adaptan a cualquier idioma/país.
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                textScaler: mediaQuery.textScaler.clamp(
+                  maxScaleFactor: 1.15,
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           locale: localeProvider.locale,
           localizationsDelegates: [
             AppLocalizations.delegate,

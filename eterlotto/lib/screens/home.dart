@@ -84,7 +84,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final module = DataRefreshManager.instance.refreshNotifier.value;
     if (module == RefreshModules.home || module == 'all') {
       if (mounted) {
-        debugPrint("🔄 [HomeScreen] Auto-refrescando datos por notificación de ciclo de vida / TTL");
         _loadUserAndData(forceRefresh: false);
       }
     }
@@ -270,9 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
               }
             }
           }
-        } catch (e) {
-          debugPrint("⚠️ Error consultando perfil de usuario: $e");
-        }
+        } catch (_) {}
       }
 
       if (!mounted) return;
@@ -306,8 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (refreshedFromNetwork) {
         DataRefreshManager.instance.markUpdated(RefreshModules.home);
       }
-    } catch (e) {
-      debugPrint("❌ Error al cargar la página principal: $e");
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         isLoading = false;
@@ -371,7 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 : "Explora las loterias más jugadas en el país."));
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 30.0, 16.0, 12.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 25.0, 16.0, 12.0),
       child: GestureDetector(
         onTap: () async {
           await Navigator.push(context, MaterialPageRoute(builder: (_) => const LoteriasPais()));
@@ -380,9 +376,30 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
           decoration: BoxDecoration(
-            color: const Color(0xFF161616), // Dark background for the card
+            gradient: isPremium
+                ? const LinearGradient(
+                    colors: [Color(0xFF1D1A0B), Color(0xFF151515)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: isPremium ? null : const Color(0xFF161616),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white12, width: 1.0),
+            border: Border.all(
+              color: isPremium
+                  ? AppColors.yellow.withValues(alpha: 0.28)
+                  : Colors.white12,
+              width: 1.0,
+            ),
+            boxShadow: isPremium
+                ? [
+                    BoxShadow(
+                      color: AppColors.yellow.withValues(alpha: 0.06),
+                      blurRadius: 18,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             children: [
@@ -413,15 +430,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildHeaderFlagWidget(bool isPremium) {
-    // 🟡 Usuario No VIP: Solo la banderita sin circulito ni arrastre
+    // La bandera se mantiene como referencia visual para cuentas gratuitas,
+    // pero el acceso rápido al generador desde Inicio es un beneficio VIP.
     if (!isPremium) {
-      return GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()),
-          );
-        },
+      return ExcludeSemantics(
         child: Text(
           PaisHelper.getBanderaEmoji(pais ?? "Internacional"),
           style: const TextStyle(fontSize: 40),
@@ -810,24 +822,35 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNavBar() {
     final l10n = AppLocalizations.of(context);
-    return BottomNavigationBar(
-      currentIndex: _selectedIndex,
-      onTap: (index) {
-        if (index == 0) _loadUserData(); // Actualizar país al volver al inicio
-        setState(() => _selectedIndex = index);
-      },
-      backgroundColor: AppColors.black,
-      type: BottomNavigationBarType.fixed,
-      selectedItemColor: AppColors.yellow,
-      unselectedItemColor: Colors.white54,
-      selectedLabelStyle: const TextStyle(fontSize: 12),
-      unselectedLabelStyle: const TextStyle(fontSize: 12),
-      items: [
-        BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: l10n?.inicio ?? "Inicio"),
-        BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: l10n?.explorar ?? "Explorar"),
-        BottomNavigationBarItem(icon: const Icon(Icons.bookmark_outline), activeIcon: const Icon(Icons.bookmark), label: l10n?.misJugadas ?? "Mis Jugadas"),
-        BottomNavigationBarItem(icon: const Icon(Icons.analytics_outlined), activeIcon: const Icon(Icons.analytics), label: l10n?.resultados ?? "Resultados"),
-      ],
+    return Theme(
+      // La barra se reconstruye cuando llegan datos de caché/red. Sin splash
+      // evitamos que un ripple de InkWell quede huérfano sobre un icono.
+      data: Theme.of(context).copyWith(
+        splashFactory: NoSplash.splashFactory,
+        splashColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+      ),
+      child: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        enableFeedback: true,
+        onTap: (index) {
+          if (index == 0) _loadUserData(); // Actualizar país al volver al inicio
+          setState(() => _selectedIndex = index);
+        },
+        backgroundColor: AppColors.black,
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: AppColors.yellow,
+        unselectedItemColor: Colors.white54,
+        selectedLabelStyle: const TextStyle(fontSize: 12),
+        unselectedLabelStyle: const TextStyle(fontSize: 12),
+        items: [
+          BottomNavigationBarItem(icon: const Icon(Icons.home_outlined), activeIcon: const Icon(Icons.home), label: l10n?.inicio ?? "Inicio"),
+          BottomNavigationBarItem(icon: const Icon(Icons.explore_outlined), activeIcon: const Icon(Icons.explore), label: l10n?.explorar ?? "Explorar"),
+          BottomNavigationBarItem(icon: const Icon(Icons.bookmark_outline), activeIcon: const Icon(Icons.bookmark), label: l10n?.misJugadas ?? "Mis Jugadas"),
+          BottomNavigationBarItem(icon: const Icon(Icons.analytics_outlined), activeIcon: const Icon(Icons.analytics), label: l10n?.resultados ?? "Resultados"),
+        ],
+      ),
     );
   }
 
@@ -854,9 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         anuncios = data;
       });
-    } catch (e, st) {
-      debugPrint("❌ Error al buscar anuncios: $e");
-      debugPrintStack(stackTrace: st);
+    } catch (_) {
       if (mounted && !silent) {
         final l10n = AppLocalizations.of(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1027,17 +1048,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildTopHeaderSection(BuildContext context, bool isPremium) {
+    if (!isPremium) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeaderRow(context, false),
+          _buildWelcomeGreeting(),
+        ],
+      );
+    }
+
     return Stack(
       children: [
-        if (isPremium)
-          const Positioned.fill(
+        const Positioned.fill(
+          child: IgnorePointer(
             child: PremiumHeaderBackground(),
           ),
+        ),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeaderRow(context, isPremium),
+            _buildHeaderRow(context, true),
             _buildWelcomeGreeting(),
           ],
         ),
@@ -1047,7 +1080,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeaderRow(BuildContext context, bool isPremium) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 4.0),
+      padding: const EdgeInsets.fromLTRB(16.0, 20.0, 16.0, 4.0),
       child: SizedBox(
         height: 58,
         child: Row(
@@ -1329,9 +1362,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         await context.read<NotificationProvider>().fetchNotifications();
       }
-    } catch (e) {
-      debugPrint("⚠️ Error al refrescar Home: $e");
-    }
+    } catch (_) {}
   }
 
   Widget _buildHomeTab() {

@@ -779,5 +779,15 @@
   "guardando": "Guardando...",
   "jugadasGuardadasConExito": "Jugadas guardadas con éxito",
   "errorAlGuardarJugadas": "Hubo un error al guardar algunas jugadas",
-  "debesIniciarSesionParaGuardar": "Debes iniciar sesión para guardar"
+  "debesIniciarSesionParaGuardar": "Debes iniciar sesión para guardar",
+  "informacionNoDisponible": "Información no disponible",
+  "datosLoteriaNoDisponibles": "Esta lotería aún no tiene resultados ni predicciones disponibles.",
+  "datosLoteriaSinConexion": "No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.",
+  "reintentar": "Reintentar",
+  "sinResultadosRegistrados": "Aún no hay resultados registrados",
+  "sinResultadosRegistradosDescripcion": "Las loterías aparecerán aquí cuando registren su primer sorteo oficial.",
+  "resultadosRecientes": "Recientes",
+  "sinHistorialResultados": "Aún no hay resultados históricos",
+  "sinHistorialResultadosDescripcion": "Los sorteos anteriores aparecerán aquí cuando cada lotería tenga más de un resultado oficial.",
+  "porDefinir": "Por definir"
 }

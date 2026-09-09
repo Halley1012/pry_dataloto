@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
-/// ✨ Fondo Premium nativo en Flutter con ondas doradas sutiles y micro-destellos de 4 puntas.
+/// Fondo Premium nativo: seda dorada, destellos y profundidad sin imágenes pesadas.
 ///
 /// Diseñado para colocarse dentro de un [Stack] detrás del encabezado de la app.
 /// El ciclo es de 7 segundos con curvas suaves (`Curves.easeInOut`), produciendo
@@ -69,13 +69,23 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
 
   _PremiumGoldenWavesPainter({required this.progress});
 
-  // Coordenadas relativas fijas (x, y) de los micro-destellos estéticos
+  // Coordenadas relativas de destellos. Se mantienen fuera de textos y controles.
   static const List<Offset> _sparklePositions = [
-    Offset(0.24, 0.40), // Centro-izq superior
-    Offset(0.76, 0.28), // Derecha alta
-    Offset(0.58, 0.38), // Centro-alto acompañando ondas (sin interferir con el saludo)
-    Offset(0.86, 0.70), // Derecha baja
-    Offset(0.12, 0.74), // Izquierda baja
+    Offset(0.18, 0.38),
+    Offset(0.67, 0.22),
+    Offset(0.86, 0.46),
+    Offset(0.52, 0.73),
+    Offset(0.93, 0.81),
+    Offset(0.11, 0.82),
+  ];
+
+  static const List<Offset> _dustPositions = [
+    Offset(0.28, 0.68),
+    Offset(0.39, 0.22),
+    Offset(0.46, 0.88),
+    Offset(0.59, 0.59),
+    Offset(0.73, 0.76),
+    Offset(0.81, 0.34),
   ];
 
   @override
@@ -83,22 +93,33 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // 1. Resplandor ambiental cálido superior/central (Glow sutil muy elegante)
+    // Base casi negra con una calidez imperceptible. Mantiene el contraste
+    // del logo, saludo y acciones sin convertir la cabecera en un banner.
+    final basePaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF0D0D0C), Color(0xFF151208), Color(0xFF0C0D0D)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), basePaint);
+
+    // Resplandor ambiental cálido superior/central.
     final glowPaint = Paint()
       ..shader = RadialGradient(
-        center: const Alignment(0.3, -0.4),
-        radius: 1.1,
+        center: const Alignment(0.34, -0.28),
+        radius: 1.25,
         colors: [
-          const Color(0xFFFFD700).withValues(alpha: 0.06),
-          const Color(0xFFC89600).withValues(alpha: 0.02),
+          const Color(0xFFFFD700).withValues(alpha: 0.15),
+          const Color(0xFFC89600).withValues(alpha: 0.045),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.45, 1.0],
+        stops: const [0.0, 0.42, 1.0],
       ).createShader(Rect.fromLTWH(0, 0, w, h));
 
     canvas.drawRect(Rect.fromLTWH(0, 0, w, h), glowPaint);
 
-    // 2. Ondas Doradas Armónicas (2 curvas de Bézier fluidas y sutiles)
+    // Ondas de seda dorada. El halo se pinta primero y las líneas definidas
+    // después para reproducir profundidad sin consumir imágenes rasterizadas.
     final waveCycle = progress * 2 * math.pi;
     final shiftY1 = math.sin(waveCycle) * 4.5;
     final shiftY2 = math.cos(waveCycle) * 3.5;
@@ -123,15 +144,22 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
       h * 0.62 + shiftY2,
     );
 
+    final waveGlow1 = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 8
+      ..color = const Color(0xFFFFC400).withValues(alpha: 0.11)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawPath(path1, waveGlow1);
+
     final wavePaint1 = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.6
+      ..strokeWidth = 1.85
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          const Color(0xFFFFDF73).withValues(alpha: 0.25),
-          const Color(0xFFFFD700).withValues(alpha: 0.65),
-          const Color(0xFFFFDF73).withValues(alpha: 0.45),
+          const Color(0xFFFFDF73).withValues(alpha: 0.34),
+          const Color(0xFFFFD700).withValues(alpha: 0.82),
+          const Color(0xFFFFDF73).withValues(alpha: 0.56),
           Colors.transparent,
         ],
         stops: const [0.0, 0.25, 0.60, 0.85, 1.0],
@@ -159,15 +187,22 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
       h * 0.75 + shiftY1,
     );
 
+    final waveGlow2 = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 5.5
+      ..color = const Color(0xFFE7A600).withValues(alpha: 0.08)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawPath(path2, waveGlow2);
+
     final wavePaint2 = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
       ..shader = LinearGradient(
         colors: [
           Colors.transparent,
-          const Color(0xFFC89600).withValues(alpha: 0.15),
-          const Color(0xFFFFDF73).withValues(alpha: 0.40),
-          const Color(0xFFFFD700).withValues(alpha: 0.25),
+          const Color(0xFFC89600).withValues(alpha: 0.24),
+          const Color(0xFFFFDF73).withValues(alpha: 0.54),
+          const Color(0xFFFFD700).withValues(alpha: 0.36),
           Colors.transparent,
         ],
         stops: const [0.0, 0.20, 0.55, 0.80, 1.0],
@@ -175,16 +210,24 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
 
     canvas.drawPath(path2, wavePaint2);
 
-    // 3. Micro-destellos limpios en forma de estrella de 4 puntas (✦)
-    // Sin círculos visibles, solo la estrella limpia con fade y escala pequeña.
+    // Partículas de oro, discretas y estáticas, para añadir textura.
+    for (final pos in _dustPositions) {
+      final opacity = 0.16 + ((math.sin(waveCycle + pos.dx * 7) + 1) * 0.08);
+      canvas.drawCircle(
+        Offset(pos.dx * w, pos.dy * h),
+        1.1,
+        Paint()..color = const Color(0xFFFFD958).withValues(alpha: opacity),
+      );
+    }
+
+    // Destellos limpios en forma de estrella de 4 puntas.
     for (int i = 0; i < _sparklePositions.length; i++) {
       final pos = _sparklePositions[i];
       final phase = waveCycle + (i * (math.pi / 2.5));
       final rawPulse = (math.sin(phase) + 1.0) / 2.0; // 0.0 -> 1.0
       // Fade suave y controlado
       final opacity = (rawPulse * 0.70).clamp(0.0, 0.70);
-      // Escala visible y nítida (entre 2.5px y 5.0px de radio => 5px a 10px punta a punta)
-      final scale = 5.5 + (rawPulse * 5.5);
+      final scale = 6.0 + (rawPulse * 7.0);
 
       if (opacity > 0.05) {
         _drawCleanFourPointStar(

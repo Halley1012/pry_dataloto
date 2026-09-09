@@ -72,13 +72,11 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         if (!mounted) return;
         Navigator.pop(context, updatedPost);
       }
-    } catch (e) {
-      debugPrint("🚨 Error guardando post: $e");
+    } catch (_) {
       if (!mounted) return;
-      final rawError = e.toString().replaceAll("Exception: ", "").trim();
       final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(rawError.isNotEmpty ? rawError : (l10n?.errorGuardarPost ?? "Error al guardar el post")),
+        content: Text(l10n?.errorGuardarPost ?? "Error al guardar el post"),
         backgroundColor: Colors.redAccent.shade700,
         behavior: SnackBarBehavior.floating,
       ));
