@@ -32,10 +32,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final subProvider = context.watch<SubscriptionProvider>();
     final isSubscribed = subProvider.isSubscribed;
     final product = subProvider.monthlyProduct;
-    final priceString = product?.price ??
-        (subProvider.isLoading
-            ? "Cargando..."
-            : "Consultando...");
+    final priceString =
+        product?.price ??
+        (subProvider.isLoading ? "Cargando..." : "Consultando...");
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -90,7 +89,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                l10n?.subtituloVip ?? "Disfruta de la mejor experiencia sin interrupciones",
+                l10n?.subtituloVip ??
+                    "Disfruta de la mejor experiencia sin interrupciones",
                 textAlign: TextAlign.center,
                 style: GoogleFonts.montserrat(
                   fontSize: 14,
@@ -106,7 +106,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   color: const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: isSubscribed ? Colors.green : AppColors.amber.withValues(alpha: 0.3),
+                    color: isSubscribed
+                        ? Colors.green
+                        : AppColors.amber.withValues(alpha: 0.3),
                     width: 1.5,
                   ),
                 ),
@@ -116,21 +118,29 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       icon: Icons.block,
                       iconColor: Colors.redAccent,
                       title: l10n?.ceroPublicidadTitulo ?? "Cero Publicidad",
-                      subtitle: l10n?.ceroPublicidadDesc ?? "Sin banners ni anuncios al consultar resultados y estadísticas.",
+                      subtitle:
+                          l10n?.ceroPublicidadDesc ??
+                          "Sin banners ni anuncios al consultar resultados y estadísticas.",
                     ),
                     const Divider(color: Colors.white12, height: 28),
                     _buildBenefitItem(
                       icon: Icons.flash_on,
                       iconColor: AppColors.yellow,
                       title: l10n?.maximaVelocidadTitulo ?? "Máxima Velocidad",
-                      subtitle: l10n?.maximaVelocidadDesc ?? "Navegación fluida y carga instantánea en todas las pantallas.",
+                      subtitle:
+                          l10n?.maximaVelocidadDesc ??
+                          "Navegación fluida y carga instantánea en todas las pantallas.",
                     ),
                     const Divider(color: Colors.white12, height: 28),
                     _buildBenefitItem(
                       icon: Icons.auto_awesome,
                       iconColor: Colors.amberAccent,
-                      title: l10n?.soporteNuevasFuncionesTitulo ?? "Soporte y Nuevas Funciones",
-                      subtitle: l10n?.soporteNuevasFuncionesDesc ?? "Acceso preferencial a futuras herramientas y algoritmos.",
+                      title:
+                          l10n?.soporteNuevasFuncionesTitulo ??
+                          "Soporte y Nuevas Funciones",
+                      subtitle:
+                          l10n?.soporteNuevasFuncionesDesc ??
+                          "Acceso preferencial a futuras herramientas y algoritmos.",
                     ),
                   ],
                 ),
@@ -140,7 +150,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               // 🏷️ Precio y Estado
               if (isSubscribed) ...[
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 16,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.green.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(16),
@@ -148,7 +161,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 28,
+                      ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
@@ -163,7 +180,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                               ),
                             ),
                             Text(
-                              l10n?.suscripcionActivaDesc ?? "Tu plan VIP está activo. ¡Gracias por tu apoyo!",
+                              l10n?.suscripcionActivaDesc ??
+                                  "Tu plan VIP está activo. ¡Gracias por tu apoyo!",
                               style: GoogleFonts.montserrat(
                                 color: Colors.white70,
                                 fontSize: 12,
@@ -178,14 +196,25 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 const SizedBox(height: 20),
                 OutlinedButton.icon(
                   onPressed: _openGooglePlaySubscriptions,
-                  icon: const Icon(Icons.manage_accounts, color: Colors.white70),
+                  icon: Icon(
+                    subProvider.canRestoreCanceledSubscription
+                        ? Icons.restore
+                        : Icons.manage_accounts,
+                    color: Colors.white70,
+                  ),
                   label: Text(
-                    l10n?.administrarGooglePlay ?? "Administrar en Google Play",
+                    subProvider.canRestoreCanceledSubscription
+                        ? (l10n?.restaurarCompras ?? "Restaurar suscripción")
+                        : (l10n?.administrarGooglePlay ??
+                              "Administrar en Google Play"),
                     style: GoogleFonts.montserrat(color: Colors.white70),
                   ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Colors.white24),
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 12,
+                      horizontal: 20,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -217,7 +246,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              l10n?.renovacionAutomatica ?? "Renovación mensual automática",
+                              l10n?.renovacionAutomatica ??
+                                  "Renovación mensual automática",
                               style: GoogleFonts.montserrat(
                                 color: Colors.white54,
                                 fontSize: 12,
@@ -251,8 +281,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                     onPressed: subProvider.isLoading
                         ? null
                         : () async {
-                            final success = await subProvider.buyMonthlySubscription();
-                            if (!success && context.mounted && subProvider.errorMessage != null) {
+                            final success = await subProvider
+                                .buyMonthlySubscription();
+                            if (!success &&
+                                context.mounted &&
+                                subProvider.errorMessage != null) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(subProvider.errorMessage!),
@@ -269,7 +302,28 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       elevation: 4,
                     ),
                     child: subProvider.isLoading
-                        ? const CircularProgressIndicator(color: Color(0xFF121212))
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Color(0xFF121212),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                "Abriendo Google Play...",
+                                style: GoogleFonts.montserrat(
+                                  color: const Color(0xFF121212),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          )
                         : Text(
                             l10n?.suscribirmeAhora ?? "Suscribirme Ahora",
                             style: GoogleFonts.montserrat(
@@ -280,35 +334,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           ),
                   ),
                 ),
-                const SizedBox(height: 12),
-
-                // Botón Restaurar Compras
-                TextButton(
-                  onPressed: subProvider.isLoading
-                      ? null
-                      : () async {
-                          await subProvider.restorePurchases();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  subProvider.isSubscribed
-                                      ? (l10n?.comprasRestauradasExito ?? "✅ Compras restauradas con éxito.")
-                                      : (l10n?.noComprasActivas ?? "ℹ️ No se encontraron compras activas previas."),
-                                ),
-                              ),
-                            );
-                          }
-                        },
-                  child: Text(
-                    l10n?.restaurarCompras ?? "Restaurar suscripción",
-                    style: GoogleFonts.montserrat(
-                      color: Colors.white60,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-
                 const SizedBox(height: 8),
 
                 // 🔍 Botón de Diagnóstico de Google Play (Sólo en Desarrollo)
@@ -319,7 +344,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         context: context,
                         backgroundColor: const Color(0xFF1E1E1E),
                         shape: const RoundedRectangleBorder(
-                          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(20),
+                          ),
                         ),
                         builder: (ctx) => Padding(
                           padding: const EdgeInsets.all(20),
@@ -328,7 +355,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     "Diagnóstico Google Play",
@@ -339,7 +367,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     ),
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.close, color: Colors.white60),
+                                    icon: const Icon(
+                                      Icons.close,
+                                      color: Colors.white60,
+                                    ),
                                     onPressed: () => Navigator.pop(ctx),
                                   ),
                                 ],
@@ -369,7 +400,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                                     Navigator.pop(ctx);
                                     await subProvider.loadProducts();
                                   },
-                                  icon: const Icon(Icons.refresh, color: Colors.black),
+                                  icon: const Icon(
+                                    Icons.refresh,
+                                    color: Colors.black,
+                                  ),
                                   label: Text(
                                     "Reintentar sincronización",
                                     style: GoogleFonts.montserrat(
@@ -390,7 +424,11 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.info_outline, size: 16, color: Colors.white38),
+                    icon: const Icon(
+                      Icons.info_outline,
+                      size: 16,
+                      color: Colors.white38,
+                    ),
                     label: Text(
                       "Ver estado de Google Play",
                       style: GoogleFonts.montserrat(
