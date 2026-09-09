@@ -22,7 +22,7 @@ async def confirm_subscription(
         user_id = int(current_user["user_id"])
         
         logger = logging.getLogger(__name__)
-        logger.info("[SUBSCRIPTION] event=CONFIRM_STARTED user_id=%s product_id=%s", user_id, req.product_id)
+        logger.info("[SUBSCRIPTION] event=CONFIRM_STARTED product_id=%s", req.product_id)
         
         res = await use_cases.confirm_subscription(
             user_id=user_id,
@@ -31,15 +31,15 @@ async def confirm_subscription(
             product_id=req.product_id
         )
         
-        logger.info("[SUBSCRIPTION] event=CONFIRM_PROCESSED metric=confirm_success user_id=%s is_premium=%s status=%s", user_id, res.get("is_premium"), res.get("status"))
+        logger.info("[SUBSCRIPTION] event=CONFIRM_PROCESSED metric=confirm_success is_premium=%s status=%s", res.get("is_premium"), res.get("status"))
         return res
     except ValueError as e:
-        logging.getLogger(__name__).warning("[SUBSCRIPTION] event=CONFIRM_WARNING user_id=%s message=%s", current_user.get("user_id"), str(e))
+        logging.getLogger(__name__).warning("[SUBSCRIPTION] event=CONFIRM_WARNING metric=confirm_rejected")
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        logging.getLogger(__name__).error("[SUBSCRIPTION] event=CONFIRM_ERROR metric=confirm_failure user_id=%s message=%s", current_user.get("user_id"), str(e), exc_info=True)
+    except Exception:
+        logging.getLogger(__name__).error("[SUBSCRIPTION] event=CONFIRM_ERROR metric=confirm_failure")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/status/{user_id}")
@@ -56,9 +56,8 @@ async def get_subscription_status(
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception as e:
-        import logging
-        logging.error(f"Internal error: {e}")
+    except Exception:
+        logging.getLogger(__name__).error("[SUBSCRIPTION] event=STATUS_ERROR")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
@@ -151,10 +150,9 @@ async def receive_rtdn(
         )
 
         logger.info(
-            "[SUBSCRIPTION] event=RTDN_PROCESSED metric=rtdn_success notification_type=%s success=%s user_id=%s status=%s",
+            "[SUBSCRIPTION] event=RTDN_PROCESSED metric=rtdn_success notification_type=%s success=%s status=%s",
             notification_type,
             result.get("success"),
-            result.get("user_id"),
             result.get("status"),
         )
 
@@ -162,6 +160,6 @@ async def receive_rtdn(
 
     except HTTPException:
         raise
-    except Exception as e:
-        logging.getLogger(__name__).error("[SUBSCRIPTION] event=RTDN_ERROR metric=rtdn_failure message=%s", str(e), exc_info=True)
+    except Exception:
+        logging.getLogger(__name__).error("[SUBSCRIPTION] event=RTDN_ERROR metric=rtdn_failure")
         raise HTTPException(status_code=500, detail="Error procesando RTDN")

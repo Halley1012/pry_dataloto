@@ -44,14 +44,21 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   List<Map<String, dynamic>> _jugadasList = [];
   Set<int> _selectedIds = {};
   bool _cargando = true;
+  bool _loadFailed = false;
   String? _userId;
   LoteriaConfig? _config;
   late bool _soloProximos = widget.soloProximos;
-  final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(null);
+  final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(
+    null,
+  );
 
   List<Map<String, dynamic>> get _jugadasFiltradas {
     return _jugadasList.where((item) {
-      final fecha = item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"];
+      final fecha =
+          item["fecha_sorteo"] ??
+          item["fecha_guardado"] ??
+          item["created_at"] ??
+          item["fecha"];
       final diff = _getDiffDays(fecha?.toString());
       if (_soloProximos) {
         return diff >= 0;
@@ -65,7 +72,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     if (fecha == null || fecha.isEmpty) return 0;
     try {
       final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      final parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10
+              ? DateTime.tryParse(clean.substring(0, 10))
+              : null);
       if (parsed == null) return 0;
 
       final now = DateTime.now();
@@ -95,16 +106,13 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Future<void> _cargarConfig() async {
     bool aplicarConfig(dynamic rawLoterias) {
       if (rawLoterias is! List) return false;
-      final match = rawLoterias.cast<dynamic>().firstWhere(
-        (item) {
-          if (item is! Map) return false;
-          return (item['route']?.toString().toLowerCase() ==
-                  widget.loteriaRoute.toLowerCase()) ||
-              (item['nombre']?.toString().toLowerCase() ==
-                  widget.loteriaNombre.toLowerCase());
-        },
-        orElse: () => null,
-      );
+      final match = rawLoterias.cast<dynamic>().firstWhere((item) {
+        if (item is! Map) return false;
+        return (item['route']?.toString().toLowerCase() ==
+                widget.loteriaRoute.toLowerCase()) ||
+            (item['nombre']?.toString().toLowerCase() ==
+                widget.loteriaNombre.toLowerCase());
+      }, orElse: () => null);
       if (match is! Map || match.isEmpty || !mounted) return false;
       setState(() {
         _config = LoteriaConfig.fromJson(
@@ -135,7 +143,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Future<void> _cargarJugadas({bool force = false}) async {
     final uId = await ApiService.getUserId();
     final uIdStr = uId?.toString();
-    final cacheKeyUser = 'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
+    final cacheKeyUser =
+        'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
 
     if (!force) {
       final cached = await CacheService.getJson(cacheKeyUser);
@@ -149,11 +158,20 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     }
 
     if (!mounted) return;
-    if (_jugadasList.isEmpty) setState(() => _cargando = true);
+    if (_jugadasList.isEmpty) {
+      setState(() {
+        _cargando = true;
+        _loadFailed = false;
+      });
+    }
 
     try {
-      final response = await ApiService.listarJugadasGenerica(widget.loteriaRoute);
-      final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(response);
+      final response = await ApiService.listarJugadasGenerica(
+        widget.loteriaRoute,
+      );
+      final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
+        response,
+      );
 
       if (mounted) {
         setState(() {
@@ -161,12 +179,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _jugadasList = data;
           _selectedIds.clear();
           _cargando = false;
+          _loadFailed = false;
         });
         await CacheService.setJson(cacheKeyUser, data);
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        setState(() => _cargando = false);
+        setState(() {
+          _cargando = false;
+          _loadFailed = _jugadasList.isEmpty;
+        });
       }
     }
   }
@@ -189,7 +211,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     final l10n = AppLocalizations.of(context);
 
-    final String confirmMsg = l10n?.confirmarEliminarVarios(_selectedIds.length) ?? "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
+    final String confirmMsg =
+        l10n?.confirmarEliminarVarios(_selectedIds.length) ??
+        "¿Seguro que deseas eliminar ${_selectedIds.length} jugada(s)?";
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -202,22 +226,33 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
             const SizedBox(width: 10),
             Text(
               l10n?.eliminarJugadas ?? "Eliminar jugadas",
-              style: AppTextStyles.h2.copyWith(color: Colors.white, fontSize: 18),
+              style: AppTextStyles.h2.copyWith(
+                color: Colors.white,
+                fontSize: 18,
+              ),
             ),
           ],
         ),
         content: Text(
           confirmMsg,
-          style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+          style: AppTextStyles.mensajeSecundario.copyWith(
+            color: Colors.white70,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text(l10n?.cancelar ?? "Cancelar", style: const TextStyle(color: Colors.amber)),
+            child: Text(
+              l10n?.cancelar ?? "Cancelar",
+              style: const TextStyle(color: Colors.amber),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: Text(l10n?.eliminar ?? "Eliminar", style: const TextStyle(color: Colors.redAccent)),
+            child: Text(
+              l10n?.eliminar ?? "Eliminar",
+              style: const TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -236,12 +271,20 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     // 2. Sincronizar cache persistente en SharedPreferences de inmediato
     final uIdStr = _userId ?? "anon";
-    await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', _jugadasList);
-    await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
+    await CacheService.setJson(
+      'user_jugadas_${widget.loteriaRoute}_$uIdStr',
+      _jugadasList,
+    );
+    await CacheService.invalidarCachesDeJugadas(
+      specificRoute: widget.loteriaRoute,
+    );
 
     // 3. Ejecutar eliminación en el backend (en paralelo)
     final results = await Future.wait(
-      deletedIds.map((id) => ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!)),
+      deletedIds.map(
+        (id) =>
+            ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!),
+      ),
     );
 
     // Si falló alguna eliminación, hacemos rollback restaurando el estado previo y la caché
@@ -250,12 +293,19 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         setState(() {
           _jugadasList = backupList;
         });
-        await CacheService.setJson('user_jugadas_${widget.loteriaRoute}_$uIdStr', backupList);
-        await CacheService.invalidarCachesDeJugadas(specificRoute: widget.loteriaRoute);
+        await CacheService.setJson(
+          'user_jugadas_${widget.loteriaRoute}_$uIdStr',
+          backupList,
+        );
+        await CacheService.invalidarCachesDeJugadas(
+          specificRoute: widget.loteriaRoute,
+        );
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("No se pudieron eliminar algunas jugadas. Se restauraron."),
+            content: Text(
+              "No se pudieron eliminar algunas jugadas. Se restauraron.",
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -279,8 +329,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final config = _config;
     if (config != null) {
       final principales = nums.take(config.maxSeleccion).toList();
-      final cantidadEspeciales = (config.totalBalotasSorteo - config.maxSeleccion)
-          .clamp(0, nums.length) as int;
+      final cantidadEspeciales =
+          (config.totalBalotasSorteo - config.maxSeleccion).clamp(
+                0,
+                nums.length,
+              )
+              as int;
       final especiales = nums
           .skip(config.maxSeleccion)
           .take(cantidadEspeciales)
@@ -288,10 +342,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
       // Compatibilidad con jugadas antiguas que guardaban la especial fuera
       // del arreglo de números.
-      final legacyEspecial = item["balota_roja"] ??
-          item["balotaroja"] ??
-          item["superbalota"];
-      if (especiales.isEmpty && legacyEspecial != null && cantidadEspeciales > 0) {
+      final legacyEspecial =
+          item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
+      if (especiales.isEmpty &&
+          legacyEspecial != null &&
+          cantidadEspeciales > 0) {
         final valor = int.tryParse(legacyEspecial.toString());
         if (valor != null) especiales.add(valor);
       }
@@ -299,10 +354,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     }
 
     // Fallback temporal únicamente cuando aún no llega la configuración.
-    final legacyEspecial = item["balota_roja"] ??
-        item["balotaroja"] ??
-        item["superbalota"];
-    final valor = legacyEspecial == null ? null : int.tryParse(legacyEspecial.toString());
+    final legacyEspecial =
+        item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
+    final valor = legacyEspecial == null
+        ? null
+        : int.tryParse(legacyEspecial.toString());
     if (valor != null && nums.length > 5) {
       return (nums.take(nums.length - 1).toList(), [nums.last]);
     }
@@ -317,7 +373,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     if (jugadasACompartir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n?.noHayJugadasCompartir ?? "No hay jugadas para compartir")),
+        SnackBar(
+          content: Text(
+            l10n?.noHayJugadasCompartir ?? "No hay jugadas para compartir",
+          ),
+        ),
       );
       return;
     }
@@ -328,27 +388,38 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       context: context,
       isPremium: isPremium,
       featureTitle: "Compartir por WhatsApp",
-      featureActionDescription: "Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.",
+      featureActionDescription:
+          "Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.",
       onRewardGranted: () async {
         final StringBuffer buffer = StringBuffer();
-        buffer.writeln("🎰 *${l10n?.misJugadasLoteria(widget.loteriaNombre) ?? "Mis Jugadas de ${widget.loteriaNombre} - Eterlotto"}* 🎰\n");
+        buffer.writeln(
+          "🎰 *${l10n?.misJugadasLoteria(widget.loteriaNombre) ?? "Mis Jugadas de ${widget.loteriaNombre} - Eterlotto"}* 🎰\n",
+        );
 
         for (int i = 0; i < jugadasACompartir.length; i++) {
           final play = jugadasACompartir[i];
           final (whites, specials) = _parsearJugada(play);
-          final String jugadaLabel = l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
+          final String jugadaLabel =
+              l10n?.jugadaShare(i + 1) ?? "Jugada #${i + 1}";
           if (specials.isNotEmpty) {
-            final String superbalota = "${_config?.superbalotaNombre ?? 'Especial'}: ${specials.join(', ')}";
-            buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*");
+            final String superbalota =
+                "${_config?.superbalotaNombre ?? 'Especial'}: ${specials.join(', ')}";
+            buffer.writeln(
+              "📌 *$jugadaLabel*: ${whites.join(', ')} | 🔴 *$superbalota*",
+            );
           } else {
             buffer.writeln("📌 *$jugadaLabel*: ${whites.join(', ')}");
           }
         }
 
-        buffer.writeln("\n🍀 _${l10n?.buenaSuerteDataLoto ?? "¡Buena suerte con Eterlotto!"}_");
+        buffer.writeln(
+          "\n🍀 _${l10n?.buenaSuerteDataLoto ?? "¡Buena suerte con Eterlotto!"}_",
+        );
 
         final text = buffer.toString();
-        final whatsappUrl = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(text)}");
+        final whatsappUrl = Uri.parse(
+          "https://wa.me/?text=${Uri.encodeComponent(text)}",
+        );
 
         try {
           if (await canLaunchUrl(whatsappUrl)) {
@@ -371,7 +442,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
     if (jugadasAImprimir.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(l10n?.noHayJugadasSeleccionadasImprimir ?? "No hay jugadas seleccionadas para imprimir")),
+        SnackBar(
+          content: Text(
+            l10n?.noHayJugadasSeleccionadasImprimir ??
+                "No hay jugadas seleccionadas para imprimir",
+          ),
+        ),
       );
       return;
     }
@@ -382,7 +458,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       context: context,
       isPremium: isPremium,
       featureTitle: "Exportar Tiquete en PDF",
-      featureActionDescription: "Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.",
+      featureActionDescription:
+          "Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.",
       onRewardGranted: () async {
         final doc = pw.Document();
 
@@ -401,7 +478,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                         children: [
                           pw.Text(
-                            l10n?.tiqueteDataloto(widget.loteriaNombre.toUpperCase()) ?? "ETERLOTTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
+                            l10n?.tiqueteDataloto(
+                                  widget.loteriaNombre.toUpperCase(),
+                                ) ??
+                                "ETERLOTTO - TICKET ${widget.loteriaNombre.toUpperCase()}",
                             style: pw.TextStyle(
                               fontSize: 22,
                               fontWeight: pw.FontWeight.bold,
@@ -409,45 +489,58 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                             ),
                           ),
                           pw.Text(
-                            DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now()),
-                            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                            DateFormat(
+                              'dd/MM/yyyy HH:mm',
+                            ).format(DateTime.now()),
+                            style: const pw.TextStyle(
+                              fontSize: 10,
+                              color: PdfColors.grey700,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     pw.SizedBox(height: 12),
                     pw.Text(
-                      l10n?.reporteJugadasGuardadas(jugadasAImprimir.length) ?? "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
-                      style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+                      l10n?.reporteJugadasGuardadas(jugadasAImprimir.length) ??
+                          "Reporte de Jugadas Guardadas (${jugadasAImprimir.length} jugada(s))",
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
                     pw.SizedBox(height: 16),
                     pw.TableHelper.fromTextArray(
                       headers: [
                         l10n?.nro ?? "#",
                         l10n?.fechaGuardado ?? "Fecha Guardado",
-                        l10n?.balotasLoteria(widget.loteriaNombre) ?? "Balotas ${widget.loteriaNombre}"
+                        l10n?.balotasLoteria(widget.loteriaNombre) ??
+                            "Balotas ${widget.loteriaNombre}",
                       ],
                       data: jugadasAImprimir.asMap().entries.map((entry) {
                         final index = entry.key + 1;
                         final item = entry.value;
                         final (whites, specials) = _parsearJugada(item);
-                        final fecha = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+                        final fecha = _formatFecha(
+                          item["fecha_sorteo"] ??
+                              item["fecha_guardado"] ??
+                              item["created_at"] ??
+                              item["fecha"],
+                        );
 
                         final balotasStr = specials.isNotEmpty
                             ? "${whites.join(' - ')}  [${_config?.superbalotaNombre ?? 'Especial'}: ${specials.join(' - ')}]"
                             : whites.join(' - ');
 
-                        return [
-                          "$index",
-                          fecha,
-                          balotasStr,
-                        ];
+                        return ["$index", fecha, balotasStr];
                       }).toList(),
                       headerStyle: pw.TextStyle(
                         fontWeight: pw.FontWeight.bold,
                         color: PdfColors.white,
                       ),
-                      headerDecoration: const pw.BoxDecoration(color: PdfColors.amber800),
+                      headerDecoration: const pw.BoxDecoration(
+                        color: PdfColors.amber800,
+                      ),
                       cellHeight: 28,
                       cellAlignments: {
                         0: pw.Alignment.centerLeft,
@@ -459,8 +552,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                     pw.Divider(),
                     pw.Center(
                       child: pw.Text(
-                        l10n?.muchosExitosJuego ?? "¡Muchos éxitos en tu juego! - Generado desde Eterlotto App",
-                        style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey600),
+                        l10n?.muchosExitosJuego ??
+                            "¡Muchos éxitos en tu juego! - Generado desde Eterlotto App",
+                        style: const pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey600,
+                        ),
                       ),
                     ),
                   ],
@@ -472,7 +569,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
         await Printing.layoutPdf(
           onLayout: (PdfPageFormat format) async => doc.save(),
-          name: l10n?.nombreArchivoPDF(widget.loteriaNombre) ?? "Tiquete_${widget.loteriaNombre}_Eterlotto.pdf",
+          name:
+              l10n?.nombreArchivoPDF(widget.loteriaNombre) ??
+              "Tiquete_${widget.loteriaNombre}_Eterlotto.pdf",
         );
       },
     );
@@ -518,8 +617,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           gradient: LinearGradient(
-            colors: isEnabled 
-                ? [color.withValues(alpha: 0.3), Colors.black] 
+            colors: isEnabled
+                ? [color.withValues(alpha: 0.3), Colors.black]
                 : [Colors.white10, Colors.black],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -538,7 +637,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 offset: const Offset(4, 4),
                 spreadRadius: 1,
               ),
-            ] else 
+            ] else
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.5),
                 blurRadius: 5,
@@ -567,10 +666,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
 
     if (tooltip != null && tooltip.isNotEmpty) {
-      return Tooltip(
-        message: tooltip,
-        child: btn,
-      );
+      return Tooltip(message: tooltip, child: btn);
     }
     return btn;
   }
@@ -596,7 +692,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     }
   }
 
-  Widget _build3DBall(int? numero, {Color baseColor = const Color(0xFFF33A21), double size = 32}) {
+  Widget _build3DBall(
+    int? numero, {
+    Color baseColor = const Color(0xFFF33A21),
+    double size = 32,
+  }) {
     return Container(
       width: size,
       height: size,
@@ -623,7 +723,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
             blurRadius: 4,
           ),
         ],
-        border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.2),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1.2,
+        ),
       ),
       child: Center(
         child: Text(
@@ -652,7 +755,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final l10n = AppLocalizations.of(context);
     final bool hasSelection = _selectedIds.isNotEmpty;
 
-    final String emptySubtext = l10n?.generaGuardaJugadas(widget.loteriaNombre) ?? "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}";
+    final String emptySubtext =
+        l10n?.generaGuardaJugadas(widget.loteriaNombre) ??
+        "Genera y guarda tus jugadas desde la pantalla de ${widget.loteriaNombre}";
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -668,305 +773,393 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
-            CustomSliverAppBar(title: l10n?.misJugadasConLoteria(widget.loteriaNombre) ?? "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}"),
-            SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  AppContainer3(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildActionButton(
-                          icon: hasSelection ? Icons.deselect : Icons.check_circle_outline,
-                          color: AppColors.yellow,
-                          onPressed: _toggleSelectAll,
-                          tooltip: hasSelection ? "Deseleccionar" : "Seleccionar todo",
-                        ),
-                        _buildActionButton(
-                          icon: FontAwesomeIcons.whatsapp,
-                          color: const Color(0xFF25D366),
-                          onPressed: _compartirWhatsApp,
-                          isEnabled: hasSelection,
-                          tooltip: "Compartir WhatsApp",
-                        ),
-                        _buildActionButton(
-                          icon: Icons.picture_as_pdf,
-                          color: Colors.purpleAccent,
-                          onPressed: _imprimirPDF,
-                          tooltip: "Exportar PDF",
-                        ),
-                        _buildActionButton(
-                          icon: Icons.analytics_outlined,
-                          color: const Color(0xFF00E5FF),
-                          onPressed: _irAResultados,
-                          tooltip: l10n?.resultados ?? "Resultados",
-                        ),
-                        _buildActionButton(
-                          icon: Icons.delete_outline,
-                          color: Colors.redAccent,
-                          onPressed: hasSelection ? _eliminarSeleccionadas : null,
-                          isEnabled: hasSelection,
-                          tooltip: "Eliminar seleccionadas",
-                        ),
-                      ],
+                    CustomSliverAppBar(
+                      title:
+                          l10n?.misJugadasConLoteria(widget.loteriaNombre) ??
+                          "${l10n?.misJugadas ?? 'Mis Jugadas'} - ${widget.loteriaNombre}",
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMisJugadasToggleButtons(l10n),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Column(
-                      children: [
-                        Text(
-                          _soloProximos ? (l10n?.proximoSorteo ?? "Próximo sorteo") : (l10n?.historialJugadas ?? "Historial de Jugadas"),
-                          style: AppTextStyles.h2.copyWith(fontSize: 18),
-                          textAlign: TextAlign.center,
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          "${_jugadasFiltradas.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.yellow,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _cargando
-                      ? _buildSkeletonJugadas()
-                      : _jugadasFiltradas.isEmpty
-                          ? Center(
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 40),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      l10n?.noTienesJugadasGuardadas ?? "No tienes jugadas guardadas aún",
-                                      style: AppTextStyles.h2.copyWith(fontSize: 16),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      emptySubtext,
-                                      style: AppTextStyles.caption,
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ],
-                                ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            AppContainer3(
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceAround,
+                                children: [
+                                  _buildActionButton(
+                                    icon: hasSelection
+                                        ? Icons.deselect
+                                        : Icons.check_circle_outline,
+                                    color: AppColors.yellow,
+                                    onPressed: _toggleSelectAll,
+                                    tooltip: hasSelection
+                                        ? "Deseleccionar"
+                                        : "Seleccionar todo",
+                                  ),
+                                  _buildActionButton(
+                                    icon: FontAwesomeIcons.whatsapp,
+                                    color: const Color(0xFF25D366),
+                                    onPressed: _compartirWhatsApp,
+                                    isEnabled: hasSelection,
+                                    tooltip: "Compartir WhatsApp",
+                                  ),
+                                  _buildActionButton(
+                                    icon: Icons.picture_as_pdf,
+                                    color: Colors.purpleAccent,
+                                    onPressed: _imprimirPDF,
+                                    tooltip: "Exportar PDF",
+                                  ),
+                                  _buildActionButton(
+                                    icon: Icons.analytics_outlined,
+                                    color: const Color(0xFF00E5FF),
+                                    onPressed: _irAResultados,
+                                    tooltip: l10n?.resultados ?? "Resultados",
+                                  ),
+                                  _buildActionButton(
+                                    icon: Icons.delete_outline,
+                                    color: Colors.redAccent,
+                                    onPressed: hasSelection
+                                        ? _eliminarSeleccionadas
+                                        : null,
+                                    isEnabled: hasSelection,
+                                    tooltip: "Eliminar seleccionadas",
+                                  ),
+                                ],
                               ),
-                            )
-                          : Container(
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1E1E1E),
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: Colors.white12, width: 0.8),
-                              ),
-                              padding: const EdgeInsets.all(12),
+                            ),
+                            const SizedBox(height: 12),
+                            _buildMisJugadasToggleButtons(l10n),
+                            const SizedBox(height: 16),
+                            Center(
                               child: Column(
                                 children: [
-                                  // Encabezado de la tabla
-                                  Row(
-                                    children: [
-                                      SizedBox(
-                                        width: 28,
-                                        child: Text(
-                                          "#",
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.montserrat(
-                                            fontSize: 11,
-                                            color: Colors.white38,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      SizedBox(
-                                        width: 82,
-                                        child: Text(
-                                          l10n?.sorteoLabel ?? "Sorteo",
-                                          textAlign: TextAlign.center,
-                                          style: GoogleFonts.montserrat(
-                                            fontSize: 11,
-                                            color: Colors.white38,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Center(
-                                          child: Text(
-                                            l10n?.balotas ?? "Balotas",
-                                            style: GoogleFonts.montserrat(
-                                              fontSize: 11,
-                                              color: Colors.white38,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                  Text(
+                                    _soloProximos
+                                        ? (l10n?.proximoSorteo ??
+                                              "Próximo sorteo")
+                                        : (l10n?.historialJugadas ??
+                                              "Historial de Jugadas"),
+                                    style: AppTextStyles.h2.copyWith(
+                                      fontSize: 18,
+                                    ),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  const Divider(color: Colors.white12, height: 16),
-
-                                  // Filas de jugadas
-                                  ...List.generate(_jugadasFiltradas.length, (index) {
-                                    final item = _jugadasFiltradas[index];
-                                    final id = item["id"] as int? ?? 0;
-                                    final isSelected = _selectedIds.contains(id);
-                                    final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
-                                    final (whites, specials) = _parsearJugada(item);
-
-                                    final int totalBalls = whites.length + specials.length;
-                                    final double ballSize = totalBalls <= 5
-                                        ? 32.0
-                                        : (totalBalls == 6 ? 30.0 : (totalBalls == 7 ? 27.0 : 24.0));
-                                    final double hPadding = totalBalls <= 5
-                                        ? 2.5
-                                        : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.0));
-
-                                    final Color color = [
-                                      const Color(0xFF1E3A8A), // Blue
-                                      const Color(0xFF4C1D95), // Purple
-                                      const Color(0xFF0F766E), // Teal
-                                      const Color(0xFF9A3412), // Rust / Orange
-                                      const Color(0xFF065F46), // Emerald
-                                      const Color(0xFF831843), // Pink
-                                      const Color(0xFF312E81), // Indigo
-                                      const Color(0xFF155E75), // Cyan
-                                      const Color(0xFF7C2D12), // Deep Orange
-                                      const Color(0xFF78350F), // Amber
-                                    ][index % 10];
-
-                                    return Container(
-                                      key: Key(id.toString()),
-                                      margin: const EdgeInsets.symmetric(vertical: 2.0),
-                                      padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4),
-                                      decoration: BoxDecoration(
-                                        color: isSelected
-                                            ? AppColors.yellow.withValues(alpha: 0.12)
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: isSelected
-                                            ? Border.all(color: AppColors.yellow.withValues(alpha: 0.4), width: 1)
-                                            : Border(
-                                                bottom: BorderSide(
-                                                  color: index == _jugadasList.length - 1
-                                                      ? Colors.transparent
-                                                      : Colors.white10,
-                                                  width: 0.6,
-                                                ),
-                                              ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    "${_jugadasFiltradas.length} ${l10n?.guardadasCantidad ?? 'guardada(s)'}",
+                                    style: AppTextStyles.caption.copyWith(
+                                      color: AppColors.yellow,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            _cargando
+                                ? _buildSkeletonJugadas()
+                                : _jugadasFiltradas.isEmpty
+                                ? _buildEmptyJugadasState(l10n, emptySubtext)
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E1E),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color: Colors.white12,
+                                        width: 0.8,
                                       ),
-                                      child: InkWell(
-                                        onTap: () {
-                                          setState(() {
-                                            if (isSelected) {
-                                              _selectedIds.remove(id);
-                                            } else {
-                                              _selectedIds.add(id);
-                                            }
-                                          });
-                                        },
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Row(
+                                    ),
+                                    padding: const EdgeInsets.all(12),
+                                    child: Column(
+                                      children: [
+                                        // Encabezado de la tabla
+                                        Row(
                                           children: [
-                                            // 1. Número (#)
                                             SizedBox(
                                               width: 28,
-                                              child: Center(
-                                                child: Text(
-                                                  "${index + 1}",
-                                                  style: GoogleFonts.montserrat(
-                                                    fontSize: 11,
-                                                    color: isSelected ? AppColors.yellow : Colors.white70,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
+                                              child: Text(
+                                                "#",
+                                                textAlign: TextAlign.center,
+                                                style: GoogleFonts.montserrat(
+                                                  fontSize: 11,
+                                                  color: Colors.white38,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 6),
-
-                                            // 2. Fecha
                                             SizedBox(
                                               width: 82,
                                               child: Text(
-                                                fechaStr,
+                                                l10n?.sorteoLabel ?? "Sorteo",
                                                 textAlign: TextAlign.center,
                                                 style: GoogleFonts.montserrat(
                                                   fontSize: 11,
-                                                  color: isSelected ? Colors.white : Colors.white70,
-                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.white38,
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
                                             ),
                                             const SizedBox(width: 4),
-
-                                            // 3. Balotas
                                             Expanded(
                                               child: Center(
-                                                child: FittedBox(
-                                                  fit: BoxFit.scaleDown,
-                                                  alignment: Alignment.center,
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    mainAxisAlignment: MainAxisAlignment.center,
-                                                    children: [
-                                                      for (final n in whites)
-                                                        Padding(
-                                                          padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                          child: _build3DBall(
-                                                            n,
-                                                            baseColor: color,
-                                                            size: ballSize,
-                                                          ),
-                                                        ),
-                                                      if (specials.isNotEmpty) ...[
-                                                        SizedBox(width: hPadding * 1.5),
-                                                        for (final special in specials)
-                                                          Padding(
-                                                            padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                            child: _build3DBall(
-                                                              special,
-                                                              baseColor: const Color(0xFFB91C1C),
-                                                              size: ballSize,
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    ],
+                                                child: Text(
+                                                  l10n?.balotas ?? "Balotas",
+                                                  style: GoogleFonts.montserrat(
+                                                    fontSize: 11,
+                                                    color: Colors.white38,
+                                                    fontWeight: FontWeight.bold,
                                                   ),
                                                 ),
                                               ),
                                             ),
                                           ],
                                         ),
-                                      ),
-                                    );
-                                  }),
-                                ],
-                              ),
-                            ),
-                ],
+                                        const Divider(
+                                          color: Colors.white12,
+                                          height: 16,
+                                        ),
+
+                                        // Filas de jugadas
+                                        ...List.generate(_jugadasFiltradas.length, (
+                                          index,
+                                        ) {
+                                          final item = _jugadasFiltradas[index];
+                                          final id = item["id"] as int? ?? 0;
+                                          final isSelected = _selectedIds
+                                              .contains(id);
+                                          final fechaStr = _formatFecha(
+                                            item["fecha_sorteo"] ??
+                                                item["fecha_guardado"] ??
+                                                item["created_at"] ??
+                                                item["fecha"],
+                                          );
+                                          final (whites, specials) =
+                                              _parsearJugada(item);
+
+                                          final int totalBalls =
+                                              whites.length + specials.length;
+                                          final double ballSize =
+                                              totalBalls <= 5
+                                              ? 32.0
+                                              : (totalBalls == 6
+                                                    ? 30.0
+                                                    : (totalBalls == 7
+                                                          ? 27.0
+                                                          : 24.0));
+                                          final double hPadding =
+                                              totalBalls <= 5
+                                              ? 2.5
+                                              : (totalBalls == 6
+                                                    ? 2.0
+                                                    : (totalBalls == 7
+                                                          ? 1.5
+                                                          : 1.0));
+
+                                          final Color color = [
+                                            const Color(0xFF1E3A8A), // Blue
+                                            const Color(0xFF4C1D95), // Purple
+                                            const Color(0xFF0F766E), // Teal
+                                            const Color(
+                                              0xFF9A3412,
+                                            ), // Rust / Orange
+                                            const Color(0xFF065F46), // Emerald
+                                            const Color(0xFF831843), // Pink
+                                            const Color(0xFF312E81), // Indigo
+                                            const Color(0xFF155E75), // Cyan
+                                            const Color(
+                                              0xFF7C2D12,
+                                            ), // Deep Orange
+                                            const Color(0xFF78350F), // Amber
+                                          ][index % 10];
+
+                                          return Container(
+                                            key: Key(id.toString()),
+                                            margin: const EdgeInsets.symmetric(
+                                              vertical: 2.0,
+                                            ),
+                                            padding: const EdgeInsets.symmetric(
+                                              vertical: 6.0,
+                                              horizontal: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? AppColors.yellow.withValues(
+                                                      alpha: 0.12,
+                                                    )
+                                                  : Colors.transparent,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              border: isSelected
+                                                  ? Border.all(
+                                                      color: AppColors.yellow
+                                                          .withValues(
+                                                            alpha: 0.4,
+                                                          ),
+                                                      width: 1,
+                                                    )
+                                                  : Border(
+                                                      bottom: BorderSide(
+                                                        color:
+                                                            index ==
+                                                                _jugadasList
+                                                                        .length -
+                                                                    1
+                                                            ? Colors.transparent
+                                                            : Colors.white10,
+                                                        width: 0.6,
+                                                      ),
+                                                    ),
+                                            ),
+                                            child: InkWell(
+                                              onTap: () {
+                                                setState(() {
+                                                  if (isSelected) {
+                                                    _selectedIds.remove(id);
+                                                  } else {
+                                                    _selectedIds.add(id);
+                                                  }
+                                                });
+                                              },
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                              child: Row(
+                                                children: [
+                                                  // 1. Número (#)
+                                                  SizedBox(
+                                                    width: 28,
+                                                    child: Center(
+                                                      child: Text(
+                                                        "${index + 1}",
+                                                        style:
+                                                            GoogleFonts.montserrat(
+                                                              fontSize: 11,
+                                                              color: isSelected
+                                                                  ? AppColors
+                                                                        .yellow
+                                                                  : Colors
+                                                                        .white70,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .bold,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+
+                                                  // 2. Fecha
+                                                  SizedBox(
+                                                    width: 82,
+                                                    child: Text(
+                                                      fechaStr,
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                      style:
+                                                          GoogleFonts.montserrat(
+                                                            fontSize: 11,
+                                                            color: isSelected
+                                                                ? Colors.white
+                                                                : Colors
+                                                                      .white70,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+
+                                                  // 3. Balotas
+                                                  Expanded(
+                                                    child: Center(
+                                                      child: FittedBox(
+                                                        fit: BoxFit.scaleDown,
+                                                        alignment:
+                                                            Alignment.center,
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize.min,
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            for (final n
+                                                                in whites)
+                                                              Padding(
+                                                                padding:
+                                                                    EdgeInsets.symmetric(
+                                                                      horizontal:
+                                                                          hPadding,
+                                                                    ),
+                                                                child: _build3DBall(
+                                                                  n,
+                                                                  baseColor:
+                                                                      color,
+                                                                  size:
+                                                                      ballSize,
+                                                                ),
+                                                              ),
+                                                            if (specials
+                                                                .isNotEmpty) ...[
+                                                              SizedBox(
+                                                                width:
+                                                                    hPadding *
+                                                                    1.5,
+                                                              ),
+                                                              for (final special
+                                                                  in specials)
+                                                                Padding(
+                                                                  padding: EdgeInsets.symmetric(
+                                                                    horizontal:
+                                                                        hPadding,
+                                                                  ),
+                                                                  child: _build3DBall(
+                                                                    special,
+                                                                    baseColor:
+                                                                        const Color(
+                                                                          0xFFB91C1C,
+                                                                        ),
+                                                                    size:
+                                                                        ballSize,
+                                                                  ),
+                                                                ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          );
+                                        }),
+                                      ],
+                                    ),
+                                  ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ),
-          ],
-        ),
+              if (_selectedIds.length == 1)
+                _buildDraggableCompareFab(context, constraints),
+            ],
+          );
+        },
       ),
-      if (_selectedIds.length == 1)
-        _buildDraggableCompareFab(context, constraints),
-    ],
-  );
-},
-),
-);
-}
+    );
+  }
 
   void _abrirModalComparar() {
     if (_selectedIds.length != 1) return;
@@ -976,7 +1169,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final item = _jugadasList[index];
     final (whites, specials) = _parsearJugada(item);
     final jugadaIndex = index + 1;
-    final fechaStr = _formatFecha(item["fecha_sorteo"] ?? item["fecha_guardado"] ?? item["created_at"] ?? item["fecha"]);
+    final fechaStr = _formatFecha(
+      item["fecha_sorteo"] ??
+          item["fecha_guardado"] ??
+          item["created_at"] ??
+          item["fecha"],
+    );
 
     final Color rowColor = [
       const Color(0xFF1E3A8A), // Azul
@@ -1046,7 +1244,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.query_stats_rounded, color: AppColors.yellow, size: 28),
+                  child: const Icon(
+                    Icons.query_stats_rounded,
+                    color: AppColors.yellow,
+                    size: 28,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 // Pregunta clara al usuario
@@ -1073,11 +1275,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 // Card de la jugada
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141A22),
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.yellow.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: AppColors.yellow.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Column(
                     children: [
@@ -1094,7 +1301,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           ),
                           Text(
                             fechaStr,
-                            style: const TextStyle(color: Colors.white54, fontSize: 11.5),
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 11.5,
+                            ),
                           ),
                         ],
                       ),
@@ -1104,19 +1314,25 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            ...whites.map((n) => Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 3),
-                                  child: _build3DBall(
-                                    n,
-                                    baseColor: rowColor,
-                                    size: 38,
-                                  ),
-                                )),
+                            ...whites.map(
+                              (n) => Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 3,
+                                ),
+                                child: _build3DBall(
+                                  n,
+                                  baseColor: rowColor,
+                                  size: 38,
+                                ),
+                              ),
+                            ),
                             if (specials.isNotEmpty) ...[
                               const SizedBox(width: 4),
                               for (final special in specials)
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 3),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 3,
+                                  ),
                                   child: _build3DBall(
                                     special,
                                     baseColor: const Color(0xFFB91C1C),
@@ -1139,7 +1355,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 13),
                           side: const BorderSide(color: Colors.white24),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         onPressed: () => Navigator.pop(ctx),
                         child: const Text(
@@ -1156,10 +1374,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           backgroundColor: AppColors.yellow,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(vertical: 13),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                           elevation: 4,
                         ),
-                        icon: const Icon(Icons.query_stats_rounded, size: 20, color: Colors.black),
+                        icon: const Icon(
+                          Icons.query_stats_rounded,
+                          size: 20,
+                          color: Colors.black,
+                        ),
                         label: const Text(
                           "Sí, Comparar",
                           style: TextStyle(
@@ -1171,24 +1395,30 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         onPressed: () async {
                           Navigator.pop(ctx);
                           if (!mounted) return;
-                          final isPremium = context.read<SubscriptionProvider>().isSubscribed;
+                          final isPremium = context
+                              .read<SubscriptionProvider>()
+                              .isSubscribed;
 
                           await AdService.instance.showRewardedFeatureGate(
                             context: context,
                             isPremium: isPremium,
                             featureTitle: "Comparar con Estadísticas",
-                            featureActionDescription: "Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.",
+                            featureActionDescription:
+                                "Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.",
                             onRewardGranted: () async {
-                              final Map<String, dynamic> jugadaComparacionData = {
-                                "id": id,
-                                "index": jugadaIndex,
-                                "titulo": "Jugada #$jugadaIndex",
-                                "color": rowColor.toARGB32(),
-                                "numeros": whites,
-                                "balota_roja": specials.isNotEmpty ? specials.first : null,
-                                "especiales": specials,
-                                "fecha": fechaStr,
-                              };
+                              final Map<String, dynamic> jugadaComparacionData =
+                                  {
+                                    "id": id,
+                                    "index": jugadaIndex,
+                                    "titulo": "Jugada #$jugadaIndex",
+                                    "color": rowColor.toARGB32(),
+                                    "numeros": whites,
+                                    "balota_roja": specials.isNotEmpty
+                                        ? specials.first
+                                        : null,
+                                    "especiales": specials,
+                                    "fecha": fechaStr,
+                                  };
                               final bool? editada = await Navigator.push<bool>(
                                 context,
                                 MaterialPageRoute(
@@ -1218,11 +1448,18 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
   }
 
-  Widget _buildDraggableCompareFab(BuildContext context, BoxConstraints constraints) {
+  Widget _buildDraggableCompareFab(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
     const double fabSize = 58.0;
 
-    final double maxW = constraints.maxWidth > 0 ? constraints.maxWidth : MediaQuery.of(context).size.width;
-    final double maxH = constraints.maxHeight > 0 ? constraints.maxHeight : MediaQuery.of(context).size.height;
+    final double maxW = constraints.maxWidth > 0
+        ? constraints.maxWidth
+        : MediaQuery.of(context).size.width;
+    final double maxH = constraints.maxHeight > 0
+        ? constraints.maxHeight
+        : MediaQuery.of(context).size.height;
 
     final defaultX = (maxW - fabSize - 16.0).clamp(10.0, maxW);
     final defaultY = (maxH - fabSize - 30.0).clamp(10.0, maxH);
@@ -1230,8 +1467,14 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     return ValueListenableBuilder<Offset?>(
       valueListenable: _fabPositionNotifier,
       builder: (context, pos, child) {
-        final currentX = (pos?.dx ?? defaultX).clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
-        final currentY = (pos?.dy ?? defaultY).clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+        final currentX = (pos?.dx ?? defaultX).clamp(
+          10.0,
+          (maxW - fabSize - 10.0).clamp(10.0, double.infinity),
+        );
+        final currentY = (pos?.dy ?? defaultY).clamp(
+          10.0,
+          (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
+        );
 
         return Positioned(
           left: currentX,
@@ -1239,12 +1482,19 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onPanUpdate: (details) {
-              final cur = _fabPositionNotifier.value ?? Offset(defaultX, defaultY);
+              final cur =
+                  _fabPositionNotifier.value ?? Offset(defaultX, defaultY);
               double newX = cur.dx + details.delta.dx;
               double newY = cur.dy + details.delta.dy;
 
-              newX = newX.clamp(10.0, (maxW - fabSize - 10.0).clamp(10.0, double.infinity));
-              newY = newY.clamp(10.0, (maxH - fabSize - 10.0).clamp(10.0, double.infinity));
+              newX = newX.clamp(
+                10.0,
+                (maxW - fabSize - 10.0).clamp(10.0, double.infinity),
+              );
+              newY = newY.clamp(
+                10.0,
+                (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
+              );
 
               _fabPositionNotifier.value = Offset(newX, newY);
             },
@@ -1304,7 +1554,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 decoration: BoxDecoration(
-                  color: _soloProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  color: _soloProximos
+                      ? AppColors.yellow
+                      : const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: _soloProximos ? AppColors.yellow : Colors.white12,
@@ -1346,7 +1598,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 decoration: BoxDecoration(
-                  color: !_soloProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  color: !_soloProximos
+                      ? AppColors.yellow
+                      : const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: !_soloProximos ? AppColors.yellow : Colors.white12,
@@ -1376,6 +1630,57 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyJugadasState(AppLocalizations? l10n, String emptySubtext) {
+    final isConnectionIssue = _loadFailed && _jugadasList.isEmpty;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 12),
+        child: Column(
+          children: [
+            Icon(
+              isConnectionIssue
+                  ? Icons.cloud_off_outlined
+                  : Icons.bookmark_border,
+              color: isConnectionIssue ? Colors.redAccent : Colors.white38,
+              size: 44,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isConnectionIssue
+                  ? (l10n?.errorConexion ?? 'Error de conexión')
+                  : (l10n?.noTienesJugadasGuardadas ??
+                        'No tienes jugadas guardadas aún'),
+              style: AppTextStyles.h2.copyWith(fontSize: 16),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isConnectionIssue
+                  ? (l10n?.datosLoteriaSinConexion ??
+                        'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
+                  : emptySubtext,
+              style: AppTextStyles.caption,
+              textAlign: TextAlign.center,
+            ),
+            if (isConnectionIssue) ...[
+              const SizedBox(height: 14),
+              OutlinedButton.icon(
+                onPressed: _cargando ? null : () => _cargarJugadas(force: true),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n?.reintentar ?? 'Reintentar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.yellow,
+                  side: const BorderSide(color: AppColors.yellow),
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

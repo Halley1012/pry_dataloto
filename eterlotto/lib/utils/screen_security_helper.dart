@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 class ScreenSecurityHelper {
@@ -15,20 +14,14 @@ class ScreenSecurityHelper {
       return;
     }
     try {
-      final res = await _channel.invokeMethod('enableSecureScreen');
-      debugPrint('🔒 Protección de pantalla ACTIVADA (FLAG_SECURE): $res');
-    } catch (e) {
-      debugPrint('❌ Error activando FLAG_SECURE: $e');
-    }
+      await _channel.invokeMethod('enableSecureScreen');
+    } catch (_) {}
   }
 
   /// 🔓 Desbloquear capturas de pantalla
   static Future<void> disableSecureScreen() async {
     try {
-      final res = await _channel.invokeMethod('disableSecureScreen');
-      debugPrint('🔓 Protección de pantalla DESACTIVADA: $res');
-    } catch (e) {
-      debugPrint('❌ Error desactivando FLAG_SECURE: $e');
-    }
+      await _channel.invokeMethod('disableSecureScreen');
+    } catch (_) {}
   }
 }

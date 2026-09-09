@@ -1451,4 +1451,38 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get debesIniciarSesionParaGuardar =>
       'Você deve fazer login para salvar';
+
+  @override
+  String get informacionNoDisponible => 'Informações indisponíveis';
+
+  @override
+  String get datosLoteriaNoDisponibles =>
+      'Esta loteria ainda não possui resultados ou previsões disponíveis.';
+
+  @override
+  String get datosLoteriaSinConexion =>
+      'Não foi possível atualizar os dados. Verifique sua conexão e tente novamente.';
+
+  @override
+  String get reintentar => 'Tentar novamente';
+
+  @override
+  String get sinResultadosRegistrados => 'Ainda não há resultados registrados';
+
+  @override
+  String get sinResultadosRegistradosDescripcion =>
+      'As loterias aparecerão aqui quando registrarem seu primeiro sorteio oficial.';
+
+  @override
+  String get resultadosRecientes => 'Recentes';
+
+  @override
+  String get sinHistorialResultados => 'Ainda não há resultados históricos';
+
+  @override
+  String get sinHistorialResultadosDescripcion =>
+      'Os sorteios anteriores aparecerão aqui quando cada loteria tiver mais de um resultado oficial.';
+
+  @override
+  String get porDefinir => 'A confirmar';
 }

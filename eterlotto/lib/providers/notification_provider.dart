@@ -51,9 +51,7 @@ class NotificationProvider with ChangeNotifier {
                 ))
             .toList();
         notifyListeners();
-      } catch (e) {
-        debugPrint('Error leyendo caché de notificaciones: $e');
-      }
+      } catch (_) {}
     }
   }
 
@@ -74,9 +72,7 @@ class NotificationProvider with ChangeNotifier {
       final fresh = await NotificationService.getNotifications();
       _notifications = fresh;
       await _saveCache();
-    } catch (e) {
-      debugPrint('Error fetching notifications: $e');
-    } finally {
+    } catch (_) {} finally {
       _isLoading = false;
       notifyListeners();
     }
@@ -94,11 +90,10 @@ class NotificationProvider with ChangeNotifier {
 
     try {
       await NotificationService.markAsRead(id);
-    } catch (e) {
+    } catch (_) {
       _notifications[index] = previous;
       notifyListeners();
       await _saveCache();
-      debugPrint('Error marking notification as read: $e');
     }
   }
 
@@ -124,8 +119,7 @@ class NotificationProvider with ChangeNotifier {
         try {
           await NotificationService.markAsRead(id);
           return true;
-        } catch (e) {
-          debugPrint('Error marking notification $id as read: $e');
+        } catch (_) {
           return false;
         }
       }),
@@ -150,11 +144,10 @@ class NotificationProvider with ChangeNotifier {
     try {
       await NotificationService.deleteNotification(id);
       return true;
-    } catch (e) {
+    } catch (_) {
       _notifications.insert(index, removed);
       notifyListeners();
       await _saveCache();
-      debugPrint('Error deleting notification from server: $e');
       return false;
     }
   }
