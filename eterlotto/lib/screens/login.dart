@@ -96,6 +96,11 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         if (!mounted) return;
+        // Se limpia cualquier estado en memoria anterior y se consulta el VIP
+        // del usuario que acaba de autenticarse.
+        final subscription = context.read<SubscriptionProvider>();
+        subscription.reset();
+        unawaited(subscription.refreshSubscriptionStatus());
 
         if (paisId == null || departamentoId == null) {
           // Redirigir a Onboarding de Ubicación
@@ -185,7 +190,9 @@ class _LoginPageState extends State<LoginPage> {
 
           if (!mounted) return;
 
-          context.read<SubscriptionProvider>().refreshSubscriptionStatus();
+          final subscription = context.read<SubscriptionProvider>();
+          subscription.reset();
+          unawaited(subscription.refreshSubscriptionStatus());
 
           // Redirigir al Home
           Navigator.pushReplacementNamed(context, "/home");
