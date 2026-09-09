@@ -2082,7 +2082,7 @@ abstract class AppLocalizations {
   /// No description provided for @descripcionHistoricoResultados.
   ///
   /// In es, this message translates to:
-  /// **'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.'**
+  /// **'Consulta los 25 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.'**
   String get descripcionHistoricoResultados;
 
   /// No description provided for @cargarMasSorteos.

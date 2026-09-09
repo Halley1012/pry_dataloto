@@ -207,7 +207,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
-    final cacheKey = 'resultados_dashboard_cache_v8_$route';
+    // Este payload incluye las jugadas del usuario, por eso nunca puede
+    // compartirse entre sesiones aunque los resultados sean públicos.
+    final userId = (await ApiService.getUserId())?.toString() ?? 'anon';
+    final cacheKey = 'resultados_dashboard_cache_v9_${route}_$userId';
 
     // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
     if (!forceRefresh) {

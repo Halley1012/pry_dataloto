@@ -168,7 +168,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 FROM jugadas
                 WHERE user_id = $1
                   AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
             """, user_id)
             return [r['route'] for r in rows if r['route']]
 
@@ -181,7 +180,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 FROM jugadas
                 WHERE user_id = $1
                   AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
                 GROUP BY LOWER(loteria_route)
             """, user_id)
             return {r['route']: r['count'] for r in rows if r['route']}
@@ -197,7 +195,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 FROM jugadas
                 WHERE user_id = $1
                   AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                  AND fecha_guardado >= NOW() - INTERVAL '7 days'
                 GROUP BY LOWER(loteria_route)
             """, user_id)
             return {
