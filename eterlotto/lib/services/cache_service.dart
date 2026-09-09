@@ -72,7 +72,13 @@ class CacheService {
 
       bool isRouteCacheForUser(String rawKey, String prefix) {
         if (route != null && route.isNotEmpty) {
-          return rawKey == '${prefix}${route}_${activeUserId}';
+          final routePrefix = '$prefix${route}_';
+          // Algunas vistas privadas incluyen además una fecha o variante entre
+          // la ruta y el usuario. Todas deben invalidarse al modificar una
+          // jugada de esa misma lotería.
+          return rawKey == '${prefix}${route}_${activeUserId}' ||
+              (rawKey.startsWith(routePrefix) &&
+                  rawKey.endsWith('_$activeUserId'));
         }
         return rawKey.startsWith(prefix) && rawKey.endsWith('_$activeUserId');
       }
@@ -86,7 +92,8 @@ class CacheService {
             rawKey == 'mis_jugadas_info_cache' ||
             isRouteCacheForUser(rawKey, 'user_jugadas_') ||
             isRouteCacheForUser(rawKey, 'jugadas_list_') ||
-            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v9_');
+            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v9_') ||
+            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v10_');
       }).toList();
 
       for (final k in keys) {

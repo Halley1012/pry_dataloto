@@ -89,9 +89,7 @@ def listar_ciudades(departamento_id: Optional[int] = None, use_cases: Publicidad
 
 @router.get("/loterias", response_model=List[schemas.LoteriaOut])
 def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
-    # v2 incorpora el conteo de sorteos oficiales usado por las vistas
-    # Recientes e Historial; evita reutilizar respuestas sin ese dato.
-    cache_key = f"metadata:loterias:v2:{pais_id or 'all'}"
+    cache_key = f"metadata:loterias:{pais_id or 'all'}"
     cached = memory_cache.get(cache_key)
     if cached is not None:
         return cached

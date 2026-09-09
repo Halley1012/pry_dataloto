@@ -814,7 +814,7 @@
   "sinResultadosRegistrados": "Ainda não há resultados registrados",
   "sinResultadosRegistradosDescripcion": "As loterias aparecerão aqui quando registrarem seu primeiro sorteio oficial.",
   "resultadosRecientes": "Recentes",
-  "sinHistorialResultados": "Ainda não há resultados históricos",
-  "sinHistorialResultadosDescripcion": "Os sorteios anteriores aparecerão aqui quando cada loteria tiver mais de um resultado oficial.",
+  "sinHistorialResultados": "Você ainda não tem resultados no histórico",
+  "sinHistorialResultadosDescripcion": "As loterias internacionais aparecerão aqui quando o sorteio da sua última jogada já tiver acontecido.",
   "porDefinir": "A confirmar"
 }
