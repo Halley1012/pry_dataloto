@@ -87,15 +87,12 @@ class AdService {
 
     if (_isInitialized) return;
     try {
-      final status = await MobileAds.instance.initialize();
+      await MobileAds.instance.initialize();
       _isInitialized = true;
-      debugPrint('✅ Google Mobile Ads inicializado con éxito: ${status.adapterStatuses}');
       // Precargar anuncios
       loadInterstitialAd();
       loadRewardedAd();
-    } catch (e) {
-      debugPrint('❌ Error al inicializar Google Mobile Ads: $e');
-    }
+    } catch (_) {}
   }
 
   // ==========================================
@@ -114,14 +111,9 @@ class AdService {
         onAdLoaded: (ad) {
           _interstitialAd = ad;
           _isInterstitialLoading = false;
-          debugPrint('🎯 Interstitial Ad cargado y listo para mostrar');
-
           _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-            onAdShowedFullScreenContent: (ad) {
-              debugPrint('📺 Interstitial Ad mostrado en pantalla completa');
-            },
+            onAdShowedFullScreenContent: (_) {},
             onAdDismissedFullScreenContent: (ad) {
-              debugPrint('❎ Interstitial Ad cerrado por el usuario');
               ad.dispose();
               _interstitialAd = null;
               _lastInterstitialShownAt = DateTime.now();
@@ -133,8 +125,7 @@ class AdService {
 
               loadInterstitialAd();
             },
-            onAdFailedToShowFullScreenContent: (ad, error) {
-              debugPrint('❌ Error al mostrar Interstitial Ad: $error');
+            onAdFailedToShowFullScreenContent: (ad, _) {
               ad.dispose();
               _interstitialAd = null;
 
@@ -146,10 +137,9 @@ class AdService {
             },
           );
         },
-        onAdFailedToLoad: (error) {
+        onAdFailedToLoad: (_) {
           _isInterstitialLoading = false;
           _interstitialAd = null;
-          debugPrint('❌ Falló la carga del Interstitial Ad: $error');
         },
       ),
     );
@@ -162,7 +152,6 @@ class AdService {
     VoidCallback? onAdClosed,
   }) {
     if (isPremium) {
-      debugPrint('⭐ [AdMob UX] Usuario VIP: Anuncio omitido');
       onAdClosed?.call();
       return false;
     }
@@ -171,15 +160,12 @@ class AdService {
     final gracePeriod = isTestMode ? const Duration(seconds: 5) : _sessionGracePeriod;
     final sessionDuration = DateTime.now().difference(_sessionStartTime);
     if (sessionDuration < gracePeriod) {
-      final remaining = gracePeriod.inSeconds - sessionDuration.inSeconds;
-      debugPrint('🛡️ [AdMob UX Regla 1] Omitido por Periodo de Gracia Inicial: ${sessionDuration.inSeconds}s transcurridos (quedan ${remaining}s protegidos)');
       onAdClosed?.call();
       return false;
     }
 
     // 2. Regla: Límite máximo por sesión (máximo 2)
     if (_sessionInterstitialShownCount >= _maxInterstitialsPerSession) {
-      debugPrint('🛑 [AdMob UX Regla 2] Omitido por Límite de Sesión: Ya se mostraron $_sessionInterstitialShownCount/$_maxInterstitialsPerSession anuncios.');
       onAdClosed?.call();
       return false;
     }
@@ -188,8 +174,6 @@ class AdService {
     if (!ignoreThreshold) {
       _actionCounter++;
       if (_actionCounter % _actionsThreshold != 0) {
-        final needed = _actionsThreshold - (_actionCounter % _actionsThreshold);
-        debugPrint('🎯 [AdMob UX Regla 3] Omitido por Umbral de Acciones: Acción $_actionCounter (faltan $needed para evaluar anuncio)');
         onAdClosed?.call();
         return false;
       }
@@ -200,20 +184,16 @@ class AdService {
     if (_lastInterstitialShownAt != null) {
       final elapsed = DateTime.now().difference(_lastInterstitialShownAt!);
       if (elapsed < minCooldown) {
-        final remaining = minCooldown.inSeconds - elapsed.inSeconds;
-        debugPrint('⏳ [AdMob UX Regla 4] Omitido por Cooldown: ${elapsed.inSeconds}s desde el último (faltan ${remaining}s de enfriamiento)');
         onAdClosed?.call();
         return false;
       }
     }
 
     if (_interstitialAd != null) {
-      debugPrint('🚀 [AdMob UX] ¡Todas las reglas cumplidas! Mostrando Interstitial Ad...');
       _currentOnClosedCallback = onAdClosed;
       _interstitialAd!.show();
       return true;
     } else {
-      debugPrint('⚠️ [AdMob UX] Anuncio no precargado en este instante; continuando sin retrasar al usuario.');
       loadInterstitialAd();
       onAdClosed?.call();
       return false;
@@ -241,7 +221,6 @@ class AdService {
   /// Desbloquea una función por una duración determinada (por defecto 2 horas)
   void unlockFeature(String featureKey, {Duration duration = const Duration(hours: 2)}) {
     _unlockedFeatures[featureKey] = DateTime.now().add(duration);
-    debugPrint('🔓 [AdMob UX] Función "$featureKey" desbloqueada durante ${duration.inMinutes} minutos.');
   }
 
   /// Precargar anuncio recompensado en segundo plano
@@ -256,12 +235,10 @@ class AdService {
         onAdLoaded: (ad) {
           _rewardedAd = ad;
           _isRewardedLoading = false;
-          debugPrint('🎁 Rewarded Ad cargado y listo');
         },
-        onAdFailedToLoad: (error) {
+        onAdFailedToLoad: (_) {
           _isRewardedLoading = false;
           _rewardedAd = null;
-          debugPrint('❌ Falló la carga del Rewarded Ad: $error');
         },
       ),
     );
@@ -279,9 +256,6 @@ class AdService {
   }) async {
     // Si el usuario es VIP o ya desbloqueó la función previamente en esta sesión:
     if (isPremium || (featureKey != null && isFeatureUnlocked(featureKey))) {
-      if (featureKey != null && isFeatureUnlocked(featureKey)) {
-        debugPrint('⚡ [AdMob UX] Función "$featureKey" ya está desbloqueada. Acceso directo concedido.');
-      }
       onRewardGranted();
       return;
     }
@@ -419,7 +393,7 @@ class AdService {
             onRewardGranted();
           }
         },
-        onAdFailedToShowFullScreenContent: (ad, error) {
+        onAdFailedToShowFullScreenContent: (ad, _) {
           ad.dispose();
           _rewardedAd = null;
           loadRewardedAd();
@@ -432,14 +406,12 @@ class AdService {
       );
 
       _rewardedAd!.show(
-        onUserEarnedReward: (ad, reward) {
-          debugPrint('🎉 Recompensa otorgada: ${reward.amount} ${reward.type}');
+        onUserEarnedReward: (_, __) {
           userEarnedReward = true;
         },
       );
     } else {
       // Si el anuncio no está disponible (ej. sin internet o sin fill), otorgar acceso por cortesía
-      debugPrint('ℹ️ Rewarded no disponible, otorgando acceso por cortesía.');
       loadRewardedAd();
       if (featureKey != null) {
         unlockFeature(featureKey, duration: unlockDuration);

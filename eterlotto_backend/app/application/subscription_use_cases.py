@@ -165,11 +165,9 @@ class SubscriptionUseCases:
                 status = "revoked"
 
         logger.info(
-            "[SUBSCRIPTION] event=RTDN_DB_UPDATE metric=subscriptions_%s user_id=%s is_premium=%s expires_at=%s",
+            "[SUBSCRIPTION] event=RTDN_DB_UPDATE metric=subscriptions_%s is_premium=%s",
             status,
-            user_id,
             is_premium,
-            expires_at,
         )
 
         result = await self.user_repo.update_subscription_state(

@@ -31,6 +31,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     final l10n = AppLocalizations.of(context);
     final subProvider = context.watch<SubscriptionProvider>();
     final isSubscribed = subProvider.isSubscribed;
+    final isSubscriptionStatusResolved =
+        subProvider.isSubscriptionStatusResolved;
     final product = subProvider.monthlyProduct;
     final priceString =
         product?.price ??
@@ -148,7 +150,39 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               const SizedBox(height: 30),
 
               // 🏷️ Precio y Estado
-              if (isSubscribed) ...[
+              if (!isSubscriptionStatusResolved) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 22,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.white24),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          'Verificando el estado de tu suscripción...',
+                          style: GoogleFonts.montserrat(
+                            color: Colors.white70,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (isSubscribed) ...[
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,

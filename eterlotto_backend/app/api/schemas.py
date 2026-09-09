@@ -134,6 +134,9 @@ class LoteriaOut(BaseModel):
     pais_id: int
     proximo_sorteo: Optional[str] = None
     ultimo_sorteo: Optional[str] = None
+    # Cantidad de resultados oficiales disponibles. No cuenta predicciones ni
+    # filas reservadas para un próximo sorteo.
+    sorteos_registrados: int = 0
     route: Optional[str] = None
     max_seleccion: Optional[int] = 5
     max_balotas_blancas: Optional[int] = 45

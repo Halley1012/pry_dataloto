@@ -31,12 +31,14 @@ class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
   final String? loteriaRoute;
   final Map<String, dynamic>? loteriaData;
+  final bool openHistory;
 
   const ResultadosDashboardScreen({
     super.key,
     this.loteriaNombreInicial = "Lotería",
     this.loteriaRoute,
     this.loteriaData,
+    this.openHistory = false,
   });
 
   @override
@@ -47,6 +49,8 @@ class ResultadosDashboardScreen extends StatefulWidget {
 class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   late String _selectedLoteria;
   bool _isLoading = true;
+  bool _dataRequestFailed = false;
+  bool _historyOpenScheduled = false;
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
@@ -126,12 +130,22 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         module == RefreshModules.jugadas ||
         module == 'all') {
       if (mounted) {
-        debugPrint(
-          "🔄 [ResultadosDashboardScreen] Auto-refrescando $_selectedLoteria por ciclo de vida / TTL",
-        );
         _cargarDatosReales(forceRefresh: false);
       }
     }
+  }
+
+  void _openHistoryIfRequested() {
+    if (!widget.openHistory ||
+        _historyOpenScheduled ||
+        _ultimosSorteos.length < 2 ||
+        !mounted) {
+      return;
+    }
+    _historyOpenScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _abrirHistoricoResultados();
+    });
   }
 
   String _getRouteForLoteria(String name) {
@@ -162,9 +176,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     if (widget.loteriaData != null) {
       final m = int.tryParse(
         widget.loteriaData!['max_balotas_blancas']?.toString() ??
-        widget.loteriaData!['maxBalotasBlancas']?.toString() ??
-        widget.loteriaData!['total_balotas']?.toString() ??
-        widget.loteriaData!['totalBalotas']?.toString() ?? '',
+            widget.loteriaData!['maxBalotasBlancas']?.toString() ??
+            widget.loteriaData!['total_balotas']?.toString() ??
+            widget.loteriaData!['totalBalotas']?.toString() ??
+            '',
       );
       if (m != null && m > 0) {
         return (m ~/ 2);
@@ -177,9 +192,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     // 3. Fallback auxiliar
     final lower = name.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-    if (lower.contains("megamillions") || lower.contains("megamillion")) return 35;
+    if (lower.contains("megamillions") || lower.contains("megamillion"))
+      return 35;
     if (lower.contains("powerball") || lower.contains("doubleplay")) return 34;
-    if (lower.contains("millionaire") || lower.contains("millionairelife")) return 29;
+    if (lower.contains("millionaire") || lower.contains("millionairelife"))
+      return 29;
     if (lower.contains("lottoamerica")) return 26;
     if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
     if (lower.contains("baloto") || lower.contains("bloto")) return 21;
@@ -197,10 +214,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       // Petición 100% genérica para cualquier lotería actual o futura
       final raw = await ApiService.listarJugadasGenerica(route, fecha: fecha);
       return List<Map<String, dynamic>>.from(raw);
-    } catch (e) {
-      debugPrint(
-        "⚠️ Error obteniendo jugadas del usuario para $loteriaName: $e",
-      );
+    } catch (_) {
       return [];
     }
   }
@@ -222,11 +236,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             _isLoading = false;
           }
         });
+        _openHistoryIfRequested();
       }
     }
 
     if (_winningNums.isEmpty) {
-      setState(() => _isLoading = true);
+      setState(() {
+        _isLoading = true;
+        _dataRequestFailed = false;
+      });
     }
 
     try {
@@ -430,10 +448,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       if (mounted) {
         _procesarDatosCargados(payload);
         setState(() => _isLoading = false);
+        _openHistoryIfRequested();
       }
-    } catch (e) {
-      debugPrint("⚠️ Error cargando datos reales: $e");
-      if (mounted) setState(() => _isLoading = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _dataRequestFailed = _subSorteos.isEmpty;
+        });
+      }
     }
   }
 
@@ -715,13 +738,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // 4. Calcular distribución de aciertos
     List<int> dist = [0, 0, 0, 0, 0, 0];
     for (var jugada in _misJugadas) {
-      final nums = (jugada["nums"] as List).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+      final nums = (jugada["nums"] as List)
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .toList();
       final red = jugada["red"] as int?;
 
       int maxHits = 0;
       if (_subSorteos.isNotEmpty) {
         for (final sub in _subSorteos) {
-          final int hits = nums.where((n) => sub.winningNums.contains(n)).length;
+          final int hits = nums
+              .where((n) => sub.winningNums.contains(n))
+              .length;
           final bool redHit = (red != null && red == sub.winningRed);
           final int total = hits + (redHit ? 1 : 0);
           if (total > maxHits) maxHits = total;
@@ -815,13 +842,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     int currentStreak = 0;
     int maxStreak = 0;
     for (var jugada in _misJugadas) {
-      final nums = (jugada["nums"] as List).map((e) => int.tryParse(e.toString()) ?? 0).toList();
+      final nums = (jugada["nums"] as List)
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .toList();
       final red = jugada["red"] as int?;
 
       int maxHits = 0;
       if (_subSorteos.isNotEmpty) {
         for (final sub in _subSorteos) {
-          final int hits = nums.where((n) => sub.winningNums.contains(n)).length;
+          final int hits = nums
+              .where((n) => sub.winningNums.contains(n))
+              .length;
           final bool redHit = (red != null && red == sub.winningRed);
           final int total = hits + (redHit ? 1 : 0);
           if (total > maxHits) maxHits = total;
@@ -927,11 +958,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         final langCode = mounted
             ? Localizations.localeOf(context).languageCode
             : 'es';
-        final dias = langCode == 'en' 
+        final dias = langCode == 'en'
             ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-            : (langCode == 'pt' 
-                ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-                : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+            : (langCode == 'pt'
+                  ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+                  : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
         final meses = langCode == 'en'
             ? [
                 "Jan",
@@ -1199,6 +1230,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               children: [
                 if (_isLoading && _subSorteos.isEmpty)
                   _buildSkeletonDashboard()
+                else if (_subSorteos.isEmpty)
+                  _buildDataUnavailableState(l10n)
                 else ...[
                   // 0. Encabezado Estilizado
                   HeaderCard(
@@ -1281,7 +1314,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   // 6. 📈 Rendimiento últimos 10 sorteos (Gráfica Comparativa)
                   if (_historialCoberturasPorSorteo.isNotEmpty) ...[
                     RendimientoGraficaCard(
-                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
+                      historialCoberturasPorSorteo:
+                          _historialCoberturasPorSorteo,
                     ),
                     const SizedBox(height: 14),
                   ],
@@ -1289,7 +1323,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   // 7. 📊 Resumen del rendimiento (Tarjeta compacta)
                   if (_historialCoberturasPorSorteo.isNotEmpty) ...[
                     ResumenRendimientoCard(
-                      historialCoberturasPorSorteo: _historialCoberturasPorSorteo,
+                      historialCoberturasPorSorteo:
+                          _historialCoberturasPorSorteo,
                     ),
                     const SizedBox(height: 14),
                   ],
@@ -1328,6 +1363,61 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDataUnavailableState(AppLocalizations l10n) {
+    final isConnectionIssue = _dataRequestFailed;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 72, horizontal: 16),
+      child: Center(
+        child: Column(
+          children: [
+            Icon(
+              isConnectionIssue
+                  ? Icons.cloud_off_outlined
+                  : Icons.receipt_long_outlined,
+              color: isConnectionIssue ? Colors.redAccent : AppColors.yellow,
+              size: 48,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              isConnectionIssue
+                  ? l10n.errorConexion
+                  : (l10n.informacionNoDisponible),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isConnectionIssue
+                  ? l10n.datosLoteriaSinConexion
+                  : l10n.datosLoteriaNoDisponibles,
+              style: const TextStyle(color: Colors.white70, height: 1.35),
+              textAlign: TextAlign.center,
+            ),
+            if (isConnectionIssue) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isLoading
+                    ? null
+                    : () => _cargarDatosReales(forceRefresh: true),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n.reintentar),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.yellow,
+                  side: const BorderSide(color: AppColors.yellow),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

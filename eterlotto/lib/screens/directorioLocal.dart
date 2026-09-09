@@ -152,9 +152,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       });
 
       await buscarAnuncios("");
-    } catch (e) {
-      debugPrint("❌ Error al inicializar filtros en directorioLocal: $e");
-    }
+    } catch (_) {}
   }
 
   @override
