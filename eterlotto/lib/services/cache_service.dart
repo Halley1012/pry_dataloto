@@ -56,18 +56,37 @@ class CacheService {
     return null;
   }
 
-  /// ⚡ Invalida activamente todos los caches de selectores (Resultados, Mis Jugadas, Info)
-  /// y notifica inmediatamente a todas las pantallas activas para que se auto-sincronicen sin pull-to-refresh.
-  static Future<void> invalidarCachesDeJugadas({String? specificRoute}) async {
+  /// Invalida únicamente las cachés privadas del usuario afectado por una
+  /// modificación de jugadas. Los resultados y catálogos públicos no se tocan.
+  static Future<void> invalidarCachesDeJugadas({
+    String? specificRoute,
+    String? userId,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final storage = AppSecureStorage.instance;
+      final activeUserId = userId?.trim().isNotEmpty == true
+          ? userId!.trim()
+          : (await storage.read(key: 'user_id'))?.trim() ?? 'anon';
+      final route = specificRoute?.trim().toLowerCase();
+
+      bool isRouteCacheForUser(String rawKey, String prefix) {
+        if (route != null && route.isNotEmpty) {
+          return rawKey == '${prefix}${route}_${activeUserId}';
+        }
+        return rawKey.startsWith(prefix) && rawKey.endsWith('_$activeUserId');
+      }
+
       final keys = prefs.getKeys().where((k) {
         final rawKey = k.replaceFirst(_prefix, '');
-        return rawKey.startsWith('mis_jugadas_selector') ||
-               rawKey.startsWith('resultados_selector') ||
-               rawKey.startsWith('mis_jugadas_info') ||
-               rawKey.startsWith('user_jugadas_') ||
-               (specificRoute != null && rawKey.contains(specificRoute.toLowerCase()));
+        return rawKey == 'mis_jugadas_selector_v5_$activeUserId' ||
+            rawKey == 'mis_jugadas_selector_$activeUserId' ||
+            rawKey == 'mis_jugadas_info_cache_v2_$activeUserId' ||
+            // Se limpia la única clave privada legacy, que no tenía usuario.
+            rawKey == 'mis_jugadas_info_cache' ||
+            isRouteCacheForUser(rawKey, 'user_jugadas_') ||
+            isRouteCacheForUser(rawKey, 'jugadas_list_') ||
+            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v9_');
       }).toList();
 
       for (final k in keys) {
@@ -85,7 +104,7 @@ class CacheService {
     try {
       final storage = AppSecureStorage.instance;
       final uId = await storage.read(key: 'user_id');
-      final cacheKey = 'mis_jugadas_selector_${uId ?? "anon"}';
+      final cacheKey = 'mis_jugadas_selector_v5_${uId ?? "anon"}';
 
       final cached = await getJson(cacheKey);
       final cachedAll = await getJson('loterias_mapeadas_all');

@@ -568,7 +568,10 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      CacheService.invalidarCachesDeJugadas(specificRoute: "mloto");
+      CacheService.invalidarCachesDeJugadas(
+        specificRoute: "mloto",
+        userId: userId,
+      );
       return true;
     } else {
       throw Exception(
@@ -671,7 +674,10 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      CacheService.invalidarCachesDeJugadas(specificRoute: "bloto");
+      CacheService.invalidarCachesDeJugadas(
+        specificRoute: "bloto",
+        userId: userId,
+      );
       return true;
     } else {
       throw Exception(
@@ -685,6 +691,7 @@ class ApiService {
     String loteriaName,
     List<int> numeros,
     String userId, {
+    List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
   }) async {
@@ -699,17 +706,19 @@ class ApiService {
 
     // `numeros` es posicional: principales primero y especiales después.
     // Nunca se deduplica por valor; 9 principal + 9 especial son dos balotas.
-    final List<int> numerosParaGuardar = balotaRoja != null
-        ? [...numeros, balotaRoja]
-        : List<int>.from(numeros);
+    final especiales = specialNumbers ??
+        (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
+    final List<int> numerosParaGuardar = [...numeros, ...especiales];
 
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
     };
-    if (balotaRoja != null) {
-      payload["balota_roja"] = balotaRoja;
-      payload["balotaroja"] = balotaRoja;
+    if (especiales.isNotEmpty) {
+      // Los campos antiguos mantienen compatibilidad; `numeros` conserva todas
+      // las especiales en orden para loterías 5+2, 6+2 y similares.
+      payload["balota_roja"] = especiales.first;
+      payload["balotaroja"] = especiales.first;
     }
     if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
       payload["fecha_sorteo"] = fechaSorteo;
@@ -787,7 +796,10 @@ class ApiService {
         headers: {"Content-Type": "application/json"},
       ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          userId: userId,
+        );
         return true;
       }
       return false;
@@ -803,6 +815,7 @@ class ApiService {
     int jugadaId,
     List<int> numeros,
     String userId, {
+    List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
   }) async {
@@ -813,17 +826,17 @@ class ApiService {
     }
 
     // Mantiene la misma semántica posicional del alta de jugadas.
-    final List<int> numerosParaGuardar = balotaRoja != null
-        ? [...numeros, balotaRoja]
-        : List<int>.from(numeros);
+    final especiales = specialNumbers ??
+        (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
+    final List<int> numerosParaGuardar = [...numeros, ...especiales];
 
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
       "loteria_route": route,
     };
-    if (balotaRoja != null) {
-      payload["balota_roja"] = balotaRoja;
+    if (especiales.isNotEmpty) {
+      payload["balota_roja"] = especiales.first;
     }
     if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
       payload["fecha_sorteo"] = fechaSorteo;
@@ -844,7 +857,10 @@ class ApiService {
       ).timeout(const Duration(seconds: 10));
 
       if (putResponse.statusCode == 200) {
-        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          userId: userId,
+        );
         return true;
       }
 
@@ -856,7 +872,10 @@ class ApiService {
       ).timeout(const Duration(seconds: 10));
 
       if (putResponse.statusCode == 200) {
-        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          userId: userId,
+        );
         return true;
       }
 
@@ -868,10 +887,13 @@ class ApiService {
             route,
             numeros,
             userId,
-            balotaRoja: balotaRoja,
+            specialNumbers: especiales,
             fechaSorteo: fechaSorteo,
           );
-          CacheService.invalidarCachesDeJugadas(specificRoute: route);
+          CacheService.invalidarCachesDeJugadas(
+            specificRoute: route,
+            userId: userId,
+          );
           return true;
         }
       }
@@ -886,10 +908,13 @@ class ApiService {
             route,
             numeros,
             userId,
-            balotaRoja: balotaRoja,
+            specialNumbers: especiales,
             fechaSorteo: fechaSorteo,
           );
-          CacheService.invalidarCachesDeJugadas(specificRoute: route);
+          CacheService.invalidarCachesDeJugadas(
+            specificRoute: route,
+            userId: userId,
+          );
           return true;
         }
       } catch (_) {}

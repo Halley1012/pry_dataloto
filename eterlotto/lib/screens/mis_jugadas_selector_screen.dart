@@ -71,13 +71,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
     final uId = await _storage.read(key: 'user_id');
     final cacheKey = 'mis_jugadas_selector_v5_${uId ?? "anon"}';
+    final infoCacheKey = 'mis_jugadas_info_cache_v2_${uId ?? "anon"}';
     final uCountry = await _storage.read(key: 'pais_nombre');
 
     // ⚡ 1. Mostrar caché al instante (0 ms) si existe y no es forceRefresh
     if (!forceRefresh) {
       final cached = await CacheService.getJson(cacheKey);
       final cachedPaises = await CacheService.getJson('paises_list_cache');
-      final cachedInfo = await CacheService.getJson('mis_jugadas_info_cache');
+      final cachedInfo = await CacheService.getJson(infoCacheKey);
       if (cached != null && (cached as List).isNotEmpty && mounted) {
         setState(() {
           _userCountry = uCountry;
@@ -135,7 +136,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         _aplicarFiltro();
         if (jugadasLoterias.isNotEmpty) {
           CacheService.setJson(cacheKey, jugadasLoterias);
-          CacheService.setJson('mis_jugadas_info_cache', infoMap);
+          CacheService.setJson(infoCacheKey, infoMap);
         }
         DataRefreshManager.instance.markUpdated(RefreshModules.jugadas);
       }
