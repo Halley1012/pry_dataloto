@@ -787,7 +787,7 @@
   "sinResultadosRegistrados": "No results have been recorded yet",
   "sinResultadosRegistradosDescripcion": "Lotteries will appear here once their first official draw is recorded.",
   "resultadosRecientes": "Recent",
-  "sinHistorialResultados": "No historical results yet",
-  "sinHistorialResultadosDescripcion": "Previous draws will appear here once each lottery has more than one official result.",
+  "sinHistorialResultados": "You do not have results in history yet",
+  "sinHistorialResultadosDescripcion": "International lotteries will appear here once the draw for your latest play has passed.",
   "porDefinir": "To be confirmed"
 }

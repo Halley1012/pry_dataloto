@@ -1483,11 +1483,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String get resultadosRecientes => 'Recientes';
 
   @override
-  String get sinHistorialResultados => 'Aún no hay resultados históricos';
+  String get sinHistorialResultados =>
+      'Aún no tienes resultados en el historial';
 
   @override
   String get sinHistorialResultadosDescripcion =>
-      'Los sorteos anteriores aparecerán aquí cuando cada lotería tenga más de un resultado oficial.';
+      'Aquí aparecerán las loterías internacionales cuando ya haya pasado el sorteo de tu última jugada.';
 
   @override
   String get porDefinir => 'Por definir';
