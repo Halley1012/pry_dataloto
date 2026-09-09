@@ -94,11 +94,10 @@ class JugadasListWidgetState extends State<JugadasListWidget>
         });
         CacheService.setJson(_cacheKey, _jugadasList);
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted && _jugadasList.isEmpty) {
         setState(() => _isLoading = false);
       }
-      debugPrint("⚠️ Error cargando jugadas para ${widget.loteriaRoute}: $e");
     }
   }
 

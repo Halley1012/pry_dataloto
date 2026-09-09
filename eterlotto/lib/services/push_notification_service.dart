@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -7,7 +6,6 @@ import 'package:eterlotto/services/api_service.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint("📩 Notificación Push en segundo plano recibida: ${message.notification?.title}");
 }
 
 class PushNotificationService {
@@ -54,8 +52,6 @@ class PushNotificationService {
 
       // Escuchar notificaciones en primer plano (App abierta)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint("📩 Notificación Push en primer plano recibida: ${message.notification?.title}");
-
         final notification = message.notification;
         final android = message.notification?.android;
 
@@ -91,9 +87,7 @@ class PushNotificationService {
 
       // Solicitar permisos y obtener token en segundo plano (sin bloquear el arranque)
       _setupPermissionsAndToken();
-    } catch (e) {
-      debugPrint("⚠️ Error configurando PushNotificationService: $e");
-    }
+    } catch (_) {}
   }
 
   static void _setupPermissionsAndToken() {
@@ -111,9 +105,7 @@ class PushNotificationService {
         if (token != null) {
           await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 8));
         }
-      } catch (e) {
-        debugPrint("⚠️ Error en segundo plano de token/permisos FCM: $e");
-      }
+      } catch (_) {}
     });
   }
 
@@ -124,9 +116,7 @@ class PushNotificationService {
       if (token != null && token.isNotEmpty) {
         await ApiService.updateFCMToken(token).timeout(const Duration(seconds: 6));
       }
-    } catch (e) {
-      debugPrint("⚠️ Error sincronizando token FCM: $e");
-    }
+    } catch (_) {}
   }
 }
 

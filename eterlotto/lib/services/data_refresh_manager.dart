@@ -49,7 +49,6 @@ class DataRefreshManager with WidgetsBindingObserver {
     if (_isInitialized) return;
     WidgetsBinding.instance.addObserver(this);
     _isInitialized = true;
-    debugPrint("🔄 [DataRefreshManager] Inicializado y observando ciclo de vida.");
   }
 
   /// Libera el observador si es necesario
@@ -62,7 +61,6 @@ class DataRefreshManager with WidgetsBindingObserver {
   /// Registra que un módulo se acaba de actualizar con éxito
   void markUpdated(String module) {
     _lastUpdateTimestamps[module] = DateTime.now();
-    debugPrint("🕒 [DataRefreshManager] Módulo '$module' actualizado: ${_lastUpdateTimestamps[module]}");
   }
 
   /// Verifica si un módulo ha expirado según su TTL
@@ -100,14 +98,11 @@ class DataRefreshManager with WidgetsBindingObserver {
 
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _pausedTimestamp = DateTime.now();
-      debugPrint("⏸️ [DataRefreshManager] App en background a las $_pausedTimestamp");
     } else if (state == AppLifecycleState.resumed) {
       final now = DateTime.now();
       final inBackgroundDuration = _pausedTimestamp != null
           ? now.difference(_pausedTimestamp!)
           : Duration.zero;
-
-      debugPrint("▶️ [DataRefreshManager] App resumed. Estuvo en background: ${inBackgroundDuration.inSeconds}s");
 
       // Solo evaluamos refresco si estuvo en background al menos 10 segundos
       if (inBackgroundDuration.inSeconds >= 10 || _pausedTimestamp == null) {
@@ -130,13 +125,10 @@ class DataRefreshManager with WidgetsBindingObserver {
     }
 
     if (expiredModules.isNotEmpty) {
-      debugPrint("⚡ [DataRefreshManager] Módulos expirados tras resume: $expiredModules");
       // Notificar a los listeners activos
       for (final mod in expiredModules) {
         requestRefresh(mod);
       }
-    } else {
-      debugPrint("✅ [DataRefreshManager] Todos los módulos están vigentes dentro de su TTL. No se requiere refresco.");
     }
   }
 }

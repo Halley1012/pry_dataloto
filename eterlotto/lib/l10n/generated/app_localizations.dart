@@ -2684,6 +2684,66 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Debes iniciar sesión para guardar'**
   String get debesIniciarSesionParaGuardar;
+
+  /// No description provided for @informacionNoDisponible.
+  ///
+  /// In es, this message translates to:
+  /// **'Información no disponible'**
+  String get informacionNoDisponible;
+
+  /// No description provided for @datosLoteriaNoDisponibles.
+  ///
+  /// In es, this message translates to:
+  /// **'Esta lotería aún no tiene resultados ni predicciones disponibles.'**
+  String get datosLoteriaNoDisponibles;
+
+  /// No description provided for @datosLoteriaSinConexion.
+  ///
+  /// In es, this message translates to:
+  /// **'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.'**
+  String get datosLoteriaSinConexion;
+
+  /// No description provided for @reintentar.
+  ///
+  /// In es, this message translates to:
+  /// **'Reintentar'**
+  String get reintentar;
+
+  /// No description provided for @sinResultadosRegistrados.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no hay resultados registrados'**
+  String get sinResultadosRegistrados;
+
+  /// No description provided for @sinResultadosRegistradosDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Las loterías aparecerán aquí cuando registren su primer sorteo oficial.'**
+  String get sinResultadosRegistradosDescripcion;
+
+  /// No description provided for @resultadosRecientes.
+  ///
+  /// In es, this message translates to:
+  /// **'Recientes'**
+  String get resultadosRecientes;
+
+  /// No description provided for @sinHistorialResultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no hay resultados históricos'**
+  String get sinHistorialResultados;
+
+  /// No description provided for @sinHistorialResultadosDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Los sorteos anteriores aparecerán aquí cuando cada lotería tenga más de un resultado oficial.'**
+  String get sinHistorialResultadosDescripcion;
+
+  /// No description provided for @porDefinir.
+  ///
+  /// In es, this message translates to:
+  /// **'Por definir'**
+  String get porDefinir;
 }
 
 class _AppLocalizationsDelegate

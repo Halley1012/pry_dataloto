@@ -38,10 +38,18 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (BannerAdWidget.hideBanner) return;
-    final isSubscribed = Provider.of<SubscriptionProvider>(context).isSubscribed;
+    final subscriptionProvider = Provider.of<SubscriptionProvider>(context);
+    // Nunca cargar un anuncio mientras el estado VIP de la sesión todavía no
+    // está confirmado. El valor inicial `false` no significa "usuario gratis".
+    if (!subscriptionProvider.isSubscriptionStatusResolved) {
+      _disposeBanner();
+      return;
+    }
+
+    final isSubscribed = subscriptionProvider.isSubscribed;
     if (!isSubscribed) {
       _scheduleBannerLoad();
-    } else if (isSubscribed) {
+    } else {
       _disposeBanner();
     }
   }
@@ -52,13 +60,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
     final sessionElapsed = AdService.instance.sessionDuration;
     if (sessionElapsed < _bannerGracePeriod) {
-      final remaining = _bannerGracePeriod - sessionElapsed;
-      debugPrint('🛡️ [Banner AdMob] En espera: Aparecerá en ${remaining.inSeconds}s (gracia de 40s de sesión)');
       _delayTimer?.cancel();
-      _delayTimer = Timer(remaining, () {
+      _delayTimer = Timer(_bannerGracePeriod - sessionElapsed, () {
         if (mounted) {
-          final isSubscribed = context.read<SubscriptionProvider>().isSubscribed;
-          if (!isSubscribed && _bannerAd == null) {
+          final subscriptionProvider = context.read<SubscriptionProvider>();
+          if (subscriptionProvider.isSubscriptionStatusResolved &&
+              !subscriptionProvider.isSubscribed &&
+              _bannerAd == null) {
             _loadBanner();
           }
         }
@@ -71,6 +79,12 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   void _loadBanner() {
     if (_bannerAd != null || !mounted) return;
 
+    final subscriptionProvider = context.read<SubscriptionProvider>();
+    if (!subscriptionProvider.isSubscriptionStatusResolved ||
+        subscriptionProvider.isSubscribed) {
+      return;
+    }
+
     _bannerAd = BannerAd(
       adUnitId: AdService.bannerAdUnitId,
       size: widget.adSize,
@@ -81,11 +95,9 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
             setState(() {
               _isAdLoaded = true;
             });
-            debugPrint('✅ [Banner AdMob] Banner cargado y visible.');
           }
         },
-        onAdFailedToLoad: (ad, error) {
-          debugPrint('❌ [Banner AdMob] Falló al cargar: ${error.message}');
+        onAdFailedToLoad: (ad, _) {
           ad.dispose();
           if (mounted) {
             setState(() {
@@ -120,9 +132,12 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       return const SizedBox.shrink();
     }
     final l10n = AppLocalizations.of(context);
-    // Si el usuario tiene suscripción activa, está en los primeros 40s o no ha cargado, 0 px
-    final isSubscribed = context.watch<SubscriptionProvider>().isSubscribed;
-    if (isSubscribed || !_isAdLoaded || _bannerAd == null) {
+    final subscriptionProvider = context.watch<SubscriptionProvider>();
+    // El anuncio sólo puede mostrarse después de conocer el estado VIP real.
+    if (!subscriptionProvider.isSubscriptionStatusResolved ||
+        subscriptionProvider.isSubscribed ||
+        !_isAdLoaded ||
+        _bannerAd == null) {
       return const SizedBox.shrink();
     }
 
@@ -132,7 +147,10 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       decoration: BoxDecoration(
         color: const Color(0xFF161616),
         border: Border(
-          top: BorderSide(color: Colors.white.withValues(alpha: 0.08), width: 1),
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.08),
+            width: 1,
+          ),
         ),
       ),
       child: Column(
@@ -175,7 +193,10 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
                     },
                     borderRadius: BorderRadius.circular(10),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       child: Row(
                         children: [
                           Text(

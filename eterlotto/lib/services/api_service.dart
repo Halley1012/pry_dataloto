@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/models/comment.dart';
@@ -390,8 +389,7 @@ class ApiService {
         "fcm_token": fcmToken,
       });
       return response.statusCode == 200;
-    } catch (e) {
-      debugPrint("⚠️ Error actualizando FCM token: $e");
+    } catch (_) {
       return false;
     }
   }
@@ -807,15 +805,9 @@ class ApiService {
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data is List) return data;
-        } else {
-          debugPrint(
-            "⚠️ HTTP ${response.statusCode} al listar jugadas ($route): ${response.body}",
-          );
         }
-      } catch (e) {
-        if (attempt == retries) {
-          debugPrint("❌ Error final al listar jugadas ($route): $e");
-        } else {
+      } catch (_) {
+        if (attempt < retries) {
           await Future.delayed(Duration(milliseconds: delayMs));
         }
       }
@@ -848,8 +840,7 @@ class ApiService {
         return true;
       }
       return false;
-    } catch (e) {
-      debugPrint("⚠️ Error al borrar jugada ($route/$jugadaId): $e");
+    } catch (_) {
       return false;
     }
   }
@@ -949,8 +940,7 @@ class ApiService {
       }
 
       return false;
-    } catch (e) {
-      debugPrint("⚠️ Error al actualizar jugada ($route/$jugadaId): $e");
+    } catch (_) {
       try {
         final deleted = await borrarJugadaGenerica(route, jugadaId, userId);
         if (deleted) {
@@ -987,9 +977,7 @@ class ApiService {
         final List<dynamic> data = jsonDecode(response.body);
         return data.cast<String>();
       }
-    } catch (e) {
-      debugPrint("Error obteniendo loterías activas: $e");
-    }
+    } catch (_) {}
     return [];
   }
 
@@ -1036,9 +1024,7 @@ class ApiService {
         }),
       );
       return conteos;
-    } catch (e) {
-      debugPrint("Error en conteos fallback: $e");
-    }
+    } catch (_) {}
     return {};
   }
 
@@ -1111,9 +1097,7 @@ class ApiService {
         }),
       );
       return infoMap;
-    } catch (e) {
-      debugPrint("Error obteniendo info de jugadas: $e");
-    }
+    } catch (_) {}
     return {};
   }
 
@@ -1869,9 +1853,7 @@ class ApiService {
           return res;
         }
       }
-    } catch (e) {
-      debugPrint("⚠️ Toggle favorito remoto pendiente de sync: $e");
-    }
+    } catch (_) {}
 
     return {
       "success": true,
@@ -2109,8 +2091,7 @@ class ApiService {
         if (data is Map) return Map<String, dynamic>.from(data);
       }
       return const {'is_premium': false};
-    } catch (e) {
-      debugPrint("Error verificando suscripción con backend: $e");
+    } catch (_) {
       return const {'is_premium': false};
     }
   }
@@ -2131,9 +2112,7 @@ class ApiService {
       if (response.statusCode == 200) {
         return json.decode(response.body);
       }
-    } catch (e) {
-      debugPrint('⚠️ No se pudo obtener la configuración de la app: $e');
-    }
+    } catch (_) {}
     return null;
   }
 
@@ -2291,11 +2270,8 @@ class ApiService {
           await CacheService.setJson(cacheKey, data);
         }
       }
-    } catch (e) {
+    } catch (_) {
       // Actualización silenciosa: la caché actual continúa disponible.
-      debugPrint(
-        "Error actualizando reglas de combinaciones en segundo plano: $e",
-      );
     }
   }
 
@@ -2323,11 +2299,7 @@ class ApiService {
           return _combinationLotteriesMemoryCache!;
         }
       }
-    } catch (e) {
-      debugPrint(
-        "Error obteniendo loterías para combinaciones del servidor: $e",
-      );
-    }
+    } catch (_) {}
 
     // Fallback final: memoria o caché persistente.
     final memory = _combinationLotteriesMemoryCache;

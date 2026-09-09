@@ -184,10 +184,6 @@ class _LoginPageState extends State<LoginPage> {
           final email = response['email'];
           if (email != null) await storage.write(key: "email", value: email.toString());
 
-          debugPrint(
-            'Tokens saved: access_token=$accessToken, refresh_token=$refreshToken, user_id=$uId',
-          );
-
           if (!mounted) return;
 
           final subscription = context.read<SubscriptionProvider>();

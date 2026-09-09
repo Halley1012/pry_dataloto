@@ -21,7 +21,8 @@ class MisJugadasSelectorScreen extends StatefulWidget {
   const MisJugadasSelectorScreen({super.key});
 
   @override
-  State<MisJugadasSelectorScreen> createState() => MisJugadasSelectorScreenState();
+  State<MisJugadasSelectorScreen> createState() =>
+      MisJugadasSelectorScreenState();
 }
 
 class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
@@ -32,20 +33,25 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   Map<String, Map<String, dynamic>> _infoJugadas = {};
   String? _userCountry;
   bool _isLoading = true;
+  bool _loadFailed = false;
   String _selectedFilter = 'proximos'; // 'proximos' or 'historial'
 
   @override
   void initState() {
     super.initState();
     CacheService.jugadasChangeNotifier.addListener(_onJugadasChanged);
-    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
+    DataRefreshManager.instance.refreshNotifier.addListener(
+      _onDataRefreshNotification,
+    );
     cargarLoterias();
   }
 
   @override
   void dispose() {
     CacheService.jugadasChangeNotifier.removeListener(_onJugadasChanged);
-    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
+    DataRefreshManager.instance.refreshNotifier.removeListener(
+      _onDataRefreshNotification,
+    );
     super.dispose();
   }
 
@@ -59,7 +65,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     final module = DataRefreshManager.instance.refreshNotifier.value;
     if (module == RefreshModules.jugadas || module == 'all') {
       if (mounted) {
-        debugPrint("🔄 [MisJugadasSelectorScreen] Auto-refrescando jugadas por ciclo de vida / TTL");
         cargarLoterias(forceRefresh: false);
       }
     }
@@ -87,7 +92,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
             _paises = List<Map<String, dynamic>>.from(cachedPaises);
           }
           if (cachedInfo != null && cachedInfo is Map) {
-            _infoJugadas = cachedInfo.map((k, v) => MapEntry(k.toString(), Map<String, dynamic>.from(v as Map)));
+            _infoJugadas = cachedInfo.map(
+              (k, v) =>
+                  MapEntry(k.toString(), Map<String, dynamic>.from(v as Map)),
+            );
           }
           _isLoading = false;
         });
@@ -95,24 +103,33 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       }
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (_loterias.isEmpty) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
 
     try {
+      var hadRequestError = false;
       // ⚡ 2. Cargar datos en PARALELO
       final resultados = await Future.wait([
-        ApiService.getLoteriasInfoJugadas().catchError((e) {
-          debugPrint("⚠️ Error obteniendo info de jugadas: $e");
+        ApiService.getLoteriasInfoJugadas().catchError((_) {
+          hadRequestError = true;
           return <String, Map<String, dynamic>>{};
         }),
-        ApiService.getLoteriasConJugadas().catchError((e) {
+        ApiService.getLoteriasConJugadas().catchError((_) {
+          hadRequestError = true;
           return <String>[];
         }),
         _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
-      final Map<String, Map<String, dynamic>> infoMap = Map<String, Map<String, dynamic>>.from(resultados[0] as Map);
+      final Map<String, Map<String, dynamic>> infoMap =
+          Map<String, Map<String, dynamic>>.from(resultados[0] as Map);
       final List<String> activas = List<String>.from(resultados[1] as List);
-      final List<Map<String, dynamic>> todas = resultados[2] as List<Map<String, dynamic>>;
+      final List<Map<String, dynamic>> todas =
+          resultados[2] as List<Map<String, dynamic>>;
 
       for (final a in activas) {
         infoMap.putIfAbsent(a.toLowerCase(), () => {"count": 1, "fecha": null});
@@ -132,6 +149,11 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _infoJugadas = infoMap;
           _loterias = jugadasLoterias;
           _isLoading = false;
+          // Sin el catálogo no es posible relacionar las jugadas con sus
+          // loterías; en ese caso un listado vacío no debe parecer que el
+          // usuario nunca guardó jugadas.
+          _loadFailed =
+              jugadasLoterias.isEmpty && (hadRequestError || todas.isEmpty);
         });
         _aplicarFiltro();
         if (jugadasLoterias.isNotEmpty) {
@@ -140,15 +162,23 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         }
         DataRefreshManager.instance.markUpdated(RefreshModules.jugadas);
       }
-    } catch (e) {
-      debugPrint("❌ Error al cargar loterías de Mis Jugadas: $e");
-      if (mounted) setState(() => _isLoading = false);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadFailed = _loterias.isEmpty;
+        });
+      }
     }
   }
 
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
+  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({
+    bool force = false,
+  }) async {
     if (!force) {
-      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all_v3');
+      final cachedMapeo = await CacheService.getJson(
+        'loterias_mapeadas_all_v3',
+      );
       if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
@@ -158,8 +188,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       // Cargar países y loterías en paralelo de manera ultra rápida
       final results = await Future.wait([
         ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
-        ApiService.getAllLoterias().catchError((e) {
-          debugPrint("⚠️ Error obteniendo todas las loterías: $e");
+        ApiService.getAllLoterias().catchError((_) {
           return <dynamic>[];
         }),
       ]);
@@ -179,8 +208,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         CacheService.setJson('loterias_mapeadas_all', todas);
       }
       return todas;
-    } catch (e) {
-      debugPrint("⚠️ Error en _obtenerTodasLasLoterias: $e");
+    } catch (_) {
       return [];
     }
   }
@@ -204,8 +232,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   String _getPaisNombre(dynamic id) {
     if (_paises.isEmpty) return "Cargando...";
     final p = _paises.firstWhere(
-      (p) => p["id"].toString() == id.toString(), 
-      orElse: () => {"nombre": "Internacional"}
+      (p) => p["id"].toString() == id.toString(),
+      orElse: () => {"nombre": "Internacional"},
     );
     return p["nombre"];
   }
@@ -231,7 +259,11 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                     children: [
                       Text(
                         l10n?.misJugadas ?? "Mis Jugadas",
-                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Consumer<SubscriptionProvider>(
@@ -244,23 +276,15 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                   ),
                 ),
               ),
-              SliverToBoxAdapter(
-                child: _buildInfoBanner(l10n),
-              ),
-              SliverToBoxAdapter(
-                child: _buildFilterToggleButtons(l10n),
-              ),
+              SliverToBoxAdapter(child: _buildInfoBanner(l10n)),
+              SliverToBoxAdapter(child: _buildFilterToggleButtons(l10n)),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
               else if (_filteredLoterias.isEmpty)
-                SliverToBoxAdapter(
-                  child: _buildEmptyState(l10n),
-                )
+                SliverToBoxAdapter(child: _buildEmptyState(l10n))
               else
                 _buildSliverLotteryList(l10n),
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 20),
-              ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
             ],
           ),
         ),
@@ -280,7 +304,6 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -329,31 +352,58 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   Widget _buildSliverSkeletonList() {
-    return SliverToBoxAdapter(
-      child: _buildSkeletonList(),
-    );
+    return SliverToBoxAdapter(child: _buildSkeletonList());
   }
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
+    final isConnectionIssue = _loadFailed && _loterias.isEmpty;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.bookmark_border, color: Colors.white24, size: 80),
+            Icon(
+              isConnectionIssue
+                  ? Icons.cloud_off_outlined
+                  : Icons.bookmark_border,
+              color: isConnectionIssue ? Colors.redAccent : Colors.white24,
+              size: 80,
+            ),
             const SizedBox(height: 20),
             Text(
-              l10n?.aunNoTienesJugadas ?? "Aún no tienes jugadas",
+              isConnectionIssue
+                  ? (l10n?.errorConexion ?? 'Error de conexión')
+                  : (l10n?.aunNoTienesJugadas ?? 'Aún no tienes jugadas'),
               style: AppTextStyles.h2.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
-              l10n?.empiezaAGuardarNumeros ?? "Empieza a guardar tus números favoritos desde la sección Explorar.",
-              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
+              isConnectionIssue
+                  ? (l10n?.datosLoteriaSinConexion ??
+                        'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
+                  : (l10n?.empiezaAGuardarNumeros ??
+                        'Empieza a guardar tus números favoritos desde la sección Explorar.'),
+              style: AppTextStyles.mensajeSecundario.copyWith(
+                color: Colors.white54,
+              ),
               textAlign: TextAlign.center,
             ),
+            if (isConnectionIssue) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _isLoading
+                    ? null
+                    : () => cargarLoterias(forceRefresh: true),
+                icon: const Icon(Icons.refresh),
+                label: Text(l10n?.reintentar ?? 'Reintentar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.yellow,
+                  side: const BorderSide(color: AppColors.yellow),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -386,7 +436,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
           child: Row(
             children: [
-              Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
+              Text(
+                PaisHelper.getBanderaEmoji(country),
+                style: const TextStyle(fontSize: 18),
+              ),
               const SizedBox(width: 8),
               Text(
                 countryDisplay,
@@ -418,21 +471,64 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
     try {
       final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      final parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10
+              ? DateTime.tryParse(clean.substring(0, 10))
+              : null);
       if (parsed == null) return fecha;
 
       final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en' 
+      final dias = langCode == 'en'
           ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt' 
-              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+          : (langCode == 'pt'
+                ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+                : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
 
       final meses = langCode == 'en'
-          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+          ? [
+              "Jan",
+              "Feb",
+              "Mar",
+              "Apr",
+              "May",
+              "Jun",
+              "Jul",
+              "Aug",
+              "Sep",
+              "Oct",
+              "Nov",
+              "Dec",
+            ]
           : (langCode == 'pt'
-              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+                ? [
+                    "Jan",
+                    "Fev",
+                    "Mar",
+                    "Abr",
+                    "Mai",
+                    "Jun",
+                    "Jul",
+                    "Ago",
+                    "Set",
+                    "Out",
+                    "Nov",
+                    "Dez",
+                  ]
+                : [
+                    "Ene",
+                    "Feb",
+                    "Mar",
+                    "Abr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Ago",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dic",
+                  ]);
 
       final diaSemana = dias[parsed.weekday - 1];
       final mes = meses[parsed.month - 1];
@@ -447,7 +543,11 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (fecha == null || fecha.isEmpty) return "";
     try {
       final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      final parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10
+              ? DateTime.tryParse(clean.substring(0, 10))
+              : null);
       if (parsed == null) return "";
 
       final now = DateTime.now();
@@ -458,23 +558,38 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final langCode = Localizations.localeOf(context).languageCode;
 
       if (diff == 0) {
-        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
+        return langCode == 'en'
+            ? "Draws today"
+            : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
       } else if (diff == 1) {
-        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+        return langCode == 'en'
+            ? "Tomorrow"
+            : (langCode == 'pt' ? "Amanhã" : "Mañana");
       } else if (diff > 1) {
-        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+        return langCode == 'en'
+            ? "In $diff days"
+            : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
       } else if (diff == -1) {
-        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
+        return langCode == 'en'
+            ? "Drew yesterday"
+            : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
       } else {
         final dias = diff.abs();
-        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
+        return langCode == 'en'
+            ? "Drew $dias days ago"
+            : (langCode == 'pt'
+                  ? "Sorteado há $dias dias"
+                  : "Sorteó hace $dias días");
       }
     } catch (_) {
       return "";
     }
   }
 
-  Widget _buildLotteryItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {
+  Widget _buildLotteryItem(
+    Map<String, dynamic> loteria,
+    AppLocalizations? l10n,
+  ) {
     final nombre = loteria["nombre"] ?? "";
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
@@ -486,14 +601,20 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
     final info = _infoJugadas[route];
     final count = info?['count'] ?? 1;
-    final rawFecha = info?['fecha'] ?? loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
+    final rawFecha =
+        info?['fecha'] ??
+        loteria["proximo_sorteo"] ??
+        loteria["fecha"] ??
+        loteria["ultimo_sorteo"];
     final fechaDisplay = _formatearFechaProximo(rawFecha?.toString());
     final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
     final baseColor = LotteryAvatar3D.getColorForNombre(nombre);
     final langCode = Localizations.localeOf(context).languageCode;
-    final jugadasText = count == 1 
+    final jugadasText = count == 1
         ? (langCode == 'en' ? 'play' : (langCode == 'pt' ? 'jogada' : 'jugada'))
-        : (langCode == 'en' ? 'plays' : (langCode == 'pt' ? 'jugadas' : 'jugadas'));
+        : (langCode == 'en'
+              ? 'plays'
+              : (langCode == 'pt' ? 'jugadas' : 'jugadas'));
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
@@ -507,7 +628,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           onTap: () => _navigateToJugadas(loteria),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 14.0,
+              vertical: 10.0,
+            ),
             child: Row(
               children: [
                 LotteryAvatar3D(nombre: nombre, size: 40),
@@ -551,7 +675,10 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 5,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141414),
                     borderRadius: BorderRadius.circular(8),
@@ -579,9 +706,17 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
+                const Icon(
+                  Icons.analytics_outlined,
+                  color: AppColors.yellow,
+                  size: 18,
+                ),
                 const SizedBox(width: 4),
-                const Icon(Icons.arrow_forward_ios, color: Colors.white24, size: 13),
+                const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white24,
+                  size: 13,
+                ),
               ],
             ),
           ),
@@ -596,7 +731,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     final route = (rawRoute != null && rawRoute.isNotEmpty)
         ? rawRoute
         : _getRouteFromName(nombre);
-    
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -620,8 +755,12 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           ? rawRoute
           : _getRouteFromName(loteria['nombre'] ?? "");
       final info = _infoJugadas[route];
-      final rawFecha = info?['fecha'] ?? loteria["proximo_sorteo"] ?? loteria["fecha"] ?? loteria["ultimo_sorteo"];
-      
+      final rawFecha =
+          info?['fecha'] ??
+          loteria["proximo_sorteo"] ??
+          loteria["fecha"] ??
+          loteria["ultimo_sorteo"];
+
       final diff = _getSorteoDiffDays(rawFecha?.toString());
       if (_selectedFilter == 'proximos') {
         return diff >= 0;
@@ -639,7 +778,11 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (fecha == null || fecha.isEmpty) return 0;
     try {
       final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+      final parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10
+              ? DateTime.tryParse(clean.substring(0, 10))
+              : null);
       if (parsed == null) return 0;
 
       final now = DateTime.now();
@@ -669,7 +812,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 decoration: BoxDecoration(
-                  color: isProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  color: isProximos
+                      ? AppColors.yellow
+                      : const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isProximos ? AppColors.yellow : Colors.white12,
@@ -711,7 +856,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 11),
                 decoration: BoxDecoration(
-                  color: !isProximos ? AppColors.yellow : const Color(0xFF1E1E1E),
+                  color: !isProximos
+                      ? AppColors.yellow
+                      : const Color(0xFF1E1E1E),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: !isProximos ? AppColors.yellow : Colors.white12,

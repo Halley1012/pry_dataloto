@@ -67,30 +67,20 @@ class _SplashScreenState extends State<SplashScreen>
                 if (state == InstallStatus.downloaded) {
                   try {
                     await InAppUpdate.completeFlexibleUpdate();
-                  } catch (e) {
-                    debugPrint(
-                      'Error completando actualización flexible: $e',
-                    );
-                  }
+                  } catch (_) {}
                 }
               });
 
               try {
                 await InAppUpdate.startFlexibleUpdate();
-              } catch (e) {
-                debugPrint(
-                  'Error iniciando actualización flexible: $e',
-                );
-              }
+              } catch (_) {}
             }
           }
         }
       } on TimeoutException {
-        debugPrint(
-          'In-App Update tardó demasiado. Continuando con el arranque normal.',
-        );
-      } catch (e) {
-        debugPrint('Error en InAppUpdate: $e');
+        // La actualización es opcional durante el inicio; continuamos normal.
+      } catch (_) {
+        // Un fallo de Play Store no debe bloquear el acceso a la app.
       }
 
       // 2. Recuperar tokens locales.
@@ -148,11 +138,7 @@ class _SplashScreenState extends State<SplashScreen>
       }
 
       _navigateToWelcome();
-    } catch (e) {
-      debugPrint(
-        '💥 Error en auth check (red/splash): $e. '
-        'Manteniendo sesión local si existen tokens.',
-      );
+    } catch (_) {
 
       if (!mounted) return;
 
