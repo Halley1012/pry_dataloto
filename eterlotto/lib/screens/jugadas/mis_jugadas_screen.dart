@@ -93,19 +93,42 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   }
 
   Future<void> _cargarConfig() async {
-    try {
-      final loteriasData = await ApiService.getAllLoterias();
-      final match = loteriasData.firstWhere(
-        (l) =>
-            (l['route']?.toString().toLowerCase() == widget.loteriaRoute.toLowerCase()) ||
-            (l['nombre']?.toString().toLowerCase() == widget.loteriaNombre.toLowerCase()),
-        orElse: () => <String, dynamic>{},
+    bool aplicarConfig(dynamic rawLoterias) {
+      if (rawLoterias is! List) return false;
+      final match = rawLoterias.cast<dynamic>().firstWhere(
+        (item) {
+          if (item is! Map) return false;
+          return (item['route']?.toString().toLowerCase() ==
+                  widget.loteriaRoute.toLowerCase()) ||
+              (item['nombre']?.toString().toLowerCase() ==
+                  widget.loteriaNombre.toLowerCase());
+        },
+        orElse: () => null,
       );
-      if (match.isNotEmpty && mounted) {
-        setState(() {
-          _config = LoteriaConfig.fromJson(Map<String, dynamic>.from(match as Map), fallbackNombre: widget.loteriaNombre);
-        });
+      if (match is! Map || match.isEmpty || !mounted) return false;
+      setState(() {
+        _config = LoteriaConfig.fromJson(
+          Map<String, dynamic>.from(match),
+          fallbackNombre: widget.loteriaNombre,
+        );
+      });
+      return true;
+    }
+
+    try {
+      // La configuración es pública y suele existir desde Home/selector. Leerla
+      // primero evita que la última especial cambie de aspecto al terminar la red.
+      final cachedSources = await Future.wait([
+        CacheService.getJson('loterias_mapeadas_all'),
+        CacheService.getJson('loterias_mapeadas_all_v3'),
+        CacheService.getJson('home_loterias_globales'),
+      ]);
+      for (final source in cachedSources) {
+        if (aplicarConfig(source)) break;
       }
+
+      final loteriasData = await ApiService.getAllLoterias();
+      aplicarConfig(loteriasData);
     } catch (_) {}
   }
 
@@ -898,12 +921,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                                       for (final n in whites)
                                                         Padding(
                                                           padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                          child: RepaintBoundary(
-                                                            child: _build3DBall(
-                                                              n,
-                                                              baseColor: color,
-                                                              size: ballSize,
-                                                            ),
+                                                          child: _build3DBall(
+                                                            n,
+                                                            baseColor: color,
+                                                            size: ballSize,
                                                           ),
                                                         ),
                                                       if (specials.isNotEmpty) ...[
@@ -911,12 +932,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                                                         for (final special in specials)
                                                           Padding(
                                                             padding: EdgeInsets.symmetric(horizontal: hPadding),
-                                                            child: RepaintBoundary(
-                                                              child: _build3DBall(
-                                                                special,
-                                                                baseColor: const Color(0xFFB91C1C),
-                                                                size: ballSize,
-                                                              ),
+                                                            child: _build3DBall(
+                                                              special,
+                                                              baseColor: const Color(0xFFB91C1C),
+                                                              size: ballSize,
                                                             ),
                                                           ),
                                                       ],

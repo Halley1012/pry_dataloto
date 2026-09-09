@@ -805,5 +805,6 @@
   "guardando": "Salvando...",
   "jugadasGuardadasConExito": "Jogos salvos com sucesso",
   "errorAlGuardarJugadas": "Houve um erro ao salvar alguns jogos",
-  "debesIniciarSesionParaGuardar": "Você deve fazer login para salvar"
+  "debesIniciarSesionParaGuardar": "Você deve fazer login para salvar",
+  "descripcionHistoricoResultados": "Consulte os 25 sorteios mais recentes ou baixe o histórico completo para analisar os dados por conta própria."
 }
