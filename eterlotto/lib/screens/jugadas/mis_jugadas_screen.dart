@@ -1153,7 +1153,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 ),
               ),
               if (_selectedIds.length == 1)
-                _buildDraggableCompareFab(context, constraints),
+                _buildDraggableSelectionActions(context, constraints),
             ],
           );
         },
@@ -1448,11 +1448,60 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
   }
 
-  Widget _buildDraggableCompareFab(
+  Map<String, dynamic>? get _selectedJugada {
+    if (_selectedIds.length != 1) return null;
+    final id = _selectedIds.first;
+    for (final jugada in _jugadasList) {
+      if ((jugada['id'] as int? ?? 0) == id) return jugada;
+    }
+    return null;
+  }
+
+  String _fechaSorteoISO(Map<String, dynamic> jugada) {
+    // `fecha_sorteo` es la fuente correcta. Los demás campos son respaldo
+    // para jugadas antiguas que se hayan guardado antes de ese campo.
+    return _formatFecha(
+      jugada['fecha_sorteo'] ??
+          jugada['fecha'] ??
+          jugada['fecha_guardado'] ??
+          jugada['created_at'],
+    );
+  }
+
+  void _irAResultadosDeJugadaSeleccionada() {
+    final jugada = _selectedJugada;
+    if (jugada == null) return;
+
+    final fechaSorteo = _fechaSorteoISO(jugada);
+    if (fechaSorteo.isEmpty) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResultadosDashboardScreen(
+          loteriaNombreInicial: widget.loteriaNombre,
+          loteriaRoute: widget.loteriaRoute,
+          loteriaData: _config?.toJson(),
+          targetDrawDate: fechaSorteo,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDraggableSelectionActions(
     BuildContext context,
     BoxConstraints constraints,
   ) {
     const double fabSize = 58.0;
+    const double fabGap = 10.0;
+    final selectedJugada = _selectedJugada;
+    // El resultado existe después del sorteo; por eso esta acción sólo se
+    // ofrece en Historial y nunca para una jugada futura.
+    final showResultsForDraw =
+        !_soloProximos &&
+        selectedJugada != null &&
+        _fechaSorteoISO(selectedJugada).isNotEmpty;
+    final actionsHeight = fabSize + (showResultsForDraw ? fabSize + fabGap : 0);
 
     final double maxW = constraints.maxWidth > 0
         ? constraints.maxWidth
@@ -1462,7 +1511,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         : MediaQuery.of(context).size.height;
 
     final defaultX = (maxW - fabSize - 16.0).clamp(10.0, maxW);
-    final defaultY = (maxH - fabSize - 30.0).clamp(10.0, maxH);
+    final defaultY = (maxH - actionsHeight - 30.0).clamp(10.0, maxH);
 
     return ValueListenableBuilder<Offset?>(
       valueListenable: _fabPositionNotifier,
@@ -1473,67 +1522,101 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         );
         final currentY = (pos?.dy ?? defaultY).clamp(
           10.0,
-          (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
+          (maxH - actionsHeight - 10.0).clamp(10.0, double.infinity),
         );
 
         return Positioned(
           left: currentX,
           top: currentY,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onPanUpdate: (details) {
-              final cur =
-                  _fabPositionNotifier.value ?? Offset(defaultX, defaultY);
-              double newX = cur.dx + details.delta.dx;
-              double newY = cur.dy + details.delta.dy;
-
-              newX = newX.clamp(
-                10.0,
-                (maxW - fabSize - 10.0).clamp(10.0, double.infinity),
-              );
-              newY = newY.clamp(
-                10.0,
-                (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
-              );
-
-              _fabPositionNotifier.value = Offset(newX, newY);
-            },
-            onTap: _abrirModalComparar,
-            child: Container(
-              width: fabSize,
-              height: fabSize,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
+          child: Column(
+            children: [
+              if (showResultsForDraw) ...[
+                _buildDraggableFabAction(
+                  size: fabSize,
+                  color: const Color(0xFF00E5FF),
+                  icon: Icons.analytics_outlined,
+                  tooltip: 'Ver resultados de este sorteo',
+                  defaultPosition: Offset(defaultX, defaultY),
+                  maxW: maxW,
+                  maxH: maxH,
+                  actionsHeight: actionsHeight,
+                  onTap: _irAResultadosDeJugadaSeleccionada,
+                ),
+                const SizedBox(height: fabGap),
+              ],
+              _buildDraggableFabAction(
+                size: fabSize,
                 color: AppColors.yellow,
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  width: 2.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.yellow.withValues(alpha: 0.45),
-                    blurRadius: 14,
-                    spreadRadius: 2,
-                    offset: const Offset(0, 4),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.4),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                icon: Icons.query_stats_rounded,
+                tooltip: 'Comparar con estadísticas',
+                defaultPosition: Offset(defaultX, defaultY),
+                maxW: maxW,
+                maxH: maxH,
+                actionsHeight: actionsHeight,
+                onTap: _abrirModalComparar,
               ),
-              child: const Center(
-                child: Icon(
-                  Icons.query_stats_rounded,
-                  size: 30,
-                  color: Colors.black,
-                ),
-              ),
-            ),
+            ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildDraggableFabAction({
+    required double size,
+    required Color color,
+    required IconData icon,
+    required String tooltip,
+    required Offset defaultPosition,
+    required double maxW,
+    required double maxH,
+    required double actionsHeight,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanUpdate: (details) {
+          final current = _fabPositionNotifier.value ?? defaultPosition;
+          final newX = (current.dx + details.delta.dx).clamp(
+            10.0,
+            (maxW - size - 10.0).clamp(10.0, double.infinity),
+          );
+          final newY = (current.dy + details.delta.dy).clamp(
+            10.0,
+            (maxH - actionsHeight - 10.0).clamp(10.0, double.infinity),
+          );
+          _fabPositionNotifier.value = Offset(newX, newY);
+        },
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.3),
+              width: 2.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.45),
+                blurRadius: 14,
+                spreadRadius: 2,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.4),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(child: Icon(icon, size: 30, color: Colors.black)),
+        ),
+      ),
     );
   }
 
