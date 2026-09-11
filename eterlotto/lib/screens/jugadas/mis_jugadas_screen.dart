@@ -40,6 +40,24 @@ class MisJugadasScreen extends StatefulWidget {
   State<MisJugadasScreen> createState() => _MisJugadasScreenState();
 }
 
+class _ToolbarActionSpec {
+  final String id;
+  final dynamic icon;
+  final Color color;
+  final VoidCallback? onPressed;
+  final bool isEnabled;
+  final String tooltip;
+
+  const _ToolbarActionSpec({
+    required this.id,
+    required this.icon,
+    required this.color,
+    required this.onPressed,
+    required this.isEnabled,
+    required this.tooltip,
+  });
+}
+
 class _MisJugadasScreenState extends State<MisJugadasScreen> {
   List<Map<String, dynamic>> _jugadasList = [];
   Set<int> _selectedIds = {};
@@ -48,9 +66,24 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   String? _userId;
   LoteriaConfig? _config;
   late bool _soloProximos = widget.soloProximos;
-  final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(
-    null,
-  );
+  final ValueNotifier<Offset?> _compareFabPositionNotifier =
+      ValueNotifier<Offset?>(null);
+  final ValueNotifier<Offset?> _drawResultsFabPositionNotifier =
+      ValueNotifier<Offset?>(null);
+  final GlobalKey _screenStackKey = GlobalKey();
+  final Map<String, ValueNotifier<Offset?>> _toolbarActionPositions = {
+    'select': ValueNotifier<Offset?>(null),
+    'whatsapp': ValueNotifier<Offset?>(null),
+    'pdf': ValueNotifier<Offset?>(null),
+    'results': ValueNotifier<Offset?>(null),
+    'delete': ValueNotifier<Offset?>(null),
+  };
+  String? _activeToolbarActionId;
+  int? _activeToolbarPointer;
+  Offset? _activeToolbarPointerStart;
+  bool _isToolbarActionHeld = false;
+  DateTime? _lastScreenTapAt;
+  Offset? _lastScreenTapPosition;
 
   List<Map<String, dynamic>> get _jugadasFiltradas {
     return _jugadasList.where((item) {
@@ -99,7 +132,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   @override
   void dispose() {
     ScreenSecurityHelper.disableSecureScreen();
-    _fabPositionNotifier.dispose();
+    _compareFabPositionNotifier.dispose();
+    _drawResultsFabPositionNotifier.dispose();
+    for (final position in _toolbarActionPositions.values) {
+      position.dispose();
+    }
     super.dispose();
   }
 
@@ -127,8 +164,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       // La configuración es pública y suele existir desde Home/selector. Leerla
       // primero evita que la última especial cambie de aspecto al terminar la red.
       final cachedSources = await Future.wait([
-        CacheService.getJson('loterias_mapeadas_all'),
-        CacheService.getJson('loterias_mapeadas_all_v3'),
+        CacheService.getJson(CacheService.catalogoLoteriasKey),
         CacheService.getJson('home_loterias_globales'),
       ]);
       for (final source in cachedSources) {
@@ -143,18 +179,20 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Future<void> _cargarJugadas({bool force = false}) async {
     final uId = await ApiService.getUserId();
     final uIdStr = uId?.toString();
-    final cacheKeyUser =
-        'user_jugadas_${widget.loteriaRoute}_${uIdStr ?? "anon"}';
+    final cacheKeyUser = CacheService.jugadasUsuarioKey(
+      widget.loteriaRoute,
+      uIdStr,
+    );
 
-    if (!force) {
-      final cached = await CacheService.getJson(cacheKeyUser);
-      if (cached != null && mounted) {
-        setState(() {
-          _userId = uIdStr;
-          _jugadasList = List<Map<String, dynamic>>.from(cached);
-          _cargando = false;
-        });
-      }
+    // La lista es privada, pero puede mostrarse aunque venza mientras el
+    // backend valida su versión. La clave incluye usuario y lotería.
+    final cached = await CacheService.getStaleJson(cacheKeyUser);
+    if (cached != null && mounted) {
+      setState(() {
+        _userId = uIdStr;
+        _jugadasList = List<Map<String, dynamic>>.from(cached);
+        _cargando = false;
+      });
     }
 
     if (!mounted) return;
@@ -172,6 +210,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
         response,
       );
+
+      // La cuenta pudo cambiar mientras la petición estaba en vuelo. Nunca
+      // aplicamos su respuesta sobre la caché ni la UI de la nueva sesión.
+      final currentUserId = (await ApiService.getUserId())?.toString();
+      if (currentUserId != uIdStr) return;
 
       if (mounted) {
         setState(() {
@@ -272,11 +315,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     // 2. Sincronizar cache persistente en SharedPreferences de inmediato
     final uIdStr = _userId ?? "anon";
     await CacheService.setJson(
-      'user_jugadas_${widget.loteriaRoute}_$uIdStr',
+      CacheService.jugadasUsuarioKey(widget.loteriaRoute, uIdStr),
       _jugadasList,
-    );
-    await CacheService.invalidarCachesDeJugadas(
-      specificRoute: widget.loteriaRoute,
     );
 
     // 3. Ejecutar eliminación en el backend (en paralelo)
@@ -287,24 +327,35 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       ),
     );
 
-    // Si falló alguna eliminación, hacemos rollback restaurando el estado previo y la caché
+    // Una baja múltiple puede tener éxito parcial. Conservamos exactamente el
+    // estado que confirmó el backend, en vez de restaurar registros que sí se
+    // eliminaron en otra petición paralela.
     if (results.any((ok) => !ok)) {
+      final successfulIds = <int>{};
+      for (var index = 0; index < results.length; index++) {
+        if (results[index]) successfulIds.add(deletedIds.elementAt(index));
+      }
+      final confirmedList = backupList
+          .where((j) => !successfulIds.contains(j['id']))
+          .toList();
       if (mounted) {
         setState(() {
-          _jugadasList = backupList;
+          _jugadasList = confirmedList;
         });
         await CacheService.setJson(
-          'user_jugadas_${widget.loteriaRoute}_$uIdStr',
-          backupList,
+          CacheService.jugadasUsuarioKey(widget.loteriaRoute, uIdStr),
+          confirmedList,
         );
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: widget.loteriaRoute,
+          userId: uIdStr,
+          preserveRouteJugadas: true,
         );
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              "No se pudieron eliminar algunas jugadas. Se restauraron.",
+              "No se pudieron eliminar algunas jugadas. Se conservaron las que siguen vigentes.",
             ),
             backgroundColor: Colors.redAccent,
           ),
@@ -328,17 +379,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     // [1, 4, 8, 9, 20, 9] conserva ambos 9 en posiciones diferentes.
     final config = _config;
     if (config != null) {
-      final principales = nums.take(config.maxSeleccion).toList();
-      final cantidadEspeciales =
-          (config.totalBalotasSorteo - config.maxSeleccion).clamp(
-                0,
-                nums.length,
-              )
-              as int;
-      final especiales = nums
-          .skip(config.maxSeleccion)
-          .take(cantidadEspeciales)
-          .toList();
+      final groups = config.numberLayout.split(nums);
+      final principales = groups.main;
+      final especiales = List<int>.from(groups.specials);
 
       // Compatibilidad con jugadas antiguas que guardaban la especial fuera
       // del arreglo de números.
@@ -346,7 +389,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           item["balota_roja"] ?? item["balotaroja"] ?? item["superbalota"];
       if (especiales.isEmpty &&
           legacyEspecial != null &&
-          cantidadEspeciales > 0) {
+          config.cantidadEspeciales > 0) {
         final valor = int.tryParse(legacyEspecial.toString());
         if (valor != null) especiales.add(valor);
       }
@@ -607,6 +650,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     bool isEnabled = true,
     double size = 48,
     String? tooltip,
+    String? toolbarActionId,
   }) {
     Widget btn = InkWell(
       onTap: isEnabled ? onPressed : null,
@@ -665,10 +709,247 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       ),
     );
 
+    if (toolbarActionId != null) {
+      // Listener recibe el movimiento antes de que el CustomScrollView pueda
+      // convertirlo en desplazamiento vertical. Así cada acción se desprende
+      // del panel con cualquier dirección de arrastre.
+      btn = Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: (event) =>
+            _startToolbarPointer(toolbarActionId, event),
+        child: btn,
+      );
+    }
+
     if (tooltip != null && tooltip.isNotEmpty) {
       return Tooltip(message: tooltip, child: btn);
     }
     return btn;
+  }
+
+  List<_ToolbarActionSpec> _toolbarActionSpecs(
+    AppLocalizations? l10n,
+    bool hasSelection,
+  ) {
+    return [
+      _ToolbarActionSpec(
+        id: 'select',
+        icon: hasSelection ? Icons.deselect : Icons.check_circle_outline,
+        color: AppColors.yellow,
+        onPressed: _toggleSelectAll,
+        isEnabled: true,
+        tooltip: hasSelection ? 'Deseleccionar' : 'Seleccionar todo',
+      ),
+      _ToolbarActionSpec(
+        id: 'whatsapp',
+        icon: FontAwesomeIcons.whatsapp,
+        color: const Color(0xFF25D366),
+        onPressed: _compartirWhatsApp,
+        isEnabled: hasSelection,
+        tooltip: 'Compartir WhatsApp',
+      ),
+      _ToolbarActionSpec(
+        id: 'pdf',
+        icon: Icons.picture_as_pdf,
+        color: Colors.purpleAccent,
+        onPressed: _imprimirPDF,
+        isEnabled: true,
+        tooltip: 'Exportar PDF',
+      ),
+      _ToolbarActionSpec(
+        id: 'results',
+        icon: Icons.analytics_outlined,
+        color: const Color(0xFF00E5FF),
+        onPressed: _irAResultados,
+        isEnabled: true,
+        tooltip: l10n?.resultados ?? 'Resultados',
+      ),
+      _ToolbarActionSpec(
+        id: 'delete',
+        icon: Icons.delete_outline,
+        color: Colors.redAccent,
+        onPressed: hasSelection ? _eliminarSeleccionadas : null,
+        isEnabled: hasSelection,
+        tooltip: 'Eliminar seleccionadas',
+      ),
+    ];
+  }
+
+  Widget _buildToolbarActionPanel(AppLocalizations? l10n, bool hasSelection) {
+    final actions = _toolbarActionSpecs(l10n, hasSelection);
+    return AppContainer3(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: actions.map(_buildToolbarActionInPanel).toList(),
+      ),
+    );
+  }
+
+  Widget _buildToolbarActionInPanel(_ToolbarActionSpec spec) {
+    final position = _toolbarActionPositions[spec.id]!;
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: position,
+      builder: (context, floatingPosition, _) {
+        if (floatingPosition != null) {
+          // Mantiene el espacio original para que el panel no cambie de forma
+          // cuando un botón se convierta en flotante.
+          return const SizedBox(width: 48, height: 48);
+        }
+        return _buildActionButton(
+          icon: spec.icon,
+          color: spec.color,
+          onPressed: spec.onPressed,
+          isEnabled: spec.isEnabled,
+          tooltip: spec.tooltip,
+          toolbarActionId: spec.id,
+        );
+      },
+    );
+  }
+
+  List<Widget> _buildFloatingToolbarActions(
+    BoxConstraints constraints,
+    AppLocalizations? l10n,
+    bool hasSelection,
+  ) {
+    return _toolbarActionSpecs(l10n, hasSelection)
+        .map((spec) => _buildFloatingToolbarAction(spec, constraints))
+        .toList();
+  }
+
+  Widget _buildFloatingToolbarAction(
+    _ToolbarActionSpec spec,
+    BoxConstraints constraints,
+  ) {
+    const size = 48.0;
+    final position = _toolbarActionPositions[spec.id]!;
+    return ValueListenableBuilder<Offset?>(
+      valueListenable: position,
+      builder: (context, floatingPosition, _) {
+        if (floatingPosition == null) return const SizedBox.shrink();
+        final bounded = _clampFloatingToolbarPosition(
+          floatingPosition,
+          size,
+          constraints,
+        );
+        return Positioned(
+          left: bounded.dx,
+          top: bounded.dy,
+          child: _buildActionButton(
+            icon: spec.icon,
+            color: spec.color,
+            onPressed: spec.onPressed,
+            isEnabled: spec.isEnabled,
+            tooltip: spec.tooltip,
+            toolbarActionId: spec.id,
+          ),
+        );
+      },
+    );
+  }
+
+  void _startToolbarPointer(String id, PointerDownEvent event) {
+    _activeToolbarActionId = id;
+    _activeToolbarPointer = event.pointer;
+    _activeToolbarPointerStart = event.position;
+    if (!_isToolbarActionHeld && mounted) {
+      setState(() => _isToolbarActionHeld = true);
+    }
+  }
+
+  void _onActiveToolbarPointerMove(PointerMoveEvent event) {
+    const size = 48.0;
+    final id = _activeToolbarActionId;
+    final start = _activeToolbarPointerStart;
+    if (id == null || start == null || event.pointer != _activeToolbarPointer) {
+      return;
+    }
+    final rootBox = _screenStackKey.currentContext?.findRenderObject()
+        as RenderBox?;
+    if (rootBox == null || start == null) return;
+
+    // Un toque normal no mueve el botón; se necesita un pequeño umbral para
+    // iniciar el modo flotante y dejar intactos los taps de las acciones.
+    if (_toolbarActionPositions[id]!.value == null &&
+        (event.position - start).distance < 6) {
+      return;
+    }
+
+    final local = rootBox.globalToLocal(event.position);
+    _toolbarActionPositions[id]!.value = _clampFloatingToolbarPosition(
+      local - Offset(size / 2, size / 2),
+      size,
+      BoxConstraints.tight(rootBox.size),
+    );
+  }
+
+  void _finishActiveToolbarPointer(PointerEvent event) {
+    if (event.pointer != _activeToolbarPointer) return;
+    _activeToolbarActionId = null;
+    _activeToolbarPointer = null;
+    _activeToolbarPointerStart = null;
+    if (_isToolbarActionHeld && mounted) {
+      setState(() => _isToolbarActionHeld = false);
+    }
+  }
+
+  void _handleScreenPointerUp(PointerUpEvent event) {
+    final wasToolbarAction = event.pointer == _activeToolbarPointer;
+    _finishActiveToolbarPointer(event);
+    if (wasToolbarAction ||
+        !_toolbarActionPositions.values.any((position) => position.value != null)) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final previousTime = _lastScreenTapAt;
+    final previousPosition = _lastScreenTapPosition;
+    final isDoubleTap =
+        previousTime != null &&
+        previousPosition != null &&
+        now.difference(previousTime) <= const Duration(milliseconds: 300) &&
+        (event.position - previousPosition).distance <= 32;
+
+    if (isDoubleTap) {
+      _restoreToolbarActionsToPanel();
+      _lastScreenTapAt = null;
+      _lastScreenTapPosition = null;
+      return;
+    }
+
+    _lastScreenTapAt = now;
+    _lastScreenTapPosition = event.position;
+  }
+
+  void _restoreToolbarActionsToPanel() {
+    var hasFloatingAction = false;
+    for (final position in _toolbarActionPositions.values) {
+      if (position.value != null) {
+        hasFloatingAction = true;
+        position.value = null;
+      }
+    }
+    if (hasFloatingAction) {
+      _activeToolbarActionId = null;
+      _activeToolbarPointer = null;
+      _activeToolbarPointerStart = null;
+      if (_isToolbarActionHeld && mounted) {
+        setState(() => _isToolbarActionHeld = false);
+      }
+    }
+  }
+
+  Offset _clampFloatingToolbarPosition(
+    Offset position,
+    double size,
+    BoxConstraints constraints,
+  ) {
+    final maxWidth = constraints.maxWidth;
+    final maxHeight = constraints.maxHeight;
+    return Offset(
+      position.dx.clamp(8.0, (maxWidth - size - 8.0).clamp(8.0, maxWidth)),
+      position.dy.clamp(8.0, (maxHeight - size - 8.0).clamp(8.0, maxHeight)),
+    );
   }
 
   String _formatFecha(dynamic rawDate) {
@@ -763,13 +1044,24 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       backgroundColor: AppColors.blackfondo,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          return Stack(
-            children: [
+          return Listener(
+            behavior: HitTestBehavior.translucent,
+            onPointerMove: _onActiveToolbarPointerMove,
+            onPointerUp: _handleScreenPointerUp,
+            onPointerCancel: _finishActiveToolbarPointer,
+            child: Stack(
+              key: _screenStackKey,
+              children: [
               RefreshIndicator(
                 color: AppColors.yellow,
                 backgroundColor: const Color(0xFF1E1E1E),
                 displacement: 25.0,
-                onRefresh: () => _cargarJugadas(force: true),
+                // Un botón arrastrado hacia abajo no debe iniciar a la vez
+                // el gesto de actualización de la lista.
+                notificationPredicate: (_) => !_isToolbarActionHeld,
+                onRefresh: () => _isToolbarActionHeld
+                    ? Future<void>.value()
+                    : _cargarJugadas(force: true),
                 child: CustomScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
@@ -787,52 +1079,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            AppContainer3(
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceAround,
-                                children: [
-                                  _buildActionButton(
-                                    icon: hasSelection
-                                        ? Icons.deselect
-                                        : Icons.check_circle_outline,
-                                    color: AppColors.yellow,
-                                    onPressed: _toggleSelectAll,
-                                    tooltip: hasSelection
-                                        ? "Deseleccionar"
-                                        : "Seleccionar todo",
-                                  ),
-                                  _buildActionButton(
-                                    icon: FontAwesomeIcons.whatsapp,
-                                    color: const Color(0xFF25D366),
-                                    onPressed: _compartirWhatsApp,
-                                    isEnabled: hasSelection,
-                                    tooltip: "Compartir WhatsApp",
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.picture_as_pdf,
-                                    color: Colors.purpleAccent,
-                                    onPressed: _imprimirPDF,
-                                    tooltip: "Exportar PDF",
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.analytics_outlined,
-                                    color: const Color(0xFF00E5FF),
-                                    onPressed: _irAResultados,
-                                    tooltip: l10n?.resultados ?? "Resultados",
-                                  ),
-                                  _buildActionButton(
-                                    icon: Icons.delete_outline,
-                                    color: Colors.redAccent,
-                                    onPressed: hasSelection
-                                        ? _eliminarSeleccionadas
-                                        : null,
-                                    isEnabled: hasSelection,
-                                    tooltip: "Eliminar seleccionadas",
-                                  ),
-                                ],
-                              ),
-                            ),
+                            _buildToolbarActionPanel(l10n, hasSelection),
                             const SizedBox(height: 12),
                             _buildMisJugadasToggleButtons(l10n),
                             const SizedBox(height: 16),
@@ -1152,9 +1399,18 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                   ],
                 ),
               ),
-              if (_selectedIds.length == 1)
-                _buildDraggableSelectionActions(context, constraints),
-            ],
+              if (_selectedIds.length == 1) ...[
+                _buildDraggableCompareFab(context, constraints),
+                if (_canOpenSelectedDrawResults)
+                  _buildDraggableDrawResultsFab(context, constraints),
+              ],
+                ..._buildFloatingToolbarActions(
+                  constraints,
+                  l10n,
+                  hasSelection,
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -1488,20 +1744,56 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
   }
 
-  Widget _buildDraggableSelectionActions(
+  bool get _canOpenSelectedDrawResults {
+    final selectedJugada = _selectedJugada;
+    return !_soloProximos &&
+        selectedJugada != null &&
+        _fechaSorteoISO(selectedJugada).isNotEmpty;
+  }
+
+  Widget _buildDraggableCompareFab(
     BuildContext context,
     BoxConstraints constraints,
   ) {
+    return _buildIndependentSelectionFab(
+      context: context,
+      constraints: constraints,
+      positionNotifier: _compareFabPositionNotifier,
+      color: AppColors.yellow,
+      icon: Icons.query_stats_rounded,
+      tooltip: 'Comparar con estadísticas',
+      bottomOffset: 30,
+      onTap: _abrirModalComparar,
+    );
+  }
+
+  Widget _buildDraggableDrawResultsFab(
+    BuildContext context,
+    BoxConstraints constraints,
+  ) {
+    return _buildIndependentSelectionFab(
+      context: context,
+      constraints: constraints,
+      positionNotifier: _drawResultsFabPositionNotifier,
+      color: const Color(0xFF00E5FF),
+      icon: Icons.analytics_outlined,
+      tooltip: 'Ver resultados de este sorteo',
+      bottomOffset: 98,
+      onTap: _irAResultadosDeJugadaSeleccionada,
+    );
+  }
+
+  Widget _buildIndependentSelectionFab({
+    required BuildContext context,
+    required BoxConstraints constraints,
+    required ValueNotifier<Offset?> positionNotifier,
+    required Color color,
+    required IconData icon,
+    required String tooltip,
+    required double bottomOffset,
+    required VoidCallback onTap,
+  }) {
     const double fabSize = 58.0;
-    const double fabGap = 10.0;
-    final selectedJugada = _selectedJugada;
-    // El resultado existe después del sorteo; por eso esta acción sólo se
-    // ofrece en Historial y nunca para una jugada futura.
-    final showResultsForDraw =
-        !_soloProximos &&
-        selectedJugada != null &&
-        _fechaSorteoISO(selectedJugada).isNotEmpty;
-    final actionsHeight = fabSize + (showResultsForDraw ? fabSize + fabGap : 0);
 
     final double maxW = constraints.maxWidth > 0
         ? constraints.maxWidth
@@ -1511,10 +1803,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         : MediaQuery.of(context).size.height;
 
     final defaultX = (maxW - fabSize - 16.0).clamp(10.0, maxW);
-    final defaultY = (maxH - actionsHeight - 30.0).clamp(10.0, maxH);
+    final defaultY = (maxH - fabSize - bottomOffset).clamp(10.0, maxH);
 
     return ValueListenableBuilder<Offset?>(
-      valueListenable: _fabPositionNotifier,
+      valueListenable: positionNotifier,
       builder: (context, pos, child) {
         final currentX = (pos?.dx ?? defaultX).clamp(
           10.0,
@@ -1522,40 +1814,22 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         );
         final currentY = (pos?.dy ?? defaultY).clamp(
           10.0,
-          (maxH - actionsHeight - 10.0).clamp(10.0, double.infinity),
+          (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
         );
 
         return Positioned(
           left: currentX,
           top: currentY,
-          child: Column(
-            children: [
-              if (showResultsForDraw) ...[
-                _buildDraggableFabAction(
-                  size: fabSize,
-                  color: const Color(0xFF00E5FF),
-                  icon: Icons.analytics_outlined,
-                  tooltip: 'Ver resultados de este sorteo',
-                  defaultPosition: Offset(defaultX, defaultY),
-                  maxW: maxW,
-                  maxH: maxH,
-                  actionsHeight: actionsHeight,
-                  onTap: _irAResultadosDeJugadaSeleccionada,
-                ),
-                const SizedBox(height: fabGap),
-              ],
-              _buildDraggableFabAction(
-                size: fabSize,
-                color: AppColors.yellow,
-                icon: Icons.query_stats_rounded,
-                tooltip: 'Comparar con estadísticas',
-                defaultPosition: Offset(defaultX, defaultY),
-                maxW: maxW,
-                maxH: maxH,
-                actionsHeight: actionsHeight,
-                onTap: _abrirModalComparar,
-              ),
-            ],
+          child: _buildDraggableFabAction(
+            size: fabSize,
+            color: color,
+            icon: icon,
+            tooltip: tooltip,
+            positionNotifier: positionNotifier,
+            defaultPosition: Offset(defaultX, defaultY),
+            maxW: maxW,
+            maxH: maxH,
+            onTap: onTap,
           ),
         );
       },
@@ -1567,10 +1841,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     required Color color,
     required IconData icon,
     required String tooltip,
+    required ValueNotifier<Offset?> positionNotifier,
     required Offset defaultPosition,
     required double maxW,
     required double maxH,
-    required double actionsHeight,
     required VoidCallback onTap,
   }) {
     return Tooltip(
@@ -1578,16 +1852,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onPanUpdate: (details) {
-          final current = _fabPositionNotifier.value ?? defaultPosition;
+          final current = positionNotifier.value ?? defaultPosition;
           final newX = (current.dx + details.delta.dx).clamp(
             10.0,
             (maxW - size - 10.0).clamp(10.0, double.infinity),
           );
           final newY = (current.dy + details.delta.dy).clamp(
             10.0,
-            (maxH - actionsHeight - 10.0).clamp(10.0, double.infinity),
+            (maxH - size - 10.0).clamp(10.0, double.infinity),
           );
-          _fabPositionNotifier.value = Offset(newX, newY);
+          positionNotifier.value = Offset(newX, newY);
         },
         onTap: onTap,
         child: Container(

@@ -1486,4 +1486,80 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get porDefinir => 'A confirmar';
+
+  @override
+  String get desarrolladoCon => 'Desenvolvido com ';
+
+  @override
+  String get por => ' por ';
+
+  @override
+  String get sitioWeb => 'Site';
+
+  @override
+  String get contacto => 'Contato';
+
+  @override
+  String get perfilActualizadoExito => 'Perfil atualizado com sucesso';
+
+  @override
+  String errorActualizarPerfil(String error) {
+    return 'Erro ao atualizar perfil: $error';
+  }
+
+  @override
+  String get estrategiaSoloMisNumeros => 'Apenas meus números';
+
+  @override
+  String get estrategiaVariaciones => 'Variações';
+
+  @override
+  String get estrategiaEquilibradas => 'Equilibradas';
+
+  @override
+  String get descEstrategiaSoloMis =>
+      'Usa apenas os números que você selecionou.';
+
+  @override
+  String get descEstrategiaVariaciones =>
+      'Mantém seus números e completa a combinação com outros válidos.';
+
+  @override
+  String get descEstrategiaBalanced =>
+      'Combina seus números com outros valores da loteria.';
+
+  @override
+  String get descEstrategiaDefault =>
+      'Gera combinações de acordo com seus números.';
+
+  @override
+  String get limpiar => 'Limpar';
+
+  @override
+  String seGeneraranHasta(int count) {
+    return 'Serão geradas até $count\ncombinações únicas.';
+  }
+
+  @override
+  String get copiar => 'Copiar';
+
+  @override
+  String get combinacionCopiada =>
+      'Combinação copiada para a área de transferência';
+
+  @override
+  String get favorito => 'Favorito';
+
+  @override
+  String get marcadaComoFavorita => 'Marcado como favorito';
+
+  @override
+  String get sinConexionAnuncios =>
+      'Sem conexão · mostrando seus últimos anúncios disponíveis';
+
+  @override
+  String get errorCargarAnuncios => 'Não foi possível carregar seus anúncios.';
+
+  @override
+  String get continuarConGoogle => 'Continuar com o Google';
 }

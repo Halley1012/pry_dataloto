@@ -111,7 +111,11 @@ class PostgresPostRepository(PostRepositoryPort):
             """, comment_id)
             return True
 
-    async def list_comments_by_post(self, post_id: int) -> List[Dict[str, Any]]:
+    async def list_comments_by_post(
+        self,
+        post_id: int,
+        requesting_user_id: int,
+    ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             records = await conn.fetch("""
@@ -119,7 +123,11 @@ class PostgresPostRepository(PostRepositoryPort):
                        c.created_at, c.updated_at, u.name AS user_name
                 FROM comments c
                 JOIN users u ON c.user_id = u.id
-                WHERE c.post_id = $1 AND c.status = 'active'
+                WHERE c.post_id = $1
+                  AND (
+                      c.status IN ('active', 'approved')
+                      OR (c.status = 'pending' AND c.user_id = $2)
+                  )
                 ORDER BY c.created_at ASC
-            """, post_id)
+            """, post_id, requesting_user_id)
             return [dict(r) for r in records]

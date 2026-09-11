@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:eterlotto/screens/welcome.dart';
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import '../services/push_notification_service.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -14,8 +14,6 @@ import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'resultados/widgets/resultados_shared.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
-
-
 
 class RegistroScreen extends StatefulWidget {
   final Map<String, dynamic>? user; // Para edición u onboarding
@@ -97,7 +95,6 @@ class _RegistroPageState extends State<RegistroScreen> {
         _cargandoPaises = false;
         _cargandoDepartamentos = false;
       });
-
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -132,7 +129,9 @@ class _RegistroPageState extends State<RegistroScreen> {
   String? _validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return "El correo es requerido";
     final email = v.trim().toLowerCase();
-    final emailRegex = RegExp(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$");
+    final emailRegex = RegExp(
+      r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
+    );
     if (!emailRegex.hasMatch(email)) {
       return "Ingresa un correo electrónico válido";
     }
@@ -158,7 +157,11 @@ class _RegistroPageState extends State<RegistroScreen> {
   }
 
   // Diálogo interactivo para ingresar el código OTP de verificación de correo
-  void _showEmailVerificationDialog(BuildContext context, String email, String name) {
+  void _showEmailVerificationDialog(
+    BuildContext context,
+    String email,
+    String name,
+  ) {
     final TextEditingController dialogCodeController = TextEditingController();
     bool dialogLoading = false;
 
@@ -186,7 +189,9 @@ class _RegistroPageState extends State<RegistroScreen> {
                       const SizedBox(height: 12),
                       Text(
                         "Hemos enviado un código de 6 dígitos a $email para verificar tu correo.",
-                        style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          color: Colors.white70,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
@@ -197,7 +202,8 @@ class _RegistroPageState extends State<RegistroScreen> {
                         textAlign: TextAlign.center,
                         enableSuggestions: false,
                         autocorrect: false,
-                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
+                        spellCheckConfiguration:
+                            const SpellCheckConfiguration.disabled(),
                         style: AppTextStyles.h2.copyWith(
                           letterSpacing: 8,
                           color: AppColors.yellow,
@@ -214,18 +220,30 @@ class _RegistroPageState extends State<RegistroScreen> {
                           ),
                           filled: true,
                           fillColor: const Color(0xFF1E1E24),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
-                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                            borderSide: const BorderSide(
+                              color: Colors.white12,
+                              width: 1.0,
+                            ),
                           ),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
-                            borderSide: const BorderSide(color: Colors.white12, width: 1.0),
+                            borderSide: const BorderSide(
+                              color: Colors.white12,
+                              width: 1.0,
+                            ),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(30),
-                            borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
+                            borderSide: const BorderSide(
+                              color: AppColors.yellow,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
@@ -238,68 +256,141 @@ class _RegistroPageState extends State<RegistroScreen> {
                           onPressed: () async {
                             final code = dialogCodeController.text.trim();
                             if (code.length != 6) {
-                              showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                              showEterSnackBar(
+                                context,
+                                message: "Ingresa los 6 dígitos del código",
+                                isError: true,
+                              );
                               return;
                             }
 
                             setDialogState(() => dialogLoading = true);
-                            final url = Uri.parse('${ApiService.baseUrl}/auth/verify-email');
+                            final url = Uri.parse(
+                              '${ApiService.baseUrl}/auth/verify-email',
+                            );
                             try {
-                              final res = await http.post(
-                                url,
-                                headers: {'Content-Type': 'application/json'},
-                                body: jsonEncode({'email': email, 'code': code}),
-                              ).timeout(const Duration(seconds: 20));
+                              final res = await http
+                                  .post(
+                                    url,
+                                    headers: {
+                                      'Content-Type': 'application/json',
+                                    },
+                                    body: jsonEncode({
+                                      'email': email,
+                                      'code': code,
+                                    }),
+                                  )
+                                  .timeout(const Duration(seconds: 20));
 
                               setDialogState(() => dialogLoading = false);
 
                               if (res.statusCode == 200) {
-                                  final data = jsonDecode(res.body);
-                                  final storage = AppSecureStorage.instance;
-                                  if (data['access_token'] != null) {
-                                    await storage.write(key: "auth_token", value: data['access_token'].toString());
-                                    await storage.write(key: "refresh_token", value: (data['refresh_token'] ?? "").toString());
-                                  }
+                                final data = jsonDecode(res.body);
+                                final storage = AppSecureStorage.instance;
+                                if (data['access_token'] != null) {
+                                  await storage.write(
+                                    key: "auth_token",
+                                    value: data['access_token'].toString(),
+                                  );
+                                  await storage.write(
+                                    key: "refresh_token",
+                                    value: (data['refresh_token'] ?? "")
+                                        .toString(),
+                                  );
+                                }
 
-                                  final userMap = data['user'] is Map ? data['user'] as Map : null;
-                                  final finalName = userMap?['name']?.toString() ?? name;
-                                  final finalEmail = userMap?['email']?.toString() ?? email;
+                                final userMap = data['user'] is Map
+                                    ? data['user'] as Map
+                                    : null;
+                                final finalName =
+                                    userMap?['name']?.toString() ?? name;
+                                final finalEmail =
+                                    userMap?['email']?.toString() ?? email;
 
-                                  await storage.write(key: "name", value: finalName);
-                                  await storage.write(key: "email", value: finalEmail);
+                                await storage.write(
+                                  key: "name",
+                                  value: finalName,
+                                );
+                                await storage.write(
+                                  key: "email",
+                                  value: finalEmail,
+                                );
 
-                                  if (userMap != null) {
-                                    if (userMap['id'] != null) await storage.write(key: "user_id", value: userMap['id'].toString());
-                                    if (userMap['pais_id'] != null) await storage.write(key: "pais_id", value: userMap['pais_id'].toString());
-                                    if (userMap['pais_nombre'] != null) await storage.write(key: "pais_nombre", value: userMap['pais_nombre'].toString());
-                                    if (userMap['departamento_id'] != null) await storage.write(key: "departamento_id", value: userMap['departamento_id'].toString());
-                                    if (userMap['departamento_nombre'] != null) await storage.write(key: "departamento_nombre", value: userMap['departamento_nombre'].toString());
-                                    if (userMap['avatar_url'] != null) await storage.write(key: "avatar_url", value: userMap['avatar_url'].toString());
-                                  }
+                                if (userMap != null) {
+                                  if (userMap['id'] != null)
+                                    await storage.write(
+                                      key: "user_id",
+                                      value: userMap['id'].toString(),
+                                    );
+                                  if (userMap['pais_id'] != null)
+                                    await storage.write(
+                                      key: "pais_id",
+                                      value: userMap['pais_id'].toString(),
+                                    );
+                                  if (userMap['pais_nombre'] != null)
+                                    await storage.write(
+                                      key: "pais_nombre",
+                                      value: userMap['pais_nombre'].toString(),
+                                    );
+                                  if (userMap['departamento_id'] != null)
+                                    await storage.write(
+                                      key: "departamento_id",
+                                      value: userMap['departamento_id']
+                                          .toString(),
+                                    );
+                                  if (userMap['departamento_nombre'] != null)
+                                    await storage.write(
+                                      key: "departamento_nombre",
+                                      value: userMap['departamento_nombre']
+                                          .toString(),
+                                    );
+                                  if (userMap['avatar_url'] != null)
+                                    await storage.write(
+                                      key: "avatar_url",
+                                      value: userMap['avatar_url'].toString(),
+                                    );
+                                }
 
-                                  final prefs = await SharedPreferences.getInstance();
-                                  await prefs.setString("username", finalName);
+                                final prefs =
+                                    await SharedPreferences.getInstance();
+                                await prefs.setString("username", finalName);
 
                                 if (dialogCtx.mounted) {
                                   Navigator.pop(dialogCtx);
                                   showEterSnackBar(
                                     context,
-                                    message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                    message:
+                                        "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
                                     isSuccess: true,
                                   );
-                                  Navigator.pushReplacementNamed(context, '/home');
+                                  Navigator.pushReplacementNamed(
+                                    context,
+                                    '/home',
+                                  );
                                 }
                               } else {
-                                String errorMsg = "Código incorrecto o expirado";
+                                String errorMsg =
+                                    "Código incorrecto o expirado";
                                 try {
                                   final errData = jsonDecode(res.body);
-                                  if (errData['detail'] != null) errorMsg = errData['detail'].toString();
+                                  if (errData['detail'] != null)
+                                    errorMsg = errData['detail'].toString();
                                 } catch (_) {}
-                                if (context.mounted) showEterSnackBar(context, message: errorMsg, isError: true);
+                                if (context.mounted)
+                                  showEterSnackBar(
+                                    context,
+                                    message: errorMsg,
+                                    isError: true,
+                                  );
                               }
                             } catch (e) {
                               setDialogState(() => dialogLoading = false);
-                              if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                              if (context.mounted)
+                                showEterSnackBar(
+                                  context,
+                                  message: "Error de conexión: $e",
+                                  isError: true,
+                                );
                             }
                           },
                         ),
@@ -315,34 +406,50 @@ class _RegistroPageState extends State<RegistroScreen> {
                                     Navigator.pop(dialogCtx);
                                     showEterSnackBar(
                                       context,
-                                      message: "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
+                                      message:
+                                          "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
                                     );
-                                    Navigator.pushReplacementNamed(context, '/login');
+                                    Navigator.pushReplacementNamed(
+                                      context,
+                                      '/login',
+                                    );
                                   },
                             child: Text(
                               "Cancelar",
-                              style: AppTextStyles.caption.copyWith(color: Colors.white54),
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white54,
+                              ),
                             ),
                           ),
                           TextButton(
                             onPressed: dialogLoading
                                 ? null
                                 : () async {
-                                    final url = Uri.parse('${ApiService.baseUrl}/auth/resend-verification-code');
+                                    final url = Uri.parse(
+                                      '${ApiService.baseUrl}/auth/resend-verification-code',
+                                    );
                                     try {
                                       await http.post(
                                         url,
-                                        headers: {'Content-Type': 'application/json'},
+                                        headers: {
+                                          'Content-Type': 'application/json',
+                                        },
                                         body: jsonEncode({'email': email}),
                                       );
                                       if (context.mounted) {
-                                        showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                        showEterSnackBar(
+                                          context,
+                                          message: "Código reenviado a $email",
+                                          isSuccess: true,
+                                        );
                                       }
                                     } catch (_) {}
                                   },
                             child: Text(
                               "¿No recibiste el código? Reenviar",
-                              style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.yellow,
+                              ),
                             ),
                           ),
                         ],
@@ -410,7 +517,11 @@ class _RegistroPageState extends State<RegistroScreen> {
     };
 
     try {
-      final response = await ApiService.post("/register", body, withAuth: false);
+      final response = await ApiService.post(
+        "/register",
+        body,
+        withAuth: false,
+      );
 
       if (!mounted) return;
 
@@ -441,11 +552,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
         if (!mounted) return;
 
-        showEterSnackBar(
-          context,
-          message: errorMsg,
-          isError: true,
-        );
+        showEterSnackBar(context, message: errorMsg, isError: true);
       }
     } catch (e) {
       if (!mounted) return;
@@ -490,7 +597,9 @@ class _RegistroPageState extends State<RegistroScreen> {
     }
     if (widget.isSocialOnboarding) {
       updateData['is_adult'] = _esMayorEdad;
-      updateData['terms_accepted_at'] = DateTime.now().toUtc().toIso8601String();
+      updateData['terms_accepted_at'] = DateTime.now()
+          .toUtc()
+          .toIso8601String();
     }
 
     if (updateData.isEmpty) {
@@ -527,6 +636,24 @@ class _RegistroPageState extends State<RegistroScreen> {
           key: 'departamento_nombre',
           value: updatedUser['departamento_nombre'] ?? '',
         );
+        if (updatedUser.containsKey('avatar_url')) {
+          final avatar = updatedUser['avatar_url']?.toString();
+          if (avatar == null || avatar.isEmpty) {
+            await storage.delete(key: 'avatar_url');
+          } else {
+            await storage.write(key: 'avatar_url', value: avatar);
+          }
+        }
+        if (updatedUser.containsKey('auth_provider')) {
+          await storage.write(
+            key: 'auth_provider',
+            value: updatedUser['auth_provider']?.toString() ?? '',
+          );
+        }
+        await CacheService.setJson(
+          CacheService.perfilUsuarioKey(widget.userId.toString()),
+          Map<String, dynamic>.from(updatedUser as Map),
+        );
 
         // 🔥 Sincronizar token FCM con el país/perfil actualizado
         PushNotificationService.syncToken();
@@ -536,7 +663,7 @@ class _RegistroPageState extends State<RegistroScreen> {
 
       showEterSnackBar(
         context,
-        message: "Perfil actualizado correctamente",
+        message: l10n.perfilActualizadoExito,
         isSuccess: true,
       );
 
@@ -549,7 +676,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       if (!mounted) return;
       showEterSnackBar(
         context,
-        message: "Error al actualizar perfil: $e",
+        message: l10n.errorActualizarPerfil(e.toString()),
         isError: true,
       );
     } finally {
@@ -560,9 +687,7 @@ class _RegistroPageState extends State<RegistroScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final String titulo = _esEdicion 
-        ? l10n.editarPerfil 
-        : l10n.registrarse;
+    final String titulo = _esEdicion ? l10n.editarPerfil : l10n.registrarse;
 
     return Scaffold(
       backgroundColor: AppColors.blackfondo,
@@ -580,7 +705,9 @@ class _RegistroPageState extends State<RegistroScreen> {
               if (context.mounted) {
                 Navigator.pushAndRemoveUntil(
                   context,
-                  MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const WelcomeScreen(),
+                  ),
                   (route) => false,
                 );
               }
@@ -629,320 +756,356 @@ class _RegistroPageState extends State<RegistroScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                if (_esEdicion) ...[
-                  Center(
-                    child: UserBalotaAvatar(
-                      avatarUrl: widget.user?['avatar_url'],
-                      userName: widget.user?['name']?.toString() ?? '',
-                      userId: widget.userId ?? 0,
-                      radius: 50,
-                      showGlow: true,
-                      showBorder: true,
-                      borderColor: AppColors.yellow,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                Text(
-                  _esEdicion 
-                      ? l10n.actualizaTusDatos 
-                      : l10n.bienvenido,
-                  style: AppTextStyles.h2,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  _esEdicion
-                      ? l10n.modificaInformacion
-                      : l10n.registroUsuario,
-                  style: AppTextStyles.mensajeSecundario,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 40),
-
-                // FORMULARIO
-                Form(
-                  key: _formKey,
-                  child: Column(
-                    children: [
-                      // 👤 Usuario → editable siempre
-                      CustomTextFormField(
-                        controller: _nameController,
-                        labelText: l10n.nombre,
-                        readOnly: false, // ✅ siempre editable
-                        validator: (v) => v != null && v.isNotEmpty
-                            ? null
-                            : l10n.usuarioRequerido,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 📧 Correo electrónico → editable solo en registro
-                      CustomTextFormField(
-                        controller: _emailController,
-                        labelText: l10n.email,
-                        keyboardType: TextInputType.emailAddress,
-                        readOnly: _esEdicion, // ✅ bloqueado en edición
-                        validator: _validateEmail,
-                      ),
-                      const SizedBox(height: 16),
-
-                      // 🔒 Contraseña → solo aparece en registro
-                      if (!_esEdicion) ...[
-                        CustomTextFormField(
-                          controller: _passwordController,
-                          labelText: l10n.contrasena,
-                          obscureText: _obscurePassword,
-                          validator: (v) => v != null && v.length >= 6
-                              ? null
-                              : l10n.contrasenaMinima,
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off
-                                  : Icons.visibility,
-                              color: AppColors.yellow,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
+                    if (_esEdicion) ...[
+                      Center(
+                        child: UserBalotaAvatar(
+                          avatarUrl: widget.user?['avatar_url'],
+                          userName: widget.user?['name']?.toString() ?? '',
+                          userId: widget.userId ?? 0,
+                          radius: 50,
+                          showGlow: true,
+                          showBorder: true,
+                          borderColor: AppColors.yellow,
                         ),
-                      ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                    Text(
+                      _esEdicion ? l10n.actualizaTusDatos : l10n.bienvenido,
+                      style: AppTextStyles.h2,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _esEdicion
+                          ? l10n.modificaInformacion
+                          : l10n.registroUsuario,
+                      style: AppTextStyles.mensajeSecundario,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 40),
 
-                      if (!_esEdicion) const SizedBox(height: 16),
+                    // FORMULARIO
+                    Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // 👤 Usuario → editable siempre
+                          CustomTextFormField(
+                            controller: _nameController,
+                            labelText: l10n.nombre,
+                            readOnly: false, // ✅ siempre editable
+                            validator: (v) => v != null && v.isNotEmpty
+                                ? null
+                                : l10n.usuarioRequerido,
+                          ),
+                          const SizedBox(height: 16),
 
-                      // País
-                      _cargandoPaises
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: CircularProgressIndicator(
+                          // 📧 Correo electrónico → editable solo en registro
+                          CustomTextFormField(
+                            controller: _emailController,
+                            labelText: l10n.email,
+                            keyboardType: TextInputType.emailAddress,
+                            readOnly: _esEdicion, // ✅ bloqueado en edición
+                            validator: _validateEmail,
+                          ),
+                          const SizedBox(height: 16),
+
+                          // 🔒 Contraseña → solo aparece en registro
+                          if (!_esEdicion) ...[
+                            CustomTextFormField(
+                              controller: _passwordController,
+                              labelText: l10n.contrasena,
+                              obscureText: _obscurePassword,
+                              validator: (v) => v != null && v.length >= 6
+                                  ? null
+                                  : l10n.contrasenaMinima,
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   color: AppColors.yellow,
                                 ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
                               ),
-                            )
-                          : DropdownButtonFormField<int>(
-                              dropdownColor: AppColors.blackfondo,
-                              decoration: InputDecoration(
-                                labelText: l10n.pais,
-                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
-                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
-                                filled: true,
-                                fillColor: const Color(0xFF1E1E24),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
-                                ),
-                              ),
-                              style: AppTextStyles.mensajeSecundario,
-                              value: _paisSeleccionado,
-                              items: _paises
-                                  .map(
-                                    (p) => DropdownMenuItem<int>(
-                                      value: p["id"],
-                                      child: PaisHelper.buildItemConBandera(
-                                        p["nombre"].toString(),
-                                        style: AppTextStyles.mensajeSecundario,
-                                      ),
+                            ),
+                          ],
+
+                          if (!_esEdicion) const SizedBox(height: 16),
+
+                          // País
+                          _cargandoPaises
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      color: AppColors.yellow,
                                     ),
-                                  )
-                                  .toList(),
-                              onChanged: (val) {
-                                setState(() {
-                                  _paisSeleccionado = val;
-                                  _departamentos = [];
-                                  _departamentoSeleccionado = null;
-                                });
-                                if (val != null) _cargarDepartamentos(val);
-                              },
-                              validator: (v) =>
-                                  v == null ? l10n.seleccionaPais : null,
-                            ),
-
-                      const SizedBox(height: 16),
-
-                      // Departamento
-                      _cargandoDepartamentos
-                          ? const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: CircularProgressIndicator(
-                                  color: Colors.amber,
-                                ),
-                              ),
-                            )
-                          : DropdownButtonFormField<int>(
-                              dropdownColor: const Color(0xFF121212),
-                              decoration: InputDecoration(
-                                labelText: l10n.departamentoEstado,
-                                labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
-                                floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
-                                filled: true,
-                                fillColor: const Color(0xFF1E1E24),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                  borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
-                                ),
-                              ),
-                              style: AppTextStyles.mensajeSecundario,
-                              value: _departamentoSeleccionado,
-                              items: _departamentos
-                                  .map(
-                                    (d) => DropdownMenuItem<int>(
-                                      value: d["id"],
-                                      child: Text(
-                                        d["nombre"].toString(),
-                                        style: AppTextStyles.mensajeSecundario,
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (val) => setState(
-                                () => _departamentoSeleccionado = val,
-                              ),
-                              validator: (v) => v == null
-                                  ? l10n.seleccionaDepartamento
-                                  : null,
-                            ),
-                    ],
-                  ),
-                ),
-
-                // 📜 Casillas de Mayoría de Edad y Términos (solo en registro / social onboarding)
-                if (!_esEdicion || widget.isSocialOnboarding) ...[
-                  const SizedBox(height: 16),
-                  // 🔞 Mayor de 18 años
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Checkbox(
-                        value: _esMayorEdad,
-                        activeColor: AppColors.yellow,
-                        checkColor: AppColors.blackfondo,
-                        side: const BorderSide(color: Colors.white54, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        onChanged: (val) {
-                          setState(() => _esMayorEdad = val ?? false);
-                        },
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _esMayorEdad = !_esMayorEdad);
-                          },
-                          child: Text(
-                            "Declaro que soy mayor de 18 años (+18)",
-                            style: AppTextStyles.caption.copyWith(
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // 📄 Términos y Condiciones
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Checkbox(
-                        value: _aceptaTerminos,
-                        activeColor: AppColors.yellow,
-                        checkColor: AppColors.blackfondo,
-                        side: const BorderSide(color: Colors.white54, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        onChanged: (val) {
-                          setState(() => _aceptaTerminos = val ?? false);
-                        },
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            showJustifiedDialog(
-                              context,
-                              l10n.avisoLegal,
-                              l10n.contenidoAvisoLegal,
-                            );
-                          },
-                          child: Text.rich(
-                            TextSpan(
-                              text: l10n.aceptoLos,
-                              style: AppTextStyles.caption.copyWith(
-                                color: Colors.white70,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: l10n.terminosCondicionesAviso,
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.yellow,
-                                    fontWeight: FontWeight.bold,
-                                    decoration: TextDecoration.underline,
-                                    decorationColor: AppColors.yellow,
                                   ),
+                                )
+                              : DropdownButtonFormField<int>(
+                                  dropdownColor: AppColors.blackfondo,
+                                  decoration: InputDecoration(
+                                    labelText: l10n.pais,
+                                    labelStyle: AppTextStyles.mensajeSecundario
+                                        .copyWith(color: Colors.white60),
+                                    floatingLabelStyle: AppTextStyles
+                                        .mensajeSecundario
+                                        .copyWith(color: AppColors.yellow),
+                                    filled: true,
+                                    fillColor: const Color(0xFF1E1E24),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white12,
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white12,
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.yellow,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                  style: AppTextStyles.mensajeSecundario,
+                                  value: _paisSeleccionado,
+                                  items: _paises
+                                      .map(
+                                        (p) => DropdownMenuItem<int>(
+                                          value: p["id"],
+                                          child: PaisHelper.buildItemConBandera(
+                                            p["nombre"].toString(),
+                                            style:
+                                                AppTextStyles.mensajeSecundario,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _paisSeleccionado = val;
+                                      _departamentos = [];
+                                      _departamentoSeleccionado = null;
+                                    });
+                                    if (val != null) _cargarDepartamentos(val);
+                                  },
+                                  validator: (v) =>
+                                      v == null ? l10n.seleccionaPais : null,
                                 ),
-                              ],
+
+                          const SizedBox(height: 16),
+
+                          // Departamento
+                          _cargandoDepartamentos
+                              ? const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: CircularProgressIndicator(
+                                      color: Colors.amber,
+                                    ),
+                                  ),
+                                )
+                              : DropdownButtonFormField<int>(
+                                  dropdownColor: const Color(0xFF121212),
+                                  decoration: InputDecoration(
+                                    labelText: l10n.departamentoEstado,
+                                    labelStyle: AppTextStyles.mensajeSecundario
+                                        .copyWith(color: Colors.white60),
+                                    floatingLabelStyle: AppTextStyles
+                                        .mensajeSecundario
+                                        .copyWith(color: AppColors.yellow),
+                                    filled: true,
+                                    fillColor: const Color(0xFF1E1E24),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 20,
+                                      vertical: 16,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white12,
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: Colors.white12,
+                                        width: 1.0,
+                                      ),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(30),
+                                      borderSide: const BorderSide(
+                                        color: AppColors.yellow,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                  style: AppTextStyles.mensajeSecundario,
+                                  value: _departamentoSeleccionado,
+                                  items: _departamentos
+                                      .map(
+                                        (d) => DropdownMenuItem<int>(
+                                          value: d["id"],
+                                          child: Text(
+                                            d["nombre"].toString(),
+                                            style:
+                                                AppTextStyles.mensajeSecundario,
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (val) => setState(
+                                    () => _departamentoSeleccionado = val,
+                                  ),
+                                  validator: (v) => v == null
+                                      ? l10n.seleccionaDepartamento
+                                      : null,
+                                ),
+                        ],
+                      ),
+                    ),
+
+                    // 📜 Casillas de Mayoría de Edad y Términos (solo en registro / social onboarding)
+                    if (!_esEdicion || widget.isSocialOnboarding) ...[
+                      const SizedBox(height: 16),
+                      // 🔞 Mayor de 18 años
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Checkbox(
+                            value: _esMayorEdad,
+                            activeColor: AppColors.yellow,
+                            checkColor: AppColors.blackfondo,
+                            side: const BorderSide(
+                              color: Colors.white54,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            onChanged: (val) {
+                              setState(() => _esMayorEdad = val ?? false);
+                            },
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() => _esMayorEdad = !_esMayorEdad);
+                              },
+                              child: Text(
+                                "Declaro que soy mayor de 18 años (+18)",
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.white70,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // 📄 Términos y Condiciones
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Checkbox(
+                            value: _aceptaTerminos,
+                            activeColor: AppColors.yellow,
+                            checkColor: AppColors.blackfondo,
+                            side: const BorderSide(
+                              color: Colors.white54,
+                              width: 1.5,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            onChanged: (val) {
+                              setState(() => _aceptaTerminos = val ?? false);
+                            },
+                          ),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () {
+                                showJustifiedDialog(
+                                  context,
+                                  l10n.avisoLegal,
+                                  l10n.contenidoAvisoLegal,
+                                );
+                              },
+                              child: Text.rich(
+                                TextSpan(
+                                  text: l10n.aceptoLos,
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: Colors.white70,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text: l10n.terminosCondicionesAviso,
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.yellow,
+                                        fontWeight: FontWeight.bold,
+                                        decoration: TextDecoration.underline,
+                                        decorationColor: AppColors.yellow,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
 
-                const SizedBox(height: 24),
+                    const SizedBox(height: 24),
 
-                LoadingButton(
-                  isLoading: _isLoading,
-                  text: _esEdicion ? l10n.guardarCambios : l10n.registrarse,
-                  onPressed: _esEdicion ? _updateUser : _registerUser,
-                ),
-
-                const SizedBox(height: 20),
-
-                // Solo mostrar enlace a login si es registro
-                if (!_esEdicion)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacementNamed(context, '/login');
-                    },
-                    child: Text(
-                      l10n.yaTienesCuenta,
-                      style: AppTextStyles.mensajeImportante,
+                    LoadingButton(
+                      isLoading: _isLoading,
+                      text: _esEdicion ? l10n.guardarCambios : l10n.registrarse,
+                      onPressed: _esEdicion ? _updateUser : _registerUser,
                     ),
-                  ),
-              ],
+
+                    const SizedBox(height: 20),
+
+                    // Solo mostrar enlace a login si es registro
+                    if (!_esEdicion)
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pushReplacementNamed(context, '/login');
+                        },
+                        child: Text(
+                          l10n.yaTienesCuenta,
+                          style: AppTextStyles.mensajeImportante,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-    ),
-  );
-}
+    );
+  }
 }
 
 // Campo de texto reutilizable
@@ -984,11 +1147,18 @@ class CustomTextFormField extends StatelessWidget {
       ),
       decoration: InputDecoration(
         labelText: labelText,
-        labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
-        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
+        labelStyle: AppTextStyles.mensajeSecundario.copyWith(
+          color: Colors.white60,
+        ),
+        floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(
+          color: AppColors.yellow,
+        ),
         filled: true,
         fillColor: const Color(0xFF1E1E24),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 16,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
           borderSide: const BorderSide(color: Colors.white12, width: 1.0),

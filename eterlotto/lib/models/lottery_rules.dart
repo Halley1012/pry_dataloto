@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart' as intl;
+
 class LotteryRules {
   final String lotteryId;
   final String name;
@@ -53,11 +55,28 @@ class LotteryRules {
   }
 
   String get rulesDescription {
-    String desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax.";
-    if (specialNumbersCount != null && specialNumbersCount! > 0) {
-      String word = specialNumbersCount == 1 ? "número especial" : "números especiales";
-      desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax y $specialNumbersCount $word del $specialNumbersMin al $specialNumbersMax.";
+    final locale = intl.Intl.getCurrentLocale();
+    if (locale.startsWith('en')) {
+      String desc = "$mainNumbersCount numbers from $mainNumbersMin to $mainNumbersMax.";
+      if (specialNumbersCount != null && specialNumbersCount! > 0) {
+        String word = specialNumbersCount == 1 ? "special number" : "special numbers";
+        desc = "$mainNumbersCount numbers from $mainNumbersMin to $mainNumbersMax and $specialNumbersCount $word from $specialNumbersMin to $specialNumbersMax.";
+      }
+      return desc;
+    } else if (locale.startsWith('pt')) {
+      String desc = "$mainNumbersCount números de $mainNumbersMin a $mainNumbersMax.";
+      if (specialNumbersCount != null && specialNumbersCount! > 0) {
+        String word = specialNumbersCount == 1 ? "número especial" : "números especiais";
+        desc = "$mainNumbersCount números de $mainNumbersMin a $mainNumbersMax e $specialNumbersCount $word de $specialNumbersMin a $specialNumbersMax.";
+      }
+      return desc;
+    } else {
+      String desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax.";
+      if (specialNumbersCount != null && specialNumbersCount! > 0) {
+        String word = specialNumbersCount == 1 ? "número especial" : "números especiales";
+        desc = "$mainNumbersCount números del $mainNumbersMin al $mainNumbersMax y $specialNumbersCount $word del $specialNumbersMin al $specialNumbersMax.";
+      }
+      return desc;
     }
-    return desc;
   }
 }

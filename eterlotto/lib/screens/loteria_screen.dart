@@ -23,6 +23,7 @@ import 'package:provider/provider.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:eterlotto/models/lottery_number_layout.dart';
 
 /// Configuración de reglas y límites de cada lotería
 class LoteriaConfig {
@@ -50,7 +51,18 @@ class LoteriaConfig {
     this.tieneReintegro = false,
   });
 
-  bool get tieneBalotaRoja => maxBalotasRojas > 0;
+  bool get tieneBalotaRoja => cantidadEspeciales > 0;
+
+  /// Regla estructural única: principales, especiales y complementaria se
+  /// separan exclusivamente por posición.
+  LotteryNumberLayout get numberLayout => LotteryNumberLayout.fromConfig(
+        maxSeleccion: maxSeleccion,
+        totalBalotasSorteo: totalBalotasSorteo,
+        tieneComplementario: tieneComplementario,
+      );
+
+  int get cantidadEspeciales => numberLayout.specialCount;
+  int get cantidadComplementarias => numberLayout.complementaryCount;
 
   Map<String, dynamic> toJson() {
     final specialNumbersCount =
@@ -327,7 +339,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   final _storage = AppSecureStorage.instance;
   late LoteriaConfig config;
 
-  int? balotaRojaSeleccionada;
+  List<int> balotasEspecialesSeleccionadas = [];
   List<int> seleccionados = [];
   List<int> listaProbables = [];
   List<int> listaBalotaRoja = [];
@@ -340,6 +352,23 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   bool cargando = false;
   bool isSaving = false;
   bool _dataRequestFailed = false;
+  bool _showingStaleData = false;
+
+  /// Compara números del mismo rol sin alterar la representación almacenada.
+  /// Al ordenar copias se conservan las repeticiones: no se usa Set porque un
+  /// número principal y uno especial pueden tener el mismo valor.
+  bool _sameNumbersIgnoringOrder(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+
+    final sortedA = List<int>.from(a)..sort();
+    final sortedB = List<int>.from(b)..sort();
+
+    for (var index = 0; index < sortedA.length; index++) {
+      if (sortedA[index] != sortedB[index]) return false;
+    }
+
+    return true;
+  }
   int _generacionesCount = 0;
   String? fechaPrediccion;
   String? userId;
@@ -428,9 +457,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       setState(() => _dataRequestFailed = false);
     }
 
-    if (!force) {
-      final cacheKeyPred = '${config.route}_prediccion';
-      final cached = await CacheService.getJson(cacheKeyPred);
+    // Siempre hidratamos con el último dato conocido, incluso en refresh
+    // manual. Así una falla de red jamás borra información útil ya vista.
+    final cacheKeyPred = '${config.route}_prediccion';
+    final cached = await CacheService.getStaleJson(cacheKeyPred);
       if (cached != null && cached["numeros"] != null) {
         final nums = (cached["numeros"] as List)
             .map((e) => int.tryParse(e.toString()) ?? -1)
@@ -452,11 +482,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             _jackpot = cached["jackpot"].toString();
           }
         });
-      }
+    }
 
-      final cacheKeyUltimos = '${config.route}_ultimos5';
-      final cachedUltimos = await CacheService.getJson(cacheKeyUltimos);
-      if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
+    final cacheKeyUltimos = '${config.route}_ultimos5';
+    final cachedUltimos = await CacheService.getStaleJson(cacheKeyUltimos);
+    if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
         final list = List<Map<String, dynamic>>.from(
           cachedUltimos["resultados"],
         );
@@ -491,7 +521,6 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             _selectedResultadosTab = _sorteosDisponibles.first;
           }
         });
-      }
     }
 
     if (listaProbables.isEmpty || force) setState(() => cargando = true);
@@ -510,9 +539,17 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       await secondaryRequests;
 
       if (mounted) {
-        _dataRequestFailed = coreDataResponses.every(
+        final allCoreRequestsFailed = coreDataResponses.every(
           (wasSuccessful) => !wasSuccessful,
         );
+        final hasCachedLotteryData = _hasAvailableLotteryData;
+        setState(() {
+          // El bloque grande de error sólo se justifica si no hay ningún
+          // respaldo. Con stale se conserva el contenido y se avisa de forma
+          // discreta que no pudo actualizarse.
+          _dataRequestFailed = allCoreRequestsFailed && !hasCachedLotteryData;
+          _showingStaleData = allCoreRequestsFailed && hasCachedLotteryData;
+        });
         _jugadasController.reset();
         _jugadasController.forward();
       }
@@ -618,7 +655,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
 
   Future<bool> _fetchHistoricoCompleto() async {
     final cacheKey = '${config.route}_historico_completo';
-    final cached = await CacheService.getJson(cacheKey);
+    final cached = await CacheService.getStaleJson(cacheKey);
     if (cached != null && cached["resultados"] != null && mounted) {
       setState(() {
         todosResultadosHistorico = List<Map<String, dynamic>>.from(
@@ -643,16 +680,24 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Future<void> _loadJugadas() async {
-    final uId = userId ?? (await ApiService.getUserId())?.toString();
-    final cacheKeyUser = 'user_jugadas_${config.route}_${uId ?? "anon"}';
+    // La sesión actual prevalece sobre el valor con el que se construyó la
+    // pantalla; así una respuesta antigua no puede escribirse bajo otra cuenta.
+    final sessionUserId = (await ApiService.getUserId())?.toString();
+    final uId = sessionUserId ?? userId;
+    if (uId != null && userId != uId && mounted) {
+      setState(() => userId = uId);
+    }
+    final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId);
 
-    final cached = await CacheService.getJson(cacheKeyUser);
+    final cached = await CacheService.getStaleJson(cacheKeyUser);
     if (cached is List && mounted) {
       setState(() => _jugadasList = List<Map<String, dynamic>>.from(cached));
     }
 
     try {
       final response = await ApiService.listarJugadasGenerica(config.route);
+      final currentUserId = (await ApiService.getUserId())?.toString();
+      if (currentUserId != uId) return;
       if (mounted) {
         final list = List<Map<String, dynamic>>.from(response);
         setState(() => _jugadasList = list);
@@ -683,7 +728,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         if (!seleccionados.contains(n)) seleccionados.add(n);
       }
 
-      if (config.tieneBalotaRoja) {
+      if (config.cantidadEspeciales > 0) {
         final bool includesZero =
             listaBalotaRoja.contains(0) ||
             config.superbalotaNombre.toLowerCase().contains("reintegro") ||
@@ -697,7 +742,13 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             : (includesZero
                   ? List.generate(config.maxBalotasRojas, (i) => i)
                   : List.generate(config.maxBalotasRojas, (i) => i + 1));
-        balotaRojaSeleccionada = redPool[random.nextInt(redPool.length)];
+        balotasEspecialesSeleccionadas = [];
+        final available = List<int>.from(redPool);
+        while (balotasEspecialesSeleccionadas.length < config.cantidadEspeciales &&
+            available.isNotEmpty) {
+          balotasEspecialesSeleccionadas
+              .add(available.removeAt(random.nextInt(available.length)));
+        }
       }
 
       _bounceController.reset();
@@ -717,14 +768,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (isSaving) return;
 
-    String? currentUid = userId;
-    if (currentUid == null || currentUid.isEmpty) {
-      final uidInt = await ApiService.getUserId();
-      if (uidInt != null) {
-        currentUid = uidInt.toString();
-        if (mounted) setState(() => userId = currentUid);
-      }
+    String? currentUid = (await ApiService.getUserId())?.toString();
+    if (currentUid != null && currentUid.isNotEmpty && userId != currentUid) {
+      if (mounted) setState(() => userId = currentUid);
     }
+    currentUid ??= userId;
 
     if (currentUid == null || currentUid.isEmpty) {
       if (mounted) {
@@ -741,7 +789,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
 
     List<int> whitesToSave = [];
-    int? redToSave;
+    List<int> specialsToSave = [];
 
     if (seleccionados.isEmpty) {
       if (listaProbables.length < config.maxSeleccion) {
@@ -755,19 +803,20 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         return;
       }
       whitesToSave = listaProbables.take(config.maxSeleccion).toList();
-      if (config.tieneBalotaRoja && listaBalotaRoja.isNotEmpty) {
-        redToSave = listaBalotaRoja.first;
+      if (config.cantidadEspeciales > 0 && listaBalotaRoja.isNotEmpty) {
+        specialsToSave = listaBalotaRoja.take(config.cantidadEspeciales).toList();
       }
     } else {
       if (seleccionados.length != config.maxSeleccion ||
-          (config.tieneBalotaRoja && balotaRojaSeleccionada == null)) {
+          (config.cantidadEspeciales > 0 &&
+              balotasEspecialesSeleccionadas.length != config.cantidadEspeciales)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                config.tieneBalotaRoja
+                config.cantidadEspeciales > 0
                     ? (l10n?.debesSeleccionarBalotas ??
-                          "Debes seleccionar ${config.maxSeleccion} balotas y 1 ${config.superbalotaNombre}")
+                          "Debes seleccionar ${config.maxSeleccion} balotas y ${config.cantidadEspeciales} ${config.superbalotaNombre}")
                     : (l10n?.debesSeleccionarBalotas ??
                           "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
               ),
@@ -777,16 +826,28 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         return;
       }
       whitesToSave = List<int>.from(seleccionados);
-      redToSave = balotaRojaSeleccionada;
+      specialsToSave = List<int>.from(balotasEspecialesSeleccionadas);
+    }
+
+    if (specialsToSave.length != config.cantidadEspeciales) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Debes seleccionar ${config.cantidadEspeciales} ${config.superbalotaNombre}',
+            ),
+          ),
+        );
+      }
+      return;
     }
 
     final whites = List<int>.from(whitesToSave)..sort();
-    final jugadaCompleta = redToSave != null ? [...whites, redToSave] : whites;
-    final Set<int> whitesSet = whites.toSet();
+    final jugadaCompleta = [...whites, ...specialsToSave];
 
     if (_jugadasList.isEmpty) {
-      final cacheKey = 'user_jugadas_${config.route}_$currentUid';
-      final cached = await CacheService.getJson(cacheKey);
+      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid);
+      final cached = await CacheService.getStaleJson(cacheKey);
       if (cached is List && cached.isNotEmpty) {
         _jugadasList = List<Map<String, dynamic>>.from(cached);
       } else {
@@ -799,6 +860,12 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       }
     }
 
+    final layout = config.numberLayout;
+    final newGroups = layout.split(jugadaCompleta);
+    final principalesNuevos = newGroups.main;
+    final especialesNuevos = newGroups.specials;
+    final complementariaNueva = newGroups.complementary;
+
     final bool isDuplicate = _jugadasList.any((j) {
       final rawNums =
           (j["numeros"] as List<dynamic>?)
@@ -808,40 +875,37 @@ class _LoteriaScreenState extends State<LoteriaScreen>
           [];
       if (rawNums.isEmpty) return false;
 
-      final rawRed = j["balota_roja"] ?? j["balotaroja"];
-      final int? existingRed = rawRed != null
-          ? int.tryParse(rawRed.toString())
-          : (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion
-                ? rawNums.last
-                : null);
-
-      final List<int> existingWhites =
-          (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion)
-          ? (rawNums.sublist(0, config.maxSeleccion)..sort())
-          : (rawNums.take(config.maxSeleccion).toList()..sort());
-      final Set<int> existingWhitesSet = existingWhites.toSet();
-
-      final bool whiteMatch =
-          whitesSet.length == existingWhitesSet.length &&
-          whitesSet.difference(existingWhitesSet).isEmpty;
-
-      if (whiteMatch) {
-        if (config.tieneBalotaRoja) {
-          if (redToSave == null ||
-              existingRed == null ||
-              redToSave == existingRed) {
-            return true;
-          }
-        } else {
-          return true;
-        }
+      // Los roles se obtienen por posición: principales, especiales y
+      // complementaria. Nunca por igualdad de valores.
+      final existingGroups = layout.split(rawNums);
+      final principalesExistentes = existingGroups.main;
+      final especialesExistentes = List<int>.from(existingGroups.specials);
+      final complementariaExistente = existingGroups.complementary;
+      if (especialesExistentes.isEmpty && config.cantidadEspeciales > 0) {
+        final legacy = int.tryParse(
+          (j['balota_roja'] ?? j['balotaroja'] ?? j['superbalota'])
+                  ?.toString() ??
+              '',
+        );
+        if (legacy != null) especialesExistentes.add(legacy);
       }
 
-      if (const ListEquality().equals(rawNums, jugadaCompleta)) {
-        return true;
-      }
+      final mismosPrincipales = _sameNumbersIgnoringOrder(
+        principalesExistentes,
+        principalesNuevos,
+      );
+      final mismasEspeciales = _sameNumbersIgnoringOrder(
+        especialesExistentes,
+        especialesNuevos,
+      );
+      final mismaComplementaria = _sameNumbersIgnoringOrder(
+        complementariaExistente,
+        complementariaNueva,
+      );
 
-      return false;
+      return mismosPrincipales &&
+          mismasEspeciales &&
+          mismaComplementaria;
     });
 
     if (isDuplicate) {
@@ -874,22 +938,20 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         config.route,
         whites,
         currentUid,
-        balotaRoja: redToSave,
+        specialNumbers: specialsToSave,
         fechaSorteo: targetFechaSorteo,
       );
 
       final nuevaJugada = {
-        "numeros": (redToSave != null && whites.length == config.maxSeleccion)
-            ? [...whites, redToSave]
-            : whites,
-        if (redToSave != null) "balota_roja": redToSave,
-        if (redToSave != null) "balotaroja": redToSave,
+        "numeros": jugadaCompleta,
+        if (specialsToSave.isNotEmpty) "balota_roja": specialsToSave.first,
+        if (specialsToSave.isNotEmpty) "balotaroja": specialsToSave.first,
         "fecha_sorteo": targetFechaSorteo,
       };
       _jugadasList.insert(0, nuevaJugada);
       final uIdStr = currentUid;
       await CacheService.setJson(
-        'user_jugadas_${config.route}_$uIdStr',
+        CacheService.jugadasUsuarioKey(config.route, uIdStr),
         _jugadasList,
       );
 
@@ -1099,6 +1161,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     return l10n?.porDefinir ?? "Por definir";
   }
 
+  bool get _hasAvailableLotteryData =>
+      listaProbables.isNotEmpty ||
+      ultimosResultados.isNotEmpty ||
+      todosResultadosHistorico.isNotEmpty;
+
   int _calcularAfinidadScore(List<int> nums, int maxBall) {
     var listaUsar = todosResultadosHistorico.isNotEmpty
         ? todosResultadosHistorico
@@ -1153,10 +1220,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     final s = _calcularStats();
     final bool isDataLoading =
         cargando && listaProbables.isEmpty && ultimosResultados.isEmpty;
-    final bool hasLotteryData =
-        listaProbables.isNotEmpty ||
-        ultimosResultados.isNotEmpty ||
-        todosResultadosHistorico.isNotEmpty;
+    final bool hasLotteryData = _hasAvailableLotteryData;
     final bool showDataUnavailable = !isDataLoading && !hasLotteryData;
 
     return Scaffold(
@@ -1186,6 +1250,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                             const SizedBox(height: 3),
                             _buildHeader(l10n),
                             const SizedBox(height: 18),
+                            if (_showingStaleData) ...[
+                              _buildStaleDataNotice(),
+                              const SizedBox(height: 14),
+                            ],
                             if (showDataUnavailable)
                               _buildDataUnavailableState(l10n)
                             else ...[
@@ -1416,6 +1484,33 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     );
   }
 
+  Widget _buildStaleDataNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.yellow.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión · mostrando los últimos datos disponibles',
+              style: AppTextStyles.bodySmall.copyWith(
+                color: Colors.white70,
+                fontSize: 11.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeader(AppLocalizations? l10n) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1435,9 +1530,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                       children: [
                         Flexible(
                           child: Text(
-                            config.hasRevancha
-                                ? "${config.nombre} / Revancha"
-                                : config.nombre,
+                            config.nombre,
                             style: AppTextStyles.tituloPrincipal.copyWith(
                               fontSize: 18,
                             ),
@@ -1845,7 +1938,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection =
         seleccionados.isNotEmpty ||
-        (config.tieneBalotaRoja && balotaRojaSeleccionada != null);
+        balotasEspecialesSeleccionadas.isNotEmpty;
     var listaUsar = todosResultadosHistorico.isNotEmpty
         ? todosResultadosHistorico
         : ultimosResultados;
@@ -1961,19 +2054,20 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                     ),
                   );
                 }),
-                if (config.tieneBalotaRoja)
-                  Padding(
+                ...List.generate(config.cantidadEspeciales, (index) {
+                  final values = isCustomSelection
+                      ? balotasEspecialesSeleccionadas
+                      : listaBalotaRoja;
+                  final value = index < values.length ? values[index] : null;
+                  return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
                     child: _build3DBallPrediction(
-                      isCustomSelection
-                          ? balotaRojaSeleccionada
-                          : (listaBalotaRoja.isNotEmpty
-                                ? listaBalotaRoja.first
-                                : null),
+                      value,
                       baseColor: const Color(0xFFD32F2F),
                       size: config.maxSeleccion > 5 ? 38 : 45,
                     ),
-                  ),
+                  );
+                }),
               ],
             ),
           ),
@@ -2125,7 +2219,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
-                  balotaRojaSeleccionada = null;
+                  balotasEspecialesSeleccionadas.clear();
                 }),
                 borderRadius: BorderRadius.circular(20),
                 child: const Padding(
@@ -2231,9 +2325,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                   fontSize: 16,
                 ),
               ),
-              if (balotaRojaSeleccionada != null)
+              if (balotasEspecialesSeleccionadas.isNotEmpty)
                 InkWell(
-                  onTap: () => setState(() => balotaRojaSeleccionada = null),
+                  onTap: () => setState(
+                    () => balotasEspecialesSeleccionadas.clear(),
+                  ),
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4.0),
@@ -2280,15 +2376,17 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                       crossAxisSpacing: spacing,
                       mainAxisSpacing: spacing,
                       children: listaBalotaRoja.map((numero) {
-                        bool isSelected = balotaRojaSeleccionada == numero;
+                        bool isSelected =
+                            balotasEspecialesSeleccionadas.contains(numero);
                         return GestureDetector(
                           onTap: () {
                             if (!mounted) return;
                             setState(() {
-                              if (balotaRojaSeleccionada == numero) {
-                                balotaRojaSeleccionada = null;
-                              } else {
-                                balotaRojaSeleccionada = numero;
+                              if (balotasEspecialesSeleccionadas.contains(numero)) {
+                                balotasEspecialesSeleccionadas.remove(numero);
+                              } else if (balotasEspecialesSeleccionadas.length <
+                                  config.cantidadEspeciales) {
+                                balotasEspecialesSeleccionadas.add(numero);
                                 _bounceController.reset();
                                 _bounceController.forward();
                               }
@@ -2587,7 +2685,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                     ? config.totalBalotasSorteo
                     : 20;
                 final bool isReintegro = config.tieneReintegro;
-                final numeros = rawNumeros
+                final rawNumbers = rawNumeros
                     .map((e) => int.tryParse(e.toString()) ?? -1)
                     .whereIndexed((index, n) {
                       if (n < 0) return false;
@@ -2600,6 +2698,26 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                     })
                     .take(limiteBalotas)
                     .toList();
+                final groups = config.numberLayout.split(rawNumbers);
+                final specials = List<int>.from(groups.specials);
+                if (specials.isEmpty && config.cantidadEspeciales > 0) {
+                  final rawLegacy =
+                      resultado['balotaroja2'] ??
+                      resultado['reintegro'] ??
+                      resultado['balotaroja'] ??
+                      resultado['balota_roja'] ??
+                      resultado['superbalota'] ??
+                      resultado['red'];
+                  final legacy = int.tryParse(rawLegacy?.toString() ?? '');
+                  if (legacy != null) specials.add(legacy);
+                }
+                final numeros = [
+                  ...groups.main,
+                  ...specials,
+                  ...groups.complementary,
+                ];
+                final mainCount = groups.main.length;
+                final specialEnd = mainCount + specials.length;
 
                 return Padding(
                   padding: EdgeInsets.symmetric(vertical: rowPaddingVertical),
@@ -2649,23 +2767,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                                         ]
                                       : List.generate(numeros.length, (index) {
                                           final n = numeros[index];
-                                          final bool isLastBall =
-                                              index == numeros.length - 1;
-                                          final bool isComp =
-                                              config.tieneComplementario &&
-                                              numeros.length >
-                                                  config.maxSeleccion &&
-                                              index == config.maxSeleccion;
                                           final bool isSpecial =
-                                              config.tieneBalotaRoja &&
-                                              numeros.length >
-                                                  config.maxSeleccion &&
-                                              (index >=
-                                                      config.maxSeleccion +
-                                                          (config.tieneComplementario
-                                                              ? 1
-                                                              : 0) ||
-                                                  isLastBall);
+                                              index >= mainCount &&
+                                              index < specialEnd;
+                                          final bool isComp =
+                                              index >= specialEnd;
                                           final Color ballColor = isSpecial
                                               ? const Color(0xFFB91C1C)
                                               : (isComp

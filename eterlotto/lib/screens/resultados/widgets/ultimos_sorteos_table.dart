@@ -93,23 +93,20 @@ class UltimosSorteosTable extends StatelessWidget {
                   .map((e) => int.tryParse(e.toString()) ?? -1)
                   .where((n) => n >= 0)
                   .toList();
-              final rawRed = item["red"];
-              final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0)
-                  ? int.parse(rawRed.toString())
-                  : null;
+              final specials = (item["specials"] as List<dynamic>? ?? const [])
+                  .map((value) => int.tryParse(value.toString()))
+                  .whereType<int>()
+                  .toList();
+              final rawComp = item["complementaria"];
+              final compBall = rawComp == null
+                  ? null
+                  : int.tryParse(rawComp.toString());
               final Color coverageColor = item["color"] as Color? ?? Colors.amber;
-
-              final bool tieneComp = tieneComplementario || (nums.length > maxSeleccion);
-              final List<int> mainBalls = nums.length > maxSeleccion
-                  ? nums.sublist(0, maxSeleccion)
-                  : nums;
-              final int? compBall = (tieneComp && nums.length > maxSeleccion)
-                  ? nums.last
-                  : null;
+              final List<int> mainBalls = nums;
 
               final int totalBalls = mainBalls.length +
                   (compBall != null ? 1 : 0) +
-                  (red != null ? 1 : 0);
+                  specials.length;
 
               final double ballSize = totalBalls <= 5
                   ? 27.0
@@ -153,13 +150,10 @@ class UltimosSorteosTable extends StatelessWidget {
                                   child: buildMiniBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
                                 ),
                               ],
-                              if (red != null) ...[
-                                SizedBox(width: ballPadding),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: ballPadding),
-                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: ballSize),
-                                ),
-                              ],
+                              ...specials.map((special) => Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                    child: buildMiniBall(special, baseColor: const Color(0xFFB91C1C), size: ballSize),
+                                  )),
                             ],
                           ),
                         ),

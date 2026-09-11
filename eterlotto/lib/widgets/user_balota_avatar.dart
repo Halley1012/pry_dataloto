@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/styles/colores.dart';
 
@@ -120,8 +121,9 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
           boxShadow: widget.showGlow
               ? [
                   BoxShadow(
-                    color: (widget.borderColor ?? AppColors.yellow)
-                        .withValues(alpha: 0.35),
+                    color: (widget.borderColor ?? AppColors.yellow).withValues(
+                      alpha: 0.35,
+                    ),
                     blurRadius: 8,
                     spreadRadius: 1,
                   ),
@@ -129,14 +131,16 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
               : null,
         ),
         child: ClipOval(
-          child: Image.network(
-            widget.avatarUrl!,
+          child: CachedNetworkImage(
+            imageUrl: widget.avatarUrl!,
             width: diameter,
             height: diameter,
-            cacheWidth: (diameter * 3).toInt(),
-            cacheHeight: (diameter * 3).toInt(),
+            memCacheWidth: (diameter * 3).toInt(),
+            memCacheHeight: (diameter * 3).toInt(),
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildBalota(diameter, initial, 0.0),
+            fadeInDuration: Duration.zero,
+            placeholder: (_, __) => const SizedBox.expand(),
+            errorWidget: (_, __, ___) => _buildBalota(diameter, initial, 0.0),
           ),
         ),
       );
@@ -157,11 +161,9 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
   }
 
   Widget _buildBalota(double size, String initial, double animProgress) {
-    final Color baseColor = widget.customStaticColor ??
-        AppColors.getAvatarColor(
-          widget.userName ?? "",
-          userId: widget.userId,
-        );
+    final Color baseColor =
+        widget.customStaticColor ??
+        AppColors.getAvatarColor(widget.userName ?? "", userId: widget.userId);
 
     final Color activeColor = widget.animateGradient
         ? _getInterpolatedColor(animProgress)
@@ -203,11 +205,7 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
               gradient: RadialGradient(
                 center: const Alignment(-0.35, -0.35),
                 radius: 0.9,
-                colors: [
-                  topLight,
-                  activeColor,
-                  bottomDark,
-                ],
+                colors: [topLight, activeColor, bottomDark],
                 stops: const [0.0, 0.55, 1.0],
               ),
             ),
@@ -250,7 +248,9 @@ class _UserBalotaAvatarState extends State<UserBalotaAvatar>
               ),
               border: widget.showBorder
                   ? Border.all(
-                      color: widget.borderColor ?? const Color.fromRGBO(255, 255, 255, 0.55),
+                      color:
+                          widget.borderColor ??
+                          const Color.fromRGBO(255, 255, 255, 0.55),
                       width: (widget.radius * 0.08).clamp(1.2, 2.4),
                     )
                   : Border.all(

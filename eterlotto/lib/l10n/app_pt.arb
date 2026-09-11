@@ -816,5 +816,45 @@
   "resultadosRecientes": "Recentes",
   "sinHistorialResultados": "Você ainda não tem resultados no histórico",
   "sinHistorialResultadosDescripcion": "As loterias internacionais aparecerão aqui quando o sorteio da sua última jogada já tiver acontecido.",
-  "porDefinir": "A confirmar"
+  "porDefinir": "A confirmar",
+  "desarrolladoCon": "Desenvolvido com ",
+  "por": " por ",
+  "sitioWeb": "Site",
+  "contacto": "Contato",
+  "perfilActualizadoExito": "Perfil atualizado com sucesso",
+  "errorActualizarPerfil": "Erro ao atualizar perfil: {error}",
+  "@errorActualizarPerfil": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "anunciateHoy": "Anuncie hoje e deixe que todos te conheçam!",
+  "crearNuevaPublicidad": "Criar nova publicidade",
+  "buscarPorTitulo": "Buscar por título",
+  "noHasPublicadoAnuncios": "Você ainda não publicou nenhum anúncio.\nCrie o primeiro agora!",
+  "estrategiaSoloMisNumeros": "Apenas meus números",
+  "estrategiaVariaciones": "Variações",
+  "estrategiaEquilibradas": "Equilibradas",
+  "descEstrategiaSoloMis": "Usa apenas os números que você selecionou.",
+  "descEstrategiaVariaciones": "Mantém seus números e completa a combinação com outros válidos.",
+  "descEstrategiaBalanced": "Combina seus números com outros valores da loteria.",
+  "descEstrategiaDefault": "Gera combinações de acordo com seus números.",
+  "limpiar": "Limpar",
+  "seGeneraranHasta": "Serão geradas até {count}\ncombinações únicas.",
+  "@seGeneraranHasta": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "copiar": "Copiar",
+  "combinacionCopiada": "Combinação copiada para a área de transferência",
+  "favorito": "Favorito",
+  "marcadaComoFavorita": "Marcado como favorito",
+  "sinConexionAnuncios": "Sem conexão · mostrando seus últimos anúncios disponíveis",
+  "errorCargarAnuncios": "Não foi possível carregar seus anúncios.",
+  "continuarConGoogle": "Continuar com o Google"
 }

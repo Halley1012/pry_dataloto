@@ -13,6 +13,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
   
   bool _isLoading = false;
   bool _isLoadingLotteries = true;
+  bool _isDisposed = false;
   String? _error;
   
   List<LotteryRules> _supportedLotteries = [];
@@ -20,16 +21,38 @@ class CombinationGeneratorProvider with ChangeNotifier {
 
   CombinationGeneratorProvider() {
     // La apertura normal aprovecha la caché; el refresh manual usa force=true.
+    ApiService.combinationLotteryRulesNotifier.addListener(
+      _refreshFromBackgroundRules,
+    );
     _loadLotteries();
   }
 
+  @override
+  void dispose() {
+    _isDisposed = true;
+    ApiService.combinationLotteryRulesNotifier.removeListener(
+      _refreshFromBackgroundRules,
+    );
+    super.dispose();
+  }
+
+  void _refreshFromBackgroundRules() {
+    // El provider recibió una actualización SWR válida. Recarga desde la
+    // caché fresca sin mostrar Skeleton si ya estaba mostrando el catálogo.
+    if (!_isLoadingLotteries) {
+      _loadLotteries();
+    }
+  }
+
   Future<void> _loadLotteries({bool force = false}) async {
+    if (_isDisposed) return;
     _isLoadingLotteries = true;
     _error = null;
     notifyListeners();
 
     try {
       final list = await ApiService.getCombinationLotteries(forceRefresh: force);
+      if (_isDisposed) return;
       _supportedLotteries = list.map((e) => LotteryRules.fromJson(e)).toList();
 
       try {
@@ -60,6 +83,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
     } catch (_) {
       _error = 'No se pudieron cargar las loterías disponibles.';
     } finally {
+      if (_isDisposed) return;
       _isLoadingLotteries = false;
       notifyListeners();
     }
@@ -238,14 +262,11 @@ class CombinationGeneratorProvider with ChangeNotifier {
 
     for (final combo in _combinations) {
       try {
-        final numerosCompletos = <int>[
-          ...combo.mainNumbers,
-          ...combo.specialNumbers,
-        ];
         await ApiService.crearJugadaGenerica(
           _selectedLottery!,
-          numerosCompletos,
+          combo.mainNumbers,
           userId,
+          specialNumbers: combo.specialNumbers,
           fechaSorteo: nextDrawDate,
         );
       } catch (_) {
