@@ -119,6 +119,17 @@ class PostUseCases:
             raise ValueError("Comentario no encontrado o no autorizado")
         return {"message": "Comentario eliminado correctamente"}
 
+    async def reportar_comentario(
+        self,
+        comment_id: int,
+        reporter_user_id: int,
+    ) -> Dict[str, Any]:
+        created = await self.post_repo.report_comment(
+            comment_id,
+            reporter_user_id,
+        )
+        return {"comment_id": comment_id, "created": created}
+
     async def listar_comentarios(
         self,
         post_id: int,

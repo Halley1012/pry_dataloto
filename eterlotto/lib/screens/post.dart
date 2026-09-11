@@ -41,6 +41,7 @@ class _PostScreenState extends State<PostScreen> {
   bool _showingStaleComments = false;
   bool _hasCommentsSnapshot = false;
   int _commentsRequestVersion = 0;
+  final Set<int> _reportingCommentIds = {};
 
   // 💬 Estado para la lógica de respuesta estilo YouTube
   String? replyingToUser;
@@ -247,15 +248,45 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   // Denunciar comentario
-  void _denunciarComentario(Comment comment) {
+  Future<void> _denunciarComentario(Comment comment) async {
+    if (_reportingCommentIds.contains(comment.id)) return;
+
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n?.comentarioReportado(comment.userName) ?? "Comentario de @${comment.userName} reportado."),
-        backgroundColor: Colors.amber.shade900,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() => _reportingCommentIds.add(comment.id));
+    try {
+      final created = await ApiService.reportComment(comment.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            created
+                ? (l10n?.comentarioReportado(comment.userName) ??
+                    "Comentario de @${comment.userName} reportado.")
+                : 'Ya habías reportado este comentario.',
+          ),
+          backgroundColor: Colors.amber.shade900,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'No pudimos reportar el comentario. Inténtalo de nuevo.'
+                : message,
+          ),
+          backgroundColor: Colors.redAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reportingCommentIds.remove(comment.id));
+      }
+    }
   }
 
   // Activar modo respuesta estilo YouTube

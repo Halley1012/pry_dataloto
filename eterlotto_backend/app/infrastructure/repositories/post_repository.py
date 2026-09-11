@@ -111,6 +111,34 @@ class PostgresPostRepository(PostRepositoryPort):
             """, comment_id)
             return True
 
+    async def report_comment(self, comment_id: int, reporter_user_id: int) -> bool:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            comment = await conn.fetchrow(
+                """
+                SELECT user_id, status
+                FROM comments
+                WHERE id = $1
+                """,
+                comment_id,
+            )
+            if not comment or comment["status"] not in ("active", "approved"):
+                raise ValueError("Comentario no disponible para reportar")
+            if comment["user_id"] == reporter_user_id:
+                raise PermissionError("No puedes reportar tu propio comentario")
+
+            report = await conn.fetchrow(
+                """
+                INSERT INTO comment_reports (comment_id, reporter_user_id)
+                VALUES ($1, $2)
+                ON CONFLICT (comment_id, reporter_user_id) DO NOTHING
+                RETURNING id
+                """,
+                comment_id,
+                reporter_user_id,
+            )
+            return report is not None
+
     async def list_comments_by_post(
         self,
         post_id: int,

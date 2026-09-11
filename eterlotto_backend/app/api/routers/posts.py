@@ -71,6 +71,23 @@ async def delete_comment(comment_id: int, current_user: dict = Depends(dependenc
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
+@router.post("/comments/{comment_id}/reports", response_model=schemas.CommentReportResponse)
+async def report_comment(
+    comment_id: int,
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: PostUseCases = Depends(dependencies.get_post_use_cases),
+):
+    try:
+        return await use_cases.reportar_comentario(
+            comment_id,
+            int(current_user["user_id"]),
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        # No revela si un comentario no público existe o no.
+        raise HTTPException(status_code=404, detail=str(e))
+
 @router.get("/posts/{post_id}/comments", response_model=List[schemas.CommentResponse])
 async def get_comments(
     post_id: int,
