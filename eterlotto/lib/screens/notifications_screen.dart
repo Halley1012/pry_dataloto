@@ -20,9 +20,8 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  // “Todas” reúne los avisos relevantes para esta cuenta: país, loterías que
-  // juega y avisos generales. Así una lotería extranjera no queda oculta.
-  int _selectedFilterIndex = 2; // 0: Mi País, 1: Internacionales, 2: Todas
+  int _selectedFilterIndex = 0;
+  // 0: Mis loterías, 1: Mi País, 2: Internacionales
   String? _userPaisId;
   final _storage = AppSecureStorage.instance;
 
@@ -54,10 +53,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return !_isNational(notification);
   }
 
-  List<dynamic> _getFilteredNotifications(List<dynamic> allNotifications) {
+  List<dynamic> _getFilteredNotifications(
+    List<dynamic> allNotifications,
+    NotificationProvider provider,
+  ) {
     if (_selectedFilterIndex == 0) {
-      return allNotifications.where(_isNational).toList();
+      // Mientras resolvemos las jugadas de la cuenta, no ocultamos alertas
+      // por un instante. En cuanto llegan, este filtro queda exacto.
+      if (!provider.playedRoutesResolved) return allNotifications;
+      return allNotifications.where((notification) {
+        final route = notification.loteriaRoute
+            ?.toString()
+            .trim()
+            .toLowerCase();
+        return route != null && provider.playedLotteryRoutes.contains(route);
+      }).toList();
     } else if (_selectedFilterIndex == 1) {
+      return allNotifications.where(_isNational).toList();
+    } else if (_selectedFilterIndex == 2) {
       return allNotifications.where(_isInternational).toList();
     }
     return allNotifications;
@@ -70,7 +83,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
         automaticallyImplyLeading: widget.showBackButton,
-        title: Text(l10n?.notificacionesIA ?? "Notificaciones", style: AppTextStyles.h2),
+        title: Text(
+          l10n?.notificacionesIA ?? "Notificaciones",
+          style: AppTextStyles.h2,
+        ),
         backgroundColor: AppColors.black,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.yellow),
@@ -90,7 +106,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               if (provider.unreadCount == 0) return const SizedBox.shrink();
               return TextButton(
                 onPressed: () => provider.markAllAsRead(),
-                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 16)),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
                 child: Text(
                   l10n?.marcarTodoComoLeido ?? "Marcar todo como leído",
                   style: const TextStyle(
@@ -106,68 +124,94 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
       body: Consumer<NotificationProvider>(
         builder: (context, provider, child) {
-          if (provider.isLoading && provider.notifications.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.yellow));
+          if (provider.isLoading && !provider.hasCachedSnapshot) {
+            return const Center(
+              child: CircularProgressIndicator(color: AppColors.yellow),
+            );
           }
 
-          final filteredList = _getFilteredNotifications(provider.notifications);
+          final filteredList = _getFilteredNotifications(
+            provider.notifications,
+            provider,
+          );
 
           return SafeArea(
             child: Column(
               children: [
-              _buildFilterChips(),
-              Expanded(
-                child: provider.notifications.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.notifications_none, size: 80, color: Colors.white24),
-                            const SizedBox(height: 16),
-                            Text(AppLocalizations.of(context)?.sinNotificaciones ?? "No tienes notificaciones aún", style: AppTextStyles.mensajeSecundario),
-                          ],
-                        ),
-                      )
-                    : filteredList.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.filter_alt_off_outlined, size: 60, color: Colors.white24),
-                                const SizedBox(height: 16),
-                                Text(
-                                  AppLocalizations.of(context)?.sinNotificacionesCategoria ?? "Sin notificaciones para tu país",
-                                  style: AppTextStyles.mensajeSecundario,
-                                ),
-                                const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: () => setState(() => _selectedFilterIndex = 2),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF1E1E1E),
-                                    foregroundColor: AppColors.yellow,
-                                  ),
-                                  child: Text(AppLocalizations.of(context)?.verTodasNotificaciones ?? "Ver todas las notificaciones"),
-                                ),
-                              ],
-                            ),
-                          )
-                        : RefreshIndicator(
-                            color: AppColors.yellow,
-                            backgroundColor: const Color(0xFF1E1E1E),
-                            displacement: 25.0,
-                            onRefresh: () => provider.fetchNotifications(force: true),
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.all(16),
-                              itemCount: filteredList.length,
-                              itemBuilder: (context, index) {
-                                final notification = filteredList[index];
-                                return _buildNotificationCard(context, notification, provider);
-                              },
-                            ),
+                _buildFilterChips(),
+                if (provider.showingStaleData ||
+                    (provider.lastFetchFailed && provider.hasCachedSnapshot))
+                  _buildOfflineNotice(),
+                Expanded(
+                  child: provider.lastFetchFailed && !provider.hasCachedSnapshot
+                      ? _buildConnectionError(provider)
+                      : provider.notifications.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.notifications_none,
+                                size: 80,
+                                color: Colors.white24,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                _selectedFilterIndex == 0
+                                    ? 'No tienes notificaciones de tus loterías jugadas aún'
+                                    : AppLocalizations.of(
+                                            context,
+                                          )?.sinNotificaciones ??
+                                          "No tienes notificaciones aún",
+                                style: AppTextStyles.mensajeSecundario,
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
-              ),
-            ],
+                        )
+                      : filteredList.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.filter_alt_off_outlined,
+                                size: 60,
+                                color: Colors.white24,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                AppLocalizations.of(
+                                      context,
+                                    )?.sinNotificacionesCategoria ??
+                                    "Sin notificaciones para tu país",
+                                style: AppTextStyles.mensajeSecundario,
+                              ),
+                            ],
+                          ),
+                        )
+                      : RefreshIndicator(
+                          color: AppColors.yellow,
+                          backgroundColor: const Color(0xFF1E1E1E),
+                          displacement: 25.0,
+                          onRefresh: () =>
+                              provider.fetchNotifications(force: true),
+                          child: ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filteredList.length,
+                            itemBuilder: (context, index) {
+                              final notification = filteredList[index];
+                              return _buildNotificationCard(
+                                context,
+                                notification,
+                                provider,
+                              );
+                            },
+                          ),
+                        ),
+                ),
+              ],
             ),
           );
         },
@@ -175,59 +219,128 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildFilterChips() {
-    final l10n = AppLocalizations.of(context);
-    final filters = [
-      l10n?.miPais ?? "Mi País",
-      l10n?.internacionales ?? "Internacionales",
-      l10n?.todas ?? "Todas"
-    ];
+  Widget _buildOfflineNotice() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: AppColors.black,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: List.generate(filters.length, (index) {
-          final isSelected = _selectedFilterIndex == index;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: ChoiceChip(
-              label: Text(
-                filters[index],
-                style: TextStyle(
-                  color: isSelected ? Colors.black : Colors.white70,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 12,
-                ),
-              ),
-              selected: isSelected,
-              selectedColor: AppColors.yellow,
-              backgroundColor: const Color(0xFF1E1E1E),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: isSelected ? AppColors.yellow : Colors.white12,
-                ),
-              ),
-              showCheckmark: false,
-              onSelected: (selected) {
-                if (selected) {
-                  setState(() => _selectedFilterIndex = index);
-                }
-              },
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.yellow.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión · mostrando las últimas notificaciones disponibles',
+              style: TextStyle(color: Colors.white70, fontSize: 11.5),
             ),
-          );
-        }),
+          ),
+        ],
       ),
     );
   }
 
-  void _onNotificationTap(BuildContext context, dynamic notification, NotificationProvider provider) {
+  Widget _buildConnectionError(NotificationProvider provider) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.cloud_off_outlined,
+              size: 64,
+              color: Colors.white38,
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'No pudimos cargar las notificaciones.',
+              style: AppTextStyles.mensajeSecundario,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () => provider.fetchNotifications(force: true),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Reintentar'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.yellow,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    final l10n = AppLocalizations.of(context);
+    final filters = [
+      'Mis loterías',
+      l10n?.miPais ?? "Mi País",
+      l10n?.internacionales ?? "Internacionales",
+    ];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: AppColors.black,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(filters.length, (index) {
+            final isSelected = _selectedFilterIndex == index;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: ChoiceChip(
+                label: Text(
+                  filters[index],
+                  style: TextStyle(
+                    color: isSelected ? Colors.black : Colors.white70,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    fontSize: 12,
+                  ),
+                ),
+                selected: isSelected,
+                selectedColor: AppColors.yellow,
+                backgroundColor: const Color(0xFF1E1E1E),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  side: BorderSide(
+                    color: isSelected ? AppColors.yellow : Colors.white12,
+                  ),
+                ),
+                showCheckmark: false,
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedFilterIndex = index);
+                  }
+                },
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  void _onNotificationTap(
+    BuildContext context,
+    dynamic notification,
+    NotificationProvider provider,
+  ) {
     if (!notification.leido) {
       provider.markAsRead(notification.id);
     }
 
-    final loteriaNombre = (notification.loteriaNombre != null && notification.loteriaNombre!.isNotEmpty)
+    final loteriaNombre =
+        (notification.loteriaNombre != null &&
+            notification.loteriaNombre!.isNotEmpty)
         ? notification.loteriaNombre!
         : "Lotería";
 
@@ -244,7 +357,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildNotificationCard(BuildContext context, notification, provider) {
     final localeCode = Localizations.localeOf(context).languageCode;
-    final DateTime? fechaSorteoMostrar = notification.fechaSorteo ?? notification.createdAt;
+    final DateTime? fechaSorteoMostrar =
+        notification.fechaSorteo ?? notification.createdAt;
 
     IconData icon;
     Color iconColor;
@@ -268,12 +382,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
 
     final card = Card(
-      color: notification.leido ? const Color(0xFF1E1E1E) : const Color(0xFF252A34),
+      color: notification.leido
+          ? const Color(0xFF1E1E1E)
+          : const Color(0xFF252A34),
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: notification.leido ? Colors.transparent : AppColors.yellow.withValues(alpha: 0.3),
+          color: notification.leido
+              ? Colors.transparent
+              : AppColors.yellow.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
@@ -306,7 +424,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                       style: AppTextStyles.mensajeSecundario.copyWith(
                         color: Colors.white,
-                        fontWeight: notification.leido ? FontWeight.normal : FontWeight.w600,
+                        fontWeight: notification.leido
+                            ? FontWeight.normal
+                            : FontWeight.w600,
                         height: 1.35,
                       ),
                     ),
@@ -315,8 +435,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          DateFormat('dd MMM, yyyy', localeCode).format(notification.createdAt),
-                          style: AppTextStyles.caption.copyWith(color: Colors.white54, fontSize: 11),
+                          DateFormat(
+                            'dd MMM, yyyy',
+                            localeCode,
+                          ).format(notification.createdAt),
+                          style: AppTextStyles.caption.copyWith(
+                            color: Colors.white54,
+                            fontSize: 11,
+                          ),
                         ),
                         if (!notification.leido)
                           Container(
@@ -355,7 +481,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             SizedBox(width: 8),
             Text(
               "Leído",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
           ],
         ),
@@ -373,7 +503,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           children: [
             Text(
               "Eliminar",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
             ),
             SizedBox(width: 8),
             Icon(Icons.delete_outline, color: Colors.white, size: 26),
@@ -398,8 +532,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-
-  String _traducirMensajeNotificacion(String msj, String langCode, DateTime? fechaSorteo) {
+  String _traducirMensajeNotificacion(
+    String msj,
+    String langCode,
+    DateTime? fechaSorteo,
+  ) {
     if (msj.isEmpty) return msj;
 
     String? fechaTexto;
@@ -407,89 +544,123 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       if (langCode == 'en') {
         fechaTexto = DateFormat('MMM d').format(fechaSorteo);
       } else if (langCode == 'pt') {
-        fechaTexto = "${fechaSorteo.day} de ${DateFormat('MMMM', 'pt').format(fechaSorteo)}";
+        fechaTexto =
+            "${fechaSorteo.day} de ${DateFormat('MMMM', 'pt').format(fechaSorteo)}";
       } else {
-        fechaTexto = "${fechaSorteo.day} de ${DateFormat('MMMM', 'es').format(fechaSorteo)}";
+        fechaTexto =
+            "${fechaSorteo.day} de ${DateFormat('MMMM', 'es').format(fechaSorteo)}";
       }
     }
 
     if (langCode == 'en') {
       // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
-      final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+      final regCasi = RegExp(
+        r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.",
+      );
       if (regCasi.hasMatch(msj)) {
         return msj.replaceAllMapped(regCasi, (match) {
           final lot = match[2];
-          final prefix = fechaTexto != null ? "In the $fechaTexto $lot draw, out" : "Out";
+          final prefix = fechaTexto != null
+              ? "In the $fechaTexto $lot draw, out"
+              : "Out";
           return "Almost! $prefix of the ${match[1]} most probable numbers generated by the AI, ${match[3]} numbers matched (${match[4]}).";
         });
       }
 
       // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
-      final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+      final reg1 = RegExp(
+        r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.",
+      );
       if (reg1.hasMatch(msj)) {
         return msj.replaceAllMapped(reg1, (match) {
           final lot = match[1];
-          final prefix = fechaTexto != null ? "In the $fechaTexto $lot draw" : "In the $lot draw";
+          final prefix = fechaTexto != null
+              ? "In the $fechaTexto $lot draw"
+              : "In the $lot draw";
           return "$prefix, the ${match[2]} most probable numbers achieved ${match[3]}% accuracy (${match[4]} out of ${match[5]} hits).";
         });
       }
 
       // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
-      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
+      final reg2 = RegExp(
+        r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!",
+      );
       if (reg2.hasMatch(msj)) {
         return msj.replaceAllMapped(reg2, (match) {
           final lot = match[1];
-          final drawStr = fechaTexto != null ? "the $fechaTexto $lot draw" : "today's $lot draw";
+          final drawStr = fechaTexto != null
+              ? "the $fechaTexto $lot draw"
+              : "today's $lot draw";
           return "The AI matched the special ball in $drawStr!";
         });
       }
 
       // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
-      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
+      final reg3 = RegExp(
+        r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!",
+      );
       if (reg3.hasMatch(msj)) {
         return msj.replaceAllMapped(reg3, (match) {
           final lot = match[2];
-          final drawStr = fechaTexto != null ? "the $fechaTexto $lot draw" : "today's $lot draw";
+          final drawStr = fechaTexto != null
+              ? "the $fechaTexto $lot draw"
+              : "today's $lot draw";
           return "The AI matched ${match[1]} numbers in $drawStr!";
         });
       }
     } else if (langCode == 'pt') {
       // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
-      final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+      final regCasi = RegExp(
+        r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.",
+      );
       if (regCasi.hasMatch(msj)) {
         return msj.replaceAllMapped(regCasi, (match) {
           final lot = match[2];
-          final prefix = fechaTexto != null ? "No sorteio de $fechaTexto do $lot, dos" : "Dos";
+          final prefix = fechaTexto != null
+              ? "No sorteio de $fechaTexto do $lot, dos"
+              : "Dos";
           return "Quase! $prefix ${match[1]} números com maior probabilidade gerados pela IA, saíram ${match[3]} números (${match[4]}).";
         });
       }
 
       // 2. "En el sorteo de X, los N números más probables tuvieron una efectividad del P% (A de B aciertos)."
-      final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+      final reg1 = RegExp(
+        r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.",
+      );
       if (reg1.hasMatch(msj)) {
         return msj.replaceAllMapped(reg1, (match) {
           final lot = match[1];
-          final prefix = fechaTexto != null ? "No sorteio de $fechaTexto do $lot" : "No sorteio do $lot";
+          final prefix = fechaTexto != null
+              ? "No sorteio de $fechaTexto do $lot"
+              : "No sorteio do $lot";
           return "$prefix, os ${match[2]} números mais prováveis tiveram uma eficácia de ${match[3]}% (${match[4]} de ${match[5]} acertos).";
         });
       }
 
       // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
-      final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
+      final reg2 = RegExp(
+        r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!",
+      );
       if (reg2.hasMatch(msj)) {
         return msj.replaceAllMapped(reg2, (match) {
           final lot = match[1];
-          final drawStr = fechaTexto != null ? "no sorteio de $fechaTexto do $lot" : "no sorteio de hoje do $lot";
+          final drawStr = fechaTexto != null
+              ? "no sorteio de $fechaTexto do $lot"
+              : "no sorteio de hoje do $lot";
           return "A IA acertou a bola especial $drawStr!";
         });
       }
 
       // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
-      final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
+      final reg3 = RegExp(
+        r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!",
+      );
       if (reg3.hasMatch(msj)) {
         return msj.replaceAllMapped(reg3, (match) {
           final lot = match[2];
-          final drawStr = fechaTexto != null ? "no sorteio de $fechaTexto do $lot" : "no sorteio de hoje do $lot";
+          final drawStr = fechaTexto != null
+              ? "no sorteio de $fechaTexto do $lot"
+              : "no sorteio de hoje do $lot";
           return "A IA acertou ${match[1]} números $drawStr!";
         });
       }
@@ -497,31 +668,51 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       // Español
       if (fechaTexto != null) {
         // 1. "¡Casi! De los N números con mayor probabilidad generados por la IA para X, cayeron K números (LISTA)."
-        final regCasi = RegExp(r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.");
+        final regCasi = RegExp(
+          r"¡Casi! De los (\d+) números con mayor probabilidad generados por la IA para (.*?), cayeron (\d+) números \((.*?)\)\.",
+        );
         if (regCasi.hasMatch(msj)) {
-          return msj.replaceAllMapped(regCasi, (match) =>
-              "¡Casi! En el sorteo del $fechaTexto para ${match[2]}, de los ${match[1]} números con mayor probabilidad generados por la IA cayeron ${match[3]} números (${match[4]}).");
+          return msj.replaceAllMapped(
+            regCasi,
+            (match) =>
+                "¡Casi! En el sorteo del $fechaTexto para ${match[2]}, de los ${match[1]} números con mayor probabilidad generados por la IA cayeron ${match[3]} números (${match[4]}).",
+          );
         }
 
         // 2. "En el sorteo de X, los N números más probables..."
-        final reg1 = RegExp(r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.");
+        final reg1 = RegExp(
+          r"En el sorteo de (.*?), los (\d+) números más probables tuvieron una efectividad del (\d+)% \((\d+) de (\d+) aciertos\)\.",
+        );
         if (reg1.hasMatch(msj)) {
-          return msj.replaceAllMapped(reg1, (match) =>
-              "En el sorteo del $fechaTexto para ${match[1]}, los ${match[2]} números más probables tuvieron una efectividad del ${match[3]}% (${match[4]} de ${match[5]} aciertos).");
+          return msj.replaceAllMapped(
+            reg1,
+            (match) =>
+                "En el sorteo del $fechaTexto para ${match[1]}, los ${match[2]} números más probables tuvieron una efectividad del ${match[3]}% (${match[4]} de ${match[5]} aciertos).",
+          );
         }
 
         // 3. "¡La IA acertó la (balota especial|Superbalota) en el sorteo de hoy de X!"
-        final reg2 = RegExp(r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!");
+        final reg2 = RegExp(
+          r"¡La IA acertó la (?:balota especial|Superbalota) en el sorteo (?:de hoy )?de (.*?)!",
+        );
         if (reg2.hasMatch(msj)) {
-          return msj.replaceAllMapped(reg2, (match) =>
-              "¡La IA acertó la balota especial en el sorteo del $fechaTexto para ${match[1]}!");
+          return msj.replaceAllMapped(
+            reg2,
+            (match) =>
+                "¡La IA acertó la balota especial en el sorteo del $fechaTexto para ${match[1]}!",
+          );
         }
 
         // 4. "¡La IA acertó N números en el sorteo de hoy de X!"
-        final reg3 = RegExp(r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!");
+        final reg3 = RegExp(
+          r"¡La IA acertó (\d+) números en el sorteo (?:de hoy )?de (.*?)!",
+        );
         if (reg3.hasMatch(msj)) {
-          return msj.replaceAllMapped(reg3, (match) =>
-              "¡La IA acertó ${match[1]} números en el sorteo del $fechaTexto para ${match[2]}!");
+          return msj.replaceAllMapped(
+            reg3,
+            (match) =>
+                "¡La IA acertó ${match[1]} números en el sorteo del $fechaTexto para ${match[2]}!",
+          );
         }
       }
     }

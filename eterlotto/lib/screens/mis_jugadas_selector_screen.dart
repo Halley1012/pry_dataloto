@@ -75,32 +75,31 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     if (!mounted) return;
 
     final uId = await _storage.read(key: 'user_id');
-    final cacheKey = 'mis_jugadas_selector_v5_${uId ?? "anon"}';
-    final infoCacheKey = 'mis_jugadas_info_cache_v2_${uId ?? "anon"}';
+    final cacheKey = CacheService.selectorMisJugadasKey(uId);
+    final infoCacheKey = CacheService.infoMisJugadasKey(uId);
     final uCountry = await _storage.read(key: 'pais_nombre');
 
-    // ⚡ 1. Mostrar caché al instante (0 ms) si existe y no es forceRefresh
-    if (!forceRefresh) {
-      final cached = await CacheService.getJson(cacheKey);
-      final cachedPaises = await CacheService.getJson('paises_list_cache');
-      final cachedInfo = await CacheService.getJson(infoCacheKey);
-      if (cached != null && (cached as List).isNotEmpty && mounted) {
-        setState(() {
-          _userCountry = uCountry;
-          _loterias = List<Map<String, dynamic>>.from(cached);
-          if (cachedPaises != null) {
-            _paises = List<Map<String, dynamic>>.from(cachedPaises);
-          }
-          if (cachedInfo != null && cachedInfo is Map) {
-            _infoJugadas = cachedInfo.map(
-              (k, v) =>
-                  MapEntry(k.toString(), Map<String, dynamic>.from(v as Map)),
-            );
-          }
-          _isLoading = false;
-        });
-        _aplicarFiltro();
-      }
+    // Renderiza la última lista propia inmediatamente, aun vencida. El
+    // refresco posterior conserva stale si la red falla.
+    final cached = await CacheService.getStaleJson(cacheKey);
+    final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+    final cachedInfo = await CacheService.getStaleJson(infoCacheKey);
+    if (cached != null && (cached as List).isNotEmpty && mounted) {
+      setState(() {
+        _userCountry = uCountry;
+        _loterias = List<Map<String, dynamic>>.from(cached);
+        if (cachedPaises != null) {
+          _paises = List<Map<String, dynamic>>.from(cachedPaises);
+        }
+        if (cachedInfo != null && cachedInfo is Map) {
+          _infoJugadas = cachedInfo.map(
+            (k, v) =>
+                MapEntry(k.toString(), Map<String, dynamic>.from(v as Map)),
+          );
+        }
+        _isLoading = false;
+      });
+      _aplicarFiltro();
     }
 
     if (_loterias.isEmpty) {
@@ -143,7 +142,30 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         return infoMap.containsKey(route) || activas.contains(route);
       }).toList();
 
+      // Las APIs antiguas de jugadas devuelven {} o [] ante un fallo de red
+      // en vez de lanzar una excepción. Por eso un resultado vacío no puede
+      // borrar la lista privada que ya se mostró desde caché: una baja local
+      // sí invalida esa caché antes de llegar aquí.
+      final keepPrivateStale = cached != null &&
+          (cached as List).isNotEmpty &&
+          jugadasLoterias.isEmpty;
+
+      // Evita que una respuesta de la sesión anterior reemplace el selector
+      // si el usuario cambió de cuenta durante el refresh.
+      final currentUserId = await _storage.read(key: 'user_id');
+      if (currentUserId != uId) return;
+
       if (mounted) {
+        if (keepPrivateStale) {
+          // No convertimos un fallo temporal de red en “no tienes jugadas”.
+          // La lista stale ya pertenece a esta misma cuenta y se mantiene
+          // hasta obtener una respuesta válida del servidor.
+          setState(() {
+            _isLoading = false;
+            _loadFailed = false;
+          });
+          return;
+        }
         setState(() {
           _userCountry = uCountry;
           _infoJugadas = infoMap;
@@ -157,8 +179,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         });
         _aplicarFiltro();
         if (jugadasLoterias.isNotEmpty) {
-          CacheService.setJson(cacheKey, jugadasLoterias);
-          CacheService.setJson(infoCacheKey, infoMap);
+          await CacheService.setJson(cacheKey, jugadasLoterias);
+          await CacheService.setJson(infoCacheKey, infoMap);
         }
         DataRefreshManager.instance.markUpdated(RefreshModules.jugadas);
       }
@@ -177,7 +199,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }) async {
     if (!force) {
       final cachedMapeo = await CacheService.getJson(
-        'loterias_mapeadas_all_v3',
+        CacheService.catalogoLoteriasKey,
       );
       if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
@@ -205,7 +227,16 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           .toList();
 
       if (todas.isNotEmpty) {
-        CacheService.setJson('loterias_mapeadas_all', todas);
+        CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
+      } else {
+        // El catálogo es público: sólo lo usamos como respaldo visual si la
+        // red falló, nunca lo reescribimos ni lo invalidamos desde Jugadas.
+        final staleCatalog = await CacheService.getStaleJson(
+          CacheService.catalogoLoteriasKey,
+        );
+        if (staleCatalog is List && staleCatalog.isNotEmpty) {
+          return List<Map<String, dynamic>>.from(staleCatalog);
+        }
       }
       return todas;
     } catch (_) {

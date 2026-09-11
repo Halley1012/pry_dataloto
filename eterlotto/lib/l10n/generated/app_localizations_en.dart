@@ -791,11 +791,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get buscaloAqui => 'Find it here';
 
   @override
-  String get anunciateHoy =>
-      'Advertise today and make yourself known to everyone!';
+  String get anunciateHoy => 'Advertise today and let everyone know you!';
 
   @override
-  String get crearNuevaPublicidad => 'Create new advertisement';
+  String get crearNuevaPublicidad => 'Create new ad';
 
   @override
   String get buscarPorTitulo => 'Search by title';
@@ -848,7 +847,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get noHasPublicadoAnuncios =>
-      'You haven\'t published any ads yet.\nCreate the first one now!';
+      'You haven\'t published any ads yet.\nCreate your first one now!';
 
   @override
   String get eliminarAnuncio => 'Delete ad';
@@ -1480,4 +1479,77 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get porDefinir => 'To be confirmed';
+
+  @override
+  String get desarrolladoCon => 'Developed with ';
+
+  @override
+  String get por => ' by ';
+
+  @override
+  String get sitioWeb => 'Website';
+
+  @override
+  String get contacto => 'Contact';
+
+  @override
+  String get perfilActualizadoExito => 'Profile updated successfully';
+
+  @override
+  String errorActualizarPerfil(String error) {
+    return 'Error updating profile: $error';
+  }
+
+  @override
+  String get estrategiaSoloMisNumeros => 'Only my numbers';
+
+  @override
+  String get estrategiaVariaciones => 'Variations';
+
+  @override
+  String get estrategiaEquilibradas => 'Balanced';
+
+  @override
+  String get descEstrategiaSoloMis => 'Uses only the numbers you selected.';
+
+  @override
+  String get descEstrategiaVariaciones =>
+      'Keeps your numbers and completes the combination with valid ones.';
+
+  @override
+  String get descEstrategiaBalanced =>
+      'Combines your numbers with other lottery values.';
+
+  @override
+  String get descEstrategiaDefault =>
+      'Generates combinations according to your numbers.';
+
+  @override
+  String get limpiar => 'Clear';
+
+  @override
+  String seGeneraranHasta(int count) {
+    return 'Up to $count unique combinations will be generated.';
+  }
+
+  @override
+  String get copiar => 'Copy';
+
+  @override
+  String get combinacionCopiada => 'Combination copied to clipboard';
+
+  @override
+  String get favorito => 'Favorite';
+
+  @override
+  String get marcadaComoFavorita => 'Marked as favorite';
+
+  @override
+  String get sinConexionAnuncios => 'Offline · showing your last available ads';
+
+  @override
+  String get errorCargarAnuncios => 'We couldn\'t load your ads.';
+
+  @override
+  String get continuarConGoogle => 'Continue with Google';
 }

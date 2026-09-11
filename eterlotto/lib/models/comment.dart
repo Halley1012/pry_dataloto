@@ -59,9 +59,16 @@ class Comment {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'post_id': postId,
+      'user_id': userId,
+      'user_name': userName,
       'content': content,
+      'created_at': createdAt.toIso8601String(),
       if (parentId != null) 'parent_id': parentId,
+      'status': status,
+      if (moderationReason != null) 'moderation_reason': moderationReason,
+      if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
     };
   }
 

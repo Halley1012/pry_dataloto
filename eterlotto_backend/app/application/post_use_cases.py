@@ -119,5 +119,12 @@ class PostUseCases:
             raise ValueError("Comentario no encontrado o no autorizado")
         return {"message": "Comentario eliminado correctamente"}
 
-    async def listar_comentarios(self, post_id: int) -> List[Dict[str, Any]]:
-        return await self.post_repo.list_comments_by_post(post_id)
+    async def listar_comentarios(
+        self,
+        post_id: int,
+        requesting_user_id: int,
+    ) -> List[Dict[str, Any]]:
+        return await self.post_repo.list_comments_by_post(
+            post_id,
+            requesting_user_id,
+        )

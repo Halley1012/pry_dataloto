@@ -182,7 +182,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             size: 20,
                           ),
                           label: Text(
-                            "Continuar con Google",
+                            l10n?.continuarConGoogle ?? "Continuar con Google",
                             style: AppTextStyles.button.copyWith(
                               color: AppColors.yellow,
                             ),

@@ -6,6 +6,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:in_app_purchase_android/in_app_purchase_android.dart';
 
 import '../services/api_service.dart';
+import '../services/cache_service.dart';
 import '../services/data_refresh_manager.dart';
 
 class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
@@ -23,10 +24,16 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
   bool get isSubscribed => _isSubscribed;
   bool get isPremium => _isSubscribed;
 
-  // Diferente de `_isLoading`: este valor representa exclusivamente si ya se
-  // recibió el estado VIP del backend para la sesión actual.
+  // Diferente de `_isLoading`: false representa estado desconocido; true
+  // significa que hay un valor conocido de esta cuenta (caché privada o
+  // confirmación válida del backend).
   bool _isSubscriptionStatusResolved = false;
   bool get isSubscriptionStatusResolved => _isSubscriptionStatusResolved;
+  bool get isSubscriptionStatusUnknown => !_isSubscriptionStatusResolved;
+
+  // El provider puede vivir más que una sesión. Guardar la cuenta para la que
+  // se resolvió el estado evita heredar el "Basic" anónimo al hacer login.
+  String? _subscriptionStatusUserId;
 
   // Sólo es verdadero cuando el backend confirma que la renovación fue
   // cancelada, pero el periodo VIP actual aún está vigente.
@@ -66,6 +73,7 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   void reset() {
+    _subscriptionStatusUserId = null;
     _isSubscribed = false;
     _isSubscriptionStatusResolved = false;
     _canRestoreCanceledSubscription = false;
@@ -74,13 +82,70 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
+  void _beginSubscriptionStatusForUser(String userId) {
+    if (_subscriptionStatusUserId == userId) return;
+
+    _subscriptionStatusUserId = userId;
+    _isSubscribed = false;
+    _canRestoreCanceledSubscription = false;
+    _isSubscriptionStatusResolved = false;
+    notifyListeners();
+  }
+
+  /// Hidrata primero el último estado conocido de esta misma cuenta y luego
+  /// lo confirma contra el backend. La caché sólo acelera la UI; el backend
+  /// puede corregirla inmediatamente si la suscripción cambió.
+  Future<void> hydrateAndRefreshSubscriptionStatus() async {
+    final userId = await ApiService.getUserId();
+    if (userId != null) {
+      final userKey = userId.toString();
+      _beginSubscriptionStatusForUser(userKey);
+      final cached = await CacheService.getStaleJson(
+        CacheService.subscriptionStatusKey(userKey),
+      );
+
+      // Una hidratación iniciada para otra cuenta no puede tocar el estado
+      // que el usuario actual está viendo.
+      if ((await ApiService.getUserId())?.toString() == userKey &&
+          cached is Map) {
+        final payload = Map<String, dynamic>.from(cached);
+        final rawCachedPremium =
+            payload['is_premium'] ?? payload['isPremium'];
+        // Una caché dañada o heredada no representa una cuenta Basic. Sólo un
+        // booleano explícito es un estado conocido que se puede mostrar.
+        if (rawCachedPremium is! bool) {
+          unawaited(refreshSubscriptionStatus());
+          return;
+        }
+        final cachedPremium = rawCachedPremium;
+        final cachedCanRestore =
+            cachedPremium &&
+            (payload['can_restore_subscription'] == true ||
+                payload['canRestoreSubscription'] == true);
+
+        if (_isSubscribed != cachedPremium ||
+            _canRestoreCanceledSubscription != cachedCanRestore ||
+            !_isSubscriptionStatusResolved) {
+          _isSubscribed = cachedPremium;
+          _canRestoreCanceledSubscription = cachedCanRestore;
+          _isSubscriptionStatusResolved = true;
+          notifyListeners();
+        }
+      }
+    }
+
+    unawaited(refreshSubscriptionStatus());
+  }
+
   /// 🔄 Sincronizar estado VIP real desde el backend (única fuente de la verdad)
   Future<void> refreshSubscriptionStatus() async {
     final userId = await ApiService.getUserId();
     if (userId == null) {
-      if (_isSubscribed ||
+      if (_subscriptionStatusUserId != null ||
+          _isSubscribed ||
           _canRestoreCanceledSubscription ||
           !_isSubscriptionStatusResolved) {
+        _subscriptionStatusUserId = null;
         _isSubscribed = false;
         _canRestoreCanceledSubscription = false;
         _isSubscriptionStatusResolved = true;
@@ -89,10 +154,23 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
       return;
     }
 
+    final userKey = userId.toString();
+    // Al entrar una cuenta distinta, primero se hidrata únicamente la caché
+    // de esa cuenta. Sin esta transición, el Basic de una sesión anónima
+    // podía permanecer visible tras un login sin red.
+    if (_subscriptionStatusUserId != userKey) {
+      _beginSubscriptionStatusForUser(userKey);
+      await hydrateAndRefreshSubscriptionStatus();
+      return;
+    }
+
     try {
       final subscriptionStatus = await ApiService.getSubscriptionStatus(
         userId: userId,
       );
+      // Timeout, falta de Internet, 5xx o payload inválido. Conservamos la
+      // última decisión conocida (incluida la caché) y no escribimos `false`.
+      if (subscriptionStatus['success'] != true) return;
       final backendPremium = subscriptionStatus['is_premium'] == true;
       final canRestore =
           backendPremium &&
@@ -108,13 +186,19 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
         _isSubscriptionStatusResolved = true;
         notifyListeners();
       }
+
+      // Se escribe siempre tras validar, incluso si el valor no cambió, para
+      // renovar el timestamp SWR de esta cuenta y nunca de otra.
+      unawaited(
+        CacheService.setJson(CacheService.subscriptionStatusKey(userId.toString()), {
+          'is_premium': backendPremium,
+          'can_restore_subscription': canRestore,
+        }),
+      );
     } catch (_) {
-      // Evita dejar la pantalla bloqueada ante un fallo transitorio. No se
-      // altera un estado VIP que ya estuviera confirmado anteriormente.
-      if (!_isSubscriptionStatusResolved) {
-        _isSubscriptionStatusResolved = true;
-        notifyListeners();
-      }
+      // Estado desconocido: no se altera ni se persiste el último estado
+      // conocido. La UI puede seguir mostrando "Verificando plan…" si no hay
+      // caché, o el último estado por cuenta si sí la hay.
     }
   }
 
@@ -177,12 +261,14 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<void> _initialize() async {
-    // 1. Estado inicial neutro (nunca hereda cache previo de otro usuario)
+    // 1. Estado inicial neutro. La hidratación posterior sólo puede leer la
+    // clave privada del usuario que esté autenticado en este instante.
     _isSubscribed = false;
     notifyListeners();
 
-    // 2. Consultar directamente al backend el estado del usuario autenticado actual
-    unawaited(refreshSubscriptionStatus());
+    // 2. Mostrar el último estado de esa cuenta y validarlo sin bloquear el
+    // arranque ni consultar Google Play.
+    unawaited(hydrateAndRefreshSubscriptionStatus());
 
     // 3. Escuchar flujo de compras de Google Play
     final purchaseUpdated = _iap.purchaseStream;

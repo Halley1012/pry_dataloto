@@ -37,7 +37,10 @@ class MejorJugadaCard extends StatelessWidget {
       final nums = (jugada["nums"] as List)
           .map((e) => int.tryParse(e.toString()) ?? 0)
           .toList();
-      final red = jugada["red"] as int?;
+      final specials = (jugada["specials"] as List<dynamic>? ?? const [])
+          .map((value) => int.tryParse(value.toString()))
+          .whereType<int>()
+          .toList();
 
       int playMaxHits = 0;
       bool playBestRedHit = false;
@@ -45,7 +48,7 @@ class MejorJugadaCard extends StatelessWidget {
 
       for (final sub in subSorteos) {
         final hits = nums.where((n) => sub.winningNums.contains(n)).length;
-        final bool redHit = (red != null && red == sub.winningRed);
+        final bool redHit = specials.any(sub.winningSpecials.contains);
 
         // Ponderar aciertos principales y desempate por balota roja
         if (hits > playMaxHits || (hits == playMaxHits && redHit && !playBestRedHit)) {
@@ -80,7 +83,10 @@ class MejorJugadaCard extends StatelessWidget {
     final bestNums = (bestPlay["nums"] as List)
         .map((e) => int.tryParse(e.toString()) ?? 0)
         .toList();
-    final int? bestRed = bestPlay["red"] as int?;
+    final bestSpecials = (bestPlay["specials"] as List<dynamic>? ?? const [])
+        .map((value) => int.tryParse(value.toString()))
+        .whereType<int>()
+        .toList();
     final String playTitle = bestPlay["titulo"]?.toString() ?? "Jugada #1";
 
     // Calcular percentil comparativo con otras jugadas del usuario
@@ -98,146 +104,147 @@ class MejorJugadaCard extends StatelessWidget {
         : (bestPercent >= 30 ? Colors.amber : const Color(0xFFFFC107));
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF14161D),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.amber.withValues(alpha: 0.35),
-          width: 1.2,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF14161D),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: Colors.amber.withValues(alpha: 0.35),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.amber.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.3),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.amber.withValues(alpha: 0.08),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Header con Trofeo y Sub-sorteo
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 1. Header con Trofeo y Sub-sorteo
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("🏆", style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
+                    Text(
+                      l10n.mejorJugadaTitulo,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber,
+                      ),
+                    ),
+                  ],
+                ),
+                if (subSorteos.length > 1)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: bestSub.color.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(
+                        color: bestSub.color.withValues(alpha: 0.4),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      bestSub.nombre,
+                      style: GoogleFonts.montserrat(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: bestSub.color,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+
+            // 2. Título de la Jugada y Aciertos
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  playTitle,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white70,
+                  ),
+                ),
+                Text(
+                  l10n.aciertosConPorcentaje(maxHits, totalBalotas, bestPercent.round()),
+                  style: GoogleFonts.montserrat(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: accentColor,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // 3. Fila de Balotas con aciertos destacados (centrada)
+            Center(
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
-                  const Text("🏆", style: TextStyle(fontSize: 18)),
-                  const SizedBox(width: 8),
-                  Text(
-                    l10n.mejorJugadaTitulo,
-                    style: GoogleFonts.montserrat(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.amber,
+                  ...bestNums.map((n) {
+                    final isHit = bestSub!.winningNums.contains(n);
+                    return buildPlayBall(n, isHit: isHit);
+                  }),
+                  ...bestSpecials.map(
+                    (special) => buildPlayBall(
+                      special,
+                      isHit: bestSub!.winningSpecials.contains(special),
+                      isRed: true,
                     ),
                   ),
                 ],
               ),
-              if (subSorteos.length > 1)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: bestSub.color.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: bestSub.color.withValues(alpha: 0.5),
-                      width: 1,
-                    ),
-                  ),
-                  child: Text(
-                    bestSub.nombre,
-                    style: GoogleFonts.montserrat(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: bestSub.color,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
+            ),
+            const SizedBox(height: 8),
 
-          // 2. Título de la Jugada y Aciertos
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                playTitle,
+            // 4. Badge Comparativo
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Text(
+                insightText,
                 style: GoogleFonts.montserrat(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w500,
                   color: Colors.white70,
                 ),
               ),
-              Text(
-                l10n.aciertosConPorcentaje(maxHits, totalBalotas, bestPercent.round()),
-                style: GoogleFonts.montserrat(
-                  fontSize: 14.5,
-                  fontWeight: FontWeight.bold,
-                  color: accentColor,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // 3. Fila de Balotas con aciertos destacados (centrada)
-          Center(
-            child: Wrap(
-              alignment: WrapAlignment.center,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ...bestNums.map((n) {
-                  final isHit = bestSub!.winningNums.contains(n);
-                  return buildPlayBall(n, isHit: isHit);
-                }),
-                if (bestRed != null)
-                  buildPlayBall(
-                    bestRed,
-                    isHit: (bestRed == bestSub.winningRed),
-                    isRed: true,
-                  ),
-              ],
             ),
-          ),
-          const SizedBox(height: 14),
-
-          // 4. Badge Comparativo
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-            ),
-            child: Text(
-              insightText,
-              style: GoogleFonts.montserrat(
-                fontSize: 10.0,
-                fontWeight: FontWeight.w500,
-                color: Colors.white.withValues(alpha: 0.9),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
 }
 }

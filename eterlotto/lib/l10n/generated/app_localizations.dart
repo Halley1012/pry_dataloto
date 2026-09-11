@@ -2744,6 +2744,138 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Por definir'**
   String get porDefinir;
+
+  /// No description provided for @desarrolladoCon.
+  ///
+  /// In es, this message translates to:
+  /// **'Desarrollado con '**
+  String get desarrolladoCon;
+
+  /// No description provided for @por.
+  ///
+  /// In es, this message translates to:
+  /// **' por '**
+  String get por;
+
+  /// No description provided for @sitioWeb.
+  ///
+  /// In es, this message translates to:
+  /// **'Sitio Web'**
+  String get sitioWeb;
+
+  /// No description provided for @contacto.
+  ///
+  /// In es, this message translates to:
+  /// **'Contacto'**
+  String get contacto;
+
+  /// No description provided for @perfilActualizadoExito.
+  ///
+  /// In es, this message translates to:
+  /// **'Perfil actualizado correctamente'**
+  String get perfilActualizadoExito;
+
+  /// No description provided for @errorActualizarPerfil.
+  ///
+  /// In es, this message translates to:
+  /// **'Error al actualizar perfil: {error}'**
+  String errorActualizarPerfil(String error);
+
+  /// No description provided for @estrategiaSoloMisNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo mis números'**
+  String get estrategiaSoloMisNumeros;
+
+  /// No description provided for @estrategiaVariaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Variaciones'**
+  String get estrategiaVariaciones;
+
+  /// No description provided for @estrategiaEquilibradas.
+  ///
+  /// In es, this message translates to:
+  /// **'Equilibradas'**
+  String get estrategiaEquilibradas;
+
+  /// No description provided for @descEstrategiaSoloMis.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa únicamente los números que seleccionaste.'**
+  String get descEstrategiaSoloMis;
+
+  /// No description provided for @descEstrategiaVariaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Mantiene tus números y completa la combinación con otros válidos.'**
+  String get descEstrategiaVariaciones;
+
+  /// No description provided for @descEstrategiaBalanced.
+  ///
+  /// In es, this message translates to:
+  /// **'Combina tus números con otros valores de la lotería.'**
+  String get descEstrategiaBalanced;
+
+  /// No description provided for @descEstrategiaDefault.
+  ///
+  /// In es, this message translates to:
+  /// **'Genera combinaciones según tus números.'**
+  String get descEstrategiaDefault;
+
+  /// No description provided for @limpiar.
+  ///
+  /// In es, this message translates to:
+  /// **'Limpiar'**
+  String get limpiar;
+
+  /// No description provided for @seGeneraranHasta.
+  ///
+  /// In es, this message translates to:
+  /// **'Se generarán hasta {count}\ncombinaciones únicas.'**
+  String seGeneraranHasta(int count);
+
+  /// No description provided for @copiar.
+  ///
+  /// In es, this message translates to:
+  /// **'Copiar'**
+  String get copiar;
+
+  /// No description provided for @combinacionCopiada.
+  ///
+  /// In es, this message translates to:
+  /// **'Combinación copiada al portapapeles'**
+  String get combinacionCopiada;
+
+  /// No description provided for @favorito.
+  ///
+  /// In es, this message translates to:
+  /// **'Favorito'**
+  String get favorito;
+
+  /// No description provided for @marcadaComoFavorita.
+  ///
+  /// In es, this message translates to:
+  /// **'Marcada como favorita'**
+  String get marcadaComoFavorita;
+
+  /// No description provided for @sinConexionAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin conexión · mostrando tus últimos anuncios disponibles'**
+  String get sinConexionAnuncios;
+
+  /// No description provided for @errorCargarAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'No pudimos cargar tus anuncios.'**
+  String get errorCargarAnuncios;
+
+  /// No description provided for @continuarConGoogle.
+  ///
+  /// In es, this message translates to:
+  /// **'Continuar con Google'**
+  String get continuarConGoogle;
 }
 
 class _AppLocalizationsDelegate
