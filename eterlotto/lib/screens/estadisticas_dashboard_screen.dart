@@ -337,10 +337,12 @@ class _EstadisticasDashboardScreenState
   }
 
   Future<void> _cargarDatos() async {
-    final cachedHist = await CacheService.getJson(
+    final cachedHist = await CacheService.getStaleJson(
       '${routeName}_historico_completo',
     );
-    final cachedPred = await CacheService.getJson('${routeName}_prediccion');
+    final cachedPred = await CacheService.getStaleJson(
+      '${routeName}_prediccion',
+    );
 
     if (cachedHist != null && cachedHist["resultados"] != null && mounted) {
       setState(() {

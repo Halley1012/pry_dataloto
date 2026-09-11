@@ -259,14 +259,16 @@ class InsightIaCard extends StatelessWidget {
                                       ),
                                     );
                                   }),
-                                  if (sub.winningRed != null) ...[
-                                    const SizedBox(width: 3),
-                                    _build3DBall(
-                                      sub.winningRed,
-                                      baseColor: Colors.redAccent,
-                                      size: 25,
+                                  ...sub.winningSpecials.map(
+                                    (special) => Padding(
+                                      padding: const EdgeInsets.only(left: 3),
+                                      child: _build3DBall(
+                                        special,
+                                        baseColor: Colors.redAccent,
+                                        size: 25,
+                                      ),
                                     ),
-                                  ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -306,14 +308,16 @@ class InsightIaCard extends StatelessWidget {
                                 ),
                               );
                             }),
-                            if (subSorteos.first.winningRed != null) ...[
-                              const SizedBox(width: 3),
-                              _build3DBall(
-                                subSorteos.first.winningRed,
-                                baseColor: Colors.redAccent,
-                                size: 25,
+                            ...subSorteos.first.winningSpecials.map(
+                              (special) => Padding(
+                                padding: const EdgeInsets.only(left: 3),
+                                child: _build3DBall(
+                                  special,
+                                  baseColor: Colors.redAccent,
+                                  size: 25,
+                                ),
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
@@ -403,7 +407,7 @@ class InsightIaCard extends StatelessWidget {
                           children: predictionBalotaroja!.map((n) {
                             Color baseColor = Colors.redAccent;
                             for (var sub in subSorteos) {
-                              if (sub.winningRed == n) {
+                              if (sub.winningSpecials.contains(n)) {
                                 baseColor = sub.color;
                                 break;
                               }

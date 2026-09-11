@@ -82,7 +82,10 @@ class HeaderCard extends StatelessWidget {
                       Text(
                         l10n.sorteoFechaLabel(fechaSorteo),
                         style: GoogleFonts.montserrat(
-                          fontSize: 11,
+                          // Misma jerarquía tipográfica de las fechas en el
+                          // listado de loterías: Montserrat Medium a 11.5.
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w500,
                           color: Colors.white54,
                         ),
                         overflow: TextOverflow.ellipsis,

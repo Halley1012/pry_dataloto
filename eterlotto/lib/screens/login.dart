@@ -4,6 +4,7 @@ import 'package:eterlotto/screens/welcome.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -100,7 +101,7 @@ class _LoginPageState extends State<LoginPage> {
         // del usuario que acaba de autenticarse.
         final subscription = context.read<SubscriptionProvider>();
         subscription.reset();
-        unawaited(subscription.refreshSubscriptionStatus());
+        unawaited(subscription.hydrateAndRefreshSubscriptionStatus());
 
         if (paisId == null || departamentoId == null) {
           // Redirigir a Onboarding de Ubicación
@@ -188,7 +189,7 @@ class _LoginPageState extends State<LoginPage> {
 
           final subscription = context.read<SubscriptionProvider>();
           subscription.reset();
-          unawaited(subscription.refreshSubscriptionStatus());
+          unawaited(subscription.hydrateAndRefreshSubscriptionStatus());
 
           // Redirigir al Home
           Navigator.pushReplacementNamed(context, "/home");
@@ -486,8 +487,10 @@ class _LoginPageState extends State<LoginPage> {
                       // PASO 1: Ingreso de correo
                       if (step == 1) ...[
                         TextField(
+                          key: const ValueKey('forgot_email_field'),
                           controller: dialogEmailController,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.done,
                           enableSuggestions: false,
                           autocorrect: false,
                           spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
@@ -522,10 +525,13 @@ class _LoginPageState extends State<LoginPage> {
                       // PASO 2: Validación del PIN de 6 dígitos
                       else if (step == 2) ...[
                         TextField(
+                          key: const ValueKey('forgot_code_field'),
                           controller: dialogCodeController,
                           keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                           maxLength: 6,
                           textAlign: TextAlign.center,
+                          textInputAction: TextInputAction.done,
                           enableSuggestions: false,
                           autocorrect: false,
                           spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
@@ -564,8 +570,11 @@ class _LoginPageState extends State<LoginPage> {
                       // PASO 3: Ingreso de Nueva Contraseña
                       else if (step == 3) ...[
                         TextField(
+                          key: const ValueKey('forgot_new_password_field'),
                           controller: dialogNewPasswordController,
                           obscureText: obscureNewPassword,
+                          keyboardType: TextInputType.visiblePassword,
+                          textInputAction: TextInputAction.next,
                           enableSuggestions: false,
                           autocorrect: false,
                           spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
@@ -607,8 +616,11 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         const SizedBox(height: 16),
                         TextField(
+                          key: const ValueKey('forgot_confirm_password_field'),
                           controller: dialogConfirmPasswordController,
                           obscureText: obscureConfirmPassword,
+                          keyboardType: TextInputType.visiblePassword,
+                          textInputAction: TextInputAction.done,
                           enableSuggestions: false,
                           autocorrect: false,
                           spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
@@ -685,6 +697,7 @@ class _LoginPageState extends State<LoginPage> {
                                   final success = await _requestResetCode(email);
                                   setDialogState(() => dialogLoading = false);
                                   if (success) {
+                                    FocusManager.instance.primaryFocus?.unfocus();
                                     setDialogState(() => step = 2);
                                   }
                                 }
@@ -699,6 +712,7 @@ class _LoginPageState extends State<LoginPage> {
                                   final isValid = await _verifyResetCode(email, code);
                                   setDialogState(() => dialogLoading = false);
                                   if (isValid) {
+                                    FocusManager.instance.primaryFocus?.unfocus();
                                     setDialogState(() => step = 3);
                                   }
                                 }
@@ -721,6 +735,7 @@ class _LoginPageState extends State<LoginPage> {
                                   final success = await _submitNewPassword(email, code, newPwd);
                                   setDialogState(() => dialogLoading = false);
                                   if (success && dialogCtx.mounted) {
+                                    FocusManager.instance.primaryFocus?.unfocus();
                                     Navigator.pop(dialogCtx);
                                     _emailController.text = email;
                                     _passwordController.text = newPwd;
@@ -735,7 +750,12 @@ class _LoginPageState extends State<LoginPage> {
                       if (step == 2) ...[
                         const SizedBox(height: 12),
                         TextButton(
-                          onPressed: dialogLoading ? null : () => setDialogState(() => step = 1),
+                          onPressed: dialogLoading
+                              ? null
+                              : () {
+                                  FocusManager.instance.primaryFocus?.unfocus();
+                                  setDialogState(() => step = 1);
+                                },
                           child: Text(
                             "¿No recibiste el código? Volver a enviar",
                             style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
@@ -1062,7 +1082,7 @@ class _LoginPageState extends State<LoginPage> {
                         size: 20,
                       ),
                       label: Text(
-                        "Continuar con Google",
+                        l10n.continuarConGoogle,
                         style: AppTextStyles.button.copyWith(
                           color: isLoading ? Colors.white54 : AppColors.yellow,
                         ),

@@ -4,10 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shimmer/shimmer.dart';
 import '../utils/pais_helper.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -67,6 +65,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
 
   bool isSubmitting = false;
   bool _isLoading = true;
+  String? _catalogError;
+
+  int _catalogRequestId = 0;
+  int _departamentosRequestId = 0;
+  int _ciudadesRequestId = 0;
 
   String _selectedCountryCode = '+57';
   String _selectedWhatsAppCode = '+57';
@@ -85,18 +88,32 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   @override
   void initState() {
     super.initState();
-    _cargarDatosOptimizado();
-    descripcionController.addListener(() {
-      setState(() => descripcionLength = descripcionController.text.length);
-    });
 
-    if (widget.publicidad != null) {
-      _esEdicion = true;
+    _esEdicion = widget.publicidad != null;
+
+    if (_esEdicion) {
+      _precargarCamposBasicosEdicion();
     }
+
+    descripcionController.addListener(_onDescripcionChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _cargarDatosOptimizado();
+      }
+    });
+  }
+
+  void _onDescripcionChanged() {
+    if (!mounted) return;
+    final next = descripcionController.text.length;
+    if (next == descripcionLength) return;
+    setState(() => descripcionLength = next);
   }
 
   @override
   void dispose() {
+    descripcionController.removeListener(_onDescripcionChanged);
     tituloController.dispose();
     descripcionController.dispose();
     telefonoController.dispose();
@@ -110,81 +127,69 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     super.dispose();
   }
 
-  // OPTIMIZADO: Paralelo + cache + sin delays
+  // Carga de catálogos sin bloquear el formulario.
   Future<void> _cargarDatosOptimizado() async {
-    setState(() => _isLoading = true);
+    final requestId = ++_catalogRequestId;
+
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _catalogError = null;
+      });
+    }
 
     try {
-      // 1. CARGAR EN PARALELO
       final results = await Future.wait([
         ApiService.getPaises(),
         ApiService.getCategorias(),
-        _cargarCountriesJson(), // Cacheado
+        _cargarCountriesJson(),
       ]);
+
+      if (!mounted || requestId != _catalogRequestId) return;
 
       final paisesAPI = results[0] as List<Map<String, dynamic>>;
       final categoriasAPI = results[1] as List<Map<String, dynamic>>;
       final maps = results[2] as Map<String, Map<String, String>>;
 
+      _cachedIsoMap = maps['iso'];
+      _cachedPhoneMap = maps['phone'];
+
       if (paisesAPI.isEmpty) {
         throw Exception("No se pudieron cargar los países");
       }
 
-      // 2. GUARDAR EN CACHE
-      _cachedIsoMap = maps['iso'];
-      _cachedPhoneMap = maps['phone'];
-
-      // 3. MAPA RÁPIDO: id → nombre
       final Map<int, String> paisIdToName = {
-        for (var p in paisesAPI)
-          p['id'] as int: p['nombre'].toString(),
+        for (final p in paisesAPI)
+          if (_toInt(p['id']) != null)
+            _toInt(p['id'])!: p['nombre']?.toString() ?? '',
       };
 
-      if (!mounted) return;
-      setState(() {
-        _paises = paisesAPI;
-        _categorias = categoriasAPI;
-      });
+      int? paisIdDefault =
+          _esEdicion ? _toInt(widget.publicidad?['pais_id']) : null;
 
-      // 4. RESOLVER PAÍS POR DEFECTO DINÁMICAMENTE
-      int? paisIdDefault;
-
-      // Prioridad 1: Edición
-      if (_esEdicion && widget.publicidad?['pais_id'] != null) {
-        final pubPId = widget.publicidad!['pais_id'];
-        paisIdDefault = pubPId is int ? pubPId : int.tryParse(pubPId.toString());
+      if (paisIdDefault == null &&
+          widget.initialPaisId != null &&
+          paisIdToName.containsKey(widget.initialPaisId)) {
+        paisIdDefault = widget.initialPaisId;
       }
 
-      // Prioridad 2: Pasado explícitamente desde la pantalla anterior (Directorio)
-      if (paisIdDefault == null && widget.initialPaisId != null) {
-        if (paisIdToName.containsKey(widget.initialPaisId)) {
-          paisIdDefault = widget.initialPaisId;
+      if (paisIdDefault == null) {
+        final stored = await _storage.read(key: "pais_id");
+        final storedId = int.tryParse(stored ?? '');
+        if (storedId != null && paisIdToName.containsKey(storedId)) {
+          paisIdDefault = storedId;
         }
       }
 
-      // Prioridad 3: Storage pais_id
       if (paisIdDefault == null) {
-        final stPaisIdStr = await _storage.read(key: "pais_id");
-        if (stPaisIdStr != null && stPaisIdStr.isNotEmpty) {
-          final stId = int.tryParse(stPaisIdStr);
-          if (stId != null && paisIdToName.containsKey(stId)) {
-            paisIdDefault = stId;
-          }
-        }
-      }
-
-      // Prioridad 4: Storage pais_nombre
-      if (paisIdDefault == null) {
-        final stPaisNombre = await _storage.read(key: "pais_nombre");
-        if (stPaisNombre != null && stPaisNombre.isNotEmpty && stPaisNombre != "Todos") {
-          final normStorage = stPaisNombre.toLowerCase().trim();
-          for (var entry in paisIdToName.entries) {
-            final normApi = entry.value.toLowerCase().trim();
-            if (normApi == normStorage ||
-                normApi.contains(normStorage) ||
-                normStorage.contains(normApi) ||
-                (normStorage.contains("unidos") && normApi.contains("unidos")) ||
-                (normStorage.contains("usa") && normApi.contains("estados unidos"))) {
+        final storedName =
+            (await _storage.read(key: "pais_nombre"))?.trim().toLowerCase();
+        if (storedName != null && storedName.isNotEmpty) {
+          for (final entry in paisIdToName.entries) {
+            final apiName = entry.value.trim().toLowerCase();
+            if (apiName == storedName ||
+                apiName.contains(storedName) ||
+                storedName.contains(apiName)) {
               paisIdDefault = entry.key;
               break;
             }
@@ -192,88 +197,128 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         }
       }
 
-      // Prioridad 5: Si nada de lo anterior, tomar el primer país disponible
-      if (paisIdDefault == null && paisesAPI.isNotEmpty) {
-        paisIdDefault = paisesAPI.first['id'] as int;
-      }
+      paisIdDefault ??= paisIdToName.keys.first;
 
-      // 5. CARGAR DEPARTAMENTOS SI HAY PAÍS
+      final countryName = paisIdToName[paisIdDefault] ?? '';
+      final countryNorm = countryName.toLowerCase().trim();
+      final iso =
+          _cachedIsoMap?[countryNorm] ?? PaisHelper.getIsoCode(countryNorm);
+      final dial =
+          _cachedPhoneMap?[countryNorm] ?? PaisHelper.getDialCode(countryNorm);
+
+      List<Map<String, dynamic>> deps = [];
+      int? dptoIdDefault;
+
       if (paisIdDefault != null) {
+        deps = await ApiService.getDepartamentos(paisId: paisIdDefault);
+        if (!mounted || requestId != _catalogRequestId) return;
+
+        dptoIdDefault =
+            _esEdicion ? _toInt(widget.publicidad?['departamento_id']) : null;
+
+        if (dptoIdDefault != null &&
+            !deps.any((d) => _toInt(d['id']) == dptoIdDefault)) {
+          dptoIdDefault = null;
+        }
+
+        if (dptoIdDefault == null &&
+            widget.initialDepartamentoId != null &&
+            deps.any(
+              (d) => _toInt(d['id']) == widget.initialDepartamentoId,
+            )) {
+          dptoIdDefault = widget.initialDepartamentoId;
+        }
+
+        if (dptoIdDefault == null) {
+          final stored = await _storage.read(key: "departamento_id");
+          final storedId = int.tryParse(stored ?? '');
+          if (storedId != null &&
+              deps.any((d) => _toInt(d['id']) == storedId)) {
+            dptoIdDefault = storedId;
+          }
+        }
+
+        if (dptoIdDefault == null) {
+          final storedName = (await _storage.read(key: "departamento_nombre"))
+              ?.trim()
+              .toLowerCase();
+          if (storedName != null && storedName.isNotEmpty) {
+            for (final d in deps) {
+              if ((d['nombre']?.toString() ?? '').trim().toLowerCase() ==
+                  storedName) {
+                dptoIdDefault = _toInt(d['id']);
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      List<Map<String, dynamic>> cities = [];
+      int? cityIdDefault =
+          _esEdicion ? _toInt(widget.publicidad?['ciudad_id']) : null;
+
+      final mostrarCiudad = countryNorm.contains('colombia');
+      if (mostrarCiudad && dptoIdDefault != null) {
+        cities = await ApiService.getCiudadesPorDepartamento(
+          departamentoId: dptoIdDefault,
+        );
+        if (!mounted || requestId != _catalogRequestId) return;
+
+        if (cityIdDefault != null &&
+            !cities.any((c) => _toInt(c['id']) == cityIdDefault)) {
+          cityIdDefault = null;
+        }
+      } else {
+        cityIdDefault = null;
+      }
+
+      int? categoryId =
+          _esEdicion ? _toInt(widget.publicidad?['categoria_id']) : null;
+      if (categoryId != null &&
+          !categoriasAPI.any((c) => _toInt(c['id']) == categoryId)) {
+        categoryId = null;
+      }
+
+      if (!mounted || requestId != _catalogRequestId) return;
+      setState(() {
+        _paises = paisesAPI;
+        _categorias = categoriasAPI;
+        _departamentos = deps;
+        _ciudades = cities;
+
         paisSeleccionado = paisIdDefault;
-        final countryName = paisIdToName[paisIdDefault] ?? "";
-        _updatePhoneCodes(countryName);
-
-        final deps = await ApiService.getDepartamentos(paisId: paisIdDefault);
-        if (mounted) {
-          setState(() {
-            _departamentos = deps;
-          });
+        departamentoSeleccionado = dptoIdDefault;
+        ciudadSeleccionada = cityIdDefault;
+        if (_esEdicion) {
+          categoriaSeleccionada = categoryId;
         }
 
-        int? dptoIdDefault;
-        if (_esEdicion && widget.publicidad?['departamento_id'] != null) {
-          final pubDId = widget.publicidad!['departamento_id'];
-          dptoIdDefault = pubDId is int ? pubDId : int.tryParse(pubDId.toString());
-        }
+        _initialCountryCode = iso;
+        _selectedCountryCode = dial;
+        _selectedWhatsAppCode = dial;
 
-        if (dptoIdDefault == null && widget.initialDepartamentoId != null) {
-          if (deps.any((d) => d['id'] == widget.initialDepartamentoId)) {
-            dptoIdDefault = widget.initialDepartamentoId;
-          }
-        }
+        _isLoading = false;
+        _catalogError = null;
+      });
 
-        if (dptoIdDefault == null) {
-          final stDptoIdStr = await _storage.read(key: "departamento_id");
-          if (stDptoIdStr != null && stDptoIdStr.isNotEmpty) {
-            final stDId = int.tryParse(stDptoIdStr);
-            if (stDId != null && deps.any((d) => d['id'] == stDId)) {
-              dptoIdDefault = stDId;
-            }
-          }
-        }
-
-        if (dptoIdDefault == null) {
-          final stDptoNombre = await _storage.read(key: "departamento_nombre");
-          if (stDptoNombre != null && stDptoNombre.isNotEmpty && stDptoNombre != "Todos") {
-            final normDStorage = stDptoNombre.toLowerCase().trim();
-            final foundD = deps.firstWhere(
-              (d) => d['nombre'].toString().toLowerCase().trim() == normDStorage,
-              orElse: () => <String, dynamic>{},
-            );
-            if (foundD.isNotEmpty) {
-              dptoIdDefault = foundD['id'] as int;
-            }
-          }
-        }
-
-        if (dptoIdDefault != null && mounted) {
-          setState(() {
-            departamentoSeleccionado = dptoIdDefault;
-          });
-          if (_mostrarCampoCiudad()) {
-            await _cargarCiudades(dptoIdDefault);
-          }
-        }
-      }
-
-      // 6. EDICIÓN: Precargar después de tener todo
       if (_esEdicion) {
-        final Map<int, String> paisIdToNameForEdit = {
-          for (var p in _paises)
-            p['id'] as int: p['nombre'].toString().toLowerCase(),
-        };
-        _precargarDatosEdicion(paisIdToNameForEdit);
+        _normalizarTelefonosEdicion();
       }
-
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+    } catch (_) {
+      if (!mounted || requestId != _catalogRequestId) return;
+      setState(() {
+        _isLoading = false;
+        _catalogError =
+            "No fue posible actualizar los catálogos. Puedes reintentar.";
+      });
     }
+  }
+
+  int? _toInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse(value.toString());
   }
 
   // Carga countries.json con cache
@@ -334,6 +379,14 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     final norm = countryName.toLowerCase().trim();
     final iso = _cachedIsoMap?[norm] ?? PaisHelper.getIsoCode(norm);
     final code = _cachedPhoneMap?[norm] ?? PaisHelper.getDialCode(norm);
+
+    if (!mounted) {
+      _selectedCountryCode = code;
+      _selectedWhatsAppCode = code;
+      _initialCountryCode = iso;
+      return;
+    }
+
     setState(() {
       _selectedCountryCode = code;
       _selectedWhatsAppCode = code;
@@ -342,130 +395,172 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   }
 
   Future<void> _cargarDepartamentos(int paisId) async {
+    final requestId = ++_departamentosRequestId;
+
     try {
       final data = await ApiService.getDepartamentos(paisId: paisId);
+      if (!mounted ||
+          requestId != _departamentosRequestId ||
+          paisSeleccionado != paisId) {
+        return;
+      }
+
       setState(() {
         _departamentos = data;
-        departamentoSeleccionado = null;
-        ciudadSeleccionada = null;
-        _ciudades = [];
       });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error departamentos: $e")));
+    } catch (_) {
+      if (!mounted ||
+          requestId != _departamentosRequestId ||
+          paisSeleccionado != paisId) {
+        return;
       }
+      setState(() => _departamentos = []);
     }
   }
 
   Future<void> _cargarCiudades(int departamentoId) async {
     if (!_mostrarCampoCiudad()) {
-      setState(() => _ciudades = []);
+      if (mounted) {
+        setState(() {
+          _ciudades = [];
+          ciudadSeleccionada = null;
+        });
+      }
       return;
     }
+
+    final requestId = ++_ciudadesRequestId;
 
     try {
       final data = await ApiService.getCiudadesPorDepartamento(
         departamentoId: departamentoId,
       );
+
+      if (!mounted ||
+          requestId != _ciudadesRequestId ||
+          departamentoSeleccionado != departamentoId) {
+        return;
+      }
+
       setState(() {
         _ciudades = data;
-        ciudadSeleccionada = null;
       });
-    } catch (e) {
+    } catch (_) {
+      if (!mounted ||
+          requestId != _ciudadesRequestId ||
+          departamentoSeleccionado != departamentoId) {
+        return;
+      }
       setState(() => _ciudades = []);
     }
   }
 
-  // Precarga edición con mapa rápido
-  void _precargarDatosEdicion(Map<int, String> paisIdToName) {
-    final pub = widget.publicidad!;
-    tituloController.text = pub["titulo"] ?? "";
-    descripcionController.text = pub["descripcion"] ?? "";
-    direccionController.text = pub["direccion"] ?? "";
-    imagenUrlController.text = pub["imagen_url"] ?? "";
-    facebookController.text =
-        (pub["facebook_url"] as String?)?.replaceFirst(
-          "https://www.facebook.com/",
-          "",
-        ) ??
-        "";
-    instagramController.text =
-        (pub["instagram_url"] as String?)?.replaceFirst(
-          "https://www.instagram.com/",
-          "",
-        ) ??
-        "";
-    tiktokController.text =
-        (pub["tiktok_url"] as String?)?.replaceFirst(
-          "https://www.tiktok.com/",
-          "",
-        ) ??
-        "";
-    paginaController.text =
-        (pub["pagina_url"] as String?)?.replaceFirst("https://", "") ?? "";
+  void _precargarCamposBasicosEdicion() {
+    final pub = widget.publicidad;
+    if (pub == null) return;
 
-    final telefono = pub["telefono"] as String?;
-    if (telefono != null && telefono.contains(" ")) {
-      final parts = telefono.split(" ");
-      _selectedCountryCode = parts[0];
-      telefonoController.text = parts
-          .sublist(1)
-          .join("")
-          .replaceAll(RegExp(r'[^\d]'), '');
+    String cleanSocial(dynamic value, String prefix) {
+      final raw = value?.toString() ?? '';
+      return raw.replaceFirst(prefix, '').replaceFirst('https://', '');
     }
 
-    final whatsapp = pub["whatsapp_url"] as String?;
-    if (whatsapp != null && whatsapp.contains("wa.me/")) {
-      final digitos = whatsapp
-          .split("wa.me/")
-          .last
-          .replaceAll(RegExp(r'[^\d]'), '');
-      if (digitos.length > 2) {
-        final codigoLength = digitos.length > 10 ? 2 : 1;
-        final codigo = digitos.substring(0, codigoLength);
-        _selectedWhatsAppCode = "+$codigo";
-        whatsappController.text = digitos.substring(codigoLength);
+    tituloController.text = pub["titulo"]?.toString() ?? "";
+    descripcionController.text = pub["descripcion"]?.toString() ?? "";
+    descripcionLength = descripcionController.text.length;
+    direccionController.text = pub["direccion"]?.toString() ?? "";
+    imagenUrlController.text = pub["imagen_url"]?.toString() ?? "";
+
+    facebookController.text = cleanSocial(
+      pub["facebook_url"],
+      "https://www.facebook.com/",
+    );
+    instagramController.text = cleanSocial(
+      pub["instagram_url"],
+      "https://www.instagram.com/",
+    );
+    tiktokController.text = cleanSocial(
+      pub["tiktok_url"],
+      "https://www.tiktok.com/",
+    );
+
+    paginaController.text =
+        (pub["pagina_url"]?.toString() ?? '').replaceFirst("https://", "");
+
+    paisSeleccionado = _toInt(pub["pais_id"]);
+    departamentoSeleccionado = _toInt(pub["departamento_id"]);
+    ciudadSeleccionada = _toInt(pub["ciudad_id"]);
+    categoriaSeleccionada = _toInt(pub["categoria_id"]);
+
+    final telefono = pub["telefono"]?.toString().trim();
+    if (telefono != null && telefono.isNotEmpty) {
+      if (telefono.contains(" ")) {
+        final parts = telefono.split(RegExp(r'\s+'));
+        if (parts.first.startsWith('+')) {
+          _selectedCountryCode = parts.first;
+          telefonoController.text = parts
+              .skip(1)
+              .join("")
+              .replaceAll(RegExp(r'[^\d]'), '');
+        } else {
+          telefonoController.text =
+              telefono.replaceAll(RegExp(r'[^\d]'), '');
+        }
+      } else {
+        telefonoController.text =
+            telefono.replaceAll(RegExp(r'[^\d]'), '');
       }
     }
 
-    paisSeleccionado = pub["pais_id"];
-    departamentoSeleccionado = pub["departamento_id"];
-    ciudadSeleccionada = pub["ciudad_id"];
-    categoriaSeleccionada = pub["categoria_id"];
+    final whatsappRaw = pub["whatsapp_url"]?.toString() ?? '';
+    if (whatsappRaw.isNotEmpty) {
+      whatsappController.text =
+          whatsappRaw.replaceAll(RegExp(r'[^\d]'), '');
+    }
 
-    // Horarios de Atención en edición
     if (pub["es_24_7"] != null) {
       _esAtencion24Horas = pub["es_24_7"] == true;
     }
-    if (pub["hora_apertura"] != null && pub["hora_apertura"].toString().contains(":")) {
-      final parts = pub["hora_apertura"].toString().split(":");
-      final h = int.tryParse(parts[0]) ?? 8;
-      final m = int.tryParse(parts[1]) ?? 0;
-      _horaApertura = TimeOfDay(hour: h, minute: m);
-    }
-    if (pub["hora_cierre"] != null && pub["hora_cierre"].toString().contains(":")) {
-      final parts = pub["hora_cierre"].toString().split(":");
-      final h = int.tryParse(parts[0]) ?? 20;
-      final m = int.tryParse(parts[1]) ?? 0;
-      _horaCierre = TimeOfDay(hour: h, minute: m);
-    }
-    if (pub["dias_atencion"] != null && pub["dias_atencion"].toString().isNotEmpty) {
-      _diasAtencion = pub["dias_atencion"].toString();
+
+    final apertura = pub["hora_apertura"]?.toString();
+    if (apertura != null && apertura.contains(":")) {
+      final parts = apertura.split(":");
+      _horaApertura = TimeOfDay(
+        hour: int.tryParse(parts[0]) ?? 8,
+        minute: int.tryParse(parts[1]) ?? 0,
+      );
     }
 
-    // Actualizar códigos de país
-    final countryName = paisIdToName[paisSeleccionado] ?? "colombia";
-    _updatePhoneCodes(countryName);
+    final cierre = pub["hora_cierre"]?.toString();
+    if (cierre != null && cierre.contains(":")) {
+      final parts = cierre.split(":");
+      _horaCierre = TimeOfDay(
+        hour: int.tryParse(parts[0]) ?? 20,
+        minute: int.tryParse(parts[1]) ?? 0,
+      );
+    }
 
-    // Cargar departamentos y ciudades si aplica
-    if (paisSeleccionado != null) {
-      _cargarDepartamentos(paisSeleccionado!).then((_) {
-        if (departamentoSeleccionado != null && _mostrarCampoCiudad()) {
-          _cargarCiudades(departamentoSeleccionado!);
-        }
-      });
+    final dias = pub["dias_atencion"]?.toString();
+    if (dias != null && dias.isNotEmpty && _opcionesDias.contains(dias)) {
+      _diasAtencion = dias;
+    }
+  }
+
+  void _normalizarTelefonosEdicion() {
+    if (!_esEdicion || !mounted) return;
+
+    final dialDigits = _selectedCountryCode.replaceAll(RegExp(r'[^\d]'), '');
+    if (dialDigits.isEmpty) return;
+
+    final waDigits = whatsappController.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (waDigits.startsWith(dialDigits) &&
+        waDigits.length > dialDigits.length + 6) {
+      whatsappController.text = waDigits.substring(dialDigits.length);
+    }
+
+    final telDigits = telefonoController.text.replaceAll(RegExp(r'[^\d]'), '');
+    if (telDigits.startsWith(dialDigits) &&
+        telDigits.length > dialDigits.length + 6) {
+      telefonoController.text = telDigits.substring(dialDigits.length);
     }
   }
 
@@ -544,11 +639,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
               duration: const Duration(seconds: 2),
             ),
           );
-          if (_esEdicion) {
-            Navigator.pop(context, true);
-          } else {
-            _resetForm();
-          }
+          Navigator.pop(context, true);
         }
       } else {
         throw Exception(response["message"] ?? l10n.errorGuardar);
@@ -619,9 +710,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         ),
         centerTitle: true,
       ),
-      body: _isLoading
-          ? _buildSkeletonLoader()
-          : SafeArea(
+      body: SafeArea(
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 600),
@@ -632,6 +721,48 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                    if (_isLoading) ...[
+                      const LinearProgressIndicator(
+                        minHeight: 2,
+                        color: AppColors.yellow,
+                        backgroundColor: Colors.white10,
+                      ),
+                      const SizedBox(height: 14),
+                    ],
+                    if (_catalogError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.orangeAccent),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.cloud_off_outlined,
+                              color: Colors.orangeAccent,
+                              size: 18,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _catalogError!,
+                                style: AppTextStyles.mensajeSecundario,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _cargarDatosOptimizado,
+                              child: const Text("Reintentar"),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     Text(
                       _esEdicion ? l10n.editarAnuncio.toLowerCase() : l10n.crearNuevoAnuncio,
                       style: AppTextStyles.h2,
@@ -673,6 +804,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         return n.length >= 7 ? null : l10n.telefonoObligatorio;
                       },
                       builder: (field) => IntlPhoneField(
+                        key: ValueKey("telefono_$_initialCountryCode"),
+                        controller: telefonoController,
                         decoration: _inputStyle(
                           l10n.telefono,
                         ).copyWith(errorText: field.errorText),
@@ -681,7 +814,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         dropdownTextStyle: AppTextStyles.mensajeSecundario,
                         disableLengthCheck: true,
                         onChanged: (phone) {
-                          telefonoController.text = phone.number;
                           _selectedCountryCode = phone.countryCode;
                           field.didChange(phone.number);
                         },
@@ -738,13 +870,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         l10n,
                       ),
                     if (_mostrarCampoCiudad()) const SizedBox(height: 16),
-                    _buildDropdown(
-                      l10n.categoria,
-                      categoriaSeleccionada,
-                      _categorias,
-                      (val) => setState(() => categoriaSeleccionada = val),
-                      l10n,
-                    ),
+                    _buildCategoryDropdown(l10n),
 
                     // --- SECCIÓN HORARIOS DE ATENCIÓN ---
                     const SizedBox(height: 24),
@@ -889,6 +1015,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         return n.length >= 7 ? null : l10n.whatsappObligatorio;
                       },
                       builder: (field) => IntlPhoneField(
+                        key: ValueKey("whatsapp_$_initialCountryCode"),
+                        controller: whatsappController,
                         decoration: _inputStyle(
                           "WhatsApp",
                         ).copyWith(errorText: field.errorText),
@@ -897,7 +1025,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         dropdownTextStyle: AppTextStyles.mensajeSecundario,
                         disableLengthCheck: true,
                         onChanged: (phone) {
-                          whatsappController.text = phone.number;
                           _selectedWhatsAppCode = phone.countryCode;
                           field.didChange(phone.number);
                         },
@@ -937,31 +1064,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
             ),
             ),
             ),
-    );
-  }
-
-  Widget _buildSkeletonLoader() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey[800]!,
-      highlightColor: Colors.grey[700]!,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          children: List.generate(
-            8,
-            (_) => Padding(
-              padding: const EdgeInsets.only(bottom: 16),
-              child: Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1042,6 +1144,138 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       onChanged: onChanged,
       validator: (v) => v == null ? l10n.seleccionaCampo(label) : null,
     );
+  }
+
+  Widget _buildCategoryDropdown(AppLocalizations l10n) {
+    final selectedId = categoriaSeleccionada != null &&
+            _categorias.any(
+              (e) => _toInt(e['id']) == categoriaSeleccionada,
+            )
+        ? categoriaSeleccionada
+        : null;
+
+    Widget buildCategoryItem(Map<String, dynamic> category) {
+      final rawIcon =
+          category['icon']?.toString() ??
+          category['icono']?.toString();
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _categoryIcon(rawIcon),
+            color: AppColors.yellow,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              category['nombre']?.toString() ?? '',
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: AppTextStyles.mensajeSecundario,
+            ),
+          ),
+        ],
+      );
+    }
+
+    final validCategories = _categorias
+        .where((category) => _toInt(category['id']) != null)
+        .toList();
+
+    return DropdownButtonFormField<int>(
+      isExpanded: true,
+      dropdownColor: AppColors.blackfondo,
+      decoration: _inputStyle(l10n.categoria),
+      style: AppTextStyles.mensajeSecundario,
+      value: selectedId,
+      items: validCategories
+          .map(
+            (category) => DropdownMenuItem<int>(
+              value: _toInt(category['id'])!,
+              child: buildCategoryItem(category),
+            ),
+          )
+          .toList(),
+
+      // El menú y el campo cerrado no usan exactamente el mismo layout.
+      // Esto evita que la opción quede visualmente en blanco al seleccionarla.
+      selectedItemBuilder: (context) {
+        return validCategories
+            .map(
+              (category) => Align(
+                alignment: Alignment.centerLeft,
+                child: buildCategoryItem(category),
+              ),
+            )
+            .toList();
+      },
+
+      onChanged: (value) {
+        if (!mounted) return;
+        setState(() {
+          categoriaSeleccionada = value;
+        });
+      },
+      validator: (value) =>
+          value == null ? l10n.seleccionaCampo(l10n.categoria) : null,
+    );
+  }
+
+  IconData _categoryIcon(String? rawName) {
+    final name = rawName?.trim().toLowerCase();
+
+    const map = <String, IconData>{
+      'restaurant': Icons.restaurant,
+      'restaurants': Icons.restaurant,
+      'coffee': Icons.coffee,
+      'local_cafe': Icons.local_cafe,
+      'local_bar': Icons.local_bar,
+      'fastfood': Icons.fastfood,
+      'fast_food': Icons.fastfood,
+      'hotel': Icons.hotel,
+      'travel_explore': Icons.travel_explore,
+      'flight': Icons.flight,
+      'directions_car': Icons.directions_car,
+      'local_taxi': Icons.local_taxi,
+      'two_wheeler': Icons.two_wheeler,
+      'local_shipping': Icons.local_shipping,
+      'health_and_safety': Icons.health_and_safety,
+      'medical_services': Icons.medical_services,
+      'dentistry': Icons.medical_services,
+      'local_pharmacy': Icons.local_pharmacy,
+      'spa': Icons.spa,
+      'fitness_center': Icons.fitness_center,
+      'pets': Icons.pets,
+      'school': Icons.school,
+      'computer': Icons.computer,
+      'devices': Icons.devices,
+      'phone_android': Icons.phone_android,
+      'store': Icons.store,
+      'shopping_cart': Icons.shopping_cart,
+      'shopping_bag': Icons.shopping_bag,
+      'local_grocery_store': Icons.local_grocery_store,
+      'agriculture': Icons.agriculture,
+      'grass': Icons.grass,
+      'palette': Icons.palette,
+      'build': Icons.build,
+      'handyman': Icons.handyman,
+      'settings': Icons.settings,
+      'home': Icons.home,
+      'business': Icons.business,
+      'business_center': Icons.business_center,
+      'account_balance': Icons.account_balance,
+      'attach_money': Icons.attach_money,
+      'sports_soccer': Icons.sports_soccer,
+      'celebration': Icons.celebration,
+      'local_laundry_service': Icons.local_laundry_service,
+      'content_cut': Icons.content_cut,
+      'cleaning_services': Icons.cleaning_services,
+      'construction': Icons.construction,
+    };
+
+    return map[name] ?? Icons.category_outlined;
   }
 
   Widget _buildTimePickerTile({

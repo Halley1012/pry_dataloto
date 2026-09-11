@@ -80,7 +80,10 @@ class MisJugadasCard extends StatelessWidget {
             Column(
               children: misJugadas.map((jugada) {
                 final nums = (jugada["nums"] as List).map((e) => int.tryParse(e.toString()) ?? 0).toList();
-                final red = jugada["red"] as int?;
+                final specials = (jugada["specials"] as List<dynamic>? ?? const [])
+                    .map((e) => int.tryParse(e.toString()))
+                    .whereType<int>()
+                    .toList();
                 final titulo = jugada["titulo"]?.toString() ?? "Jugada";
 
                 int maxHitsAcrossAll = 0;
@@ -88,7 +91,7 @@ class MisJugadasCard extends StatelessWidget {
 
                 final List<Map<String, dynamic>> drawStats = subSorteos.map((sub) {
                   int hits = nums.where((n) => sub.winningNums.contains(n)).length;
-                  bool redHit = (red != null && red == sub.winningRed);
+                  bool redHit = specials.any(sub.winningSpecials.contains);
                   if (hits > maxHitsAcrossAll) maxHitsAcrossAll = hits;
                   if (redHit) anyRedHit = true;
                   return {
@@ -137,7 +140,7 @@ class MisJugadasCard extends StatelessWidget {
                                 final int hits = stat["hits"];
                                 final bool redHit = stat["redHit"];
                                 return Text(
-                                  "${sub.nombre}: ${l10n.cantidadAciertos(hits)}${_getHitsEmoji(hits, redHit, red != null, sub.winningNums.length)}",
+                                  "${sub.nombre}: ${l10n.cantidadAciertos(hits)}${_getHitsEmoji(hits, redHit, specials.isNotEmpty, sub.winningNums.length)}",
                                   style: GoogleFonts.montserrat(
                                     fontSize: 9,
                                     fontWeight: FontWeight.w600,
@@ -148,7 +151,7 @@ class MisJugadasCard extends StatelessWidget {
                             )
                           else if (drawStats.isNotEmpty)
                             Text(
-                              "${l10n.cantidadAciertos(drawStats.first["hits"])}${_getHitsEmoji(drawStats.first["hits"], drawStats.first["redHit"], red != null, subSorteos.first.winningNums.length)}",
+                              "${l10n.cantidadAciertos(drawStats.first["hits"])}${_getHitsEmoji(drawStats.first["hits"], drawStats.first["redHit"], specials.isNotEmpty, subSorteos.first.winningNums.length)}",
                               style: GoogleFonts.montserrat(
                                 fontSize: 10,
                                 color: drawStats.first["hits"] > 0 ? Colors.greenAccent : Colors.white38,
@@ -162,7 +165,7 @@ class MisJugadasCard extends StatelessWidget {
                       ...subSorteos.asMap().entries.map((entry) {
                         final int idx = entry.key;
                         final SubSorteoData sub = entry.value;
-                        final bool redHit = (red != null && red == sub.winningRed);
+                        final bool redHit = specials.any(sub.winningSpecials.contains);
 
                         return Padding(
                           padding: EdgeInsets.only(bottom: idx < subSorteos.length - 1 ? 8.0 : 0.0),
@@ -195,9 +198,15 @@ class MisJugadasCard extends StatelessWidget {
                                             child: buildPlayBall(n, isHit: isHit),
                                           );
                                         }),
-                                        if (red != null) ...[
+                                        if (specials.isNotEmpty) ...[
                                           const SizedBox(width: 6),
-                                          buildPlayBall(red, isHit: redHit, isRed: true),
+                                          ...specials.map(
+                                            (special) => buildPlayBall(
+                                              special,
+                                              isHit: sub.winningSpecials.contains(special),
+                                              isRed: true,
+                                            ),
+                                          ),
                                         ],
                                       ],
                                     ),
@@ -208,9 +217,9 @@ class MisJugadasCard extends StatelessWidget {
                           ),
                         );
                       }),
-                      if (_buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, red != null, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6) != null) ...[
+                      if (_buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, specials.isNotEmpty, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6) != null) ...[
                         const SizedBox(height: 10),
-                        _buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, red != null, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6)!,
+                        _buildFeedbackBanner(maxHitsAcrossAll, anyRedHit, specials.isNotEmpty, selectedLoteria, subSorteos.isNotEmpty ? subSorteos.first.winningNums.length : 6)!,
                       ],
                     ],
                   ),

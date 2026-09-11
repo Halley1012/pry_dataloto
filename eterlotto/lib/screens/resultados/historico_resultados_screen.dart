@@ -51,6 +51,30 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   List<int> _top20 = [];
   Map<String, List<int>> _prediccionesPorFecha = {};
 
+  (List<int> main, List<int> specials, int? complementary) _splitByRole(
+    Map<String, dynamic> item,
+  ) {
+    final raw = (item['numeros'] as List<dynamic>? ?? const []);
+    final groups = widget.config.numberLayout.split(raw);
+    final specials = List<int>.from(groups.specials);
+    if (specials.isEmpty && widget.config.cantidadEspeciales > 0) {
+      final legacyRaw =
+          item['balotaroja2'] ??
+          item['reintegro'] ??
+          item['balotaroja'] ??
+          item['balota_roja'] ??
+          item['superbalota'] ??
+          item['red'];
+      final legacy = int.tryParse(legacyRaw?.toString() ?? '');
+      if (legacy != null) specials.add(legacy);
+    }
+    return (
+      groups.main,
+      specials,
+      groups.complementary.isEmpty ? null : groups.complementary.first,
+    );
+  }
+
   String _normalizarFechaISO(String rawDate) {
     if (rawDate.isEmpty) return "";
     try {
@@ -171,8 +195,8 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     final cacheKey = '${widget.config.route}_ultimos50_historico_v2';
 
     // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
-    if (_todosResultados.isEmpty && !force) {
-      final cached = await CacheService.getJson(cacheKey);
+    if (_todosResultados.isEmpty) {
+      final cached = await CacheService.getStaleJson(cacheKey);
       if (cached != null && cached["resultados"] != null && mounted) {
         final listCached = List<Map<String, dynamic>>.from(
           cached["resultados"],
@@ -622,36 +646,13 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
       for (int i = 0; i < listToExport.length; i++) {
         final r = listToExport[i];
-        final rawNums = (r["numeros"] as List<dynamic>? ?? []);
-        List<int> nums = rawNums
-            .map((e) => int.tryParse(e.toString()) ?? -1)
-            .where((n) => n >= 0)
-            .toList();
-        int? red = int.tryParse(
-          r["balotaroja2"]?.toString() ??
-              r["reintegro"]?.toString() ??
-              r["balotaroja"]?.toString() ??
-              r["balota_roja"]?.toString() ??
-              r["superbalota"]?.toString() ??
-              r["red"]?.toString() ??
-              "",
-        );
-        if (red == null &&
-            (widget.config.tieneBalotaRoja ||
-                widget.config.maxBalotasRojas > 0) &&
-            nums.length > widget.config.maxSeleccion) {
-          red = nums.removeLast();
-        } else if (red != null &&
-            nums.length > widget.config.maxSeleccion &&
-            nums.last == red) {
-          nums.removeLast();
-        }
-
-        final mainBalls = nums.length > widget.config.maxSeleccion
-            ? nums.sublist(0, widget.config.maxSeleccion)
-            : nums;
+        final (main, specials, complementary) = _splitByRole(r);
+        final mainBalls = main;
         final numbersStr = mainBalls.join(' - ');
-        final specialStr = red?.toString() ?? "";
+        final specialStr = [
+          ...specials.map((value) => value.toString()),
+          if (complementary != null) complementary.toString(),
+        ].join(' - ');
 
         if (widget.modoResultadosIA) {
           final predParaFecha = _obtenerPrediccionParaFecha(
@@ -1077,52 +1078,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                   rawDate,
                                 );
 
-                                final rawNumeros =
-                                    (resultado["numeros"] as List<dynamic>? ??
-                                    []);
-                                List<int> nums = rawNumeros
-                                    .map(
-                                      (e) => int.tryParse(e.toString()) ?? -1,
-                                    )
-                                    .where((n) => n >= 0)
-                                    .toList();
-
-                                int? red = int.tryParse(
-                                  resultado["balotaroja2"]?.toString() ??
-                                      resultado["reintegro"]?.toString() ??
-                                      resultado["balotaroja"]?.toString() ??
-                                      resultado["balota_roja"]?.toString() ??
-                                      resultado["superbalota"]?.toString() ??
-                                      resultado["red"]?.toString() ??
-                                      "",
-                                );
-                                if (red == null &&
-                                    (widget.config.tieneBalotaRoja ||
-                                        widget.config.maxBalotasRojas > 0) &&
-                                    nums.length > widget.config.maxSeleccion) {
-                                  red = nums.removeLast();
-                                } else if (red != null &&
-                                    nums.length > widget.config.maxSeleccion &&
-                                    nums.last == red) {
-                                  nums.removeLast();
-                                }
-
-                                final bool tieneComp =
-                                    widget.config.tieneComplementario ||
-                                    (nums.length > widget.config.maxSeleccion);
-                                final List<int> mainBalls =
-                                    nums.length > widget.config.maxSeleccion
-                                    ? nums.sublist(
-                                        0,
-                                        widget.config.maxSeleccion,
-                                      )
-                                    : nums;
-                                final int? compBall =
-                                    (tieneComp &&
-                                        nums.length >
-                                            widget.config.maxSeleccion)
-                                    ? nums.last
-                                    : null;
+                                final (main, specials, complementary) =
+                                    _splitByRole(resultado);
+                                final List<int> mainBalls = main;
+                                final int? compBall = complementary;
 
                                 final predParaFecha =
                                     _obtenerPrediccionParaFecha(
@@ -1151,7 +1110,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                 final int totalBalls =
                                     mainBalls.length +
                                     (compBall != null ? 1 : 0) +
-                                    (red != null ? 1 : 0);
+                                    specials.length;
 
                                 final double ballSize = totalBalls <= 5
                                     ? 27.0
@@ -1241,25 +1200,22 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                                       ),
                                                     ),
                                                   ],
-                                                  if (red != null) ...[
-                                                    SizedBox(
-                                                      width: ballPadding,
-                                                    ),
-                                                    Padding(
+                                                  ...specials.map(
+                                                    (special) => Padding(
                                                       padding:
                                                           EdgeInsets.symmetric(
                                                             horizontal:
                                                                 ballPadding,
                                                           ),
                                                       child: buildMiniBall(
-                                                        red,
+                                                        special,
                                                         baseColor: const Color(
                                                           0xFFB91C1C,
                                                         ),
                                                         size: ballSize,
                                                       ),
                                                     ),
-                                                  ],
+                                                  ),
                                                 ],
                                               ),
                                             ),
@@ -1382,23 +1338,22 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                                                     ),
                                                   ),
                                                 ],
-                                                if (red != null) ...[
-                                                  SizedBox(width: ballPadding),
-                                                  Padding(
+                                                ...specials.map(
+                                                  (special) => Padding(
                                                     padding:
                                                         EdgeInsets.symmetric(
                                                           horizontal:
                                                               ballPadding,
                                                         ),
                                                     child: buildMiniBall(
-                                                      red,
+                                                      special,
                                                       baseColor: const Color(
                                                         0xFFB91C1C,
                                                       ),
                                                       size: ballSize,
                                                     ),
                                                   ),
-                                                ],
+                                                ),
                                               ],
                                             ),
                                           ),

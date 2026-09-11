@@ -78,10 +78,13 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final userPlaysFuture = ApiService.getLoteriasInfoJugadas()
         .catchError((_) => <String, Map<String, dynamic>>{});
 
-    if (!forceRefresh) {
-      // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
-      final cached = await CacheService.getJson(cacheKey);
-      final cachedPaises = await CacheService.getJson('paises_list_cache');
+    {
+      // SWR: aun vencida, la lista visible es útil mientras la consulta de
+      // red se ejecuta debajo. Nunca se comparte con una identidad privada.
+      final cached = await CacheService.getStaleJson(cacheKey);
+      final cachedPaises = await CacheService.getStaleJson(
+        'paises_list_cache',
+      );
 
       if (cached != null && (cached as List).isNotEmpty && mounted) {
         final cachedWithResults = List<Map<String, dynamic>>.from(cached)
@@ -135,7 +138,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
     if (!force) {
-      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all_v4');
+      final cachedMapeo = await CacheService.getJson(
+        CacheService.catalogoLoteriasKey,
+      );
       final cachedPaises = await CacheService.getJson('paises_list_cache');
       if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
         _paises = List<Map<String, dynamic>>.from(cachedPaises);
@@ -165,7 +170,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           .toList();
 
       if (todas.isNotEmpty) {
-        CacheService.setJson('loterias_mapeadas_all_v4', todas);
+        CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
       }
       return todas;
     } catch (_) {
@@ -689,10 +694,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       child: ListTile(
         dense: true,
         visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
-        onTap: () => _navigateToEstadisticas(
-          loteria,
-          openHistory: openingHistory,
-        ),
+        // El filtro Historial sólo cambia la lista; entrar en una lotería no
+        // debe abrir ni el historial completo ni el anuncio automáticamente.
+        onTap: () => _navigateToEstadisticas(loteria),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 36),
         title: Text(
@@ -749,17 +753,13 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
-  void _navigateToEstadisticas(
-    Map<String, dynamic> loteria, {
-    bool openHistory = false,
-  }) {
+  void _navigateToEstadisticas(Map<String, dynamic> loteria) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => ResultadosDashboardScreen(
           loteriaNombreInicial: loteria["nombre"] ?? "Lotería",
           loteriaData: loteria,
-          openHistory: openHistory,
         ),
       ),
     );

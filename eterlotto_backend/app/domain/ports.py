@@ -214,7 +214,11 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def list_comments_by_post(self, post_id: int) -> List[Dict[str, Any]]:
+    async def list_comments_by_post(
+        self,
+        post_id: int,
+        requesting_user_id: int,
+    ) -> List[Dict[str, Any]]:
         pass
 
 

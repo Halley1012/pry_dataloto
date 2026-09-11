@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/providers/combination_generator_provider.dart';
@@ -190,6 +191,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
   @override
   void dispose() {
     _inputController.dispose();
+    _provider.dispose();
     super.dispose();
   }
 
@@ -244,6 +246,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
             // toda la pantalla con un spinner.
             if (provider.isLoadingLotteries && provider.supportedLotteries.isEmpty) {
               return const _CombinationGeneratorSkeleton();
+            }
+
+            // Primer inicio sin red y sin una caché utilizable. A diferencia
+            // del estado stale, aquí no hay información segura para mostrar.
+            if (provider.supportedLotteries.isEmpty && provider.error != null) {
+              return _buildLotteriesLoadFailure(provider.error!, provider);
             }
 
             return RefreshIndicator(
@@ -472,7 +480,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               const Icon(Icons.delete_outline_rounded, color: Colors.white70, size: 14),
                               const SizedBox(width: 4),
                               Text(
-                                "Limpiar",
+                                l10n?.limpiar ?? "Limpiar",
                                 style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
                               ),
                             ],
@@ -625,7 +633,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                     height: 28,
                                     child: Center(
                                       child: Text(
-                                        "Se generarán hasta ${provider.quantity}\ncombinaciones únicas.",
+                                        l10n?.seGeneraranHasta(provider.quantity) ?? "Se generarán hasta ${provider.quantity}\ncombinaciones únicas.",
                                         style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 9.5, height: 1.15),
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
@@ -684,14 +692,14 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                         dropdownColor: AppColors.blackfondo,
                                         icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white70, size: 18),
                                         style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11),
-                                        items: [
+                                          items: [
                                           DropdownMenuItem(
                                             value: 'only_mine',
                                             child: Row(
                                               children: [
                                                 const Text('🎯', style: TextStyle(fontSize: 12)),
                                                 const SizedBox(width: 5),
-                                                Expanded(child: Text('Solo mis números', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                                Expanded(child: Text(l10n?.estrategiaSoloMisNumeros ?? 'Solo mis números', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                               ],
                                             ),
                                           ),
@@ -701,7 +709,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                               children: [
                                                 const Text('✨', style: TextStyle(fontSize: 12)),
                                                 const SizedBox(width: 5),
-                                                Expanded(child: Text('Variaciones', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                                Expanded(child: Text(l10n?.estrategiaVariaciones ?? 'Variaciones', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                               ],
                                             ),
                                           ),
@@ -711,7 +719,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                               children: [
                                                 const Text('⚖️', style: TextStyle(fontSize: 12)),
                                                 const SizedBox(width: 5),
-                                                Expanded(child: Text('Equilibradas', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
+                                                Expanded(child: Text(l10n?.estrategiaEquilibradas ?? 'Equilibradas', style: GoogleFonts.montserrat(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                               ],
                                             ),
                                           ),
@@ -798,22 +806,33 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.grid_view_rounded, color: AppColors.yellow, size: 18),
-                              const SizedBox(width: 6),
-                              Text(
-                                "${provider.combinations.length} ${l10n?.combinacionesGeneradas ?? 'combinaciones generadas'}",
-                                style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                              ),
-                            ],
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(Icons.grid_view_rounded, color: AppColors.yellow, size: 18),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    "${provider.combinations.length} ${l10n?.combinacionesGeneradas ?? 'combinaciones generadas'}",
+                                    style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 8),
                           TextButton.icon(
                             onPressed: () => provider.generate(),
                             icon: const Icon(Icons.refresh, color: Colors.white60, size: 16),
                             label: Text(
                               l10n?.generarOtras ?? "Generar otras",
-                              style: GoogleFonts.montserrat(color: Colors.white60, fontSize: 13, fontWeight: FontWeight.w500),
+                              style: GoogleFonts.montserrat(color: Colors.white60, fontSize: 12.5, fontWeight: FontWeight.w500),
+                            ),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             ),
                           ),
                         ],
@@ -863,14 +882,14 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                   visualDensity: VisualDensity.compact,
                                   padding: const EdgeInsets.all(4),
                                   constraints: const BoxConstraints(),
-                                  tooltip: "Copiar",
+                                  tooltip: l10n?.copiar ?? "Copiar",
                                   onPressed: () {
                                     final text = "${combo.mainNumbers.join(' · ')}${combo.specialNumbers.isNotEmpty ? ' + ${combo.specialNumbers.join(' · ')}' : ''}";
                                     Clipboard.setData(ClipboardData(text: text));
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          "Combinación copiada al portapapeles",
+                                          l10n?.combinacionCopiada ?? "Combinación copiada al portapapeles",
                                           style: GoogleFonts.montserrat(fontSize: 12),
                                         ),
                                         duration: const Duration(seconds: 1),
@@ -884,12 +903,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                   visualDensity: VisualDensity.compact,
                                   padding: const EdgeInsets.all(4),
                                   constraints: const BoxConstraints(),
-                                  tooltip: "Favorito",
+                                  tooltip: l10n?.favorito ?? "Favorito",
                                   onPressed: () {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          "Marcada como favorita",
+                                          l10n?.marcadaComoFavorita ?? "Marcada como favorita",
                                           style: GoogleFonts.montserrat(fontSize: 12),
                                         ),
                                         duration: const Duration(seconds: 1),
@@ -960,6 +979,42 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
               ),
             );
           },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLotteriesLoadFailure(
+    String message,
+    CombinationGeneratorProvider provider,
+  ) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, color: Colors.white54, size: 48),
+            const SizedBox(height: 14),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
+              onPressed: provider.reload,
+              icon: const Icon(Icons.refresh, size: 18),
+              label: Text(
+                'Reintentar',
+                style: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.yellow,
+                side: const BorderSide(color: AppColors.yellow),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1126,26 +1181,24 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
   String _formatFullDate(String dateStr) {
     try {
       final parsed = DateTime.parse(dateStr);
-      const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-      const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-      final dayName = days[parsed.weekday - 1];
-      final monthName = months[parsed.month - 1];
-      return "$dayName, ${parsed.day} $monthName ${parsed.year}";
+      final locale = Localizations.localeOf(context).languageCode;
+      return DateFormat('EEE, d MMM yyyy', locale).format(parsed);
     } catch (_) {
       return dateStr;
     }
   }
 
   String _getStrategyDescription(String strategy) {
+    final l10n = AppLocalizations.of(context);
     switch (strategy) {
       case 'only_mine':
-        return 'Usa únicamente los números que seleccionaste.';
+        return l10n?.descEstrategiaSoloMis ?? 'Usa únicamente los números que seleccionaste.';
       case 'variations':
-        return 'Mantiene tus números y completa la combinación con otros válidos.';
+        return l10n?.descEstrategiaVariaciones ?? 'Mantiene tus números y completa la combinación con otros válidos.';
       case 'balanced':
-        return 'Combina tus números con otros valores de la lotería.';
+        return l10n?.descEstrategiaBalanced ?? 'Combina tus números con otros valores de la lotería.';
       default:
-        return 'Genera combinaciones según tus números.';
+        return l10n?.descEstrategiaDefault ?? 'Genera combinaciones según tus números.';
     }
   }
 }

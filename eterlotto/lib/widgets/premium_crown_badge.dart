@@ -27,7 +27,7 @@ class PremiumCrownIcon extends StatefulWidget {
 }
 
 class _PremiumCrownIconState extends State<PremiumCrownIcon>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   AnimationController? _controller;
   Animation<double>? _sparkleAnimation;
 
@@ -165,14 +165,16 @@ class PremiumCrownBadge extends StatelessWidget {
   final bool isPremium;
   final double crownSize;
   final Offset crownOffset;
+  final double crownAngle;
   final bool showBorderGlow;
 
   const PremiumCrownBadge({
     super.key,
     required this.child,
     this.isPremium = false,
-    this.crownSize = 18.0,
-    this.crownOffset = const Offset(-3, -12),
+    this.crownSize = 20.0,
+    this.crownOffset = const Offset(-2, 0),
+    this.crownAngle = 0.48, // ~28° de inclinación hacia la derecha
     this.showBorderGlow = true,
   });
 
@@ -206,13 +208,17 @@ class PremiumCrownBadge extends StatelessWidget {
         else
           child,
 
-        // Corona Premium externa en la esquina superior derecha (sin invadir la foto)
+        // Corona Premium externa en la esquina superior derecha (inclinada sobre el borde)
         Positioned(
           top: crownOffset.dy,
           right: crownOffset.dx,
-          child: PremiumCrownIcon(
-            isPremium: true,
-            size: crownSize,
+          child: Transform.rotate(
+            angle: crownAngle,
+            alignment: Alignment.center,
+            child: PremiumCrownIcon(
+              isPremium: true,
+              size: crownSize,
+            ),
           ),
         ),
       ],

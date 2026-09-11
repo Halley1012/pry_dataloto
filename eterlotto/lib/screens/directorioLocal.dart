@@ -21,7 +21,11 @@ class DirectorioLocalScreen extends StatefulWidget {
 
 class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   bool cargando = false;
-
+  bool _hasCachedSnapshot = false;
+  bool _showingStaleData = false;
+  bool _lastFetchFailed = false;
+  String? _activeUserId;
+  int _searchRequestVersion = 0;
 
   final tituloController = TextEditingController();
   final categoriaController = TextEditingController();
@@ -67,13 +71,16 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         _categoriasFuture,
       ]);
 
-      final userIdStr = results[0] as String?;
+      final userIdStr = (results[0] as String?)?.trim();
+      _activeUserId = userIdStr?.isNotEmpty == true ? userIdStr : null;
       String? paisIdStr = results[1] as String?;
       String? paisNombre = results[2] as String?;
       final paisesData = results[3] as List<Map<String, dynamic>>;
 
       // 🔍 Si falta pais_id en storage, consultar perfil del usuario
-      if ((paisIdStr == null || paisIdStr.isEmpty) && userIdStr != null && userIdStr.isNotEmpty) {
+      if ((paisIdStr == null || paisIdStr.isEmpty) &&
+          userIdStr != null &&
+          userIdStr.isNotEmpty) {
         try {
           final profileRes = await ApiService.get("/users/$userIdStr");
           if (profileRes.statusCode == 200) {
@@ -87,7 +94,10 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
               }
               if (remotePaisNombre != null) {
                 paisNombre = remotePaisNombre;
-                await _storage.write(key: "pais_nombre", value: remotePaisNombre);
+                await _storage.write(
+                  key: "pais_nombre",
+                  value: remotePaisNombre,
+                );
               }
             }
           }
@@ -109,19 +119,20 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         }
       }
 
-      if (matchedPaisId == null && paisNombre != null && paisNombre.isNotEmpty && paisNombre != "Todos") {
+      if (matchedPaisId == null &&
+          paisNombre != null &&
+          paisNombre.isNotEmpty &&
+          paisNombre != "Todos") {
         final normStorage = paisNombre.toLowerCase().trim();
-        final found = paisesData.firstWhere(
-          (p) {
-            final normApi = p['nombre'].toString().toLowerCase().trim();
-            return normApi == normStorage ||
-                normApi.contains(normStorage) ||
-                normStorage.contains(normApi) ||
-                (normStorage.contains("unidos") && normApi.contains("unidos")) ||
-                (normStorage.contains("usa") && normApi.contains("estados unidos"));
-          },
-          orElse: () => <String, dynamic>{},
-        );
+        final found = paisesData.firstWhere((p) {
+          final normApi = p['nombre'].toString().toLowerCase().trim();
+          return normApi == normStorage ||
+              normApi.contains(normStorage) ||
+              normStorage.contains(normApi) ||
+              (normStorage.contains("unidos") && normApi.contains("unidos")) ||
+              (normStorage.contains("usa") &&
+                  normApi.contains("estados unidos"));
+        }, orElse: () => <String, dynamic>{});
         if (found.isNotEmpty) {
           matchedPaisId = int.tryParse(found['id'].toString());
           matchedPaisNombre = found['nombre'].toString();
@@ -137,7 +148,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
 
       if (matchedPaisId != null) {
         _paisSeleccionadoId = matchedPaisId;
-        _departamentosFuture = ApiService.getDepartamentosPorPais(matchedPaisId);
+        _departamentosFuture = ApiService.getDepartamentosPorPais(
+          matchedPaisId,
+        );
       }
 
       _departamentoSeleccionadoId = null;
@@ -173,30 +186,81 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     });
   }
 
+  Future<bool> _isCurrentDirectorySession(String? expectedUserId) async {
+    final current = (await _storage.read(key: 'user_id'))?.trim();
+    return mounted && current == expectedUserId;
+  }
+
+  List<Map<String, dynamic>> _publicAdsFrom(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw.whereType<Map>().map((value) {
+      final ad = Map<String, dynamic>.from(value);
+      // Entradas legacy pudieron guardar el favorito dentro del catálogo.
+      // El estado visual se aplica abajo desde la caché privada de la cuenta.
+      ad.remove('is_favorite');
+      ad.remove('is_favorito');
+      ad.remove('favorito');
+      return ad;
+    }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _applyPrivateFavorites(
+    List<Map<String, dynamic>> publicAds,
+    String? userId,
+  ) async {
+    final favorites = userId == null
+        ? <int>{}
+        : await ApiService.getFavoritosLocales(userId: userId);
+    return publicAds.map((source) {
+      final ad = Map<String, dynamic>.from(source);
+      final id = ad['id'] is int
+          ? ad['id'] as int
+          : int.tryParse(ad['id']?.toString() ?? '');
+      ad['is_favorite'] = id != null && favorites.contains(id);
+      return ad;
+    }).toList();
+  }
+
   Future<void> buscarAnuncios(String titulo) async {
+    final requestVersion = ++_searchRequestVersion;
+    final expectedUserId = _activeUserId;
     final int? paisId = _paisSeleccionadoId;
     final int? departamentoId = _departamentoSeleccionadoId;
     final int? categoriaId = _categoriaSeleccionadaId;
-    final cacheKey = 'directorio_anuncios_${paisId}_${departamentoId}_${categoriaId}_$titulo';
+    final cacheKey = CacheService.directorioAnunciosKey(
+      paisId: paisId,
+      departamentoId: departamentoId,
+      categoriaId: categoriaId,
+      titulo: titulo,
+    );
 
-    final cached = await CacheService.getJson(cacheKey);
-    if (cached != null && mounted) {
-      final localFavs = await ApiService.getFavoritosLocales();
-      final cachedList = List<Map<String, dynamic>>.from(cached);
-      for (var ad in cachedList) {
-        final int? id = ad["id"] is int ? ad["id"] : int.tryParse(ad["id"]?.toString() ?? "");
-        if (id != null && localFavs.contains(id)) {
-          ad["is_favorite"] = true;
-        }
+    final fresh = await CacheService.getJson(cacheKey);
+    final cached = fresh ?? await CacheService.getStaleJson(cacheKey);
+    final hasCachedSnapshot = cached is List;
+    if (hasCachedSnapshot) {
+      final cachedList = await _applyPrivateFavorites(
+        _publicAdsFrom(cached),
+        expectedUserId,
+      );
+      if (requestVersion != _searchRequestVersion ||
+          !await _isCurrentDirectorySession(expectedUserId)) {
+        return;
       }
       setState(() {
         anuncios = cachedList;
         cargando = false;
+        _hasCachedSnapshot = true;
+        _showingStaleData = fresh == null;
+        _lastFetchFailed = false;
+      });
+    } else if (mounted && requestVersion == _searchRequestVersion) {
+      setState(() {
+        cargando = true;
+        _hasCachedSnapshot = false;
+        _showingStaleData = false;
+        _lastFetchFailed = false;
       });
     }
-
-    if (!mounted) return;
-    if (anuncios.isEmpty) setState(() => cargando = true);
 
     try {
       final data = await ApiService.getPublicidades(
@@ -206,18 +270,31 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         titulo: titulo.trim().isNotEmpty ? titulo.trim() : null,
       );
 
-      if (mounted) {
-        setState(() => anuncios = data);
-        CacheService.setJson(cacheKey, data);
+      final publicAds = _publicAdsFrom(data);
+      final decoratedAds = await _applyPrivateFavorites(
+        publicAds,
+        expectedUserId,
+      );
+      if (requestVersion != _searchRequestVersion ||
+          !await _isCurrentDirectorySession(expectedUserId)) {
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar los anuncios: $e')),
-        );
+      await CacheService.setJson(cacheKey, publicAds);
+      if (!mounted || requestVersion != _searchRequestVersion) return;
+      setState(() {
+        anuncios = decoratedAds;
+        _hasCachedSnapshot = true;
+        _showingStaleData = false;
+        _lastFetchFailed = false;
+      });
+    } catch (_) {
+      if (mounted && requestVersion == _searchRequestVersion) {
+        setState(() => _lastFetchFailed = true);
       }
     } finally {
-      if (mounted) setState(() => cargando = false);
+      if (mounted && requestVersion == _searchRequestVersion) {
+        setState(() => cargando = false);
+      }
     }
   }
 
@@ -228,7 +305,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   }
 
   String _getScheduleStatus(Map<String, dynamic> anuncio) {
-    final bool es24_7 = anuncio["es_24_7"] == true;
+    final bool es24_7 = _asBool(anuncio["es_24_7"]);
     if (es24_7) {
       return "Abierto 24/7";
     }
@@ -254,7 +331,10 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         final apMinutes = apHour * 60 + apMin;
         final ciMinutes = ciHour * 60 + ciMin;
 
-        if (currentMinutes >= apMinutes && currentMinutes <= ciMinutes) {
+        final isOpen = apMinutes <= ciMinutes
+            ? currentMinutes >= apMinutes && currentMinutes <= ciMinutes
+            : currentMinutes >= apMinutes || currentMinutes <= ciMinutes;
+        if (isOpen) {
           return "Abierto ahora";
         } else {
           return "Cerrado";
@@ -265,18 +345,29 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     return anuncio["estado_texto"] ?? "Abierto ahora";
   }
 
+  bool _asBool(dynamic value) {
+    if (value is bool) return value;
+    final normalized = value?.toString().trim().toLowerCase();
+    return normalized == 'true' || normalized == '1' || normalized == 'si';
+  }
+
   Future<void> _toggleFavorito(Map<String, dynamic> anuncio, int index) async {
     final rawId = anuncio["id"];
     if (rawId == null) return;
-    final int? publicidadId = rawId is int ? rawId : int.tryParse(rawId.toString());
+    final int? publicidadId = rawId is int
+        ? rawId
+        : int.tryParse(rawId.toString());
     if (publicidadId == null) return;
 
     final currentFav = anuncio["is_favorite"] == true;
-    final currentLikes = int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0;
+    final currentLikes =
+        int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0;
 
     setState(() {
       anuncio["is_favorite"] = !currentFav;
-      anuncio["total_likes"] = !currentFav ? currentLikes + 1 : (currentLikes > 0 ? currentLikes - 1 : 0);
+      anuncio["total_likes"] = !currentFav
+          ? currentLikes + 1
+          : (currentLikes > 0 ? currentLikes - 1 : 0);
     });
 
     try {
@@ -291,8 +382,6 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
             anuncio["is_destacado"] = res["is_destacado"];
           }
         });
-        final cacheKey = 'directorio_anuncios_${_paisSeleccionadoId}_${_departamentoSeleccionadoId}_${_categoriaSeleccionadaId}_${tituloController.text.trim()}';
-        CacheService.setJson(cacheKey, anuncios);
       }
     } catch (e) {
       // Estado local ya protegido
@@ -317,160 +406,230 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
               floating: true,
               snap: true,
             ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          l10n.anunciateHoy,
-                          style: AppTextStyles.mensajeSecundario.copyWith(
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: AppColors.yellow),
-                        iconSize: 30,
-                        tooltip: l10n.crearNuevaPublicidad,
-                        onPressed: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => CrearPublicidadForm(
-                                initialPaisId: _paisSeleccionadoId,
-                                initialDepartamentoId: _departamentoSeleccionadoId,
-                              ),
-                            ),
-                          );
-                          if (mounted) buscarAnuncios(tituloController.text.trim());
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(flex: 1, child: _buildPaisDropdown(l10n)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            flex: 1,
-                            child: _buildDepartamentoDropdown(l10n),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 15),
-                      Row(
-                        children: [
-                          Expanded(flex: 1, child: _buildCategoriaDropdown(l10n)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: tituloController,
-                        enableSuggestions: false,
-                        autocorrect: false,
-                        spellCheckConfiguration: const SpellCheckConfiguration.disabled(),
-                        style: AppTextStyles.mensajeSecundario.copyWith(
-                          color: Colors.white,
-                          decoration: TextDecoration.none,
-                          decorationThickness: 0,
-                          decorationColor: Colors.transparent,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: l10n.buscarPorTitulo,
-                          hintStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
-                          prefixIcon: const Icon(
-                            Icons.search,
-                            color: AppColors.yellow,
-                          ),
-                          filled: false,
-                          fillColor: Colors.transparent,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                          border: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24),
-                          ),
-                          enabledBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: Colors.white24),
-                          ),
-                          focusedBorder: const UnderlineInputBorder(
-                            borderSide: BorderSide(color: AppColors.yellow, width: 1.5),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (cargando)
-            const SliverToBoxAdapter(
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.yellow),
-              ),
-            )
-          else if (anuncios.isEmpty)
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
-                child: Center(
-                  child: Text(
-                    l10n.noHayAnunciosFiltros,
-                    style: AppTextStyles.mensajeSecundario.copyWith(
-                      fontSize: 12,
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            l10n.anunciateHoy,
+                            style: AppTextStyles.mensajeSecundario.copyWith(
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.add, color: AppColors.yellow),
+                          iconSize: 30,
+                          tooltip: l10n.crearNuevaPublicidad,
+                          onPressed: () async {
+                            await Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => CrearPublicidadForm(
+                                  initialPaisId: _paisSeleccionadoId,
+                                  initialDepartamentoId:
+                                      _departamentoSeleccionadoId,
+                                ),
+                              ),
+                            );
+                            if (mounted)
+                              buscarAnuncios(tituloController.text.trim());
+                          },
+                        ),
+                      ],
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                    const SizedBox(height: 20),
+                    Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(flex: 1, child: _buildPaisDropdown(l10n)),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              flex: 1,
+                              child: _buildDepartamentoDropdown(l10n),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        Row(
+                          children: [
+                            Expanded(
+                              flex: 1,
+                              child: _buildCategoriaDropdown(l10n),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: tituloController,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          spellCheckConfiguration:
+                              const SpellCheckConfiguration.disabled(),
+                          style: AppTextStyles.mensajeSecundario.copyWith(
+                            color: Colors.white,
+                            decoration: TextDecoration.none,
+                            decorationThickness: 0,
+                            decorationColor: Colors.transparent,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: l10n.buscarPorTitulo,
+                            hintStyle: AppTextStyles.mensajeSecundario.copyWith(
+                              color: Colors.white54,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.search,
+                              color: AppColors.yellow,
+                            ),
+                            filled: false,
+                            fillColor: Colors.transparent,
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 14,
+                            ),
+                            border: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white24),
+                            ),
+                            enabledBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(color: Colors.white24),
+                            ),
+                            focusedBorder: const UnderlineInputBorder(
+                              borderSide: BorderSide(
+                                color: AppColors.yellow,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            )
-          else
-            SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: anuncios.length,
-                    itemBuilder: (context, index) {
-                      final anuncio = anuncios[index];
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: BusinessCard(
-                          paginaweb: anuncio["pagina_url"] ?? "",
-                          title: anuncio["titulo"] ?? "",
-                          logo: anuncio["imagen_url"] ?? "",
-                          description: anuncio["descripcion"] ?? "",
-                          address: anuncio["direccion"] ?? "",
-                          city: _getLocation(anuncio),
-                          contact: anuncio["telefono"] ?? "",
-                          whatsappUrl: anuncio["whatsapp_url"],
-                          facebookUrl: anuncio["facebook_url"],
-                          instagramUrl: anuncio["instagram_url"],
-                          isDestacado: anuncio["is_destacado"] == true || anuncio["destacado"] == 1,
-                          statusText: _getScheduleStatus(anuncio),
-                          isFavorite: anuncio["is_favorite"] == true,
-                          totalLikes: int.tryParse(anuncio["total_likes"]?.toString() ?? "0") ?? 0,
-                          onAction: () => _toggleFavorito(anuncio, index),
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 50),
-                ],
-              ),
             ),
+            if (_showingStaleData || (_lastFetchFailed && _hasCachedSnapshot))
+              SliverToBoxAdapter(child: _buildOfflineNotice()),
+            if (cargando)
+              const SliverToBoxAdapter(
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.yellow),
+                ),
+              )
+            else if (_lastFetchFailed && !_hasCachedSnapshot)
+              SliverToBoxAdapter(child: _buildConnectionError())
+            else if (anuncios.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Center(
+                    child: Text(
+                      l10n.noHayAnunciosFiltros,
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        fontSize: 12,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: anuncios.length,
+                      itemBuilder: (context, index) {
+                        final anuncio = anuncios[index];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: BusinessCard(
+                            paginaweb: anuncio["pagina_url"] ?? "",
+                            title: anuncio["titulo"] ?? "",
+                            logo: anuncio["imagen_url"] ?? "",
+                            description: anuncio["descripcion"] ?? "",
+                            address: anuncio["direccion"] ?? "",
+                            city: _getLocation(anuncio),
+                            contact: anuncio["telefono"] ?? "",
+                            whatsappUrl: anuncio["whatsapp_url"],
+                            facebookUrl: anuncio["facebook_url"],
+                            instagramUrl: anuncio["instagram_url"],
+                            isDestacado:
+                                anuncio["is_destacado"] == true ||
+                                anuncio["destacado"] == 1,
+                            statusText: _getScheduleStatus(anuncio),
+                            isFavorite: anuncio["is_favorite"] == true,
+                            totalLikes:
+                                int.tryParse(
+                                  anuncio["total_likes"]?.toString() ?? "0",
+                                ) ??
+                                0,
+                            onAction: () => _toggleFavorito(anuncio, index),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 50),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineNotice() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.yellow.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión · mostrando últimos anuncios disponibles',
+              style: TextStyle(color: Colors.white70, fontSize: 11.5),
+            ),
+          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildConnectionError() {
+    return Padding(
+      padding: const EdgeInsets.all(36),
+      child: Column(
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 60, color: Colors.white38),
+          const SizedBox(height: 14),
+          Text(
+            'No pudimos cargar los anuncios.',
+            style: AppTextStyles.mensajeSecundario,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: () => buscarAnuncios(tituloController.text.trim()),
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reintentar'),
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.yellow),
+          ),
+        ],
       ),
     );
   }
@@ -577,8 +736,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         final departamentosData = (snapshot.hasData && snapshot.data != null)
             ? snapshot.data!
             : <Map<String, dynamic>>[];
-        final departamentos =
-            departamentosData.map((m) => m['nombre'].toString()).toList();
+        final departamentos = departamentosData
+            .map((m) => m['nombre'].toString())
+            .toList();
         final depsConTodas = [l10n.todos, ...departamentos];
 
         String valorActual = departamentoController.text.trim();
@@ -644,12 +804,14 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         final categoriasData = (snapshot.hasData && snapshot.data != null)
             ? snapshot.data!
             : <Map<String, dynamic>>[];
-        final categorias =
-            categoriasData.map((m) => m['nombre'].toString()).toList();
+        final categorias = categoriasData
+            .map((m) => m['nombre'].toString())
+            .toList();
         final catsConTodas = [l10n.todasCategorias, ...categorias];
 
         String valorActual = categoriaController.text.trim();
-        if (valorActual == "Todas las categorías") valorActual = l10n.todasCategorias;
+        if (valorActual == "Todas las categorías")
+          valorActual = l10n.todasCategorias;
         if (valorActual.isEmpty || !catsConTodas.contains(valorActual)) {
           valorActual = l10n.todasCategorias;
           categoriaController.text = valorActual;
