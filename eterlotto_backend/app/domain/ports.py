@@ -214,6 +214,10 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    async def report_comment(self, comment_id: int, reporter_user_id: int) -> bool:
+        pass
+
+    @abstractmethod
     async def list_comments_by_post(
         self,
         post_id: int,

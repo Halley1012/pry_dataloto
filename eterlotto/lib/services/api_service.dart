@@ -1496,6 +1496,39 @@ class ApiService {
     }
   }
 
+  /// Registra una denuncia. Devuelve `false` si este usuario ya la había
+  /// enviado antes; así el botón no confirma una operación inexistente.
+  static Future<bool> reportComment(int commentId) async {
+    await ensureValidSession();
+
+    final response = await post(
+      '/comments/$commentId/reports',
+      const <String, dynamic>{},
+      withAuth: true,
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data['created'] == true;
+      }
+      if (data is Map) {
+        return data['created'] == true;
+      }
+      throw Exception('Respuesta inválida al reportar el comentario');
+    }
+
+    String? detail;
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['detail'] != null) {
+        detail = data['detail'].toString();
+      }
+    } catch (_) {
+      // Se usa el estado HTTP si el backend no incluyó detalle JSON.
+    }
+    throw Exception(detail ?? 'Error al reportar comentario (${response.statusCode})');
+  }
+
   static Future<List<Map<String, dynamic>>> getCiudades() async {
     final response = await http.get(
       Uri.parse('$baseUrl/ciudades'),
