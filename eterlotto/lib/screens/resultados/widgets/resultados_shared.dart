@@ -89,7 +89,7 @@ Widget buildMiniBall(int numero, {Color baseColor = const Color(0xFF1E3A8A), dou
   );
 }
 
-Widget buildPlayBall(int num, {required bool isHit, bool isRed = false}) {
+Widget buildPlayBall(int num, {required bool isHit, bool isRed = false, double size = 32}) {
   final Color bg = isRed
       ? (isHit ? const Color(0xFFDC2626) : const Color(0xFF450A0A))
       : (isHit ? const Color(0xFF15803D) : const Color(0xFF262933));
@@ -99,8 +99,8 @@ Widget buildPlayBall(int num, {required bool isHit, bool isRed = false}) {
       : (isHit ? Colors.greenAccent : Colors.white24);
 
   return Container(
-    width: 32,
-    height: 32,
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: bg,
@@ -111,7 +111,7 @@ Widget buildPlayBall(int num, {required bool isHit, bool isRed = false}) {
         "$num",
         textAlign: TextAlign.center,
         style: GoogleFonts.montserrat(
-          fontSize: 12,
+          fontSize: size <= 28 ? 11 : 12,
           fontWeight: FontWeight.bold,
           color: isHit ? Colors.white : Colors.white60,
           height: 1.0,
@@ -318,8 +318,9 @@ class LineChartPainter extends CustomPainter {
 
 class SubSorteoData {
   final String nombre;
+  /// Sólo las balotas principales; los roles restantes se guardan separados.
   final List<int> winningNums;
-  final int? winningRed;
+  final List<int> winningSpecials;
   final int? compBall;
   final double coberturaPorcentaje;
   final int topHitsCount;
@@ -329,7 +330,7 @@ class SubSorteoData {
   const SubSorteoData({
     required this.nombre,
     required this.winningNums,
-    this.winningRed,
+    this.winningSpecials = const [],
     this.compBall,
     required this.coberturaPorcentaje,
     required this.topHitsCount,

@@ -31,7 +31,6 @@ class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
   final String? loteriaRoute;
   final Map<String, dynamic>? loteriaData;
-  final bool openHistory;
   /// Fecha de un sorteo concreto, por ejemplo al abrir Resultados desde una
   /// jugada guardada. Si es nula, se conserva el comportamiento normal: se
   /// muestra el último sorteo oficial disponible.
@@ -42,7 +41,6 @@ class ResultadosDashboardScreen extends StatefulWidget {
     this.loteriaNombreInicial = "Lotería",
     this.loteriaRoute,
     this.loteriaData,
-    this.openHistory = false,
     this.targetDrawDate,
   });
 
@@ -55,7 +53,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   late String _selectedLoteria;
   bool _isLoading = true;
   bool _dataRequestFailed = false;
-  bool _historyOpenScheduled = false;
+  bool _showingStaleData = false;
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
@@ -102,12 +100,52 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   List<int> get _winningNums =>
       _subSorteos.isNotEmpty ? _subSorteos.first.winningNums : [];
-  int? get _winningRed =>
-      _subSorteos.isNotEmpty ? _subSorteos.first.winningRed : null;
+  List<int> get _winningSpecials =>
+      _subSorteos.isNotEmpty ? _subSorteos.first.winningSpecials : const [];
   double get _coberturaPorcentaje =>
       _subSorteos.isNotEmpty ? _subSorteos.first.coberturaPorcentaje : 0.0;
   int get _topHitsCount =>
       _subSorteos.isNotEmpty ? _subSorteos.first.topHitsCount : 0;
+
+  LoteriaConfig get _numberConfig {
+    final data = widget.loteriaData;
+    return data == null
+        ? LoteriaConfig.fromNombre(
+            _selectedLoteria,
+            routeOverride: widget.loteriaRoute,
+          )
+        : LoteriaConfig.fromJson(
+            data,
+            fallbackNombre: _selectedLoteria,
+          );
+  }
+
+  /// Lee roles exclusivamente por posición. Los campos antiguos de una sola
+  /// especial se usan sólo si el arreglo aún no contiene especiales.
+  (List<int> main, List<int> specials, int? complementary) _splitByRole(
+    Map<String, dynamic> item,
+  ) {
+    final config = _numberConfig;
+    final groups = config.numberLayout.split(_extraerNumerosDeMap(item));
+    final specials = List<int>.from(groups.specials);
+    if (specials.isEmpty && config.cantidadEspeciales > 0) {
+      final rawLegacy =
+          item['balotaroja2'] ??
+          item['reintegro'] ??
+          item['balotaroja'] ??
+          item['balota_roja'] ??
+          item['superbalota'] ??
+          item['balota'] ??
+          item['red'];
+      final legacy = int.tryParse(rawLegacy?.toString() ?? '');
+      if (legacy != null) specials.add(legacy);
+    }
+    return (
+      groups.main,
+      specials,
+      groups.complementary.isEmpty ? null : groups.complementary.first,
+    );
+  }
 
   @override
   void initState() {
@@ -138,19 +176,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         _cargarDatosReales(forceRefresh: false);
       }
     }
-  }
-
-  void _openHistoryIfRequested() {
-    if (!widget.openHistory ||
-        _historyOpenScheduled ||
-        _ultimosSorteos.length < 2 ||
-        !mounted) {
-      return;
-    }
-    _historyOpenScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _abrirHistoricoResultados();
-    });
   }
 
   String _getRouteForLoteria(String name) {
@@ -237,9 +262,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final cacheKey =
         'resultados_dashboard_cache_v10_${route}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
-    // 1. ⚡ Despliegue instantáneo desde caché local (0 ms)
-    if (!forceRefresh) {
-      final cached = await CacheService.getJson(cacheKey);
+    // 1. SWR: el payload es privado por usuario, pero sigue siendo válido
+    // para esa misma sesión aunque haya vencido mientras llega la red.
+    {
+      final cached = await CacheService.getStaleJson(cacheKey);
       if (cached != null && mounted) {
         setState(() {
           _procesarDatosCargados(cached);
@@ -247,7 +273,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             _isLoading = false;
           }
         });
-        _openHistoryIfRequested();
       }
     }
 
@@ -316,7 +341,20 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         } catch (_) {}
       }
 
+      List<Map<String, dynamic>> sorteosHastaFecha =
+          List<Map<String, dynamic>>.from(sorteosList);
       if (requestedDrawDate.isNotEmpty) {
+        // Contexto histórico para gráficas y tabla: sólo resultados de la
+        // fecha elegida hacia atrás. Así nunca se mezclan datos futuros con
+        // una jugada histórica.
+        sorteosHastaFecha = sorteosList
+            .where(
+              (s) =>
+                  _normalizarFechaISO(s['fecha']?.toString() ?? '')
+                      .compareTo(requestedDrawDate) <=
+                  0,
+            )
+            .toList();
         sorteosList = sorteosList
             .where(
               (s) =>
@@ -324,6 +362,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   requestedDrawDate,
             )
             .toList();
+
+        // Conservamos ambos conjuntos: `sorteos` para la cabecera y la
+        // comparación exacta; `sorteosHastaFecha` para el rendimiento y los
+        // últimos resultados disponibles a la fecha seleccionada.
       }
 
       // Determinar la fecha exacta del sorteo evaluado
@@ -350,7 +392,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       // Phase 2: Fetch user plays, cached prediction, and historical predictions
       final responses = await Future.wait([
         _obtenerJugadasUsuario(_selectedLoteria, fecha: targetDrawDate),
-        CacheService.getJson('${route}_prediccion'),
+        CacheService.getStaleJson('${route}_prediccion'),
         ApiService.getPrediccionesHistorico(route),
       ]);
 
@@ -458,6 +500,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       final payload = {
         "sorteos": sorteosList,
+        "sorteosHastaFecha": sorteosHastaFecha,
         "top20": top20,
         "predictionNumeros": predictionNumeros,
         "predictionBalotaroja": predictionBalotaroja,
@@ -471,14 +514,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       if (mounted) {
         _procesarDatosCargados(payload);
-        setState(() => _isLoading = false);
-        _openHistoryIfRequested();
+        setState(() {
+          _isLoading = false;
+          _showingStaleData = false;
+        });
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _isLoading = false;
           _dataRequestFailed = _subSorteos.isEmpty;
+          _showingStaleData = _subSorteos.isNotEmpty;
         });
       }
     }
@@ -488,6 +534,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // Se requiere context para l10n, pero esta función se llama desde initState y peticiones async.
     // Usaremos un flag para recalcular strings dependientes de l10n en el build.
     final sorteosRaw = List<Map<String, dynamic>>.from(data["sorteos"] ?? []);
+    // Para una consulta por jugada, esta lista contiene los sorteos desde la
+    // fecha seleccionada hacia atrás. La cabecera sigue usando `sorteosRaw`,
+    // que representa únicamente el sorteo que el usuario eligió.
+    final sorteosHastaFechaRaw = List<Map<String, dynamic>>.from(
+      data["sorteosHastaFecha"] ?? sorteosRaw,
+    );
     final rawTop20 = data["top20"] ?? data["numeros"] ?? data["probables"];
 
     final rawPredNums = data["predictionNumeros"];
@@ -545,16 +597,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
-    final bool tieneBalotaExtra =
-        _predictionBalotaroja.isNotEmpty ||
-        (widget.loteriaData != null &&
-            (int.tryParse(
-                      widget.loteriaData!['max_balotas_rojas']?.toString() ??
-                          '0',
-                    ) ??
-                    0) >
-                0);
-
+    final int maxSel =
+        int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ??
+        int.tryParse(widget.loteriaData?['maxSeleccion']?.toString() ?? '') ??
+        (_selectedLoteria.toLowerCase().contains("colorloto") ? 6 : 5);
     String drawDateISO = "";
     List<SubSorteoData> subSorteosParsed = [];
 
@@ -621,45 +667,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           }
         }
 
-        List<int> extractedNums = _extraerNumerosDeMap(record);
-        final redVal = int.tryParse(
-          record["balotaroja2"]?.toString() ??
-              record["reintegro"]?.toString() ??
-              record["balotaroja"]?.toString() ??
-              record["balota_roja"]?.toString() ??
-              record["superbalota"]?.toString() ??
-              record["balota"]?.toString() ??
-              record["red"]?.toString() ??
-              "",
-        );
-
-        int maxSel =
-            int.tryParse(
-              widget.loteriaData?['max_seleccion']?.toString() ?? '',
-            ) ??
-            (extractedNums.length > 6 ? 6 : 5);
-
-        int? winningRed;
-        if (tieneBalotaExtra &&
-            redVal == null &&
-            extractedNums.length > maxSel) {
-          winningRed = extractedNums.removeLast();
-        } else {
-          winningRed = redVal;
-          if (tieneBalotaExtra &&
-              winningRed != null &&
-              extractedNums.length > maxSel &&
-              extractedNums.last == winningRed) {
-            extractedNums.removeLast();
-          }
-        }
-
-        final mainBalls = extractedNums.length > maxSel
-            ? extractedNums.sublist(0, maxSel)
-            : extractedNums;
-        final int? compBall = extractedNums.length > maxSel
-            ? extractedNums.last
-            : null;
+        final (main, specials, complementary) = _splitByRole(record);
+        final mainBalls = main;
 
         final hitsInTop = top20.isNotEmpty
             ? mainBalls.where((n) => top20.contains(n)).toList()
@@ -671,9 +680,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         subSorteosParsed.add(
           SubSorteoData(
             nombre: sName,
-            winningNums: extractedNums,
-            winningRed: winningRed,
-            compBall: compBall,
+            winningNums: mainBalls,
+            winningSpecials: specials,
+            compBall: complementary,
             coberturaPorcentaje: cobertura,
             topHitsCount: hitsInTop.length,
             hitsInTop: hitsInTop,
@@ -689,12 +698,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
 
     // 2. Cobertura IA real (sobre las balotas principales)
-    int maxSel =
-        int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ??
-        int.tryParse(widget.loteriaData?['maxSeleccion']?.toString() ?? '') ??
-        (_selectedLoteria.toLowerCase().contains("colorloto")
-            ? 6
-            : (_winningNums.length > 5 ? 6 : 5));
     if (top20.isNotEmpty) {
       _probablesCount = top20.length;
     }
@@ -735,17 +738,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       _misJugadas = jugadasFiltradas.map((j) {
         final int originalIdx = jugadasRaw.indexOf(j) + 1;
-        List<int> nums = _extraerNumerosDeMap(j);
-
-        int? red = int.tryParse(
-          j["superbalota"]?.toString() ??
-              j["balota"]?.toString() ??
-              j["red"]?.toString() ??
-              "",
-        );
-        if (tieneBalotaExtra && red == null && nums.length > 5) {
-          red = nums.removeLast();
-        }
+        final (main, specials, complementary) = _splitByRole(j);
 
         final String? titulo = j["nombre"] ?? j["titulo"];
 
@@ -753,8 +746,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           "id": j["id"],
           "titulo": titulo,
           "index": originalIdx,
-          "nums": nums,
-          "red": red,
+          "nums": main,
+          "specials": specials,
+          "complementaria": complementary,
         };
       }).toList();
     }
@@ -765,7 +759,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final nums = (jugada["nums"] as List)
           .map((e) => int.tryParse(e.toString()) ?? 0)
           .toList();
-      final red = jugada["red"] as int?;
+      final specials = List<int>.from(jugada["specials"] as List? ?? const []);
 
       int maxHits = 0;
       if (_subSorteos.isNotEmpty) {
@@ -773,13 +767,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           final int hits = nums
               .where((n) => sub.winningNums.contains(n))
               .length;
-          final bool redHit = (red != null && red == sub.winningRed);
-          final int total = hits + (redHit ? 1 : 0);
+          final specialHits = specials
+              .where(sub.winningSpecials.contains)
+              .length;
+          final int total = hits + specialHits;
           if (total > maxHits) maxHits = total;
         }
       } else {
         maxHits = nums.where((n) => _winningNums.contains(n)).length;
-        if (red != null && _winningRed != null && red == _winningRed) maxHits++;
+        maxHits += specials.where(_winningSpecials.contains).length;
       }
 
       int bucket = maxHits.clamp(0, 5);
@@ -789,11 +785,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     // 5. Historial de coberturas para gráficas. Cada sub-sorteo conserva su
     // propia serie, sin importar si la lotería tiene 1, 2, 3 o más variantes.
-    _ultimosSorteos = sorteosRaw;
+    _ultimosSorteos = sorteosHastaFechaRaw;
     final historiales = <String, List<double>>{};
     final nombresPorClave = <String, String>{};
     final sorteosPorClave = <String, List<Map<String, dynamic>>>{};
-    for (final sorteo in sorteosRaw) {
+    for (final sorteo in sorteosHastaFechaRaw) {
       final nombre = _nombreSorteo(sorteo);
       final clave = _claveSorteo(nombre);
       nombresPorClave.putIfAbsent(clave, () => nombre);
@@ -819,6 +815,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         }
       }
 
+      sorteosCandidatos.sort(
+        (a, b) => _normalizarFechaISO(
+          b['fecha']?.toString() ?? '',
+        ).compareTo(_normalizarFechaISO(a['fecha']?.toString() ?? '')),
+      );
+
       for (final sorteo in sorteosCandidatos.take(10)) {
         final sortDate = sorteo["fecha"]?.toString() ?? "";
         final predForDate = _prediccionesPorFecha.isNotEmpty
@@ -826,30 +828,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             : (_obtenerPrediccionParaFecha(sortDate) ?? top20);
         if (predForDate == null || predForDate.isEmpty) continue;
 
-        List<int> drawNums = _extraerNumerosDeMap(sorteo);
-        if (drawNums.isEmpty) continue;
-
-        int? red = int.tryParse(
-          sorteo["balotaroja2"]?.toString() ??
-              sorteo["reintegro"]?.toString() ??
-              sorteo["balotaroja"]?.toString() ??
-              sorteo["balota_roja"]?.toString() ??
-              sorteo["superbalota"]?.toString() ??
-              sorteo["balota"]?.toString() ??
-              sorteo["red"]?.toString() ??
-              "",
-        );
-        if (red == null && drawNums.length > maxSel) {
-          red = drawNums.removeLast();
-        } else if (red != null &&
-            drawNums.length > maxSel &&
-            drawNums.last == red) {
-          drawNums.removeLast();
-        }
-
-        final mainDrawNums = drawNums.length > maxSel
-            ? drawNums.sublist(0, maxSel)
-            : drawNums;
+        final mainDrawNums = _splitByRole(sorteo).$1;
 
         if (mainDrawNums.isNotEmpty) {
           final hits = mainDrawNums.where(predForDate.contains).length;
@@ -869,7 +848,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final nums = (jugada["nums"] as List)
           .map((e) => int.tryParse(e.toString()) ?? 0)
           .toList();
-      final red = jugada["red"] as int?;
+      final specials = List<int>.from(jugada["specials"] as List? ?? const []);
 
       int maxHits = 0;
       if (_subSorteos.isNotEmpty) {
@@ -877,13 +856,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           final int hits = nums
               .where((n) => sub.winningNums.contains(n))
               .length;
-          final bool redHit = (red != null && red == sub.winningRed);
-          final int total = hits + (redHit ? 1 : 0);
+          final specialHits = specials
+              .where(sub.winningSpecials.contains)
+              .length;
+          final int total = hits + specialHits;
           if (total > maxHits) maxHits = total;
         }
       } else {
         maxHits = nums.where((n) => _winningNums.contains(n)).length;
-        if (red != null && _winningRed != null && red == _winningRed) maxHits++;
+        maxHits += specials.where(_winningSpecials.contains).length;
       }
 
       if (maxHits >= 1) {
@@ -1139,6 +1120,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       return seen.add(key);
     }).toList();
 
+    // El contexto ya está limitado a la fecha de la jugada; ordenar garantiza
+    // que la tabla muestre los cinco sorteos más recientes dentro de ese
+    // límite, sin depender del orden recibido por cada API.
+    rawSource.sort(
+      (a, b) => _normalizarFechaISO(
+        b['fecha']?.toString() ?? '',
+      ).compareTo(_normalizarFechaISO(a['fecha']?.toString() ?? '')),
+    );
+
     if (_sorteosNombres.length > 1 &&
         _selectedResultadosTab < _sorteosNombres.length) {
       final targetSorteo = _sorteosNombres[_selectedResultadosTab];
@@ -1174,28 +1164,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             final rawDate = item["fecha"]?.toString() ?? "";
             final dateDisplay = _formatearFechaCorta(rawDate);
 
-            List<int> nums = _extraerNumerosDeMap(item);
-            int? red = int.tryParse(
-              item["balotaroja2"]?.toString() ??
-                  item["reintegro"]?.toString() ??
-                  item["balotaroja"]?.toString() ??
-                  item["balota_roja"]?.toString() ??
-                  item["superbalota"]?.toString() ??
-                  item["balota"]?.toString() ??
-                  item["red"]?.toString() ??
-                  "",
-            );
-            if (red == null && nums.length > dynamicMaxSel) {
-              red = nums.removeLast();
-            } else if (red != null &&
-                nums.length > dynamicMaxSel &&
-                nums.last == red) {
-              nums.removeLast();
-            }
-
-            final mainNums = nums.length > dynamicMaxSel
-                ? nums.sublist(0, dynamicMaxSel)
-                : nums;
+            final (main, specials, complementary) = _splitByRole(item);
+            final mainNums = main;
 
             // Evaluar contra la predicción específica de esa fecha
             final predParaFecha = _obtenerPrediccionParaFecha(rawDate);
@@ -1210,8 +1180,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
             return {
               "fecha": dateDisplay,
-              "nums": nums,
-              "red": red,
+              "nums": mainNums,
+              "specials": specials,
+              "complementaria": complementary,
               "cobertura": tienePred ? "$covPercent%" : "--",
               "aciertos": tienePred ? "$hits / ${mainNums.length}" : "--",
               "color": tienePred
@@ -1225,7 +1196,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                 _fechaSorteo.isNotEmpty ? _fechaSorteo : "",
               ),
               "nums": currentSub?.winningNums ?? _winningNums,
-              "red": currentSub?.winningRed ?? _winningRed,
+              "specials": currentSub?.winningSpecials ?? _winningSpecials,
+              "complementaria": currentSub?.compBall,
               "cobertura":
                   "${((currentSub?.coberturaPorcentaje ?? _coberturaPorcentaje) * 100).round()}%",
               "aciertos":
@@ -1265,6 +1237,13 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     canPop: canPop,
                   ),
 
+                  if (_showingStaleData) ...[
+                    const SizedBox(height: 10),
+                    _buildStaleDataNotice(),
+                  ],
+
+                  const SizedBox(height: 14),
+
                   // 1. Números Ganadores del Último Sorteo
                   UltimoSorteoCard(
                     selectedLoteria: _selectedLoteria,
@@ -1288,7 +1267,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                         ),
                   ),
                   const SizedBox(height: 14),
-
                   // 2. 🏆 Mejor Jugada del Sorteo
                   MejorJugadaCard(
                     misJugadas: _misJugadas.map((j) {
@@ -1443,6 +1421,30 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStaleDataNotice() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: AppColors.yellow.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Sin conexión · mostrando los últimos datos disponibles',
+              style: TextStyle(color: Colors.white70, fontSize: 11.5),
+            ),
+          ),
+        ],
       ),
     );
   }

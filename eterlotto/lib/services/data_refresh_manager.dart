@@ -10,6 +10,7 @@ class RefreshModules {
   static const String publicidad = "publicidad";
   static const String perfil = "perfil";
   static const String prediccion = "prediccion";
+  static const String notificaciones = "notificaciones";
 }
 
 /// Gestor centralizado de ciclo de vida de Flutter y refresco inteligente con TTL.
@@ -35,6 +36,7 @@ class DataRefreshManager with WidgetsBindingObserver {
     RefreshModules.publicidad: const Duration(minutes: 10),
     RefreshModules.perfil: const Duration(minutes: 5),
     RefreshModules.prediccion: const Duration(minutes: 15),
+    RefreshModules.notificaciones: const Duration(minutes: 2),
   };
 
   /// Notificador reactivo para emitir señales de actualización

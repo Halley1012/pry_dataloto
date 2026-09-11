@@ -72,7 +72,14 @@ async def delete_comment(comment_id: int, current_user: dict = Depends(dependenc
         raise HTTPException(status_code=404, detail=str(e))
 
 @router.get("/posts/{post_id}/comments", response_model=List[schemas.CommentResponse])
-async def get_comments(post_id: int, use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
-    return await use_cases.listar_comentarios(post_id)
+async def get_comments(
+    post_id: int,
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: PostUseCases = Depends(dependencies.get_post_use_cases),
+):
+    return await use_cases.listar_comentarios(
+        post_id,
+        int(current_user["user_id"]),
+    )
 
 
