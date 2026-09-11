@@ -64,7 +64,7 @@ async def get_subscription_status(
 PUBSUB_PUSH_SERVICE_ACCOUNT = "eterlotto-play-billing@dataloto.iam.gserviceaccount.com"
 PUBSUB_OIDC_AUDIENCE = os.getenv(
     "PUBSUB_OIDC_AUDIENCE",
-    "https://eterlotto-api-dev.onrender.com/subscriptions/rtdn",
+    "https://pry-dataloto.onrender.com/subscriptions/rtdn",
 )
 
 def _verify_pubsub_oidc(request: Request) -> dict:

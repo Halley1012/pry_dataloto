@@ -10,7 +10,7 @@ import 'package:eterlotto/services/push_notification_service.dart';
 import '../utils/secure_storage_helper.dart';
 
 class ApiService {
-  static const String baseUrl = "https://eterlotto-api-dev.onrender.com";
+  static const String baseUrl = "https://pry-dataloto.onrender.com";
   static final _storage = AppSecureStorage.instance;
 
   static const Duration _requestTimeout = Duration(seconds: 10);
