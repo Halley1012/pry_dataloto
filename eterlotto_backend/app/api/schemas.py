@@ -114,6 +114,10 @@ class CommentResponse(BaseModel):
     updated_at: Optional[datetime] = None
     parent_id: Optional[int] = None
 
+class CommentReportResponse(BaseModel):
+    comment_id: int
+    created: bool
+
 class PostCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=100, description="Título del post entre 1 y 100 caracteres")
     content: str = Field(..., min_length=1, max_length=500, description="Contenido del post entre 1 y 500 caracteres")
