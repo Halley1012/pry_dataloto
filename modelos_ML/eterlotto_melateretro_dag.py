@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_melateretro',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Melate Retro usando main_melateretro.py',
-    schedule='0 3 * * 0,3', # Miércoles y Domingos a las 3:00 AM (tras sorteos de Martes y Sábado)
+    schedule='0 3 * * *', # Miércoles y Domingos a las 3:00 AM (tras sorteos de Martes y Sábado)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'melateretro', 'retro', 'mexico', 'mx', 'ml']

@@ -102,7 +102,7 @@ with DAG(
     'eterlotto_ejecucion_bloto',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Baloto usando main_bloto.py',
-    schedule='0 3 * * 0,2,4',  # Domingos, Martes y Jueves a las 3:00 AM (0=Domingo, 2=Martes, 4=Jueves)
+    schedule='0 3 * * *',  # Domingos, Martes y Jueves a las 3:00 AM (0=Domingo, 2=Martes, 4=Jueves)
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'baloto'],
