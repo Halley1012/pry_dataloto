@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 import glob
 import site
 import smtplib
@@ -35,8 +35,8 @@ def enviar_notificacion_exito():
     msg["To"] = receiver
 
     html = """
-    <h3>Ejecución de EuroDreams (España / Europa) finalizada con éxito</h3>
-    <p>El proceso de scraping, predicción y notificaciones en <b>main_eurodreams.py</b> concluyó correctamente.</p>
+    <h3>Ejecución de EuroDreams (Europa / Multipaís) finalizada con éxito</h3>
+    <p>El proceso de scraping, predicción y notificaciones en <b>main_eurodreams.py</b> concluyó correctamente para todos los países participantes.</p>
     """
     msg.attach(MIMEText(html, "html"))
 
@@ -98,11 +98,11 @@ default_args = {
 with DAG(
     'eterlotto_ejecucion_eurodreams',
     default_args=default_args,
-    description='Ejecuta scraping y predicción de EuroDreams usando main_eurodreams.py',
-    schedule='0 3 * * *', # Martes y Viernes a las 3:00 AM (tras sorteos de Lunes y Jueves)
+    description='Ejecuta scraping y predicción de EuroDreams (Europa / Multipaís) usando main_eurodreams.py',
+    schedule='0 3 * * 2,5', # Martes y Viernes a las 3:00 AM (tras sorteos de Lunes y Jueves)
     start_date=datetime(2025, 1, 1),
     catchup=False,
-    tags=['eterlotto', 'eurodreams', 'spain', 'europe', 'ml']
+    tags=['eterlotto', 'eurodreams', 'europe', 'spain', 'france', 'portugal', 'ml']
 ) as dag:
 
     tarea_ejecutar_eurodreams = PythonOperator(

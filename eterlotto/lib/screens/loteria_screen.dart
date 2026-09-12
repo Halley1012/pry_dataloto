@@ -687,7 +687,11 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     if (uId != null && userId != uId && mounted) {
       setState(() => userId = uId);
     }
-    final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId);
+    final int? currentLoteriaId = widget.loteriaData?['id'] is int
+        ? widget.loteriaData!['id'] as int
+        : int.tryParse(widget.loteriaData?['id']?.toString() ?? '');
+    final routeOrId = currentLoteriaId != null ? "${config.route}_$currentLoteriaId" : config.route;
+    final cacheKeyUser = CacheService.jugadasUsuarioKey(routeOrId, uId);
 
     final cached = await CacheService.getStaleJson(cacheKeyUser);
     if (cached is List && mounted) {
@@ -695,7 +699,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
 
     try {
-      final response = await ApiService.listarJugadasGenerica(config.route);
+      final response = await ApiService.listarJugadasGenerica(
+        config.route,
+        loteriaId: currentLoteriaId,
+      );
       final currentUserId = (await ApiService.getUserId())?.toString();
       if (currentUserId != uId) return;
       if (mounted) {
@@ -845,14 +852,22 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     final whites = List<int>.from(whitesToSave)..sort();
     final jugadaCompleta = [...whites, ...specialsToSave];
 
+    final int? currentLoteriaId = widget.loteriaData?['id'] is int
+        ? widget.loteriaData!['id'] as int
+        : int.tryParse(widget.loteriaData?['id']?.toString() ?? '');
+    final routeOrId = currentLoteriaId != null ? "${config.route}_$currentLoteriaId" : config.route;
+
     if (_jugadasList.isEmpty) {
-      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid);
+      final cacheKey = CacheService.jugadasUsuarioKey(routeOrId, currentUid);
       final cached = await CacheService.getStaleJson(cacheKey);
       if (cached is List && cached.isNotEmpty) {
         _jugadasList = List<Map<String, dynamic>>.from(cached);
       } else {
         try {
-          final res = await ApiService.listarJugadasGenerica(config.route);
+          final res = await ApiService.listarJugadasGenerica(
+            config.route,
+            loteriaId: currentLoteriaId,
+          );
           if (res.isNotEmpty) {
             _jugadasList = List<Map<String, dynamic>>.from(res);
           }
@@ -938,6 +953,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         config.route,
         whites,
         currentUid,
+        loteriaId: currentLoteriaId,
         specialNumbers: specialsToSave,
         fechaSorteo: targetFechaSorteo,
       );
@@ -947,11 +963,12 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         if (specialsToSave.isNotEmpty) "balota_roja": specialsToSave.first,
         if (specialsToSave.isNotEmpty) "balotaroja": specialsToSave.first,
         "fecha_sorteo": targetFechaSorteo,
+        if (currentLoteriaId != null) "loteria_id": currentLoteriaId,
       };
       _jugadasList.insert(0, nuevaJugada);
       final uIdStr = currentUid;
       await CacheService.setJson(
-        CacheService.jugadasUsuarioKey(config.route, uIdStr),
+        CacheService.jugadasUsuarioKey(routeOrId, uIdStr),
         _jugadasList,
       );
 
@@ -2124,6 +2141,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                 builder: (_) => MisJugadasScreen(
                   loteriaNombre: config.nombre,
                   loteriaRoute: config.route,
+                  loteriaId: widget.loteriaData?['id'] is int
+                      ? widget.loteriaData!['id'] as int
+                      : int.tryParse(widget.loteriaData?['id']?.toString() ?? ''),
+                  loteriaData: widget.loteriaData,
                 ),
               ),
             );
