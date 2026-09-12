@@ -20,11 +20,14 @@ class CacheService {
   /// las acciones permitidas sobre ellos, nunca la entrada de caché.
   static String comentariosPostKey(int postId) => 'post_comments_$postId';
 
-  static String jugadasUsuarioKey(String route, String? userId) {
-    final normalizedRoute = route.trim().toLowerCase();
+  static String jugadasUsuarioKey(String route, String? userId, {int? loteriaId}) {
     final normalizedUser = userId?.trim().isNotEmpty == true
         ? userId!.trim()
         : 'anon';
+    if (loteriaId != null) {
+      return 'user_jugadas_${normalizedUser}_lot_$loteriaId';
+    }
+    final normalizedRoute = route.trim().toLowerCase();
     return 'user_jugadas_${normalizedRoute}_$normalizedUser';
   }
 
@@ -310,6 +313,7 @@ class CacheService {
   static Future<void> invalidarCachesDeJugadas({
     String? specificRoute,
     String? userId,
+    int? loteriaId,
     bool preserveRouteJugadas = false,
     bool preserveSelector = false,
   }) async {
@@ -334,6 +338,18 @@ class CacheService {
         return rawKey.startsWith(prefix) && rawKey.endsWith('_$activeUserId');
       }
 
+      bool isUserPlayCache(String rawKey) {
+        if (loteriaId != null &&
+            rawKey == 'user_jugadas_${activeUserId}_lot_$loteriaId') {
+          return true;
+        }
+        if (loteriaId == null &&
+            rawKey.startsWith('user_jugadas_${activeUserId}_lot_')) {
+          return true;
+        }
+        return isRouteCacheForUser(rawKey, 'user_jugadas_');
+      }
+
       final keys = prefs.getKeys().where((k) {
         final rawKey = k.replaceFirst(_prefix, '');
         return (!preserveSelector &&
@@ -342,8 +358,7 @@ class CacheService {
             rawKey == infoMisJugadasKey(activeUserId) ||
             // La clave legacy no incluye usuario; ya no se lee ni se borra
             // para evitar tocar un posible respaldo de otra sesión.
-            (!preserveRouteJugadas &&
-                isRouteCacheForUser(rawKey, 'user_jugadas_')) ||
+            (!preserveRouteJugadas && isUserPlayCache(rawKey)) ||
             isRouteCacheForUser(rawKey, 'jugadas_list_') ||
             isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v9_') ||
             isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v10_');
@@ -386,6 +401,7 @@ class CacheService {
   /// ⚡ Registra de forma optimista e instantánea (0ms) una lotería con jugada en el caché del selector
   static Future<void> registrarJugadaOptimista(
     String route, {
+    int? loteriaId,
     String? userId,
   }) async {
     try {
@@ -406,6 +422,9 @@ class CacheService {
           : [];
 
       final yaExiste = list.any((item) {
+        if (loteriaId != null && item['id'] != null) {
+          return item['id'].toString() == loteriaId.toString();
+        }
         final r = (item['route']?.toString().isNotEmpty == true)
             ? item['route'].toString().trim().toLowerCase()
             : _getRouteFromName((item['nombre'] ?? '').toString());
@@ -414,6 +433,9 @@ class CacheService {
 
       if (!yaExiste && todas.isNotEmpty) {
         final loteriaEncontrada = todas.firstWhere((item) {
+          if (loteriaId != null && item['id'] != null) {
+            return item['id'].toString() == loteriaId.toString();
+          }
           final r = (item['route']?.toString().isNotEmpty == true)
               ? item['route'].toString().trim().toLowerCase()
               : _getRouteFromName((item['nombre'] ?? '').toString());

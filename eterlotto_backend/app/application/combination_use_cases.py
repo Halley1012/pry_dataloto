@@ -11,11 +11,18 @@ class CombinationUseCases:
         total_numbers = lot.get("total_balotas_sorteo", main_numbers_count)
         special_numbers_count = max(0, total_numbers - main_numbers_count)
         special_numbers_max = lot.get("max_balotas_rojas") or None
+        db_id = lot.get("id")
+        pais_id = lot.get("pais_id")
+        route = lot.get("route") or lot["nombre"].lower().replace(" ", "_")
+        lot_id_str = str(db_id) if db_id is not None else route
 
         return LotteryRules(
-            lottery_id=lot["route"] if lot.get("route") else lot["nombre"].lower().replace(" ", "_"),
+            lottery_id=lot_id_str,
             name=lot["nombre"],
             country=country_map.get(lot["pais_id"], "Unknown"),
+            db_id=db_id,
+            pais_id=pais_id,
+            route=route,
             main_numbers_count=main_numbers_count,
             main_numbers_min=1,
             main_numbers_max=lot.get("max_balotas_blancas", 45),
@@ -58,8 +65,12 @@ class CombinationUseCases:
         if lottery_id.lower() in aliases:
             target_ids.add(aliases[lottery_id.lower()])
 
+        target_str = str(lottery_id).strip().lower()
         lot = None
         for l in loterias:
+            if l.get("id") is not None and str(l["id"]) == target_str:
+                lot = l
+                break
             curr_id = l.get("route") if l.get("route") else l["nombre"].lower().replace(" ", "_")
             if curr_id in target_ids:
                 lot = l

@@ -103,19 +103,19 @@ class UserRepositoryPort(ABC):
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
+    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime, loteria_id: Optional[int] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None, loteria_id: Optional[int] = None) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
+    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int, loteria_id: Optional[int] = None) -> bool:
         pass
 
     @abstractmethod
-    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int], loteria_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         pass
 
     @abstractmethod

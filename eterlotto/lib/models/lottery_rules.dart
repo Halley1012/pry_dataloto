@@ -4,6 +4,9 @@ class LotteryRules {
   final String lotteryId;
   final String name;
   final String country;
+  final int? dbId;
+  final int? paisId;
+  final String? route;
   final int mainNumbersCount;
   final int mainNumbersMin;
   final int mainNumbersMax;
@@ -16,6 +19,9 @@ class LotteryRules {
     required this.lotteryId,
     required this.name,
     required this.country,
+    this.dbId,
+    this.paisId,
+    this.route,
     required this.mainNumbersCount,
     required this.mainNumbersMin,
     required this.mainNumbersMax,
@@ -26,10 +32,19 @@ class LotteryRules {
   });
 
   factory LotteryRules.fromJson(Map<String, dynamic> json) {
+    final rawDbId = json['db_id'] != null 
+        ? int.tryParse(json['db_id'].toString()) 
+        : int.tryParse(json['lottery_id']?.toString() ?? '');
+    final rawRoute = json['route']?.toString() ?? json['lottery_id']?.toString() ?? '';
+    final rawPaisId = json['pais_id'] != null ? int.tryParse(json['pais_id'].toString()) : null;
+
     return LotteryRules(
       lotteryId: json['lottery_id'] as String,
       name: json['name'] as String? ?? json['lottery_id'] as String,
       country: json['country'] as String? ?? '',
+      dbId: rawDbId,
+      paisId: rawPaisId,
+      route: rawRoute,
       mainNumbersCount: json['main_numbers_count'] as int,
       mainNumbersMin: json['main_numbers_min'] as int,
       mainNumbersMax: json['main_numbers_max'] as int,
