@@ -24,7 +24,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     fecha_guardado TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     expira TIMESTAMP WITH TIME ZONE
                 );
-                CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_route);
+                CREATE INDEX IF NOT EXISTS idx_jugadas_user_loteria ON jugadas (user_id, loteria_id);
+                CREATE INDEX IF NOT EXISTS idx_jugadas_user_route ON jugadas (user_id, loteria_route);
                 CREATE INDEX IF NOT EXISTS idx_jugadas_loteria_id ON jugadas (loteria_id);
                 CREATE INDEX IF NOT EXISTS idx_jugadas_expira ON jugadas (expira);
             """)
@@ -33,6 +34,20 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
                 ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS fecha_sorteo DATE;
                 ALTER TABLE jugadas ADD COLUMN IF NOT EXISTS loteria_route VARCHAR(50);
+            """)
+            # Sólo completar loteria_id automáticamente cuando la route es única.
+            # Para routes compartidas nunca adivinamos el país.
+            await conn.execute("""
+                UPDATE jugadas j
+                SET loteria_id = l.id
+                FROM loterias l
+                WHERE j.loteria_id IS NULL
+                  AND LOWER(l.route) = LOWER(j.loteria_route)
+                  AND 1 = (
+                      SELECT COUNT(*)
+                      FROM loterias lx
+                      WHERE LOWER(lx.route) = LOWER(j.loteria_route)
+                  );
             """)
             await conn.execute("""
                 DELETE FROM jugadas
@@ -48,79 +63,147 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         if not PostgresJugadaRepository._table_ensured:
             await PostgresJugadaRepository.ensure_schema(conn)
 
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
+    async def _resolve_lottery(self, conn, tipo: str, loteria_id: Optional[int] = None):
+        """Resuelve una lotería concreta sin adivinar entre países.
+
+        `loteria_id` es la identidad canónica. `tipo`/route queda como motor
+        compartido y sólo se usa como fallback cuando la route identifica una
+        única fila del catálogo.
+        """
+        clean_route = (tipo or "").strip().lower()
+
+        if loteria_id is not None:
+            row = await conn.fetchrow("""
+                SELECT id, route, nombre, pais_id
+                FROM loterias
+                WHERE id = $1
+                LIMIT 1
+            """, int(loteria_id))
+            if not row:
+                raise ValueError(f"La lotería con id={loteria_id} no existe")
+
+            canonical_route = (row['route'] or '').strip().lower()
+            accepted_routes = {canonical_route}
+            for alias_group in (
+                {'cloto', 'colorloto'},
+                {'baloto', 'bloto'},
+                {'miloto', 'mloto'},
+            ):
+                if canonical_route in alias_group:
+                    accepted_routes.update(alias_group)
+
+            if clean_route and canonical_route and clean_route not in accepted_routes:
+                raise ValueError(
+                    f"loteria_id={loteria_id} corresponde a route '{canonical_route}', "
+                    f"no a '{clean_route}'"
+                )
+            return row
+
+        if not clean_route:
+            return None
+
+        rows = await conn.fetch("""
+            SELECT id, route, nombre, pais_id
+            FROM loterias
+            WHERE LOWER(route) = $1
+               OR LOWER(nombre) = $1
+               OR REPLACE(LOWER(route), '_', ' ') = $1
+               OR REPLACE(LOWER(nombre), ' ', '_') = $1
+            ORDER BY id
+        """, clean_route)
+
+        if len(rows) > 1:
+            raise ValueError(
+                f"La route '{clean_route}' pertenece a varias loterías. "
+                "Debes enviar loteria_id para identificar el país/lotería exactos."
+            )
+        return rows[0] if rows else None
+
+    async def create_jugada(
+        self,
+        tipo: str,
+        user_id: int,
+        numeros: List[int],
+        fecha_sorteo: Optional[date],
+        fecha_guardado: datetime,
+        expira: datetime,
+        loteria_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = (tipo or "").strip().lower()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
-            # Buscar el loteria_id numérico en la tabla loterias
-            lot_row = await conn.fetchrow("""
-                SELECT id, route 
-                FROM loterias 
-                WHERE LOWER(route) = $1 
-                   OR LOWER(nombre) = $1
-                   OR REPLACE(LOWER(route), '_', ' ') = $1
-                   OR REPLACE(LOWER(nombre), ' ', '_') = $1
-                LIMIT 1;
-            """, loteria_route)
-            
-            loteria_id = lot_row['id'] if lot_row else None
+            lot_row = await self._resolve_lottery(conn, loteria_route, loteria_id)
+
+            resolved_loteria_id = lot_row['id'] if lot_row else loteria_id
             if lot_row and lot_row['route']:
-                loteria_route = lot_row['route'].lower()
+                loteria_route = lot_row['route'].strip().lower()
+
+            if not loteria_route:
+                raise ValueError("No se pudo determinar la route de la lotería")
 
             row = await conn.fetchrow("""
                 INSERT INTO jugadas (user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
+            """, user_id, resolved_loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
             d = dict(row)
             if d.get('fecha_sorteo'):
                 d['fecha_sorteo'] = str(d['fecha_sorteo'])
             return d
 
-    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_jugadas(
+        self,
+        tipo: str,
+        user_id: int,
+        fecha: Optional[str] = None,
+        loteria_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = (tipo or "").strip().lower()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
+
+            clean_date = None
             if fecha:
                 try:
                     clean_str = fecha.replace('"', '').replace("'", "").strip().split('T')[0]
                     clean_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
-                    rows = await conn.fetch("""
-                        SELECT id, user_id, loteria_id, loteria_route, numeros, 
-                               COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
-                               fecha_guardado, expira
-                        FROM jugadas
-                        WHERE user_id = $1
-                          AND ($2 = '' OR LOWER(loteria_route) = $2)
-                          AND (fecha_sorteo = $3 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $3 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $3)))
-                        ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                    """, user_id, loteria_route, clean_date)
                 except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
-                    rows = await conn.fetch("""
-                        SELECT id, user_id, loteria_id, loteria_route, numeros, 
-                               COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
-                               fecha_guardado, expira
-                        FROM jugadas
-                        WHERE user_id = $1
-                          AND ($2 = '' OR LOWER(loteria_route) = $2)
-                          AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                        ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                    """, user_id, loteria_route)
-            else:
-                rows = await conn.fetch("""
-                    SELECT id, user_id, loteria_id, loteria_route, numeros, 
-                           COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
-                           fecha_guardado, expira
-                    FROM jugadas
-                    WHERE user_id = $1
-                      AND ($2 = '' OR LOWER(loteria_route) = $2)
-                      AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                    ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                """, user_id, loteria_route)
-            
+                    logging.getLogger(__name__).warning(
+                        "Fecha de jugada inválida '%s': %s", fecha, e
+                    )
+
+            rows = await conn.fetch("""
+                SELECT id, user_id, loteria_id, loteria_route, numeros,
+                       COALESCE(fecha_sorteo, fecha_guardado::date) AS fecha_sorteo,
+                       fecha_guardado, expira
+                FROM jugadas
+                WHERE user_id = $1
+                  AND (
+                        ($2::int IS NOT NULL AND loteria_id = $2)
+                        OR
+                        ($2::int IS NULL AND ($3 = '' OR LOWER(loteria_route) = $3))
+                      )
+                  AND (
+                        $4::date IS NULL
+                        OR fecha_sorteo = $4
+                        OR (
+                            fecha_sorteo IS NULL
+                            AND (
+                                fecha_guardado::date = $4
+                                OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $4
+                            )
+                        )
+                      )
+                  AND (
+                        $4::date IS NOT NULL
+                        OR expira IS NULL
+                        OR expira >= CURRENT_TIMESTAMP
+                      )
+                ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
+            """, user_id, loteria_id, loteria_route, clean_date)
+
             res = []
             for r in rows:
                 d = dict(r)
@@ -129,29 +212,54 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 res.append(d)
             return res
 
-    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
+    async def delete_jugada(
+        self,
+        tipo: str,
+        jugada_id: int,
+        user_id: int,
+        loteria_id: Optional[int] = None,
+    ) -> bool:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = (tipo or "").strip().lower()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             result = await conn.execute("""
                 DELETE FROM jugadas
-                WHERE id = $1 AND user_id = $2 AND ($3 = '' OR LOWER(loteria_route) = $3)
-            """, jugada_id, user_id, loteria_route)
+                WHERE id = $1
+                  AND user_id = $2
+                  AND (
+                        ($3::int IS NOT NULL AND loteria_id = $3)
+                        OR
+                        ($3::int IS NULL AND ($4 = '' OR LOWER(loteria_route) = $4))
+                      )
+            """, jugada_id, user_id, loteria_id, loteria_route)
             return result == "DELETE 1"
 
-    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+    async def update_jugada(
+        self,
+        tipo: str,
+        jugada_id: int,
+        user_id: int,
+        numeros: List[int],
+        loteria_id: Optional[int] = None,
+    ) -> Optional[Dict[str, Any]]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = (tipo or "").strip().lower()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             numeros_clean = [int(n) for n in numeros]
             row = await conn.fetchrow("""
                 UPDATE jugadas
                 SET numeros = $1
-                WHERE id = $2 AND user_id = $3 AND ($4 = '' OR LOWER(loteria_route) = $4)
+                WHERE id = $2
+                  AND user_id = $3
+                  AND (
+                        ($4::int IS NOT NULL AND loteria_id = $4)
+                        OR
+                        ($4::int IS NULL AND ($5 = '' OR LOWER(loteria_route) = $5))
+                      )
                 RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, numeros_clean, jugada_id, user_id, loteria_route)
+            """, numeros_clean, jugada_id, user_id, loteria_id, loteria_route)
             if not row:
                 return None
             d = dict(row)
@@ -160,6 +268,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             return d
 
     async def list_active_lotteries(self, user_id: int) -> List[str]:
+        """Compatibilidad: devuelve routes activas, no la identidad canónica."""
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
@@ -172,6 +281,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             return [r['route'] for r in rows if r['route']]
 
     async def list_active_lotteries_counts(self, user_id: int) -> Dict[str, int]:
+        """Compatibilidad legacy por route. La pantalla nueva usa /mis_loterias_info."""
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
@@ -185,25 +295,36 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             return {r['route']: r['count'] for r in rows if r['route']}
 
     async def list_active_lotteries_info(self, user_id: int) -> Dict[str, Dict[str, Any]]:
+        """Devuelve jugadas agrupadas por loteria_id.
+
+        Las filas legacy sin loteria_id se conservan bajo `route:<route>` para
+        no inventar un país cuando una route es compartida.
+        """
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             rows = await conn.fetch("""
-                SELECT LOWER(loteria_route) AS route, 
+                SELECT j.loteria_id,
+                       LOWER(j.loteria_route) AS route,
                        COUNT(*)::int AS count,
-                       MAX(COALESCE(fecha_sorteo, fecha_guardado::date)) AS latest_fecha
-                FROM jugadas
-                WHERE user_id = $1
-                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                GROUP BY LOWER(loteria_route)
+                       MAX(COALESCE(j.fecha_sorteo, j.fecha_guardado::date)) AS latest_fecha
+                FROM jugadas j
+                WHERE j.user_id = $1
+                  AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                GROUP BY j.loteria_id, LOWER(j.loteria_route)
+                ORDER BY j.loteria_id NULLS LAST, LOWER(j.loteria_route)
             """, user_id)
-            return {
-                r['route']: {
+
+            result: Dict[str, Dict[str, Any]] = {}
+            for r in rows:
+                key = str(r['loteria_id']) if r['loteria_id'] is not None else f"route:{r['route']}"
+                result[key] = {
+                    'loteria_id': r['loteria_id'],
+                    'route': r['route'],
                     'count': r['count'],
-                    'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None
+                    'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None,
                 }
-                for r in rows if r['route']
-            }
+            return result
 
 
     @cached(ttl=300)

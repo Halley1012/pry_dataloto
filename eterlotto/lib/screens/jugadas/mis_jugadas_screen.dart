@@ -27,12 +27,14 @@ import 'package:shimmer/shimmer.dart';
 class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
   final String loteriaRoute;
+  final int? loteriaId;
   final bool soloProximos;
 
   const MisJugadasScreen({
     super.key,
     required this.loteriaNombre,
     required this.loteriaRoute,
+    this.loteriaId,
     this.soloProximos = true,
   });
 
@@ -146,6 +148,9 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       if (rawLoterias is! List) return false;
       final match = rawLoterias.cast<dynamic>().firstWhere((item) {
         if (item is! Map) return false;
+        if (widget.loteriaId != null) {
+          return item['id']?.toString() == widget.loteriaId.toString();
+        }
         return (item['route']?.toString().toLowerCase() ==
                 widget.loteriaRoute.toLowerCase()) ||
             (item['nombre']?.toString().toLowerCase() ==
@@ -183,6 +188,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final cacheKeyUser = CacheService.jugadasUsuarioKey(
       widget.loteriaRoute,
       uIdStr,
+      loteriaId: widget.loteriaId,
     );
 
     // La lista es privada, pero puede mostrarse aunque venza mientras el
@@ -207,6 +213,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     try {
       final response = await ApiService.listarJugadasGenerica(
         widget.loteriaRoute,
+        loteriaId: widget.loteriaId,
       );
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
         response,
@@ -316,7 +323,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     // 2. Sincronizar cache persistente en SharedPreferences de inmediato
     final uIdStr = _userId ?? "anon";
     await CacheService.setJson(
-      CacheService.jugadasUsuarioKey(widget.loteriaRoute, uIdStr),
+      CacheService.jugadasUsuarioKey(
+        widget.loteriaRoute,
+        uIdStr,
+        loteriaId: widget.loteriaId,
+      ),
       _jugadasList,
     );
 
@@ -324,7 +335,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     final results = await Future.wait(
       deletedIds.map(
         (id) =>
-            ApiService.borrarJugadaGenerica(widget.loteriaRoute, id, _userId!),
+            ApiService.borrarJugadaGenerica(
+              widget.loteriaRoute,
+              id,
+              _userId!,
+              loteriaId: widget.loteriaId,
+            ),
       ),
     );
 
@@ -344,11 +360,16 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _jugadasList = confirmedList;
         });
         await CacheService.setJson(
-          CacheService.jugadasUsuarioKey(widget.loteriaRoute, uIdStr),
+          CacheService.jugadasUsuarioKey(
+        widget.loteriaRoute,
+        uIdStr,
+        loteriaId: widget.loteriaId,
+      ),
           confirmedList,
         );
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: widget.loteriaRoute,
+          specificLotteryId: widget.loteriaId,
           userId: uIdStr,
           preserveRouteJugadas: true,
         );
@@ -628,17 +649,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         builder: (_) => ResultadosDashboardScreen(
           loteriaNombreInicial: widget.loteriaNombre,
           loteriaRoute: widget.loteriaRoute,
-          loteriaData: _config != null
-              ? {
-                  'nombre': _config!.nombre,
-                  'route': _config!.route,
-                  'max_seleccion': _config!.maxSeleccion,
-                  'max_balotas_blancas': _config!.maxBalotasBlancas,
-                  'max_balotas_rojas': _config!.maxBalotasRojas,
-                  'tiene_complementario': _config!.tieneComplementario,
-                  'tiene_reintegro': _config!.tieneReintegro,
-                }
-              : null,
+          loteriaData: _config?.toJson(),
         ),
       ),
     );
