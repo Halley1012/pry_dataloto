@@ -19,7 +19,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import '../../utils/screen_security_helper.dart';
-import '../loteria_screen.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 import '../estadisticas_dashboard_screen.dart';
 import '../resultados_dashboard_screen.dart';
 import 'package:shimmer/shimmer.dart';
