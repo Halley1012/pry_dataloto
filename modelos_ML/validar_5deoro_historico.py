@@ -1,0 +1,123 @@
+import sys
+from pathlib import Path
+from datetime import datetime, timedelta
+import pandas as pd
+from sqlalchemy import text
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from config.database import get_engine
+from src.cincodeoro.scraper import CincoDeOroScraper
+
+def validar_5deoro_historico():
+    print("=" * 50)
+    print("Iniciando Validación Histórica para 5 de Oro y Revancha (Uruguay)")
+    print("Lotería ID: 34 | 5 balotas (1..48) + Extra (1..48 para 5 de Oro, 0 para Revancha)")
+    print("=" * 50)
+
+    engine = get_engine()
+    with engine.connect() as conn:
+        total = conn.execute(text("SELECT COUNT(*) FROM resultados_5deoro")).scalar()
+        reales = conn.execute(text("SELECT COUNT(*) FROM resultados_5deoro WHERE balota1 > 0")).scalar()
+        placeholders = conn.execute(text("SELECT COUNT(*) FROM resultados_5deoro WHERE balota1 = 0")).scalar()
+        
+        print(f"\n📊 Total registros en BD: {total}")
+        print(f"  - Sorteos reales: {reales}")
+        print(f"  - Placeholders: {placeholders}")
+
+        if reales == 0:
+            print("❌ No hay sorteos reales en la base de datos.")
+            return False
+
+        # Desglose por modalidad
+        desglose = conn.execute(text("""
+            SELECT sorteo, COUNT(*) as total, 
+                   COUNT(*) FILTER (WHERE balota1 > 0) as reales,
+                   COUNT(*) FILTER (WHERE balota1 = 0) as ph
+            FROM resultados_5deoro
+            GROUP BY sorteo
+            ORDER BY sorteo ASC;
+        """)).fetchall()
+        for d in desglose:
+            print(f"  Modalidad '{d[0]}': {d[2]} reales, {d[3]} placeholders")
+
+        # Rango de fechas reales
+        min_max = conn.execute(text("""
+            SELECT MIN(fecha), MAX(fecha)
+            FROM resultados_5deoro
+            WHERE balota1 > 0
+        """)).fetchone()
+        print(f"\nRango fechas reales:\n  - Desde: {min_max[0]} hasta: {min_max[1]}")
+
+        # Duplicados
+        dups = conn.execute(text("""
+            SELECT fecha, sorteo, COUNT(*)
+            FROM resultados_5deoro
+            GROUP BY fecha, sorteo
+            HAVING COUNT(*) > 1;
+        """)).fetchall()
+        if dups:
+            print(f"❌ Se encontraron {len(dups)} duplicados por (fecha, sorteo):")
+            for d in dups[:5]:
+                print(f"   {d[0]} - {d[1]} (veces: {d[2]})")
+            return False
+        else:
+            print("✅ Cero duplicados en (fecha, sorteo)")
+
+        # Rangos de balotas
+        invalid_balls = conn.execute(text("""
+            SELECT fecha, sorteo, balota1, balota2, balota3, balota4, balota5, balotaroja
+            FROM resultados_5deoro
+            WHERE balota1 > 0 AND (
+                balota1 NOT BETWEEN 1 AND 48 OR
+                balota2 NOT BETWEEN 1 AND 48 OR
+                balota3 NOT BETWEEN 1 AND 48 OR
+                balota4 NOT BETWEEN 1 AND 48 OR
+                balota5 NOT BETWEEN 1 AND 48 OR
+                (sorteo = '5 de Oro' AND balotaroja NOT BETWEEN 1 AND 48) OR
+                (sorteo = 'Revancha' AND balotaroja != 0)
+            );
+        """)).fetchall()
+        if invalid_balls:
+            print(f"❌ Se encontraron {len(invalid_balls)} sorteos con balotas fuera de rango:")
+            for ib in invalid_balls[:5]:
+                print(f"   {ib}")
+            return False
+        else:
+            print("✅ Todas las balotas están en rango [1..48] y Bolilla Extra válida (1..48 en 5 de Oro, 0 en Revancha)")
+
+        # Placeholders
+        phs = conn.execute(text("""
+            SELECT fecha, sorteo, balota1, balota2, balota3, balota4, balota5, balotaroja, concurso
+            FROM resultados_5deoro
+            WHERE balota1 = 0
+            ORDER BY fecha ASC, sorteo ASC;
+        """)).fetchall()
+        print(f"\nPlaceholders encontrados ({len(phs)}):")
+        for ph in phs:
+            print(f"  - ({ph[0]} - {ph[1]}): Balotas=[{ph[2]}, {ph[3]}, {ph[4]}, {ph[5]}, {ph[6]}] | Extra={ph[7]}")
+
+    # Verificar con la fuente oficial (InfoUruguay)
+    print("\n➡️ Verificando sincronización con la fuente oficial (InfoUruguay)...")
+    scraper = CincoDeOroScraper()
+    fuente = scraper.extraer_ultimo_sorteo_fuente()
+    if fuente:
+        print(f"  Último en Fuente: {fuente['fecha']}")
+        ultimo_db = scraper.obtener_ultimo_sorteo_db()
+        print(f"  Último real en BD: {ultimo_db['fecha']}")
+        if str(fuente['fecha']) == str(ultimo_db['fecha']):
+            print("✅ La base de datos está perfectamente sincronizada con la fuente oficial!")
+        elif str(fuente['fecha']) < str(ultimo_db['fecha']):
+            print("ℹ️ BD tiene fechas posteriores a la fuente.")
+        else:
+            print("⚠️ Hay sorteos nuevos en la fuente pendientes de scraping.")
+
+    print("\n" + "=" * 50)
+    print("🎉 AUDITORÍA DE DATOS DE 5 DE ORO COMPLETADA")
+    print("=" * 50)
+    return True
+
+if __name__ == "__main__":
+    validar_5deoro_historico()
