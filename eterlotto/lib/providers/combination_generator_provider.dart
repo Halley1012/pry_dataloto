@@ -247,18 +247,15 @@ class CombinationGeneratorProvider with ChangeNotifier {
     if (_selectedLottery == null || _combinations.isEmpty) return false;
 
     bool allSuccess = true;
-    final rules = selectedLotteryRules;
-    final route = rules?.route ?? _selectedLottery!;
-    final lotId = rules?.dbId ?? int.tryParse(_selectedLottery!);
 
     // Las combinaciones generadas pertenecen al próximo sorteo mostrado
     // en las reglas de la lotería. Guardamos esa fecha para que Mis Jugadas
     // no las marque erróneamente con la fecha de hoy.
-    final rawNextDrawDate = rules?.proximoSorteo;
+    final rawNextDrawDate = selectedLotteryRules?.proximoSorteo;
     final String? nextDrawDate =
         rawNextDrawDate != null && rawNextDrawDate.trim().isNotEmpty
             ? ApiService.getProximoSorteoFecha(
-                route,
+                _selectedLottery!,
                 fechaPrediccion: rawNextDrawDate,
               )
             : null;
@@ -266,10 +263,9 @@ class CombinationGeneratorProvider with ChangeNotifier {
     for (final combo in _combinations) {
       try {
         await ApiService.crearJugadaGenerica(
-          route,
+          _selectedLottery!,
           combo.mainNumbers,
           userId,
-          loteriaId: lotId,
           specialNumbers: combo.specialNumbers,
           fechaSorteo: nextDrawDate,
         );

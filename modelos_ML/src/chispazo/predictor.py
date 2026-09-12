@@ -6,6 +6,9 @@ from pathlib import Path
 from xgboost import XGBClassifier
 from sqlalchemy import text
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
 
@@ -17,7 +20,7 @@ class ChispazoPredictor:
         self.loteria_route = 'chispazo'
 
     def cargar_datos(self) -> pd.DataFrame:
-        query = "SELECT * FROM resultados_chispazo ORDER BY fecha ASC;"
+        query = "SELECT * FROM resultados_chispazo ORDER BY concurso ASC;"
         with self.engine.connect() as conn:
             df = pd.read_sql(text(query), conn)
         return df
@@ -31,11 +34,13 @@ class ChispazoPredictor:
             return
 
         df['fecha'] = pd.to_datetime(df['fecha'])
-        df = df.sort_values('fecha').reset_index(drop=True)
+        df = df.sort_values('concurso').reset_index(drop=True)
 
         # La última fila es el sorteo futuro a predecir (balota1 == 0)
         proxima_fecha = df.iloc[-1]['fecha'].strftime('%Y-%m-%d')
-        print(f"Próximo sorteo a predecir para Chispazo: {proxima_fecha}")
+        proximo_concurso = df.iloc[-1]['concurso']
+        proxima_modalidad = df.iloc[-1].get('sorteo', 'Chispazo')
+        print(f"Próximo sorteo a predecir para Chispazo: #{proximo_concurso} ({proxima_modalidad}) - Fecha: {proxima_fecha}")
 
         # Separar histórico real
         df_real = df[df['balota1'] > 0].copy().reset_index(drop=True)
