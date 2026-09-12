@@ -250,13 +250,23 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     if (_selectedFilter == 'historial') {
       // Una lotería internacional se mueve aquí cuando su última jugada ya
       // pasó y el usuario no conserva otra para un sorteo futuro.
-      return source.where((lot) =>
-          !_isFromUserCountry(lot) && _pastPlayedRoutes.contains(_routeOf(lot))).toList();
+      return source.where((lot) {
+        final idStr = lot['id']?.toString();
+        final route = _routeOf(lot);
+        final hasMatch = (idStr != null && _pastPlayedRoutes.contains(idStr)) ||
+            _pastPlayedRoutes.contains(route);
+        return !_isFromUserCountry(lot) && hasMatch;
+      }).toList();
     }
     // El país del usuario siempre se mantiene visible; del resto del mundo
     // sólo se muestran las loterías donde aún hay una jugada pendiente.
-    return source.where((lot) =>
-        _isFromUserCountry(lot) || _activePlayedRoutes.contains(_routeOf(lot))).toList();
+    return source.where((lot) {
+      final idStr = lot['id']?.toString();
+      final route = _routeOf(lot);
+      final hasMatch = (idStr != null && _activePlayedRoutes.contains(idStr)) ||
+          _activePlayedRoutes.contains(route);
+      return _isFromUserCountry(lot) || hasMatch;
+    }).toList();
   }
 
   void _selectView(String view) {

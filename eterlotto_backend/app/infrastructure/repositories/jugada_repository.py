@@ -111,8 +111,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                                fecha_guardado, expira
                         FROM jugadas
                         WHERE user_id = $1
-                          AND ($2 = '' OR LOWER(loteria_route) = $2)
-                          AND ($3::int IS NULL OR loteria_id = $3::int)
+                          AND (
+                              ($3::int IS NOT NULL AND loteria_id = $3::int)
+                              OR
+                              ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
+                          )
                           AND (fecha_sorteo = $4 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $4 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $4)))
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                     """, user_id, loteria_route, loteria_id, clean_date)
@@ -124,8 +127,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                                fecha_guardado, expira
                         FROM jugadas
                         WHERE user_id = $1
-                          AND ($2 = '' OR LOWER(loteria_route) = $2)
-                          AND ($3::int IS NULL OR loteria_id = $3::int)
+                          AND (
+                              ($3::int IS NOT NULL AND loteria_id = $3::int)
+                              OR
+                              ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
+                          )
                           AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                     """, user_id, loteria_route, loteria_id)
@@ -136,8 +142,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                            fecha_guardado, expira
                     FROM jugadas
                     WHERE user_id = $1
-                      AND ($2 = '' OR LOWER(loteria_route) = $2)
-                      AND ($3::int IS NULL OR loteria_id = $3::int)
+                          AND (
+                              ($3::int IS NOT NULL AND loteria_id = $3::int)
+                              OR
+                              ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
+                          )
                       AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                     ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                 """, user_id, loteria_route, loteria_id)
@@ -191,28 +200,26 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             rows = await conn.fetch("""
-                SELECT DISTINCT j.loteria_id, LOWER(j.loteria_route) AS route
-                FROM jugadas j
-                WHERE j.user_id = $1
-                  AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                SELECT DISTINCT 
+                    COALESCE(loteria_id::text, LOWER(loteria_route)) AS identifier
+                FROM jugadas
+                WHERE user_id = $1
+                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
             """, user_id)
-            return [str(r['loteria_id']) if r['loteria_id'] is not None else r['route'] for r in rows if r['loteria_id'] is not None or r['route']]
+            return [r['identifier'] for r in rows if r['identifier']]
 
     async def list_active_lotteries_counts(self, user_id: int) -> Dict[str, int]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             rows = await conn.fetch("""
-                SELECT j.loteria_id, LOWER(j.loteria_route) AS route, COUNT(*)::int AS count
-                FROM jugadas j
-                WHERE j.user_id = $1
-                  AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
-                GROUP BY j.loteria_id, LOWER(j.loteria_route)
+                SELECT COALESCE(loteria_id::text, LOWER(loteria_route)) AS identifier, COUNT(*)::int AS count
+                FROM jugadas
+                WHERE user_id = $1
+                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
+                GROUP BY COALESCE(loteria_id::text, LOWER(loteria_route))
             """, user_id)
-            return {
-                (str(r['loteria_id']) if r['loteria_id'] is not None else r['route']): r['count']
-                for r in rows
-            }
+            return {r['identifier']: r['count'] for r in rows if r['identifier']}
 
     async def list_active_lotteries_info(self, user_id: int) -> Dict[str, Dict[str, Any]]:
         pool = db_connection.get_pool()
@@ -244,7 +251,9 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     'pais_id': r['pais_id'],
                     'nombre': r['nombre'],
                     'count': r['count'],
-                    'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None
+                    'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None,
+                    'loteria_id': r['loteria_id'],
+                    'route': r['route']
                 }
                 for r in rows if r['loteria_id'] is not None
             }
