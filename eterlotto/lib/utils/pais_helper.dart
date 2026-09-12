@@ -72,6 +72,24 @@ class PaisHelper {
     if (n.contains("alemania") || n.contains("germany")) {
       return "🇩🇪";
     }
+    if (n.contains("irlanda") || n.contains("ireland")) {
+      return "🇮🇪";
+    }
+    if (n.contains("luxemburgo") || n.contains("luxembourg")) {
+      return "🇱🇺";
+    }
+    if (n.contains("bélgica") || n.contains("belgica") || n.contains("belgium")) {
+      return "🇧🇪";
+    }
+    if (n.contains("austria") || n.contains("áustria")) {
+      return "🇦🇹";
+    }
+    if (n.contains("portugal")) {
+      return "🇵🇹";
+    }
+    if (n.contains("suiza") || n.contains("suíça") || n.contains("switzerland")) {
+      return "🇨🇭";
+    }
     if (n == "todos") {
       return "🌐";
     }
@@ -105,10 +123,57 @@ class PaisHelper {
     if (n.contains("francia") || n.contains("france")) return "FR";
     if (n.contains("italia") || n.contains("italy")) return "IT";
     if (n.contains("alemania") || n.contains("germany")) return "DE";
+    if (n.contains("irlanda") || n.contains("ireland")) return "IE";
+    if (n.contains("luxemburgo") || n.contains("luxembourg")) return "LU";
+    if (n.contains("bélgica") || n.contains("belgica") || n.contains("belgium")) return "BE";
+    if (n.contains("austria") || n.contains("áustria")) return "AT";
+    if (n.contains("portugal")) return "PT";
+    if (n.contains("suiza") || n.contains("suíça") || n.contains("switzerland")) return "CH";
     if (n.contains("honduras")) return "HN";
     if (n.contains("el salvador")) return "SV";
     if (n.contains("nicaragua")) return "NI";
+    if (n.contains("europa") || n.contains("europe") || n.contains("euromillones") || n.contains("euromillions") || n.contains("eurodreams")) return "EU";
     return "CO";
+  }
+
+  static String getPaisNameByRoute(String? routeOrName) {
+    final r = (routeOrName ?? "").toLowerCase().trim();
+    if (r.contains("5deoro") || r.contains("cincodeoro") || r.contains("uruguay")) return "Uruguay";
+    if (r.contains("bloto") || r.contains("baloto") || r.contains("mloto") || r.contains("miloto") || r.contains("cloto") || r.contains("colorloto") || r.contains("colombia")) return "Colombia";
+    if (r.contains("melate") || r.contains("chispazo") || r.contains("mexico") || r.contains("méxico") || r.contains("tris")) return "México";
+    if (r.contains("latinka") || r.contains("tinka") || r.contains("kabala") || r.contains("ganadiario") || r.contains("peru") || r.contains("perú")) return "Perú";
+    if (r.contains("megasena") || r.contains("quina") || r.contains("duplasena") || r.contains("maismilionaria") || r.contains("brasil") || r.contains("brazil") || r.contains("lotofacil")) return "Brasil";
+    // Estas loterías son compartidas entre varios países. La ruta identifica
+    // el juego/motor, no el país concreto. "Europa" queda solo como fallback.
+    if (r.contains("euromillones") || r.contains("euromillions") || r.contains("eurodreams") || r.contains("eurojackpot")) return "Europa";
+    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("espana") || r.contains("españa") || r.contains("spain")) return "España";
+    if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("cash4life")) return "Estados Unidos";
+    if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus") || r.contains("brinco")) return "Argentina";
+    if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "Chile";
+    if (r.contains("lotto_cr") || r.contains("costa_rica") || r.contains("costa rica") || r.contains("nuevos_tiempos") || r.contains("3monazos")) return "Costa Rica";
+    if (r.contains("dominicana") || r.contains("leidsa")) return "Dominicana";
+    if (r.contains("paraguay")) return "Paraguay";
+    if (r.contains("bolivia")) return "Bolivia";
+    if (r.contains("reino_unido") || r.contains("uk") || r.contains("national_lottery") || r.contains("thunderball")) return "Reino Unido";
+    if (r.contains("francia") || r.contains("loto_fr")) return "Francia";
+    if (r.contains("italia") || r.contains("superenalotto")) return "Italia";
+    if (r.contains("alemania")) return "Alemania";
+    if (r.contains("irlanda") || r.contains("ireland")) return "Irlanda";
+    if (r.contains("luxemburgo") || r.contains("luxembourg")) return "Luxemburgo";
+    if (r.contains("belgica") || r.contains("bélgica") || r.contains("belgium")) return "Bélgica";
+    if (r.contains("austria") || r.contains("áustria")) return "Austria";
+    if (r.contains("portugal")) return "Portugal";
+    if (r.contains("suiza") || r.contains("suíça") || r.contains("switzerland")) return "Suiza";
+    if (r.contains("ecuador") || r.contains("pozo_millonario") || r.contains("lotto_ecuador")) return "Ecuador";
+    
+    return "";
+  }
+
+  static bool isSharedEuropeanLottery(String? routeOrName) {
+    final r = (routeOrName ?? "").toLowerCase().trim();
+    return r.contains("euromillones") ||
+        r.contains("euromillions") ||
+        r.contains("eurodreams");
   }
 
   static String getDialCode(String nombre) {
@@ -138,6 +203,12 @@ class PaisHelper {
     if (n.contains("francia") || n.contains("france")) return "+33";
     if (n.contains("italia") || n.contains("italy")) return "+39";
     if (n.contains("alemania") || n.contains("germany")) return "+49";
+    if (n.contains("irlanda") || n.contains("ireland")) return "+353";
+    if (n.contains("luxemburgo") || n.contains("luxembourg")) return "+352";
+    if (n.contains("bélgica") || n.contains("belgica") || n.contains("belgium")) return "+32";
+    if (n.contains("austria") || n.contains("áustria")) return "+43";
+    if (n.contains("portugal")) return "+351";
+    if (n.contains("suiza") || n.contains("suíça") || n.contains("switzerland")) return "+41";
     if (n.contains("honduras")) return "+504";
     if (n.contains("el salvador")) return "+503";
     if (n.contains("nicaragua")) return "+505";
@@ -155,6 +226,12 @@ class PaisHelper {
       if (n.contains("brasil")) return "Brazil";
       if (n.contains("alemania")) return "Germany";
       if (n.contains("francia")) return "France";
+      if (n.contains("irlanda")) return "Ireland";
+      if (n.contains("luxemburgo")) return "Luxembourg";
+      if (n.contains("bélgica") || n.contains("belgica")) return "Belgium";
+      if (n.contains("austria") || n.contains("áustria")) return "Austria";
+      if (n.contains("portugal")) return "Portugal";
+      if (n.contains("suiza") || n.contains("suíça")) return "Switzerland";
       if (n.contains("reino unido") || n.contains("inglaterra")) return "United Kingdom";
       if (n == "todos" || n == "internacional") return "International";
     } else if (langCode == 'pt') {
@@ -166,6 +243,12 @@ class PaisHelper {
       if (n.contains("brasil")) return "Brasil";
       if (n.contains("alemania")) return "Alemanha";
       if (n.contains("francia")) return "França";
+      if (n.contains("irlanda")) return "Irlanda";
+      if (n.contains("luxemburgo")) return "Luxemburgo";
+      if (n.contains("bélgica") || n.contains("belgica")) return "Bélgica";
+      if (n.contains("austria") || n.contains("áustria")) return "Áustria";
+      if (n.contains("portugal")) return "Portugal";
+      if (n.contains("suiza") || n.contains("suíça")) return "Suíça";
       if (n.contains("reino unido")) return "Reino Unido";
       if (n == "todos" || n == "internacional") return "Internacional";
     }
@@ -220,7 +303,7 @@ class PaisHelper {
     if (r.contains("melate") || r.contains("chispazo") || r.contains("mexico") || r.contains("méxico")) return "MXN";
     if (r.contains("latinka") || r.contains("tinka") || r.contains("kabala") || r.contains("ganadiario") || r.contains("peru") || r.contains("perú")) return "PEN";
     if (r.contains("megasena") || r.contains("quina") || r.contains("duplasena") || r.contains("maismilionaria") || r.contains("brasil") || r.contains("brazil")) return "BRL";
-    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("euromillones") || r.contains("eurodreams") || r.contains("espana") || r.contains("españa") || r.contains("spain") || r.contains("francia") || r.contains("italia") || r.contains("alemania")) return "EUR";
+    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("euromillones") || r.contains("euromillions") || r.contains("eurodreams") || r.contains("espana") || r.contains("españa") || r.contains("spain") || r.contains("francia") || r.contains("italia") || r.contains("alemania") || r.contains("irlanda") || r.contains("ireland") || r.contains("luxemburgo") || r.contains("luxembourg") || r.contains("belgica") || r.contains("bélgica") || r.contains("belgium") || r.contains("austria") || r.contains("áustria") || r.contains("portugal") || r.contains("suiza") || r.contains("suíça") || r.contains("switzerland")) return "EUR";
     if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("panama") || r.contains("panamá") || r.contains("ecuador")) return "USD";
     if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus")) return "ARS";
     if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "CLP";

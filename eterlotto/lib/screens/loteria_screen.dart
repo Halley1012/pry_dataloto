@@ -1,9 +1,11 @@
 import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 import 'package:eterlotto/screens/estadisticas_dashboard_screen.dart';
 import 'package:eterlotto/screens/jugadas/mis_jugadas_screen.dart';
 import 'package:eterlotto/screens/resultados/historico_resultados_screen.dart';
@@ -23,319 +25,8 @@ import 'package:provider/provider.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
-import 'package:eterlotto/models/lottery_number_layout.dart';
 
 /// Configuración de reglas y límites de cada lotería
-class LoteriaConfig {
-  final int? loteriaId;
-  final int? paisId;
-  final String nombre;
-  final String route;
-  final int maxSeleccion;
-  final int maxBalotasBlancas;
-  final int maxBalotasRojas;
-  final String superbalotaNombre;
-  final bool hasRevancha;
-  final int totalBalotasSorteo;
-  final bool tieneComplementario;
-  final bool tieneReintegro;
-
-  const LoteriaConfig({
-    this.loteriaId,
-    this.paisId,
-    required this.nombre,
-    required this.route,
-    this.maxSeleccion = 5,
-    this.maxBalotasBlancas = 45,
-    this.maxBalotasRojas = 0,
-    this.superbalotaNombre = "Superbalota",
-    this.hasRevancha = false,
-    this.totalBalotasSorteo = 5,
-    this.tieneComplementario = false,
-    this.tieneReintegro = false,
-  });
-
-  bool get tieneBalotaRoja => cantidadEspeciales > 0;
-
-  /// Regla estructural única: principales, especiales y complementaria se
-  /// separan exclusivamente por posición.
-  LotteryNumberLayout get numberLayout => LotteryNumberLayout.fromConfig(
-        maxSeleccion: maxSeleccion,
-        totalBalotasSorteo: totalBalotasSorteo,
-        tieneComplementario: tieneComplementario,
-      );
-
-  int get cantidadEspeciales => numberLayout.specialCount;
-  int get cantidadComplementarias => numberLayout.complementaryCount;
-
-  Map<String, dynamic> toJson() {
-    final specialNumbersCount =
-        (totalBalotasSorteo - maxSeleccion - (tieneComplementario ? 1 : 0))
-                .clamp(0, totalBalotasSorteo)
-            as int;
-    return {
-      if (loteriaId != null) 'id': loteriaId,
-      if (loteriaId != null) 'loteria_id': loteriaId,
-      if (paisId != null) 'pais_id': paisId,
-      'nombre': nombre,
-      'route': route,
-      'max_seleccion': maxSeleccion,
-      'max_balotas_blancas': maxBalotasBlancas,
-      'max_balotas_rojas': maxBalotasRojas,
-      'special_numbers_count': specialNumbersCount,
-      'superbalota_nombre': superbalotaNombre,
-      'has_revancha': hasRevancha,
-      'total_balotas_sorteo': totalBalotasSorteo,
-      'tiene_complementario': tieneComplementario,
-      'tiene_reintegro': tieneReintegro,
-    };
-  }
-
-  LoteriaConfig copyWith({
-    int? loteriaId,
-    int? paisId,
-    String? nombre,
-    String? route,
-    int? maxSeleccion,
-    int? maxBalotasBlancas,
-    int? maxBalotasRojas,
-    String? superbalotaNombre,
-    bool? hasRevancha,
-    int? totalBalotasSorteo,
-    bool? tieneComplementario,
-    bool? tieneReintegro,
-  }) {
-    return LoteriaConfig(
-      loteriaId: loteriaId ?? this.loteriaId,
-      paisId: paisId ?? this.paisId,
-      nombre: nombre ?? this.nombre,
-      route: route ?? this.route,
-      maxSeleccion: maxSeleccion ?? this.maxSeleccion,
-      maxBalotasBlancas: maxBalotasBlancas ?? this.maxBalotasBlancas,
-      maxBalotasRojas: maxBalotasRojas ?? this.maxBalotasRojas,
-      superbalotaNombre: superbalotaNombre ?? this.superbalotaNombre,
-      hasRevancha: hasRevancha ?? this.hasRevancha,
-      totalBalotasSorteo: totalBalotasSorteo ?? this.totalBalotasSorteo,
-      tieneComplementario: tieneComplementario ?? this.tieneComplementario,
-      tieneReintegro: tieneReintegro ?? this.tieneReintegro,
-    );
-  }
-
-  /// Construye la configuración dinámicamente desde el mapa devuelto por el API / Base de Datos
-  static LoteriaConfig fromJson(
-    Map<String, dynamic> json, {
-    String? fallbackNombre,
-  }) {
-    final rawNombre = json["nombre"]?.toString() ?? fallbackNombre ?? "Lotería";
-    final rawRoute =
-        (json["route"] != null && json["route"].toString().isNotEmpty)
-        ? json["route"].toString().trim().toLowerCase()
-        : _inferRouteFromName(rawNombre);
-
-    final maxSel = json["max_seleccion"] != null
-        ? int.tryParse(json["max_seleccion"].toString())
-        : (json["maxSeleccion"] != null
-              ? int.tryParse(json["maxSeleccion"].toString())
-              : null);
-
-    final maxBlancas = json["max_balotas_blancas"] != null
-        ? int.tryParse(json["max_balotas_blancas"].toString())
-        : (json["max_balotas"] != null
-              ? int.tryParse(json["max_balotas"].toString())
-              : (json["maxBalotasBlancas"] != null
-                    ? int.tryParse(json["maxBalotasBlancas"].toString())
-                    : null));
-
-    final maxRojas = json["max_balotas_rojas"] != null
-        ? int.tryParse(json["max_balotas_rojas"].toString())
-        : (json["maxBalotasRojas"] != null
-              ? int.tryParse(json["maxBalotasRojas"].toString())
-              : null);
-
-    final superNombre =
-        json["superbalota_nombre"]?.toString() ??
-        json["superbalotaNombre"]?.toString();
-
-    final revancha =
-        json["has_revancha"] == true || json["hasRevancha"] == true;
-
-    final tieneComp =
-        json["tiene_complementario"] == true ||
-        json["tieneComplementario"] == true;
-
-    final tieneReintegro =
-        json["tiene_reintegro"] == true || json["tieneReintegro"] == true;
-
-    final specialCount = json["special_numbers_count"] != null
-        ? int.tryParse(json["special_numbers_count"].toString())
-        : (json["specialNumbersCount"] != null
-              ? int.tryParse(json["specialNumbersCount"].toString())
-              : null);
-    final int totalSorteoFallback =
-        (maxSel ?? 5) +
-        (specialCount ?? ((maxRojas ?? 0) > 0 ? 1 : 0)) +
-        (tieneComp ? 1 : 0);
-    final totalSorteo = json["total_balotas_sorteo"] != null
-        ? int.tryParse(json["total_balotas_sorteo"].toString())
-        : (json["totalBalotasSorteo"] != null
-              ? int.tryParse(json["totalBalotasSorteo"].toString())
-              : null);
-
-    final loteriaId = int.tryParse(
-      (json["loteria_id"] ?? json["id"])?.toString() ?? "",
-    );
-    final paisId = int.tryParse(json["pais_id"]?.toString() ?? "");
-
-    return LoteriaConfig(
-      loteriaId: loteriaId,
-      paisId: paisId,
-      nombre: rawNombre,
-      route: rawRoute,
-      maxSeleccion: maxSel ?? 5,
-      maxBalotasBlancas: maxBlancas ?? 45,
-      maxBalotasRojas: maxRojas ?? 0,
-      superbalotaNombre: superNombre ?? "Superbalota",
-      hasRevancha: revancha,
-      totalBalotasSorteo: totalSorteo ?? totalSorteoFallback,
-      tieneComplementario: tieneComp,
-      tieneReintegro: tieneReintegro,
-    );
-  }
-
-  /// Constructor fallback cuando solo se conoce el nombre o la ruta
-  static LoteriaConfig fromNombre(
-    String? nombreInput, {
-    String? routeOverride,
-  }) {
-    final t = (nombreInput ?? "Lotería").trim();
-    final cleanRoute = (routeOverride != null && routeOverride.isNotEmpty)
-        ? routeOverride.trim().toLowerCase()
-        : _inferRouteFromName(t);
-
-    final formattedName = t.isNotEmpty
-        ? t[0].toUpperCase() + t.substring(1)
-        : "Lotería";
-
-    final tieneComp =
-        cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
-    final tieneReintegro =
-        cleanRoute.contains("bonoloto") ||
-        cleanRoute.contains("primitiva") ||
-        cleanRoute.contains("el_gordo");
-    final int maxSel =
-        (cleanRoute.contains("kabala") ||
-            cleanRoute.contains("latinka") ||
-            cleanRoute.contains("tinka") ||
-            cleanRoute.contains("duplasena") ||
-            cleanRoute.contains("bonoloto") ||
-            cleanRoute.contains("primitiva") ||
-            cleanRoute.contains("cloto") ||
-            cleanRoute.contains("eurodreams") ||
-            cleanRoute.contains("megasena") ||
-            cleanRoute.contains("maismilionaria") ||
-            cleanRoute.contains("melate"))
-        ? 6
-        : 5;
-    final int maxRojas =
-        (cleanRoute.contains("lotto_cr") ||
-            cleanRoute.contains("ganadiario") ||
-            cleanRoute.contains("kabala") ||
-            cleanRoute.contains("duplasena") ||
-            cleanRoute.contains("quina") ||
-            cleanRoute.contains("chispazo") ||
-            cleanRoute.contains("mloto") ||
-            cleanRoute.contains("cloto") ||
-            cleanRoute.contains("megasena"))
-        ? 0
-        : (cleanRoute.contains("maismilionaria")
-              ? 6
-              : (cleanRoute.contains("5deoro") ||
-                        cleanRoute.contains("cincodeoro")
-                    ? 48
-                    : (cleanRoute.contains("latinka") ||
-                              cleanRoute.contains("tinka")
-                          ? 50
-                          : (cleanRoute.contains("melateretro") ||
-                                    cleanRoute.contains("retro")
-                                ? 39
-                                : (cleanRoute.contains("melate") ? 56 : 10)))));
-    final int maxBlancas = cleanRoute.contains("quina")
-        ? 80
-        : (cleanRoute.contains("megasena")
-              ? 60
-              : (cleanRoute.contains("duplasena") ||
-                        cleanRoute.contains("latinka") ||
-                        cleanRoute.contains("tinka")
-                    ? 50
-                    : (cleanRoute.contains("5deoro") ||
-                              cleanRoute.contains("cincodeoro")
-                          ? 48
-                          : (cleanRoute.contains("kabala") ||
-                                    cleanRoute.contains("lotto_cr")
-                                ? 40
-                                : (cleanRoute.contains("ganadiario")
-                                      ? 35
-                                      : (cleanRoute.contains("chispazo")
-                                            ? 28
-                                            : (cleanRoute.contains(
-                                                        "melateretro",
-                                                      ) ||
-                                                      cleanRoute.contains(
-                                                        "retro",
-                                                      )
-                                                  ? 39
-                                                  : (cleanRoute.contains(
-                                                          "melate",
-                                                        )
-                                                        ? 56
-                                                        : (cleanRoute.contains(
-                                                                "maismilionaria",
-                                                              )
-                                                              ? 50
-                                                              : 45)))))))));
-    final String sbNombre =
-        cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro")
-        ? "Bolilla Extra"
-        : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka")
-              ? "Boliyapa"
-              : (cleanRoute.contains("maismilionaria")
-                    ? "Tréboles"
-                    : (cleanRoute.contains("melate")
-                          ? "Adicional"
-                          : "Superbalota")));
-    final bool hasRev =
-        cleanRoute.contains("lotto_cr") ||
-        cleanRoute.contains("kabala") ||
-        cleanRoute.contains("5deoro") ||
-        cleanRoute.contains("cincodeoro") ||
-        cleanRoute.contains("duplasena") ||
-        (!cleanRoute.contains("retro") && cleanRoute.contains("melate")) ||
-        cleanRoute.contains("baloto") ||
-        cleanRoute.contains("bloto");
-    final int totalSorteo =
-        maxSel +
-        (maxRojas > 0 ? (cleanRoute.contains("maismilionaria") ? 2 : 1) : 0) +
-        (tieneComp ? 1 : 0);
-
-    return LoteriaConfig(
-      nombre: formattedName,
-      route: cleanRoute,
-      maxSeleccion: maxSel,
-      maxBalotasBlancas: maxBlancas,
-      maxBalotasRojas: maxRojas,
-      superbalotaNombre: sbNombre,
-      hasRevancha: hasRev,
-      totalBalotasSorteo: totalSorteo,
-      tieneComplementario: tieneComp,
-      tieneReintegro: tieneReintegro,
-    );
-  }
-
-  static String _inferRouteFromName(String t) {
-    return t.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
-  }
-}
-
 class LoteriaScreen extends StatefulWidget {
   final String loteriaNombre;
   final String? loteriaRoute;
@@ -372,6 +63,18 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   bool _dataRequestFailed = false;
   bool _showingStaleData = false;
 
+  // Personalización local del orden de los 4 accesos rápidos.
+  // Se guarda una sola vez para todas las loterías, igual que el orden del Home.
+  static const String _actionOrderStorageKey =
+      'eterlotto_lottery_action_order_v1';
+  static const List<String> _defaultActionOrder = <String>[
+    'generate',
+    'save',
+    'plays',
+    'stats',
+  ];
+  List<String> _actionOrder = List<String>.from(_defaultActionOrder);
+
   /// Compara números del mismo rol sin alterar la representación almacenada.
   /// Al ordenar copias se conservan las repeticiones: no se usa Set porque un
   /// número principal y uno especial pueden tener el mismo valor.
@@ -391,6 +94,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   String? fechaPrediccion;
   String? userId;
   String? _jackpot;
+  String? _paisNombre;
   String _selectedResultadosTab = "";
 
   late AnimationController _bounceController;
@@ -402,6 +106,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   void initState() {
     super.initState();
     ScreenSecurityHelper.enableSecureScreen();
+    _restoreActionOrder();
     if (widget.loteriaData != null) {
       config = LoteriaConfig.fromJson(
         widget.loteriaData!,
@@ -417,6 +122,9 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         routeOverride: widget.loteriaRoute,
       );
     }
+
+    _paisNombre = config.paisNombre;
+    _resolverPaisLoteria();
     _cargarDataOptimizado();
 
     _bounceController = AnimationController(
@@ -442,6 +150,66 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     DataRefreshManager.instance.refreshNotifier.addListener(
       _onDataRefreshNotification,
     );
+  }
+
+  /// Resuelve el país real de la lotería por `pais_id`. Esto es obligatorio
+  /// para juegos compartidos (Euromillions/EuroDreams), porque `route` identifica
+  /// el motor y no el país desde el que el usuario abrió la lotería.
+  Future<void> _resolverPaisLoteria() async {
+    if ((_paisNombre ?? '').trim().isNotEmpty) return;
+
+    final paisId = config.paisId;
+    if (paisId == null) return;
+
+    String? resolvedName;
+
+    try {
+      final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+      if (cachedPaises is List) {
+        for (final item in cachedPaises) {
+          if (item is Map && item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+
+      if ((resolvedName ?? '').isEmpty) {
+        final paises = await ApiService.getPaises();
+        for (final item in paises) {
+          if (item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+    } catch (_) {
+      // Si falla la resolución, se conserva el fallback para loterías exclusivas.
+    }
+
+    if (!mounted || (resolvedName ?? '').isEmpty) return;
+
+    setState(() {
+      _paisNombre = resolvedName;
+      config = config.copyWith(paisNombre: resolvedName);
+    });
+  }
+
+  String get _paisJackpotNombre {
+    final explicit = (_paisNombre ?? config.paisNombre ?? '').trim();
+    if (explicit.isNotEmpty) return explicit;
+
+    // Para una lotería compartida es preferible no mostrar una bandera incorrecta
+    // mientras resolvemos `pais_id`, en vez de inferir "Europa" desde la route.
+    if (PaisHelper.isSharedEuropeanLottery(config.route)) return '';
+
+    return PaisHelper.getPaisNameByRoute(config.route);
+  }
+
+  String get _paisJackpotIso {
+    final pais = _paisJackpotNombre;
+    if (pais.isEmpty) return '';
+    return PaisHelper.getIsoCode(pais).trim().toLowerCase();
   }
 
   @override
@@ -1539,6 +1307,8 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Widget _buildHeader(AppLocalizations? l10n) {
+    final jackpotIso = _paisJackpotIso;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1593,6 +1363,16 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            image: jackpotIso.isNotEmpty
+                ? DecorationImage(
+                    image: NetworkImage(
+                      'https://flagcdn.com/w320/$jackpotIso.png',
+                    ),
+                    fit: BoxFit.cover,
+                    opacity: 0.40,
+                    onError: (_, __) {},
+                  )
+                : null,
           ),
           child: Builder(
             builder: (context) {
@@ -1614,7 +1394,8 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                   Text(
                     l10n?.jackpotEstimado ?? "Jackpot estimado",
                     style: AppTextStyles.caption.copyWith(
-                      color: Colors.white38,
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
                       fontSize: 9.5,
                     ),
                     maxLines: 1,
@@ -1638,7 +1419,8 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                     Text(
                       parts["label"]!,
                       style: AppTextStyles.caption.copyWith(
-                        color: Colors.white38,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
                         fontSize: 9.5,
                       ),
                       maxLines: 1,
@@ -2122,26 +1904,120 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     );
   }
 
+  Future<void> _restoreActionOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedOrder = prefs.getStringList(_actionOrderStorageKey);
+      if (savedOrder == null || savedOrder.isEmpty) return;
+
+      final isValid =
+          savedOrder.length == _defaultActionOrder.length &&
+          savedOrder.toSet().length == _defaultActionOrder.length &&
+          savedOrder.every(_defaultActionOrder.contains);
+
+      if (!isValid || !mounted) return;
+      setState(() => _actionOrder = List<String>.from(savedOrder));
+    } catch (_) {
+      // Es una preferencia visual: si falla, mantenemos el orden por defecto.
+    }
+  }
+
+  Future<void> _persistActionOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_actionOrderStorageKey, _actionOrder);
+    } catch (_) {
+      // El menú sigue funcionando aunque no pueda persistirse localmente.
+    }
+  }
+
+  void _reorderAction(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) return;
+
+    setState(() {
+      final moved = _actionOrder.removeAt(oldIndex);
+      _actionOrder.insert(newIndex, moved);
+    });
+    _persistActionOrder();
+  }
+
   Widget _buildActionGrid(AppLocalizations? l10n) {
-    return Row(
-      children: [
-        _buildActionTile(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 8.0;
+        final itemWidth = (constraints.maxWidth - (gap * 3)) / 4;
+
+        return SizedBox(
+          height: 76,
+          child: ReorderableListView.builder(
+            scrollDirection: Axis.horizontal,
+            buildDefaultDragHandles: false,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _actionOrder.length,
+            onReorder: _reorderAction,
+            proxyDecorator: (child, index, animation) {
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, _) {
+                  final scale = 1.0 + (0.04 * animation.value);
+                  return Transform.scale(
+                    scale: scale,
+                    child: Material(
+                      color: Colors.transparent,
+                      elevation: 0,
+                      child: child,
+                    ),
+                  );
+                },
+              );
+            },
+            itemBuilder: (context, index) {
+              final actionId = _actionOrder[index];
+              final isLast = index == _actionOrder.length - 1;
+
+              return SizedBox(
+                key: ValueKey<String>('lottery_action_$actionId'),
+                width: itemWidth + (isLast ? 0 : gap),
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : gap),
+                  child: ReorderableDelayedDragStartListener(
+                    index: index,
+                    child: _buildActionById(actionId, l10n),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionById(String actionId, AppLocalizations? l10n) {
+    switch (actionId) {
+      case 'generate':
+        return _buildActionTile(
           icon: Icons.auto_awesome_outlined,
-          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ??
+              "Generar\nJugada",
           onTap: _generarAleatorios,
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'save':
+        return _buildActionTile(
           icon: Icons.bookmark_add_outlined,
           label: isSaving
               ? (l10n?.guardando ?? "Guardando...")
               : (l10n?.guardarJugada.replaceAll(" ", "\n") ??
-                    "Guardar\nJugada"),
+                  "Guardar\nJugada"),
           onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'plays':
+        return _buildActionTile(
           icon: Icons.bookmarks_outlined,
           label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
           onTap: () async {
@@ -2159,15 +2035,16 @@ class _LoteriaScreenState extends State<LoteriaScreen>
               await _loadJugadas();
             }
           },
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'stats':
+      default:
+        return _buildActionTile(
           icon: Icons.bar_chart,
           label: l10n?.estadisticas ?? "Estadísticas",
           onTap: _navigateToEstadisticas,
-        ),
-      ],
-    );
+        );
+    }
   }
 
   Widget _buildActionTile({
@@ -2177,51 +2054,50 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     bool isLoading = false,
   }) {
     final bool disabled = onTap == null || isLoading;
-    return Expanded(
-      child: GestureDetector(
-        onTap: disabled ? null : onTap,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: disabled ? 0.5 : 1.0,
-          child: Container(
-            height: 76,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05),
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: disabled ? null : onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: disabled ? 0.5 : 1.0,
+        child: Container(
+          height: 76,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isLoading)
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.yellow,
-                    ),
-                  )
-                else
-                  Icon(icon, color: AppColors.yellow, size: 22),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    height: 1.1,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.yellow,
                   ),
+                )
+              else
+                Icon(icon, color: AppColors.yellow, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
