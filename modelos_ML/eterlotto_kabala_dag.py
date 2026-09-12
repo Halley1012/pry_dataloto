@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_kabala',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Kábala usando main_kabala.py',
-    schedule='0 3 * * 0,3,5', # Miércoles, Viernes y Domingos a las 3:00 AM (tras sorteos de Martes, Jueves y Sábados)
+    schedule='0 3 * * *', # Miércoles, Viernes y Domingos a las 3:00 AM (tras sorteos de Martes, Jueves y Sábados)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'kabala', 'peru', 'pe', 'ml']

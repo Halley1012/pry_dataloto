@@ -33,11 +33,40 @@ def main():
     print("==================================================")
     print(f"Iniciando orquestación: Lotería=Double Play | Tarea={task}")
     print("==================================================")
-
+    # 1. Ejecutar scraping
     if task in ["scrap", "all"]:
         try:
             scraper_inst = DoublePlayScraper()
-            scraper_inst.run()
+            res_scrap = scraper_inst.run()
+
+            hubo_sorteo = True
+            ultimo_sorteo = None
+            proximo_esperado = None
+
+            if isinstance(res_scrap, dict):
+                hubo_sorteo = res_scrap.get("hubo_sorteo", True)
+                ultimo_sorteo = res_scrap.get("ultimo_sorteo")
+                proximo_esperado = res_scrap.get("proximo_esperado")
+            elif isinstance(res_scrap, tuple):
+                hubo_sorteo = res_scrap[0]
+                if len(res_scrap) > 1:
+                    ultimo_sorteo = res_scrap[1]
+                if len(res_scrap) > 2:
+                    proximo_esperado = res_scrap[2]
+            elif res_scrap is False:
+                hubo_sorteo = False
+
+            if hubo_sorteo is False:
+                print("\n==================================================")
+                print("ℹ️ No hay sorteo nuevo para procesar en Double Play.")
+                if ultimo_sorteo:
+                    print(f"📅 Último sorteo: {ultimo_sorteo}")
+                if proximo_esperado:
+                    print(f"🎯 Próximo sorteo esperado: {proximo_esperado}")
+                print("✅ Finalizando ejecución con éxito (código 0).")
+                print("==================================================\n")
+                return
+
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para Double Play: {e}")
             sys.exit(1)

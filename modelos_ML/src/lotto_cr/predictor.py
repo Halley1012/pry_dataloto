@@ -1,4 +1,6 @@
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -36,26 +38,30 @@ class LottoCostaRicaPredictor:
         proxima_fecha = df.iloc[-1]['fecha'].strftime('%Y-%m-%d')
         print(f"Próximo sorteo a predecir para Lotto CR: {proxima_fecha}")
 
-        df_real = df[df['balota1'] > 0].copy().reset_index(drop=True)
+        is_ph = (df['balota1'] == 0) & (df['balota2'] == 0) & (df['balota3'] == 0) & (df['balota4'] == 0) & (df['balota5'] == 0)
+        df_real = df[~is_ph].copy().reset_index(drop=True)
         if len(df_real) < 10:
             print("⚠️ Insuficientes sorteos reales para entrenar.")
             return
 
         # -------------------------------------------------------------
-        # 1. Matriz de Balotas Principales (1 a 40)
+        # 1. Matriz de Balotas Principales (0 a 40)
         # -------------------------------------------------------------
         binary_dict = {}
-        for i in range(1, self.max_balota + 1):
-            binary_dict[f'b_{i}'] = (
+        for i in range(0, self.max_balota + 1):
+            b_match = (
                 (df['balota1'] == i) |
                 (df['balota2'] == i) |
                 (df['balota3'] == i) |
                 (df['balota4'] == i) |
                 (df['balota5'] == i)
-            ).astype(int)
+            )
+            if i == 0:
+                b_match = b_match & ~is_ph
+            binary_dict[f'b_{i}'] = b_match.astype(int)
 
         df_b = pd.concat([df, pd.DataFrame(binary_dict, index=df.index)], axis=1)
-        cols_balotas = [f'b_{i}' for i in range(1, self.max_balota + 1)]
+        cols_balotas = [f'b_{i}' for i in range(0, self.max_balota + 1)]
 
         feat_dict = {
             'dia_semana': df_b['fecha'].dt.dayofweek,
@@ -79,7 +85,7 @@ class LottoCostaRicaPredictor:
 
         # Entrenar clasificadores para cada balota
         probabilidades = {}
-        for i in range(1, self.max_balota + 1):
+        for i in range(0, self.max_balota + 1):
             target_col = f'b_{i}'
             y_train = df_b.iloc[train_idx][target_col]
 

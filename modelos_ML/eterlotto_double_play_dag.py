@@ -97,7 +97,7 @@ with DAG(
     'eterlotto_ejecucion_double_play',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Double Play usando main_double_play.py',
-    schedule='0 3 * * 2,4,7', # Martes, Jueves y Domingo
+    schedule='0 3 * * *', # Martes, Jueves y Domingo
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'double_play'],

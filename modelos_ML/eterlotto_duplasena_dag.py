@@ -99,7 +99,7 @@ with DAG(
     'eterlotto_ejecucion_duplasena',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Dupla Sena usando main_duplasena.py',
-    schedule='0 3 * * 2,4,6', # Martes, Jueves y Sábados a las 3:00 AM (tras sorteos de Lunes, Miércoles y Viernes)
+    schedule='0 3 * * *', # Martes, Jueves y Sábados a las 3:00 AM (tras sorteos de Lunes, Miércoles y Viernes)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'duplasena', 'brasil', 'br', 'ml']

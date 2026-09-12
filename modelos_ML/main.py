@@ -37,10 +37,10 @@ from src.el_gordo.scraper import ElGordoScraper
 from src.el_gordo.predictor import ElGordoPredictor
 from src.euromillones.scraper import EuromillonesScraper
 from src.euromillones.predictor import EuromillonesPredictor
-from src.eurodreams.scraper import EuroDreamsScraper
-from src.eurodreams.predictor import EuroDreamsPredictor
-from src.megasena.scraper import MegaSenaScraper
-from src.megasena.predictor import MegaSenaPredictor
+from src.eurodreams.scraper import EurodreamsScraper
+from src.eurodreams.predictor import EurodreamsPredictor
+from src.megasena.scraper import MegasenaScraper
+from src.megasena.predictor import MegasenaPredictor
 from src.maismilionaria.scraper import MaisMilionariaScraper
 from src.maismilionaria.predictor import MaisMilionariaPredictor
 from src.duplasena.scraper import DuplaSenaScraper
@@ -53,22 +53,16 @@ from src.melateretro.scraper import MelateRetroScraper
 from src.melateretro.predictor import MelateRetroPredictor
 from src.chispazo.scraper import ChispazoScraper
 from src.chispazo.predictor import ChispazoPredictor
-from src.latinka.scraper import LaTinkaScraper
-from src.latinka.predictor import LaTinkaPredictor
+from src.latinka.scraper import LatinkaScraper
+from src.latinka.predictor import LatinkaPredictor
 from src.kabala.scraper import KabalaScraper
 from src.kabala.predictor import KabalaPredictor
-from src.ganadiario.scraper import GanaDiarioScraper
-from src.ganadiario.predictor import GanaDiarioPredictor
+from src.ganadiario.scraper import GanadiarioScraper
+from src.ganadiario.predictor import GanadiarioPredictor
 from src.cincodeoro.scraper import CincoDeOroScraper
 from src.cincodeoro.predictor import CincoDeOroPredictor
 from src.lotto_cr.scraper import LottoCostaRicaScraper
 from src.lotto_cr.predictor import LottoCostaRicaPredictor
-from src.lotto_fr.scraper import LottoFrScraper
-from src.lotto_fr.predictor import LottoFrPredictor
-from src.totoloto.scraper import TotolotoScraper
-from src.totoloto.predictor import TotolotoPredictor
-from src.thunderball.scraper import ThunderballScraper
-from src.thunderball.predictor import ThunderballPredictor
 
 from src.notification_generator import NotificationGenerator
 
@@ -84,7 +78,7 @@ def main():
             "megasena", "maismilionaria", "duplasena", "quina",
             "melate", "melateretro", "chispazo",
             "latinka", "kabala", "ganadiario",
-            "5deoro", "lotto_cr", "lotto_fr", "totoloto", "thunderball", "all"
+            "5deoro", "lotto_cr", "all"
         ],
         help="El nombre de la lotería a procesar (default: all)"
     )
@@ -119,22 +113,19 @@ def main():
         "primitiva": PrimitivaScraper,
         "el_gordo": ElGordoScraper,
         "euromillones": EuromillonesScraper,
-        "eurodreams": EuroDreamsScraper,
-        "megasena": MegaSenaScraper,
+        "eurodreams": EurodreamsScraper,
+        "megasena": MegasenaScraper,
         "maismilionaria": MaisMilionariaScraper,
         "duplasena": DuplaSenaScraper,
         "quina": QuinaScraper,
         "melate": MelateScraper,
         "melateretro": MelateRetroScraper,
         "chispazo": ChispazoScraper,
-        "latinka": LaTinkaScraper,
+        "latinka": LatinkaScraper,
         "kabala": KabalaScraper,
-        "ganadiario": GanaDiarioScraper,
+        "ganadiario": GanadiarioScraper,
         "5deoro": CincoDeOroScraper,
         "lotto_cr": LottoCostaRicaScraper,
-        "lotto_fr": LottoFrScraper,
-        "totoloto": TotolotoScraper,
-        "thunderball": ThunderballScraper,
     }
     predictors = {
         "miloto": MilotoPredictor,
@@ -148,22 +139,19 @@ def main():
         "primitiva": PrimitivaPredictor,
         "el_gordo": ElGordoPredictor,
         "euromillones": EuromillonesPredictor,
-        "eurodreams": EuroDreamsPredictor,
-        "megasena": MegaSenaPredictor,
+        "eurodreams": EurodreamsPredictor,
+        "megasena": MegasenaPredictor,
         "maismilionaria": MaisMilionariaPredictor,
         "duplasena": DuplaSenaPredictor,
         "quina": QuinaPredictor,
         "melate": MelatePredictor,
         "melateretro": MelateRetroPredictor,
         "chispazo": ChispazoPredictor,
-        "latinka": LaTinkaPredictor,
+        "latinka": LatinkaPredictor,
         "kabala": KabalaPredictor,
-        "ganadiario": GanaDiarioPredictor,
+        "ganadiario": GanadiarioPredictor,
         "5deoro": CincoDeOroPredictor,
         "lotto_cr": LottoCostaRicaPredictor,
-        "lotto_fr": LottoFrPredictor,
-        "totoloto": TotolotoPredictor,
-        "thunderball": ThunderballPredictor,
     }
     
     # Determine which lotteries to process (default "all" runs every configured lottery)
@@ -181,9 +169,15 @@ def main():
                 # Check if run supports backfill argument
                 import inspect
                 if 'backfill' in inspect.signature(scraper_inst.run).parameters:
-                    scraper_inst.run(backfill=backfill)
+                    hubo_sorteo = scraper_inst.run(backfill=backfill)
+                    if hubo_sorteo is False:
+                        print(f'No hay sorteo nuevo para {loteria}. Saltando.')
+                        continue
                 else:
-                    scraper_inst.run()
+                    hubo_sorteo = scraper_inst.run()
+                    if hubo_sorteo is False:
+                        print(f'No hay sorteo nuevo para {loteria}. Saltando.')
+                        continue
             except Exception as e:
                 print(f"❌ Falló la tarea de scraping para {loteria}: {e}")
                 sys.exit(1)

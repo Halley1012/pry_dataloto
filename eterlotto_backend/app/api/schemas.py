@@ -34,18 +34,14 @@ class UpdateUser(BaseModel):
 class JugadaCreate(BaseModel):
     numeros: List[int]
     user_id: str
-    loteria_id: Optional[int] = None
     loteria_route: Optional[str] = None
-    loteria_id: Optional[int] = None
     fecha_sorteo: Optional[str] = None
     fecha: Optional[str] = None
 
 class JugadaUpdate(BaseModel):
     numeros: List[int]
     user_id: str
-    loteria_id: Optional[int] = None
     loteria_route: Optional[str] = None
-    loteria_id: Optional[int] = None
 
 class JugadaOut(BaseModel):
     id: int
