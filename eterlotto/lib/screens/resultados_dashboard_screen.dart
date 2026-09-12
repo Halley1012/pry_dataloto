@@ -25,7 +25,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/screens/resultados/historico_resultados_screen.dart';
-import 'package:eterlotto/screens/loteria_screen.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 
 class ResultadosDashboardScreen extends StatefulWidget {
   final String loteriaNombreInicial;
