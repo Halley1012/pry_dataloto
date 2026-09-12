@@ -178,6 +178,13 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
   }
 
+
+  int? get _loteriaId => int.tryParse(
+        (widget.loteriaData?['loteria_id'] ?? widget.loteriaData?['id'])
+                ?.toString() ??
+            '',
+      );
+
   String _getRouteForLoteria(String name) {
     if (widget.loteriaRoute != null && widget.loteriaRoute!.isNotEmpty) {
       return widget.loteriaRoute!.trim().toLowerCase();
@@ -242,7 +249,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     try {
       final route = _getRouteForLoteria(loteriaName);
       // Petición 100% genérica para cualquier lotería actual o futura
-      final raw = await ApiService.listarJugadasGenerica(route, fecha: fecha);
+      final raw = await ApiService.listarJugadasGenerica(
+        route,
+        fecha: fecha,
+        loteriaId: _loteriaId,
+      );
       return List<Map<String, dynamic>>.from(raw);
     } catch (_) {
       return [];
@@ -259,8 +270,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final userId = (await ApiService.getUserId())?.toString() ?? 'anon';
     // Una consulta dirigida a un sorteo histórico no puede reutilizar el
     // resultado de la última fecha (ni viceversa).
+    final lotteryIdentity = _loteriaId != null
+        ? 'id_${_loteriaId}_$route'
+        : 'route_$route';
     final cacheKey =
-        'resultados_dashboard_cache_v10_${route}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
+        'resultados_dashboard_cache_v11_${lotteryIdentity}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
     // 1. SWR: el payload es privado por usuario, pero sigue siendo válido
     // para esa misma sesión aunque haya vencido mientras llega la red.

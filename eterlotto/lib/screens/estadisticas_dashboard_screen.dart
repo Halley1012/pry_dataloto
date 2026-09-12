@@ -51,6 +51,7 @@ class _EstadisticasDashboardScreenState
   int touchedPieIndexBajos = -1;
 
   late final String routeName;
+  late final int? loteriaId;
   late int maxBalota;
   late int maxRoja;
   late int maxSeleccion;
@@ -97,6 +98,13 @@ class _EstadisticasDashboardScreenState
         widget.loteriaRoute ??
         (widget.loteriaData?['route']?.toString()) ??
         _getRouteForLoteria(widget.loteriaNombreInicial);
+    loteriaId = int.tryParse(
+      (widget.loteriaData?['loteria_id'] ??
+                  widget.loteriaData?['id'] ??
+                  widget.jugadaComparacion?['loteria_id'])
+              ?.toString() ??
+          '',
+    );
     maxBalota =
         int.tryParse(
           widget.loteriaData?['max_balotas_blancas']?.toString() ?? '',
@@ -1143,6 +1151,7 @@ class _EstadisticasDashboardScreenState
           _jugadaId!,
           sortedWhites,
           userId,
+          loteriaId: loteriaId,
           specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
         );
@@ -1152,6 +1161,7 @@ class _EstadisticasDashboardScreenState
           routeName,
           sortedWhites,
           userId,
+          loteriaId: loteriaId,
           specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
         );

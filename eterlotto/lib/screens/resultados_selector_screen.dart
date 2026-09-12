@@ -34,6 +34,8 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   String? _userCountryId;
   Set<String> _activePlayedRoutes = <String>{};
   Set<String> _pastPlayedRoutes = <String>{};
+  Set<String> _activePlayedLotteryIds = <String>{};
+  Set<String> _pastPlayedLotteryIds = <String>{};
   bool _isLoading = true;
   String _selectedFilter = 'recientes';
 
@@ -95,6 +97,8 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           _userCountryId = uCountryId;
           _activePlayedRoutes = <String>{};
           _pastPlayedRoutes = <String>{};
+          _activePlayedLotteryIds = <String>{};
+          _pastPlayedLotteryIds = <String>{};
           _loterias = cachedWithResults;
           _filteredLoterias = _filterBySelectedView(_loterias);
           if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
@@ -209,14 +213,28 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   void _setPlayedRoutes(Map<String, Map<String, dynamic>> userPlays) {
     _activePlayedRoutes = <String>{};
     _pastPlayedRoutes = <String>{};
+    _activePlayedLotteryIds = <String>{};
+    _pastPlayedLotteryIds = <String>{};
+
     for (final entry in userPlays.entries) {
-      final route = entry.key.trim().toLowerCase();
-      if (route.isEmpty) continue;
-      final drawDate = entry.value['fecha']?.toString();
-      if (_drawDayDifference(drawDate) >= 0) {
-        _activePlayedRoutes.add(route);
-      } else {
-        _pastPlayedRoutes.add(route);
+      final info = entry.value;
+      final route = (info['route']?.toString() ??
+              (entry.key.startsWith('route:')
+                  ? entry.key.substring('route:'.length)
+                  : (int.tryParse(entry.key) == null ? entry.key : '')))
+          .trim()
+          .toLowerCase();
+      final loteriaId = (info['loteria_id']?.toString() ??
+              (int.tryParse(entry.key) != null ? entry.key : ''))
+          .trim();
+      final drawDate = info['fecha']?.toString();
+      final isActive = _drawDayDifference(drawDate) >= 0;
+
+      if (loteriaId.isNotEmpty) {
+        (isActive ? _activePlayedLotteryIds : _pastPlayedLotteryIds)
+            .add(loteriaId);
+      } else if (route.isNotEmpty) {
+        (isActive ? _activePlayedRoutes : _pastPlayedRoutes).add(route);
       }
     }
   }
@@ -245,16 +263,37 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   List<Map<String, dynamic>> _filterBySelectedView(
     List<Map<String, dynamic>> source,
   ) {
-    if (_selectedFilter == 'historial') {
-      // Una lotería internacional se mueve aquí cuando su última jugada ya
-      // pasó y el usuario no conserva otra para un sorteo futuro.
-      return source.where((lot) =>
-          !_isFromUserCountry(lot) && _pastPlayedRoutes.contains(_routeOf(lot))).toList();
+    final routeCounts = <String, int>{};
+    for (final lot in source) {
+      final route = _routeOf(lot);
+      routeCounts[route] = (routeCounts[route] ?? 0) + 1;
     }
-    // El país del usuario siempre se mantiene visible; del resto del mundo
-    // sólo se muestran las loterías donde aún hay una jugada pendiente.
-    return source.where((lot) =>
-        _isFromUserCountry(lot) || _activePlayedRoutes.contains(_routeOf(lot))).toList();
+
+    bool matchesPlay(
+      Map<String, dynamic> lot,
+      Set<String> ids,
+      Set<String> legacyRoutes,
+    ) {
+      final id = lot['id']?.toString();
+      if (id != null && ids.contains(id)) return true;
+      final route = _routeOf(lot);
+      // Un route legacy compartido no identifica el país y por tanto no debe
+      // expandirse a todas las tarjetas de Euromillions/EuroDreams.
+      return (routeCounts[route] ?? 0) == 1 && legacyRoutes.contains(route);
+    }
+
+    if (_selectedFilter == 'historial') {
+      return source
+          .where((lot) =>
+              !_isFromUserCountry(lot) &&
+              matchesPlay(lot, _pastPlayedLotteryIds, _pastPlayedRoutes))
+          .toList();
+    }
+    return source
+        .where((lot) =>
+            _isFromUserCountry(lot) ||
+            matchesPlay(lot, _activePlayedLotteryIds, _activePlayedRoutes))
+        .toList();
   }
 
   void _selectView(String view) {

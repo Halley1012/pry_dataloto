@@ -34,6 +34,9 @@ class UpdateUser(BaseModel):
 class JugadaCreate(BaseModel):
     numeros: List[int]
     user_id: str
+    # Identidad canónica de la lotería. Es obligatoria en la práctica cuando
+    # varias loterías/países comparten la misma route (Euromillions, EuroDreams, etc.).
+    loteria_id: Optional[int] = None
     loteria_route: Optional[str] = None
     fecha_sorteo: Optional[str] = None
     fecha: Optional[str] = None
@@ -41,6 +44,7 @@ class JugadaCreate(BaseModel):
 class JugadaUpdate(BaseModel):
     numeros: List[int]
     user_id: str
+    loteria_id: Optional[int] = None
     loteria_route: Optional[str] = None
 
 class JugadaOut(BaseModel):
