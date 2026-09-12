@@ -58,6 +58,7 @@ class _ToolbarActionSpec {
   });
 }
 
+
 class _MisJugadasScreenState extends State<MisJugadasScreen> {
   List<Map<String, dynamic>> _jugadasList = [];
   Set<int> _selectedIds = {};
