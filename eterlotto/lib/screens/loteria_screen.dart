@@ -27,6 +27,8 @@ import 'package:eterlotto/models/lottery_number_layout.dart';
 
 /// Configuración de reglas y límites de cada lotería
 class LoteriaConfig {
+  final int? loteriaId;
+  final int? paisId;
   final String nombre;
   final String route;
   final int maxSeleccion;
@@ -39,6 +41,8 @@ class LoteriaConfig {
   final bool tieneReintegro;
 
   const LoteriaConfig({
+    this.loteriaId,
+    this.paisId,
     required this.nombre,
     required this.route,
     this.maxSeleccion = 5,
@@ -70,6 +74,9 @@ class LoteriaConfig {
                 .clamp(0, totalBalotasSorteo)
             as int;
     return {
+      if (loteriaId != null) 'id': loteriaId,
+      if (loteriaId != null) 'loteria_id': loteriaId,
+      if (paisId != null) 'pais_id': paisId,
       'nombre': nombre,
       'route': route,
       'max_seleccion': maxSeleccion,
@@ -85,6 +92,8 @@ class LoteriaConfig {
   }
 
   LoteriaConfig copyWith({
+    int? loteriaId,
+    int? paisId,
     String? nombre,
     String? route,
     int? maxSeleccion,
@@ -97,6 +106,8 @@ class LoteriaConfig {
     bool? tieneReintegro,
   }) {
     return LoteriaConfig(
+      loteriaId: loteriaId ?? this.loteriaId,
+      paisId: paisId ?? this.paisId,
       nombre: nombre ?? this.nombre,
       route: route ?? this.route,
       maxSeleccion: maxSeleccion ?? this.maxSeleccion,
@@ -170,7 +181,14 @@ class LoteriaConfig {
               ? int.tryParse(json["totalBalotasSorteo"].toString())
               : null);
 
+    final loteriaId = int.tryParse(
+      (json["loteria_id"] ?? json["id"])?.toString() ?? "",
+    );
+    final paisId = int.tryParse(json["pais_id"]?.toString() ?? "");
+
     return LoteriaConfig(
+      loteriaId: loteriaId,
+      paisId: paisId,
       nombre: rawNombre,
       route: rawRoute,
       maxSeleccion: maxSel ?? 5,
@@ -687,7 +705,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     if (uId != null && userId != uId && mounted) {
       setState(() => userId = uId);
     }
-    final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId);
+    final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId, loteriaId: config.loteriaId);
 
     final cached = await CacheService.getStaleJson(cacheKeyUser);
     if (cached is List && mounted) {
@@ -695,7 +713,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
 
     try {
-      final response = await ApiService.listarJugadasGenerica(config.route);
+      final response = await ApiService.listarJugadasGenerica(
+        config.route,
+        loteriaId: config.loteriaId,
+      );
       final currentUserId = (await ApiService.getUserId())?.toString();
       if (currentUserId != uId) return;
       if (mounted) {
@@ -846,13 +867,16 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     final jugadaCompleta = [...whites, ...specialsToSave];
 
     if (_jugadasList.isEmpty) {
-      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid);
+      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid, loteriaId: config.loteriaId);
       final cached = await CacheService.getStaleJson(cacheKey);
       if (cached is List && cached.isNotEmpty) {
         _jugadasList = List<Map<String, dynamic>>.from(cached);
       } else {
         try {
-          final res = await ApiService.listarJugadasGenerica(config.route);
+          final res = await ApiService.listarJugadasGenerica(
+            config.route,
+            loteriaId: config.loteriaId,
+          );
           if (res.isNotEmpty) {
             _jugadasList = List<Map<String, dynamic>>.from(res);
           }
@@ -938,11 +962,14 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         config.route,
         whites,
         currentUid,
+        loteriaId: config.loteriaId,
         specialNumbers: specialsToSave,
         fechaSorteo: targetFechaSorteo,
       );
 
       final nuevaJugada = {
+        if (config.loteriaId != null) "loteria_id": config.loteriaId,
+        "loteria_route": config.route,
         "numeros": jugadaCompleta,
         if (specialsToSave.isNotEmpty) "balota_roja": specialsToSave.first,
         if (specialsToSave.isNotEmpty) "balotaroja": specialsToSave.first,
@@ -951,7 +978,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       _jugadasList.insert(0, nuevaJugada);
       final uIdStr = currentUid;
       await CacheService.setJson(
-        CacheService.jugadasUsuarioKey(config.route, uIdStr),
+        CacheService.jugadasUsuarioKey(config.route, uIdStr, loteriaId: config.loteriaId),
         _jugadasList,
       );
 
@@ -2124,6 +2151,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
                 builder: (_) => MisJugadasScreen(
                   loteriaNombre: config.nombre,
                   loteriaRoute: config.route,
+                  loteriaId: config.loteriaId,
                 ),
               ),
             );

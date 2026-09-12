@@ -31,6 +31,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   Map<String, Map<String, dynamic>> _infoJugadas = {};
+  Map<String, int> _routeCounts = {};
   String? _userCountry;
   bool _isLoading = true;
   bool _loadFailed = false;
@@ -130,16 +131,43 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final List<Map<String, dynamic>> todas =
           resultados[2] as List<Map<String, dynamic>>;
 
+      final routeCounts = <String, int>{};
+      for (final lot in todas) {
+        final route = _routeOf(lot);
+        routeCounts[route] = (routeCounts[route] ?? 0) + 1;
+      }
+
+      // Compatibilidad con backends anteriores: sólo usamos route como
+      // fallback cuando esa route identifica una única lotería. Para routes
+      // compartidas jamás elegimos un país arbitrariamente.
       for (final a in activas) {
-        infoMap.putIfAbsent(a.toLowerCase(), () => {"count": 1, "fecha": null});
+        final route = a.toLowerCase();
+        final alreadyRepresented = infoMap.values.any(
+          (value) => value['route']?.toString().toLowerCase() == route,
+        );
+        if (!alreadyRepresented) {
+          infoMap.putIfAbsent(
+            'route:$route',
+            () => {
+              "loteria_id": null,
+              "route": route,
+              "count": 1,
+              "fecha": null,
+            },
+          );
+        }
       }
 
       final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
-        final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
-        final route = (rawRoute != null && rawRoute.isNotEmpty)
-            ? rawRoute
-            : _getRouteFromName(mapItem['nombre'] ?? "");
-        return infoMap.containsKey(route) || activas.contains(route);
+        final idKey = mapItem['id']?.toString();
+        if (idKey != null && infoMap.containsKey(idKey)) return true;
+
+        final route = _routeOf(mapItem);
+        final isUniqueRoute = (routeCounts[route] ?? 0) == 1;
+        return isUniqueRoute &&
+            (infoMap.containsKey('route:$route') ||
+                infoMap.containsKey(route) ||
+                activas.contains(route));
       }).toList();
 
       // Las APIs antiguas de jugadas devuelven {} o [] ante un fallo de red
@@ -169,6 +197,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         setState(() {
           _userCountry = uCountry;
           _infoJugadas = infoMap;
+          _routeCounts = routeCounts;
           _loterias = jugadasLoterias;
           _isLoading = false;
           // Sin el catálogo no es posible relacionar las jugadas con sus
@@ -258,6 +287,26 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
         .trim()
         .replaceAll(RegExp(r'[\s_]+'), '_');
+  }
+
+  String _routeOf(Map<String, dynamic> loteria) {
+    final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+    return (rawRoute != null && rawRoute.isNotEmpty)
+        ? rawRoute
+        : _getRouteFromName((loteria['nombre'] ?? '').toString());
+  }
+
+  Map<String, dynamic>? _infoForLottery(Map<String, dynamic> loteria) {
+    final idKey = loteria['id']?.toString();
+    if (idKey != null && _infoJugadas.containsKey(idKey)) {
+      return _infoJugadas[idKey];
+    }
+
+    final route = _routeOf(loteria);
+    // Si varias filas del catálogo comparten route, un dato legacy por route
+    // no contiene suficiente información para decidir el país correcto.
+    if ((_routeCounts[route] ?? 0) > 1) return null;
+    return _infoJugadas['route:$route'] ?? _infoJugadas[route];
   }
 
   String _getPaisNombre(dynamic id) {
@@ -630,7 +679,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         ? rawRoute
         : _getRouteFromName(nombre);
 
-    final info = _infoJugadas[route];
+    final info = _infoForLottery(loteria);
     final count = info?['count'] ?? 1;
     final rawFecha =
         info?['fecha'] ??
@@ -769,6 +818,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         builder: (_) => MisJugadasScreen(
           loteriaNombre: nombre,
           loteriaRoute: route,
+          loteriaId: int.tryParse(loteria['id']?.toString() ?? ''),
           soloProximos: _selectedFilter == 'proximos',
         ),
       ),
@@ -785,7 +835,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final route = (rawRoute != null && rawRoute.isNotEmpty)
           ? rawRoute
           : _getRouteFromName(loteria['nombre'] ?? "");
-      final info = _infoJugadas[route];
+      final info = _infoForLottery(loteria);
       final rawFecha =
           info?['fecha'] ??
           loteria["proximo_sorteo"] ??
