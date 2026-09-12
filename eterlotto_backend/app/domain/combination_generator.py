@@ -8,9 +8,6 @@ class LotteryRules(BaseModel):
     lottery_id: str
     name: str
     country: str
-    db_id: Optional[int] = None
-    pais_id: Optional[int] = None
-    route: Optional[str] = None
     main_numbers_count: int
     main_numbers_min: int
     main_numbers_max: int

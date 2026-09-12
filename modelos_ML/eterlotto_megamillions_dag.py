@@ -97,7 +97,7 @@ with DAG(
     'eterlotto_ejecucion_megamillions',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Mega Millions usando main_megamillions.py',
-    schedule='0 3 * * 3,6', # Miercoles y Sabado a las 3:00 AM
+    schedule='0 3 * * *', # Miercoles y Sabado a las 3:00 AM
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'megamillions'],
