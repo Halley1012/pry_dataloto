@@ -1,6 +1,4 @@
 import sys
-if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
 import requests
 import pandas as pd
@@ -8,11 +6,7 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
-from sqlalchemy import text
-from psycopg2.extras import execute_values
-import urllib3
-
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+from sqlalchemy import text, Integer, Date, String
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from config.database import get_engine
@@ -20,7 +14,6 @@ from config.database import get_engine
 class CincoDeOroScraper:
     def __init__(self):
         self.engine = get_engine()
-        self.loteria_id = 34
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -29,12 +22,10 @@ class CincoDeOroScraper:
         self.base_url = "https://www.combinacionganadora.com/uy/5-de-oro/resultados"
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
-        """FALLBACK DE CALENDARIO EXCLUSIVO:
-        Se invoca ÚNICAMENTE si la fuente oficial en vivo no declara explícitamente
-        la fecha del próximo sorteo en su texto/HTML.
-        Nunca se utiliza para extraer ni filtrar sorteos históricos reales.
+        """Sorteos de 5 de Oro: Miércoles (2) y Domingos (6).
+        Calcula la próxima fecha de sorteo válida que sea >= a hoy y posterior a la última fecha real.
         """
-        dias_validos = {2, 6} # Miércoles (2), Domingo (6) habituales
+        dias_validos = {2, 6} # Miércoles (2), Domingo (6)
         hoy = datetime.now().date()
         base = max(ultima_fecha_real, hoy)
         
@@ -45,43 +36,6 @@ class CincoDeOroScraper:
         while candidate.weekday() not in dias_validos or candidate <= ultima_fecha_real:
             candidate += timedelta(days=1)
         return candidate
-
-    def obtener_ultimo_sorteo_db(self) -> dict:
-        """Obtiene el último sorteo REAL registrado en la BD (balota1 > 0)."""
-        try:
-            with self.engine.connect() as conn:
-                row = conn.execute(text("""
-                    SELECT concurso, fecha, sorteo
-                    FROM resultados_5deoro
-                    WHERE balota1 > 0
-                    ORDER BY fecha DESC, sorteo ASC
-                    LIMIT 1;
-                """)).fetchone()
-                if row:
-                    return {
-                        "concurso": int(row[0]) if row[0] is not None else None,
-                        "fecha": row[1].strftime("%Y-%m-%d") if hasattr(row[1], 'strftime') else str(row[1]),
-                        "sorteo": str(row[2])
-                    }
-        except Exception as e:
-            print(f"⚠️ Error consultando último sorteo en BD: {e}")
-        return None
-
-    def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Extrae el último sorteo REAL publicado en la fuente en vivo (InfoUruguay)."""
-        try:
-            live_draws, fecha_proximo_oficial, pozo_oficial = self.extraer_en_vivo_infouruguay()
-            if live_draws:
-                fecha_str = live_draws[0]["fecha"]
-                return {
-                    "fecha": fecha_str,
-                    "live_draws": live_draws,
-                    "fecha_proximo": fecha_proximo_oficial,
-                    "pozo": pozo_oficial
-                }
-        except Exception as e:
-            print(f"⚠️ Error extrayendo último sorteo de la fuente 5 de Oro: {e}")
-        return None
 
     def extraer_en_vivo_infouruguay(self) -> tuple:
         """Extrae los últimos sorteos en vivo y la fecha/pozo oficial de InfoUruguay."""
@@ -96,52 +50,51 @@ class CincoDeOroScraper:
                 soup = BeautifulSoup(r.text, "html.parser")
                 spans = soup.find_all("span", style=re.compile(r"font-size:18px"))
 
-                # 1. Extraer fecha del último sorteo (soporta '-' y '/')
-                m_fecha = re.search(r'RESULTADOS DEL 5 DE ORO\s*([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text, re.IGNORECASE)
-                if not m_fecha:
-                    m_fecha = re.search(r'([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text)
-
+                # 1. Extraer fecha del último sorteo
+                m_fecha = re.search(r'([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text)
                 if m_fecha and len(spans) >= 3:
                     dia, mes, anio = m_fecha.group(2), m_fecha.group(3), m_fecha.group(4)
                     fecha_ult_str = f"{anio}-{int(mes):02d}-{int(dia):02d}"
 
-                    # Extraer números 5 de Oro (conservando orden exacto de extracción)
+                    # Extraer números 5 de Oro
                     oro_txt = spans[0].get_text(strip=True)
                     oro_nums = [int(n) for n in re.findall(r'\d+', oro_txt)]
                     extra_num = int(re.search(r'\d+', spans[1].get_text(strip=True)).group(0)) if re.search(r'\d+', spans[1].get_text(strip=True)) else 0
 
-                    # Extraer números Revancha (conservando orden exacto de extracción)
+                    # Extraer números Revancha
                     rev_txt = spans[2].get_text(strip=True)
                     rev_nums = [int(n) for n in re.findall(r'\d+', rev_txt)]
 
-                    if len(oro_nums) >= 5:
+                    if len(oro_nums) == 5:
+                        oro_sorted = sorted(oro_nums)
                         live_draws.append({
                             "sorteo": "5 de Oro",
                             "fecha": fecha_ult_str,
-                            "balota1": oro_nums[0],
-                            "balota2": oro_nums[1],
-                            "balota3": oro_nums[2],
-                            "balota4": oro_nums[3],
-                            "balota5": oro_nums[4],
+                            "balota1": oro_sorted[0],
+                            "balota2": oro_sorted[1],
+                            "balota3": oro_sorted[2],
+                            "balota4": oro_sorted[3],
+                            "balota5": oro_sorted[4],
                             "balotaroja": extra_num
                         })
 
-                    if len(rev_nums) >= 5:
+                    if len(rev_nums) == 5:
+                        rev_sorted = sorted(rev_nums)
                         live_draws.append({
                             "sorteo": "Revancha",
                             "fecha": fecha_ult_str,
-                            "balota1": rev_nums[0],
-                            "balota2": rev_nums[1],
-                            "balota3": rev_nums[2],
-                            "balota4": rev_nums[3],
-                            "balota5": rev_nums[4],
+                            "balota1": rev_sorted[0],
+                            "balota2": rev_sorted[1],
+                            "balota3": rev_sorted[2],
+                            "balota4": rev_sorted[3],
+                            "balota5": rev_sorted[4],
                             "balotaroja": 0
                         })
 
                     print(f"✅ Sorteo en vivo obtenido de InfoUruguay para fecha: {fecha_ult_str}")
 
-                # 2. Extraer fecha oficial del próximo sorteo (soporta '-' y '/')
-                m_prox = re.search(r'Pozos estimados para el pr.*?ximo sorteo.*?([A-Za-zÁ-ÿ]+)\s+(\d{1,2})[-/](\d{1,2})[-/](\d{4})', r.text, re.DOTALL | re.IGNORECASE)
+                # 2. Extraer fecha oficial del próximo sorteo (considera feriados nacionales como 25 de Agosto)
+                m_prox = re.search(r'Pozos estimados para el pr.*?ximo sorteo.*?>\s*([A-Za-zÁ-ÿ]+)\s+(\d{1,2})/(\d{1,2})/(\d{4})', r.text, re.DOTALL | re.IGNORECASE)
                 if m_prox:
                     d_p, m_p, y_p = m_prox.group(2), m_prox.group(3), m_prox.group(4)
                     fecha_proximo_oficial = f"{y_p}-{int(m_p):02d}-{int(d_p):02d}"
@@ -185,115 +138,81 @@ class CincoDeOroScraper:
         return "$ 48.000.000"
 
     def _parsear_sorteo_fecha(self, fecha_str: str) -> list:
-        """Descarga y parsea el sorteo de una fecha específica retornando filas para 5 de Oro y Revancha.
-        No asume estructura rígida y extrae la fecha y números en orden original.
-        """
+        """Descarga y parsea el sorteo de una fecha específica retornando filas para 5 de Oro y Revancha."""
         url = f"{self.base_url}/{fecha_str}/"
         try:
-            r = requests.get(url, headers=self.headers, timeout=8, verify=False)
-            if r.status_code == 404:
-                # No hubo sorteo en esta fecha (normal al escanear días calendario continuos)
-                return None
-            if r.status_code != 200:
-                print(f"⚠️ [5 de Oro] Código HTTP {r.status_code} al consultar {url}")
-                return None
-
-            soup = BeautifulSoup(r.text, "html.parser")
-            uls = soup.find_all("ul", class_=re.compile(r"numbers"))
-            if len(uls) >= 1:
-                # Primer UL: Pozo de Oro (5 números + Extra)
-                oro_items = [li.get_text(strip=True) for li in uls[0].find_all("li")]
-                main_balls = []
-                extra_ball = 0
-                for item in oro_items:
-                    if "E" in item:
-                        m_e = re.search(r'(\d+)', item)
-                        if m_e:
-                            extra_ball = int(m_e.group(1))
-                    else:
-                        m_b = re.search(r'(\d+)', item)
-                        if m_b:
-                            main_balls.append(int(m_b.group(1)))
-
-                # Segundo UL: Pozo Revancha (5 números)
-                rev_balls = []
-                if len(uls) >= 2:
-                    for li in uls[1].find_all("li"):
-                        m_r = re.search(r'(\d+)', li.get_text(strip=True))
-                        if m_r:
-                            rev_balls.append(int(m_r.group(1)))
-
-                # Validar y conservar orden exacto entregado por la fuente (sin sorted)
-                if len(main_balls) == 5:
-                    items = [
-                        {
-                            "sorteo": "5 de Oro",
-                            "fecha": fecha_str,
-                            "balota1": main_balls[0],
-                            "balota2": main_balls[1],
-                            "balota3": main_balls[2],
-                            "balota4": main_balls[3],
-                            "balota5": main_balls[4],
-                            "balotaroja": extra_ball
-                        }
-                    ]
-                    if len(rev_balls) == 5:
-                        items.append({
-                            "sorteo": "Revancha",
-                            "fecha": fecha_str,
-                            "balota1": rev_balls[0],
-                            "balota2": rev_balls[1],
-                            "balota3": rev_balls[2],
-                            "balota4": rev_balls[3],
-                            "balota5": rev_balls[4],
-                            "balotaroja": 0
-                        })
-                    return items
-                else:
-                    print(f"⚠️ [5 de Oro] Estructura inesperada de balotas en {url} (encontradas {len(main_balls)})")
-        except requests.exceptions.RequestException as e:
-            print(f"⚠️ [5 de Oro] Error de red consultando {url}: {e}")
-        except Exception as e:
-            print(f"⚠️ [5 de Oro] Error parseando {url}: {e}")
-        return None
-
-    def descubrir_fechas_indice(self) -> list:
-        """Descubre fechas de sorteos reales directamente desde los enlaces del índice HTML."""
-        fechas = set()
-        try:
-            r = requests.get(f"{self.base_url}/", headers=self.headers, timeout=10, verify=False)
+            r = requests.get(url, headers=self.headers, timeout=6, verify=False)
             if r.status_code == 200:
                 soup = BeautifulSoup(r.text, "html.parser")
-                for a in soup.find_all("a", href=re.compile(r"/uy/5-de-oro/resultados/\d{4}-\d{2}-\d{2}/")):
-                    m = re.search(r'(\d{4}-\d{2}-\d{2})', a.get("href", ""))
-                    if m:
-                        fechas.add(m.group(1))
-        except Exception as e:
-            print(f"⚠️ Error descubriendo enlaces del índice de 5 de Oro: {e}")
-        return sorted(list(fechas), reverse=True)
+                uls = soup.find_all("ul", class_=re.compile(r"numbers"))
+                if len(uls) >= 1:
+                    # Primer UL: Pozo de Oro (5 números + Extra)
+                    oro_items = [li.get_text(strip=True) for li in uls[0].find_all("li")]
+                    main_balls = []
+                    extra_ball = 0
+                    for item in oro_items:
+                        if "E" in item:
+                            m_e = re.search(r'(\d+)', item)
+                            if m_e:
+                                extra_ball = int(m_e.group(1))
+                        else:
+                            m_b = re.search(r'(\d+)', item)
+                            if m_b:
+                                main_balls.append(int(m_b.group(1)))
+
+                    # Segundo UL: Pozo Revancha (5 números)
+                    rev_balls = []
+                    if len(uls) >= 2:
+                        for li in uls[1].find_all("li"):
+                            m_r = re.search(r'(\d+)', li.get_text(strip=True))
+                            if m_r:
+                                rev_balls.append(int(m_r.group(1)))
+
+                    if len(main_balls) == 5:
+                        main_sorted = sorted(main_balls)
+                        items = [
+                            {
+                                "sorteo": "5 de Oro",
+                                "fecha": fecha_str,
+                                "balota1": main_sorted[0],
+                                "balota2": main_sorted[1],
+                                "balota3": main_sorted[2],
+                                "balota4": main_sorted[3],
+                                "balota5": main_sorted[4],
+                                "balotaroja": extra_ball
+                            }
+                        ]
+                        if len(rev_balls) == 5:
+                            rev_sorted = sorted(rev_balls)
+                            items.append({
+                                "sorteo": "Revancha",
+                                "fecha": fecha_str,
+                                "balota1": rev_sorted[0],
+                                "balota2": rev_sorted[1],
+                                "balota3": rev_sorted[2],
+                                "balota4": rev_sorted[3],
+                                "balota5": rev_sorted[4],
+                                "balotaroja": 0
+                            })
+                        return items
+        except Exception:
+            pass
+        return None
 
     def extraer_historico_concurrente(self, max_draws: int = 350) -> pd.DataFrame:
-        """Descubre y descarga sorteos históricos de forma dinámica sin restricciones artificiales de días de la semana."""
-        print(f"➡️ Iniciando descubrimiento dinámico de sorteos históricos...")
-        
-        # 1. Descubrir fechas explícitas del índice
-        fechas_descubiertas = self.descubrir_fechas_indice()
-        fechas_set = set(fechas_descubiertas)
-        
-        # 2. Generar secuencia temporal continua para profundizar el histórico si se requiere
+        """Genera fechas pasadas de Miércoles y Domingos y descarga los sorteos concurrentemente."""
+        print(f"➡️ Generando fechas de sorteos pasados (Miércoles y Domingos)...")
+        fechas = []
         curr = datetime.now().date()
-        dias_retroceso = max_draws * 4  # Escanear ventana continua de días sin sesgo de días de semana
-        for _ in range(dias_retroceso):
-            f_str = curr.strftime("%Y-%m-%d")
-            fechas_set.add(f_str)
+        while len(fechas) < max_draws:
+            if curr.weekday() in (2, 6): # Miércoles (2), Domingo (6)
+                fechas.append(curr.strftime("%Y-%m-%d"))
             curr -= timedelta(days=1)
-            
-        fechas_a_consultar = sorted(list(fechas_set), reverse=True)
-        print(f"Consultando {len(fechas_a_consultar)} fechas candidatas concurrentemente...")
-        
+
+        print(f"Descargando {len(fechas)} sorteos históricos de 5 de Oro concurrentemente...")
         draws = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=15) as executor:
-            results = list(executor.map(self._parsear_sorteo_fecha, fechas_a_consultar))
+            results = list(executor.map(self._parsear_sorteo_fecha, fechas))
 
         for res in results:
             if res:
@@ -302,7 +221,7 @@ class CincoDeOroScraper:
                 else:
                     draws.append(res)
 
-        print(f"📊 Filas históricas procesadas de 5 de Oro y Revancha: {len(draws)}")
+        print(f"📊 Filas procesadas de 5 de Oro y Revancha: {len(draws)}")
         return pd.DataFrame(draws)
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
@@ -338,86 +257,47 @@ class CincoDeOroScraper:
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de 5 de Oro y Revancha (Uruguay)...")
 
-        # 1. Detección temprana: comparar último sorteo real en BD vs fuente en vivo
-        ultimo_db = self.obtener_ultimo_sorteo_db()
-        ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
-
-        if not backfill and ultimo_db and ultimo_fuente:
-            fecha_db = str(ultimo_db.get("fecha"))
-            fecha_fuente = str(ultimo_fuente.get("fecha"))
-
-            if fecha_fuente and fecha_db and fecha_fuente <= fecha_db:
-                print(f"ℹ️ Detección temprana: No hay sorteo nuevo para 5 de Oro y Revancha.")
-                print(f"   BD: {fecha_db} vs Fuente: {fecha_fuente}")
-
-                fecha_proximo_oficial = ultimo_fuente.get("fecha_proximo")
-                if fecha_proximo_oficial:
-                    proxima_fecha = datetime.strptime(fecha_proximo_oficial, "%Y-%m-%d").date()
-                else:
-                    try:
-                        f_dt = datetime.strptime(fecha_db, "%Y-%m-%d").date()
-                    except Exception:
-                        f_dt = fecha_db
-                    proxima_fecha = self._calcular_proximo_sorteo(f_dt)
-
-                self._asegurar_placeholders(proxima_fecha)
-                pozo_oficial = ultimo_fuente.get("pozo") or self.extraer_pozo_estimado()
-                if pozo_oficial:
-                    self.actualizar_jackpot(proxima_fecha.strftime("%Y-%m-%d"), pozo_oficial)
-
-                return {
-                    "hubo_sorteo": False,
-                    "ultimo_sorteo": f"{fecha_db}",
-                    "proximo_esperado": f"{proxima_fecha.strftime('%d/%m/%Y')}"
-                }
+        # 1. Obtener datos en vivo de InfoUruguay (sorteo más reciente + fecha oficial de próximo sorteo + pozo)
+        live_draws, fecha_proximo_oficial, pozo_info = self.extraer_en_vivo_infouruguay()
+        pozo_oficial = pozo_info or self.extraer_pozo_estimado()
 
         # 2. Obtener datos existentes en BD
         df_existente = pd.DataFrame()
         try:
             with self.engine.connect() as conn:
-                df_existente = pd.read_sql(text("SELECT concurso, loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_5deoro WHERE balota1 > 0;"), conn)
-                print(f"📦 Registros históricos existentes en BD: {len(df_existente)}")
+                df_existente = pd.read_sql(text("SELECT sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja FROM resultados_5deoro WHERE balota1 > 0;"), conn)
         except Exception:
             pass
 
-        # 3. Descargar histórico si es necesario
-        live_draws = ultimo_fuente.get("live_draws") if ultimo_fuente else []
-        fecha_proximo_oficial = ultimo_fuente.get("fecha_proximo") if ultimo_fuente else None
-        pozo_info = ultimo_fuente.get("pozo") if ultimo_fuente else None
-
-        if not live_draws:
-            live_draws, fecha_proximo_oficial, pozo_info = self.extraer_en_vivo_infouruguay()
-
-        pozo_oficial = pozo_info or self.extraer_pozo_estimado()
-
+        # 3. Descargar histórico concurrente
         if backfill or df_existente.empty or len(df_existente) < 50:
             df_scraped = self.extraer_historico_concurrente(max_draws=350)
         else:
-            df_scraped = pd.DataFrame()
+            df_scraped = self.extraer_historico_concurrente(max_draws=30)
 
         # Combinar en vivo + existente + histórico
         dfs_to_combine = []
-        if not df_scraped.empty:
-            dfs_to_combine.append(df_scraped)
         if live_draws:
             dfs_to_combine.append(pd.DataFrame(live_draws))
         if not df_existente.empty and 'sorteo' in df_existente.columns:
             dfs_to_combine.append(df_existente)
+        if not df_scraped.empty:
+            dfs_to_combine.append(df_scraped)
 
         if not dfs_to_combine:
             print("❌ No se pudieron obtener resultados de 5 de Oro.")
-            return False
+            return
 
         df_combined = pd.concat(dfs_to_combine, ignore_index=True)
         df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
+        df_combined = df_combined.drop_duplicates(subset=['fecha', 'sorteo']).sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         hoy_max = datetime.now().date()
         df_combined = df_combined[df_combined['fecha'] <= hoy_max]
 
         if df_combined.empty:
             print("❌ No hay datos válidos para procesar.")
-            return False
+            return
 
         # 4. Determinar fecha del próximo sorteo (usando la fecha oficial anunciada o cálculo automático)
         df_real = df_combined[df_combined['balota1'] > 0]
@@ -432,11 +312,9 @@ class CincoDeOroScraper:
 
         print(f"📅 Fecha del próximo sorteo oficial establecida para 5 de Oro: {proxima_fecha_str}")
 
-        # Filas placeholder en ceros
+        # Filas placeholder en ceros idéntico a Baloto/Revancha
         filas_proximo = [
             {
-                "concurso": None,
-                "loteria_id": self.loteria_id,
                 "sorteo": "5 de Oro",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -447,8 +325,6 @@ class CincoDeOroScraper:
                 "balotaroja": 0
             },
             {
-                "concurso": None,
-                "loteria_id": self.loteria_id,
                 "sorteo": "Revancha",
                 "fecha": proxima_fecha,
                 "balota1": 0,
@@ -459,127 +335,26 @@ class CincoDeOroScraper:
                 "balotaroja": 0
             }
         ]
+        df_final = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
 
-        # Guardado optimizado
-        if backfill:
-            df_to_save = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
-        else:
-            dfs_new = [pd.DataFrame(filas_proximo)]
-            if live_draws:
-                dfs_new.append(pd.DataFrame(live_draws))
-            if not df_scraped.empty:
-                dfs_new.append(df_scraped)
-            df_to_save = pd.concat(dfs_new, ignore_index=True)
-
-        df_to_save['fecha'] = pd.to_datetime(df_to_save['fecha']).dt.date
-        df_to_save = df_to_save.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
-
-        # 5. Guardar en PostgreSQL de manera segura (UPSERT sin destruir estructura ni foreign keys)
-        with self.engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS resultados_5deoro (
-                    id SERIAL PRIMARY KEY,
-                    concurso INT,
-                    loteria_id INT REFERENCES loterias(id),
-                    sorteo VARCHAR(50) NOT NULL,
-                    fecha DATE NOT NULL,
-                    balota1 INT NOT NULL,
-                    balota2 INT NOT NULL,
-                    balota3 INT NOT NULL,
-                    balota4 INT NOT NULL,
-                    balota5 INT NOT NULL,
-                    balotaroja INT NOT NULL DEFAULT 0,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_5deoro_fecha_sorteo ON resultados_5deoro (fecha, sorteo);
-            """))
-
-        # Limpiar posibles placeholders obsoletos anteriores a proxima_fecha
-        # CONDICIÓN ESTRICTA: SOLO borrar si balota1 = 0 para jamás tocar un sorteo real
-        with self.engine.begin() as conn:
-            conn.execute(text("""
-                DELETE FROM resultados_5deoro
-                WHERE balota1 = 0 AND fecha < :cur_date;
-            """), {"cur_date": proxima_fecha})
-
-        insert_sql = """
-            INSERT INTO resultados_5deoro (
-                concurso, loteria_id, sorteo, fecha,
-                balota1, balota2, balota3, balota4, balota5,
-                balotaroja, created_at, updated_at
-            ) VALUES %s
-            ON CONFLICT (fecha, sorteo)
-            DO UPDATE SET
-                concurso = COALESCE(EXCLUDED.concurso, resultados_5deoro.concurso),
-                loteria_id = EXCLUDED.loteria_id,
-                balota1 = EXCLUDED.balota1,
-                balota2 = EXCLUDED.balota2,
-                balota3 = EXCLUDED.balota3,
-                balota4 = EXCLUDED.balota4,
-                balota5 = EXCLUDED.balota5,
-                balotaroja = EXCLUDED.balotaroja,
-                updated_at = CURRENT_TIMESTAMP;
-        """
-
-        seen_keys = set()
-        data_tuples = []
-        for r in df_to_save.to_dict(orient='records'):
-            f_val = r['fecha'] if isinstance(r['fecha'], (date, datetime)) else pd.to_datetime(r['fecha']).date()
-            s_str = str(r['sorteo'])
-            key = (f_val.strftime("%Y-%m-%d"), s_str)
-            if key in seen_keys:
-                continue
-            seen_keys.add(key)
-            data_tuples.append((
-                int(r['concurso']) if pd.notna(r.get('concurso')) and r.get('concurso') else None,
-                int(self.loteria_id),
-                s_str,
-                f_val,
-                int(r['balota1']),
-                int(r['balota2']),
-                int(r['balota3']),
-                int(r['balota4']),
-                int(r['balota5']),
-                int(r.get('balotaroja', 0))
-            ))
-
-        raw_conn = self.engine.raw_connection()
-        try:
-            chunk_size = 500
-            for i in range(0, len(data_tuples), chunk_size):
-                chunk = data_tuples[i:i + chunk_size]
-                with raw_conn.cursor() as cur:
-                    execute_values(
-                        cur, insert_sql, chunk,
-                        template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
-                    )
-                raw_conn.commit()
-        finally:
-            raw_conn.close()
-
-        print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas procesadas: {len(data_tuples)}")
-        self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
-
-        return {
-            "hubo_sorteo": True,
-            "ultimo_sorteo": f"{ultima_fecha_real.strftime('%d/%m/%Y')}" if hasattr(ultima_fecha_real, 'strftime') else str(ultima_fecha_real),
-            "proximo_esperado": f"{proxima_fecha.strftime('%d/%m/%Y')}"
+        # 5. Guardar en PostgreSQL
+        dtypes = {
+            'sorteo': String(50),
+            'fecha': Date(),
+            'balota1': Integer(),
+            'balota2': Integer(),
+            'balota3': Integer(),
+            'balota4': Integer(),
+            'balota5': Integer(),
+            'balotaroja': Integer(),
         }
 
-    def _asegurar_placeholders(self, proxima_fecha: date):
-        """Garantiza la existencia de los placeholders para 5 de Oro y Revancha."""
-        try:
-            with self.engine.begin() as conn:
-                conn.execute(text("DELETE FROM resultados_5deoro WHERE balota1 = 0 AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
-                for s in ["5 de Oro", "Revancha"]:
-                    conn.execute(text("""
-                        INSERT INTO resultados_5deoro (loteria_id, sorteo, fecha, balota1, balota2, balota3, balota4, balota5, balotaroja, created_at, updated_at)
-                        VALUES (:loteria_id, :sorteo, :fecha, 0, 0, 0, 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        ON CONFLICT (fecha, sorteo) DO NOTHING;
-                    """), {"loteria_id": self.loteria_id, "sorteo": s, "fecha": proxima_fecha})
-        except Exception as e:
-            print(f"⚠️ Error asegurando placeholders: {e}")
+        with self.engine.connect() as conn:
+            df_final.to_sql('resultados_5deoro', conn, if_exists='replace', index=False, dtype=dtypes)
+            conn.commit()
+
+        print(f"✅ Resultados de 5 de Oro y Revancha guardados exitosamente! Total filas: {len(df_final)}")
+        self.actualizar_jackpot(proxima_fecha_str, pozo_oficial)
 
 if __name__ == "__main__":
     scraper = CincoDeOroScraper()
