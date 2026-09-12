@@ -210,9 +210,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     _activePlayedRoutes = <String>{};
     _pastPlayedRoutes = <String>{};
     for (final entry in userPlays.entries) {
-      final route = (entry.value['route']?.toString() ?? entry.key)
-          .trim()
-          .toLowerCase();
+      final route = entry.key.trim().toLowerCase();
       if (route.isEmpty) continue;
       final drawDate = entry.value['fecha']?.toString();
       if (_drawDayDifference(drawDate) >= 0) {
@@ -250,23 +248,13 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     if (_selectedFilter == 'historial') {
       // Una lotería internacional se mueve aquí cuando su última jugada ya
       // pasó y el usuario no conserva otra para un sorteo futuro.
-      return source.where((lot) {
-        final idStr = lot['id']?.toString();
-        final route = _routeOf(lot);
-        final hasMatch = (idStr != null && _pastPlayedRoutes.contains(idStr)) ||
-            _pastPlayedRoutes.contains(route);
-        return !_isFromUserCountry(lot) && hasMatch;
-      }).toList();
+      return source.where((lot) =>
+          !_isFromUserCountry(lot) && _pastPlayedRoutes.contains(_routeOf(lot))).toList();
     }
     // El país del usuario siempre se mantiene visible; del resto del mundo
     // sólo se muestran las loterías donde aún hay una jugada pendiente.
-    return source.where((lot) {
-      final idStr = lot['id']?.toString();
-      final route = _routeOf(lot);
-      final hasMatch = (idStr != null && _activePlayedRoutes.contains(idStr)) ||
-          _activePlayedRoutes.contains(route);
-      return _isFromUserCountry(lot) || hasMatch;
-    }).toList();
+    return source.where((lot) =>
+        _isFromUserCountry(lot) || _activePlayedRoutes.contains(_routeOf(lot))).toList();
   }
 
   void _selectView(String view) {
