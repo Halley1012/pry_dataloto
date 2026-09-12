@@ -70,11 +70,11 @@ class JugadaUseCases:
             jugadas.append(jugada_dict)
         return jugadas
 
-    async def borrar_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
-        return await self.jugada_repo.delete_jugada(tipo, jugada_id, user_id)
+    async def borrar_jugada(self, tipo: str, jugada_id: int, user_id: int, loteria_id: Optional[int] = None) -> bool:
+        return await self.jugada_repo.delete_jugada(tipo, jugada_id, user_id, loteria_id=loteria_id)
 
-    async def actualizar_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
-        return await self.jugada_repo.update_jugada(tipo, jugada_id, user_id, numeros)
+    async def actualizar_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int], loteria_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        return await self.jugada_repo.update_jugada(tipo, jugada_id, user_id, numeros, loteria_id=loteria_id)
 
     async def obtener_loterias_con_jugadas(self, user_id: int) -> List[str]:
         return await self.jugada_repo.list_active_lotteries(user_id)

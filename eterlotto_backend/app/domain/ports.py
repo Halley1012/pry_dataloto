@@ -111,11 +111,11 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
+    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int, loteria_id: Optional[int] = None) -> bool:
         pass
 
     @abstractmethod
-    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int], loteria_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         pass
 
     @abstractmethod
