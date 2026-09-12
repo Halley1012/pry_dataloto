@@ -1134,6 +1134,8 @@ class _EstadisticasDashboardScreenState
 
     try {
       final sortedWhites = List<int>.from(_balotasComparacion)..sort();
+      final lotId = int.tryParse(widget.loteriaData?['id']?.toString() ?? '') ??
+          int.tryParse(widget.jugadaComparacion?['loteria_id']?.toString() ?? '');
       bool success = false;
 
       if (_jugadaId != null && _jugadaId! > 0) {
@@ -1145,6 +1147,7 @@ class _EstadisticasDashboardScreenState
           userId,
           specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
+          loteriaId: lotId,
         );
       } else {
         // Crear jugada si no existía ID
@@ -1154,6 +1157,7 @@ class _EstadisticasDashboardScreenState
           userId,
           specialNumbers: _especialesComparacion,
           fechaSorteo: _fechaSorteoOriginal,
+          loteriaId: lotId,
         );
         success = res.isNotEmpty;
       }

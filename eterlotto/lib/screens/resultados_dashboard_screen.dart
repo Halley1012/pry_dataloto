@@ -241,8 +241,13 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }) async {
     try {
       final route = _getRouteForLoteria(loteriaName);
+      final lotId = int.tryParse(widget.loteriaData?['id']?.toString() ?? '');
       // Petición 100% genérica para cualquier lotería actual o futura
-      final raw = await ApiService.listarJugadasGenerica(route, fecha: fecha);
+      final raw = await ApiService.listarJugadasGenerica(
+        route,
+        fecha: fecha,
+        loteriaId: lotId,
+      );
       return List<Map<String, dynamic>>.from(raw);
     } catch (_) {
       return [];
@@ -251,6 +256,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
+    final lotId = int.tryParse(widget.loteriaData?['id']?.toString() ?? '');
     final requestedDrawDate = _normalizarFechaISO(
       widget.targetDrawDate?.toString() ?? '',
     );
@@ -260,7 +266,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     // Una consulta dirigida a un sorteo histórico no puede reutilizar el
     // resultado de la última fecha (ni viceversa).
     final cacheKey =
-        'resultados_dashboard_cache_v10_${route}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
+        'resultados_dashboard_cache_v10_${route}_${lotId ?? "all"}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
     // 1. SWR: el payload es privado por usuario, pero sigue siendo válido
     // para esa misma sesión aunque haya vencido mientras llega la red.

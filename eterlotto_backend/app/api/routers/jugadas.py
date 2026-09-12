@@ -208,17 +208,38 @@ def get_historico_completo_dinamico(r_name: str, use_cases: JugadaUseCases = Dep
 @router.post("/jugadas", response_model=schemas.JugadaOut, name="crear_jugada_unificada")
 async def crear_jugada_unificada(jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = (jugada.loteria_route or "mloto").strip().lower()
-    return await use_cases.guardar_jugada(clean_route, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
+    try:
+        return await use_cases.guardar_jugada(
+            clean_route, 
+            int(jugada.user_id), 
+            jugada.numeros, 
+            fecha_sorteo=jugada.fecha_sorteo or jugada.fecha,
+            loteria_id=jugada.loteria_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/jugadas", response_model=List[schemas.JugadaOut], name="listar_jugadas_unificada")
-async def listar_jugadas_unificada(user_id: int, loteria: Optional[str] = None, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def listar_jugadas_unificada(
+    user_id: int, 
+    loteria: Optional[str] = None, 
+    loteria_id: Optional[int] = None,
+    fecha: Optional[str] = None, 
+    use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)
+):
     clean_route = (loteria or "").strip().lower()
-    return await use_cases.listar_jugadas(clean_route, user_id, fecha)
+    return await use_cases.listar_jugadas(clean_route, user_id, fecha, loteria_id=loteria_id)
 
 @router.delete("/jugadas/{jugada_id}", name="borrar_jugada_unificada")
-async def borrar_jugada_unificada(jugada_id: int, user_id: int, loteria: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def borrar_jugada_unificada(
+    jugada_id: int, 
+    user_id: int, 
+    loteria: Optional[str] = None, 
+    loteria_id: Optional[int] = None,
+    use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)
+):
     clean_route = (loteria or "").strip().lower()
-    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id)
+    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id, loteria_id=loteria_id)
     if not success:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada eliminada"}
@@ -226,7 +247,7 @@ async def borrar_jugada_unificada(jugada_id: int, user_id: int, loteria: Optiona
 @router.put("/jugadas/{jugada_id}", response_model=schemas.JugadaOut, name="actualizar_jugada_unificada")
 async def actualizar_jugada_unificada(jugada_id: int, jugada: schemas.JugadaUpdate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = (jugada.loteria_route or "").strip().lower()
-    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros)
+    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros, loteria_id=jugada.loteria_id)
     if not res:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return res
@@ -234,17 +255,38 @@ async def actualizar_jugada_unificada(jugada_id: int, jugada: schemas.JugadaUpda
 @router.post("/jugadas_{r_name}", response_model=schemas.JugadaOut, name="crear_jugada_dinamico")
 async def crear_jugada_dinamico(r_name: str, jugada: schemas.JugadaCreate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()
-    return await use_cases.guardar_jugada(clean_route, int(jugada.user_id), jugada.numeros, fecha_sorteo=jugada.fecha_sorteo or jugada.fecha)
+    try:
+        return await use_cases.guardar_jugada(
+            clean_route, 
+            int(jugada.user_id), 
+            jugada.numeros, 
+            fecha_sorteo=jugada.fecha_sorteo or jugada.fecha,
+            loteria_id=jugada.loteria_id
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/jugadas_{r_name}", response_model=List[schemas.JugadaOut], name="listar_jugadas_dinamico")
-async def listar_jugadas_dinamico(r_name: str, user_id: int, fecha: Optional[str] = None, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def listar_jugadas_dinamico(
+    r_name: str, 
+    user_id: int, 
+    loteria_id: Optional[int] = None,
+    fecha: Optional[str] = None, 
+    use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)
+):
     clean_route = r_name.strip().lower()
-    return await use_cases.listar_jugadas(clean_route, user_id, fecha)
+    return await use_cases.listar_jugadas(clean_route, user_id, fecha, loteria_id=loteria_id)
 
 @router.delete("/jugadas_{r_name}/{jugada_id}", name="borrar_jugada_dinamico")
-async def borrar_jugada_dinamico(r_name: str, jugada_id: int, user_id: int, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
+async def borrar_jugada_dinamico(
+    r_name: str, 
+    jugada_id: int, 
+    user_id: int, 
+    loteria_id: Optional[int] = None,
+    use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)
+):
     clean_route = r_name.strip().lower()
-    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id)
+    success = await use_cases.borrar_jugada(clean_route, jugada_id, user_id, loteria_id=loteria_id)
     if not success:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return {"message": "Jugada eliminada"}
@@ -252,7 +294,7 @@ async def borrar_jugada_dinamico(r_name: str, jugada_id: int, user_id: int, use_
 @router.put("/jugadas_{r_name}/{jugada_id}", response_model=schemas.JugadaOut, name="actualizar_jugada_dinamico")
 async def actualizar_jugada_dinamico(r_name: str, jugada_id: int, jugada: schemas.JugadaUpdate, use_cases: JugadaUseCases = Depends(dependencies.get_jugada_use_cases)):
     clean_route = r_name.strip().lower()
-    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros)
+    res = await use_cases.actualizar_jugada(clean_route, jugada_id, int(jugada.user_id), jugada.numeros, loteria_id=jugada.loteria_id)
     if not res:
         raise HTTPException(status_code=404, detail="Jugada no encontrada")
     return res
