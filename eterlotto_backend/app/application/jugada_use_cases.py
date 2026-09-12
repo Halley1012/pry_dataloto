@@ -32,7 +32,7 @@ class JugadaUseCases:
     def __init__(self, jugada_repo: JugadaRepositoryPort):
         self.jugada_repo = jugada_repo
 
-    async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[str] = None) -> Dict[str, Any]:
+    async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[str] = None, loteria_id: Optional[int] = None) -> Dict[str, Any]:
         colombia_tz = timezone(timedelta(hours=-5))
         hoy = datetime.now(colombia_tz)
         fecha_guardado = hoy
@@ -54,11 +54,11 @@ class JugadaUseCases:
         ) + timedelta(days=7)
 
         numeros_clean = [int(n) for n in numeros]
-        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, sorteo_date, fecha_guardado, expira)
+        record = await self.jugada_repo.create_jugada(tipo, user_id, numeros_clean, sorteo_date, fecha_guardado, expira, loteria_id=loteria_id)
         return record
 
-    async def listar_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
-        rows = await self.jugada_repo.list_jugadas(tipo, user_id, fecha)
+    async def listar_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None, loteria_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        rows = await self.jugada_repo.list_jugadas(tipo, user_id, fecha, loteria_id=loteria_id)
         jugadas = []
         for r in rows:
             jugada_dict = dict(r)

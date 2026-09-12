@@ -82,10 +82,16 @@ class NotificationProvider with ChangeNotifier {
 
   Set<String> _routesFromInfo(dynamic info) {
     if (info is! Map) return <String>{};
-    return info.keys
-        .map((key) => key.toString().trim().toLowerCase())
-        .where((route) => route.isNotEmpty)
-        .toSet();
+    final Set<String> routes = {};
+    for (final entry in info.entries) {
+      final key = entry.key.toString().trim().toLowerCase();
+      if (key.isNotEmpty) routes.add(key);
+      if (entry.value is Map && entry.value['route'] != null) {
+        final r = entry.value['route'].toString().trim().toLowerCase();
+        if (r.isNotEmpty) routes.add(r);
+      }
+    }
+    return routes;
   }
 
   Future<void> _loadPlayedRoutesFromCache(String userId) async {
