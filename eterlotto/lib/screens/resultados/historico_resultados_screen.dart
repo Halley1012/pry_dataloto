@@ -5,7 +5,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
-import 'package:eterlotto/screens/loteria_screen.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
