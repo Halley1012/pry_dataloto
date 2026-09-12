@@ -265,6 +265,33 @@ class NotificationGenerator:
                 "has_special": False,
                 "is_baloto": False,
             },
+            "lotto_fr": {
+                "route": "lotto_fr",
+                "nombre": "Loto Francia",
+                "tabla_resultados": "resultados_lotto_fr",
+                "query_resultados": "SELECT * FROM resultados_lotto_fr WHERE sorteo = 'Loto Francia' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 25,
+                "has_special": True,
+                "is_baloto": False,
+            },
+            "totoloto": {
+                "route": "totoloto",
+                "nombre": "Totoloto",
+                "tabla_resultados": "resultados_totoloto",
+                "query_resultados": "SELECT * FROM resultados_totoloto WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 25,
+                "has_special": True,
+                "is_baloto": False,
+            },
+            "thunderball": {
+                "route": "thunderball",
+                "nombre": "Thunderball",
+                "tabla_resultados": "resultados_thunderball",
+                "query_resultados": "SELECT * FROM resultados_thunderball WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 20,
+                "has_special": True,
+                "is_baloto": False,
+            },
         }
 
         if loteria == "all":
@@ -346,21 +373,22 @@ class NotificationGenerator:
             pred_rojas_raw = pred.iloc[0].get('balotaroja', None)
             pred_rojas = list(pred_rojas_raw) if pred_rojas_raw is not None else []
 
-            # 3. Obtener loteria_id dinámicamente desde la tabla loterias
-            loteria_id = None
+            # 3. Obtener todos los loteria_ids dinámicamente desde la tabla loterias (soporte multipaís)
+            loteria_entries = []
             try:
                 with self.engine.connect() as conn:
-                    lot_row = conn.execute(
-                        text("SELECT id FROM loterias WHERE LOWER(route) = :r OR LOWER(nombre) = :n LIMIT 1"),
+                    rows = conn.execute(
+                        text("SELECT id, pais_id FROM loterias WHERE LOWER(route) = :r OR LOWER(nombre) = :n"),
                         {"r": route.lower(), "n": nombre_display.lower()}
-                    ).fetchone()
-                    if lot_row:
-                        loteria_id = lot_row[0]
+                    ).fetchall()
+                    for r in rows:
+                        loteria_entries.append({"id": r[0], "pais_id": r[1]})
             except Exception as e:
-                print(f"⚠️ Error buscando loteria_id para {nombre_display}: {e}")
+                print(f"⚠️ Error buscando loteria_ids para {nombre_display}: {e}")
 
-            if not loteria_id:
-                loteria_id = cfg.get("loteria_id", 1)
+            if not loteria_entries:
+                default_id = cfg.get("loteria_id", 1)
+                loteria_entries = [{"id": default_id, "pais_id": None}]
 
             # 4. Calcular métricas de acierto
             mitad = self._get_mitad(route, pred_nums) or mitad_default
@@ -371,7 +399,7 @@ class NotificationGenerator:
             if len(coincidencias) >= 3:
                 nums_str = ', '.join(map(str, sorted(list(coincidencias))))
                 msj = f"¡Casi! De los {mitad} números con mayor probabilidad generados por la IA para {nombre_display}, cayeron {len(coincidencias)} números ({nums_str})."
-                self.guardar_notificacion(loteria_id, fecha, msj, "acierto_parcial")
+                self.guardar_notificaciones_multipais(loteria_entries, fecha, msj, "acierto_parcial")
 
             # B. Acierto directo en balota especial / Superbalota
             if has_special and super_ganadoras and len(pred_rojas) > 0:
@@ -383,20 +411,35 @@ class NotificationGenerator:
                         msj = f"¡La IA acertó {'las 2 estrellas' if len(aciertos_esp) == 2 else '1 estrella'} ({', '.join(map(str, sorted(list(aciertos_esp))))}) en el sorteo de hoy de Euromillones!"
                     else:
                         msj = f"¡La IA acertó la balota especial en el sorteo de hoy de {nombre_display}!"
-                    self.guardar_notificacion(loteria_id, fecha, msj, "acierto_directo")
+                    self.guardar_notificaciones_multipais(loteria_entries, fecha, msj, "acierto_directo")
 
             # C. Precisión general
             total_winning = len(ganadores) if len(ganadores) > 0 else 5
             efectividad = (len(coincidencias) / total_winning) * 100
             msj = f"En el sorteo de {nombre_display}, los {mitad} números más probables tuvieron una efectividad del {int(efectividad)}% ({len(coincidencias)} de {total_winning} aciertos)."
-            self.guardar_notificacion(loteria_id, fecha, msj, "precision")
+            self.guardar_notificaciones_multipais(loteria_entries, fecha, msj, "precision")
 
         except Exception as e:
             print(f"❌ Error procesando notificaciones {nombre_display}: {e}")
             import traceback
             print(traceback.format_exc())
 
-    def guardar_notificacion(self, loteria_id, fecha, mensaje, tipo):
+    def guardar_notificaciones_multipais(self, loteria_entries: list, fecha, mensaje, tipo):
+        pais_ids = set()
+        for entry in loteria_entries:
+            l_id = entry["id"]
+            p_id = entry.get("pais_id")
+            if p_id:
+                pais_ids.add(p_id)
+            self.guardar_notificacion(l_id, fecha, mensaje, tipo, trigger_fcm=False)
+        
+        # Enviar 1 solo push agrupado a todos los usuarios de los países participantes
+        if pais_ids:
+            self.enviar_fcm_push_multipais(list(pais_ids), mensaje, tipo)
+        elif loteria_entries:
+            self.enviar_fcm_push(loteria_entries[0]["id"], mensaje, tipo)
+
+    def guardar_notificacion(self, loteria_id, fecha, mensaje, tipo, trigger_fcm=True):
         try:
             with self.engine.connect() as conn:
                 conn.execute(text("""
@@ -425,12 +468,98 @@ class NotificationGenerator:
                     VALUES (:l_id, :fecha, :msj, :tipo)
                 """), {"l_id": loteria_id, "fecha": fecha, "msj": mensaje, "tipo": tipo})
                 conn.commit()
-                print(f"✅ Notificación guardada en DB ({tipo}): {mensaje}")
+                print(f"✅ Notificación guardada en DB ({tipo}) [loteria_id={loteria_id}]: {mensaje}")
                 
-                # 🔥 Enviar Push Notification vía FCM segmentada por país
-                self.enviar_fcm_push(loteria_id, mensaje, tipo)
+                # 🔥 Enviar Push Notification vía FCM segmentada por país (si se solicita directamente)
+                if trigger_fcm:
+                    self.enviar_fcm_push(loteria_id, mensaje, tipo)
         except Exception as e:
             print(f"❌ Error al guardar notificación: {e}")
+
+    def enviar_fcm_push_multipais(self, pais_ids: list, mensaje, tipo):
+        if not pais_ids:
+            return
+        try:
+            import firebase_admin
+            from firebase_admin import credentials, messaging
+
+            if not firebase_admin._apps:
+                rutas_credenciales = [
+                    PROJECT_ROOT / "config" / "firebase_credentials.json",
+                    Path("/opt/airflow/pry_dataloto/modelos_ML/config/firebase_credentials.json"),
+                    Path("firebase_credentials.json")
+                ]
+                
+                cred_path = None
+                for ruta in rutas_credenciales:
+                    if ruta.exists():
+                        cred_path = ruta
+                        break
+                
+                if cred_path:
+                    try:
+                        cred = credentials.Certificate(str(cred_path))
+                        firebase_admin.initialize_app(cred)
+                        print("✅ Firebase inicializado con éxito.")
+                    except Exception as e:
+                        print(f"❌ Error al inicializar Firebase con archivo: {e}")
+                else:
+                    try:
+                        firebase_admin.initialize_app()
+                        print("✅ Firebase inicializado con configuración por defecto (ADC).")
+                    except Exception as e:
+                        print(f"❌ Falló inicialización por defecto de Firebase: {e}")
+
+            if not firebase_admin._apps:
+                return
+
+            with self.engine.connect() as conn:
+                res = conn.execute(
+                    text("SELECT fcm_token FROM users WHERE pais_id = ANY(:p_ids) AND fcm_token IS NOT NULL AND fcm_token != ''"),
+                    {"p_ids": list(pais_ids)}
+                )
+                tokens = [r[0] for r in res.fetchall() if r[0]]
+
+            print(f"🔍 Segmentación Multipaís: Países {pais_ids}. Tokens encontrados: {len(tokens)}")
+            if not tokens:
+                return
+
+            batch_size = 500
+            for i in range(0, len(tokens), batch_size):
+                batch_tokens = tokens[i:i + batch_size]
+                message = messaging.MulticastMessage(
+                    notification=messaging.Notification(
+                        title="🍀 Eterlotto - Acierto IA",
+                        body=mensaje,
+                    ),
+                    data={
+                        "tipo": tipo,
+                        "click_action": "FLUTTER_NOTIFICATION_CLICK"
+                    },
+                    tokens=batch_tokens,
+                )
+                response = messaging.send_each_for_multicast(message)
+                print(f"📲 FCM Push Multipaís enviada: {response.success_count} exitosas, {response.failure_count} fallidas.")
+                
+                if response.failure_count > 0:
+                    invalid_tokens = []
+                    for idx, resp in enumerate(response.responses):
+                        if not resp.success:
+                            err_str = str(resp.exception)
+                            if "NotRegistered" in err_str or "invalid-registration-token" in err_str or "registration-token-not-registered" in err_str:
+                                invalid_tokens.append(batch_tokens[idx])
+                    
+                    if invalid_tokens:
+                        with self.engine.connect() as conn:
+                            for bad_tok in invalid_tokens:
+                                conn.execute(
+                                    text("UPDATE users SET fcm_token = NULL WHERE fcm_token = :tok"),
+                                    {"tok": bad_tok}
+                                )
+                            conn.commit()
+                        print(f"🧹 Se limpiaron {len(invalid_tokens)} tokens FCM obsoletos de la base de datos.")
+        except Exception as e:
+            print(f"⚠️ FCM Error Crítico en Multipaís: {e}")
 
     def enviar_fcm_push(self, loteria_id, mensaje, tipo):
         try:

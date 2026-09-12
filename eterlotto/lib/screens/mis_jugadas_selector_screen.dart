@@ -135,11 +135,23 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       }
 
       final List<Map<String, dynamic>> jugadasLoterias = todas.where((mapItem) {
+        final idStr = mapItem['id']?.toString();
         final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
         final route = (rawRoute != null && rawRoute.isNotEmpty)
             ? rawRoute
             : _getRouteFromName(mapItem['nombre'] ?? "");
-        return infoMap.containsKey(route) || activas.contains(route);
+
+        // 1. Coincidencia directa y exacta por loteria_id
+        if (idStr != null && (infoMap.containsKey(idStr) || activas.contains(idStr))) {
+          return true;
+        }
+        // 2. Fallback por route si el backend devuelve rutas clásicas
+        final bool hasIdKeys = infoMap.keys.any((k) => int.tryParse(k) != null) ||
+            activas.any((a) => int.tryParse(a) != null);
+        if (!hasIdKeys && (infoMap.containsKey(route) || activas.contains(route))) {
+          return true;
+        }
+        return false;
       }).toList();
 
       // Las APIs antiguas de jugadas devuelven {} o [] ante un fallo de red
@@ -630,7 +642,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         ? rawRoute
         : _getRouteFromName(nombre);
 
-    final info = _infoJugadas[route];
+    final idStr = loteria['id']?.toString();
+    final info = (idStr != null ? _infoJugadas[idStr] : null) ?? _infoJugadas[route];
     final count = info?['count'] ?? 1;
     final rawFecha =
         info?['fecha'] ??
@@ -762,6 +775,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     final route = (rawRoute != null && rawRoute.isNotEmpty)
         ? rawRoute
         : _getRouteFromName(nombre);
+    final int? loteriaId = loteria['id'] is int
+        ? loteria['id'] as int
+        : int.tryParse(loteria['id']?.toString() ?? '');
 
     Navigator.push(
       context,
@@ -769,6 +785,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         builder: (_) => MisJugadasScreen(
           loteriaNombre: nombre,
           loteriaRoute: route,
+          loteriaId: loteriaId,
+          loteriaData: loteria,
           soloProximos: _selectedFilter == 'proximos',
         ),
       ),
@@ -781,11 +799,12 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     List<Map<String, dynamic>> temp = List.from(_loterias);
 
     temp = temp.where((loteria) {
+      final idStr = loteria['id']?.toString();
       final rawRoute = loteria['route']?.toString().trim().toLowerCase();
       final route = (rawRoute != null && rawRoute.isNotEmpty)
           ? rawRoute
           : _getRouteFromName(loteria['nombre'] ?? "");
-      final info = _infoJugadas[route];
+      final info = (idStr != null ? _infoJugadas[idStr] : null) ?? _infoJugadas[route];
       final rawFecha =
           info?['fecha'] ??
           loteria["proximo_sorteo"] ??

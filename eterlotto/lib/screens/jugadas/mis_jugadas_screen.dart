@@ -27,12 +27,16 @@ import 'package:shimmer/shimmer.dart';
 class MisJugadasScreen extends StatefulWidget {
   final String loteriaNombre;
   final String loteriaRoute;
+  final int? loteriaId;
+  final Map<String, dynamic>? loteriaData;
   final bool soloProximos;
 
   const MisJugadasScreen({
     super.key,
     required this.loteriaNombre,
     required this.loteriaRoute,
+    this.loteriaId,
+    this.loteriaData,
     this.soloProximos = true,
   });
 
@@ -179,8 +183,11 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Future<void> _cargarJugadas({bool force = false}) async {
     final uId = await ApiService.getUserId();
     final uIdStr = uId?.toString();
+    final routeOrId = widget.loteriaId != null
+        ? '${widget.loteriaRoute}_${widget.loteriaId}'
+        : widget.loteriaRoute;
     final cacheKeyUser = CacheService.jugadasUsuarioKey(
-      widget.loteriaRoute,
+      routeOrId,
       uIdStr,
     );
 
@@ -206,6 +213,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     try {
       final response = await ApiService.listarJugadasGenerica(
         widget.loteriaRoute,
+        loteriaId: widget.loteriaId,
       );
       final List<Map<String, dynamic>> data = List<Map<String, dynamic>>.from(
         response,
