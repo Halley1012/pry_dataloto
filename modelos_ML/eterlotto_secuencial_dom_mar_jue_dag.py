@@ -114,7 +114,7 @@ with DAG(
     'eterlotto_ejecucion_secuencial_dom_mar_jue',
     default_args=default_args,
     description='Ejecuta secuencialmente scraping y predicción de Baloto, Double Play, Lotto America y Powerball',
-    schedule='0 3 * * 0,2,4',  # Domingos, Martes y Jueves a las 3:00 AM
+    schedule='0 3 * * *',  # Domingos, Martes y Jueves a las 3:00 AM
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'secuencial', 'dom_mar_jue'],

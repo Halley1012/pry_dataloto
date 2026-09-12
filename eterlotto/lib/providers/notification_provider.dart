@@ -82,14 +82,8 @@ class NotificationProvider with ChangeNotifier {
 
   Set<String> _routesFromInfo(dynamic info) {
     if (info is! Map) return <String>{};
-    return info.entries
-        .map((entry) {
-          final value = entry.value;
-          if (value is Map && value['route'] != null) {
-            return value['route'].toString().trim().toLowerCase();
-          }
-          return entry.key.toString().trim().toLowerCase();
-        })
+    return info.keys
+        .map((key) => key.toString().trim().toLowerCase())
         .where((route) => route.isNotEmpty)
         .toSet();
   }
