@@ -50,39 +50,47 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime, loteria_id: Optional[int] = None) -> Dict[str, Any]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = tipo.strip().lower() if tipo else ""
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
+            
+            resolved_loteria_id: Optional[int] = None
             if loteria_id is not None:
                 lot_row = await conn.fetchrow("""
-                    SELECT id, route 
-                    FROM loterias 
-                    WHERE id = $1
-                    LIMIT 1;
+                    SELECT id, LOWER(route) AS route, pais_id
+                    FROM loterias
+                    WHERE id = $1;
                 """, loteria_id)
-                if lot_row and lot_row['route']:
-                    loteria_route = lot_row['route'].lower()
+                if not lot_row:
+                    raise ValueError(f"No existe ninguna lotería con id {loteria_id}")
+                if loteria_route and lot_row['route'] and lot_row['route'] != loteria_route:
+                    raise ValueError(f"loteria_id {loteria_id} no corresponde con la ruta indicada '{loteria_route}'")
+                resolved_loteria_id = lot_row['id']
+                loteria_route = lot_row['route'] or loteria_route
             else:
-                # Buscar el loteria_id numérico en la tabla loterias
-                lot_row = await conn.fetchrow("""
-                    SELECT id, route 
-                    FROM loterias 
+                candidates = await conn.fetch("""
+                    SELECT id, LOWER(route) AS route
+                    FROM loterias
                     WHERE LOWER(route) = $1 
                        OR LOWER(nombre) = $1
                        OR REPLACE(LOWER(route), '_', ' ') = $1
-                       OR REPLACE(LOWER(nombre), ' ', '_') = $1
-                    LIMIT 1;
+                       OR REPLACE(LOWER(nombre), ' ', '_') = $1;
                 """, loteria_route)
                 
-                loteria_id = lot_row['id'] if lot_row else None
-                if lot_row and lot_row['route']:
-                    loteria_route = lot_row['route'].lower()
+                if len(candidates) > 1:
+                    raise ValueError(f"La ruta '{loteria_route}' pertenece a varias loterías. Debe especificar loteria_id.")
+                elif len(candidates) == 1:
+                    resolved_loteria_id = candidates[0]['id']
+                    if candidates[0]['route']:
+                        loteria_route = candidates[0]['route']
+                else:
+                    resolved_loteria_id = None
 
             row = await conn.fetchrow("""
                 INSERT INTO jugadas (user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
+            """, user_id, resolved_loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
             d = dict(row)
             if d.get('fecha_sorteo'):
                 d['fecha_sorteo'] = str(d['fecha_sorteo'])
@@ -90,7 +98,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
 
     async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None, loteria_id: Optional[int] = None) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = tipo.strip().lower() if tipo else ""
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             if fecha:
@@ -104,13 +112,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         FROM jugadas
                         WHERE user_id = $1
                           AND (
-                              ($4::int IS NOT NULL AND loteria_id = $4::int)
+                              ($3::int IS NOT NULL AND loteria_id = $3::int)
                               OR
-                              ($4::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
+                              ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
                           )
-                          AND (fecha_sorteo = $3 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $3 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $3)))
+                          AND (fecha_sorteo = $4 OR (fecha_sorteo IS NULL AND (fecha_guardado::date = $4 OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $4)))
                         ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
-                    """, user_id, loteria_route, clean_date, loteria_id)
+                    """, user_id, loteria_route, loteria_id, clean_date)
                 except Exception as e:
                     logging.getLogger(__name__).error(f'Error capturado: {e}')
                     rows = await conn.fetch("""
@@ -134,11 +142,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                            fecha_guardado, expira
                     FROM jugadas
                     WHERE user_id = $1
-                      AND (
-                          ($3::int IS NOT NULL AND loteria_id = $3::int)
-                          OR
-                          ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
-                      )
+                          AND (
+                              ($3::int IS NOT NULL AND loteria_id = $3::int)
+                              OR
+                              ($3::int IS NULL AND ($2 = '' OR LOWER(loteria_route) = $2))
+                          )
                       AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                     ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
                 """, user_id, loteria_route, loteria_id)
@@ -151,29 +159,35 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 res.append(d)
             return res
 
-    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
+    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int, loteria_id: Optional[int] = None) -> bool:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = tipo.strip().lower() if tipo else ""
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             result = await conn.execute("""
                 DELETE FROM jugadas
-                WHERE id = $1 AND user_id = $2 AND ($3 = '' OR LOWER(loteria_route) = $3)
-            """, jugada_id, user_id, loteria_route)
+                WHERE id = $1 
+                  AND user_id = $2 
+                  AND ($3 = '' OR LOWER(loteria_route) = $3)
+                  AND ($4::int IS NULL OR loteria_id = $4::int)
+            """, jugada_id, user_id, loteria_route, loteria_id)
             return result == "DELETE 1"
 
-    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int]) -> Optional[Dict[str, Any]]:
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int], loteria_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         pool = db_connection.get_pool()
-        loteria_route = tipo.strip().lower()
+        loteria_route = tipo.strip().lower() if tipo else ""
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             numeros_clean = [int(n) for n in numeros]
             row = await conn.fetchrow("""
                 UPDATE jugadas
                 SET numeros = $1
-                WHERE id = $2 AND user_id = $3 AND ($4 = '' OR LOWER(loteria_route) = $4)
+                WHERE id = $2 
+                  AND user_id = $3 
+                  AND ($4 = '' OR LOWER(loteria_route) = $4)
+                  AND ($5::int IS NULL OR loteria_id = $5::int)
                 RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, numeros_clean, jugada_id, user_id, loteria_route)
+            """, numeros_clean, jugada_id, user_id, loteria_route, loteria_id)
             if not row:
                 return None
             d = dict(row)
@@ -212,23 +226,36 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             rows = await conn.fetch("""
-                SELECT loteria_id,
-                       LOWER(loteria_route) AS route, 
-                       COUNT(*)::int AS count,
-                       MAX(COALESCE(fecha_sorteo, fecha_guardado::date)) AS latest_fecha
-                FROM jugadas
-                WHERE user_id = $1
-                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
-                GROUP BY loteria_id, LOWER(loteria_route)
+                SELECT
+                    j.loteria_id,
+                    LOWER(l.route) AS route,
+                    l.nombre,
+                    l.pais_id,
+                    COUNT(*)::int AS count,
+                    MAX(COALESCE(j.fecha_sorteo, j.fecha_guardado::date)) AS latest_fecha
+                FROM jugadas j
+                JOIN loterias l
+                    ON l.id = j.loteria_id
+                WHERE j.user_id = $1
+                  AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                GROUP BY
+                    j.loteria_id,
+                    l.route,
+                    l.nombre,
+                    l.pais_id;
             """, user_id)
             return {
-                str(r['loteria_id']) if r['loteria_id'] else r['route']: {
+                str(r['loteria_id']): {
+                    'loteria_id': r['loteria_id'],
+                    'route': r['route'],
+                    'pais_id': r['pais_id'],
+                    'nombre': r['nombre'],
                     'count': r['count'],
                     'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None,
                     'loteria_id': r['loteria_id'],
                     'route': r['route']
                 }
-                for r in rows if (r['loteria_id'] or r['route'])
+                for r in rows if r['loteria_id'] is not None
             }
 
 

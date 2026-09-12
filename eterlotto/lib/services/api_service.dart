@@ -862,7 +862,7 @@ class ApiService {
         .timeout(_requestTimeout);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      await CacheService.registrarJugadaOptimista(route, userId: userId);
+      await CacheService.registrarJugadaOptimista(route, loteriaId: loteriaId, userId: userId);
       await CacheService.invalidarCachesDeJugadas(
         specificRoute: route,
         userId: userId,
@@ -895,9 +895,8 @@ class ApiService {
       route = "cloto";
     }
 
-    final loteriaIdParam = loteriaId != null ? "&loteria_id=$loteriaId" : "";
     final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}$loteriaIdParam";
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${loteriaId != null ? "&loteria_id=$loteriaId" : ""}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -925,19 +924,21 @@ class ApiService {
   static Future<bool> borrarJugadaGenerica(
     String loteriaName,
     int jugadaId,
-    String userId,
-  ) async {
+    String userId, {
+    int? loteriaId,
+  }) async {
     String route = loteriaName.trim().toLowerCase();
     if (route == "colorloto") {
       route = "cloto";
     }
     try {
+      final queryParams = loteriaId != null ? "user_id=$userId&loteria_id=$loteriaId" : "user_id=$userId";
       final response = await http
           .delete(
-            Uri.parse("$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"),
+            Uri.parse("$baseUrl/jugadas_$route/$jugadaId?$queryParams"),
             headers: {"Content-Type": "application/json"},
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(_requestTimeout);
       if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: route,
@@ -957,6 +958,7 @@ class ApiService {
     int jugadaId,
     List<int> numeros,
     String userId, {
+    int? loteriaId,
     List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
@@ -977,6 +979,7 @@ class ApiService {
       "numeros": numerosParaGuardar,
       "user_id": userId,
       "loteria_route": route,
+      if (loteriaId != null) "loteria_id": loteriaId,
     };
     if (especiales.isNotEmpty) {
       payload["balota_roja"] = especiales.first;

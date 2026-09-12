@@ -210,7 +210,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     _activePlayedRoutes = <String>{};
     _pastPlayedRoutes = <String>{};
     for (final entry in userPlays.entries) {
-      final route = entry.key.trim().toLowerCase();
+      final route = (entry.value['route']?.toString() ?? entry.key)
+          .trim()
+          .toLowerCase();
       if (route.isEmpty) continue;
       final drawDate = entry.value['fecha']?.toString();
       if (_drawDayDifference(drawDate) >= 0) {
