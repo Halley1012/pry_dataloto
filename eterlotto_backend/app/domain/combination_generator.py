@@ -5,7 +5,11 @@ from typing import List, Optional, Set, Tuple
 from pydantic import BaseModel, Field
 
 class LotteryRules(BaseModel):
+    # Valor único usado por el selector/generador. Se basa en loterias.id.
     lottery_id: str
+    # Identidad canónica en la tabla loterias y route del motor compartido.
+    catalog_lottery_id: Optional[int] = None
+    route: Optional[str] = None
     name: str
     country: str
     main_numbers_count: int
