@@ -251,6 +251,21 @@ class PaisHelper {
       if (n.contains("suiza") || n.contains("suíça")) return "Suíça";
       if (n.contains("reino unido")) return "Reino Unido";
       if (n == "todos" || n == "internacional") return "Internacional";
+    } else if (langCode == 'fr') {
+      if (n.contains("estados unidos") || n.contains("usa") || n.contains("eeuu") || n.contains("united states")) return "États-Unis";
+      if (n.contains("españa") || n.contains("espana")) return "Espagne";
+      if (n.contains("méxico") || n.contains("mexico")) return "Mexique";
+      if (n.contains("brasil")) return "Brésil";
+      if (n.contains("alemania")) return "Allemagne";
+      if (n.contains("francia")) return "France";
+      if (n.contains("irlanda")) return "Irlande";
+      if (n.contains("luxemburgo")) return "Luxembourg";
+      if (n.contains("bélgica") || n.contains("belgica")) return "Belgique";
+      if (n.contains("austria") || n.contains("áustria")) return "Autriche";
+      if (n.contains("portugal")) return "Portugal";
+      if (n.contains("suiza") || n.contains("suíça")) return "Suisse";
+      if (n.contains("reino unido") || n.contains("inglaterra")) return "Royaume-Uni";
+      if (n == "todos" || n == "internacional") return "International";
     }
     if (nombre.isNotEmpty) {
       return nombre[0].toUpperCase() + nombre.substring(1).toLowerCase();

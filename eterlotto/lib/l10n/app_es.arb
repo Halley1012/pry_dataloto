@@ -827,6 +827,7 @@
   "combinacionCopiada": "Combinación copiada al portapapeles",
   "favorito": "Favorito",
   "marcadaComoFavorita": "Marcada como favorita",
+  "sinConexionDatos": "Sin conexión · mostrando los últimos datos disponibles",
   "sinConexionAnuncios": "Sin conexión · mostrando tus últimos anuncios disponibles",
   "errorCargarAnuncios": "No pudimos cargar tus anuncios.",
   "continuarConGoogle": "Continuar con Google"

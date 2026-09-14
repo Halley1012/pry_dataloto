@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -46,6 +48,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   bool _isLoading = true;
   bool _isExporting = false;
   String? _errorMessage;
+  bool _showingStaleData = false;
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
   List<int> _top20 = [];
@@ -94,21 +97,22 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   int _getTopLimit(int poolSize) {
-    if (widget.config.maxBalotasBlancas > 0) {
-      return widget.config.maxBalotasBlancas ~/ 2;
+    // La cantidad evaluada sale de las reglas de la lotería y nunca de su nombre.
+    // Si conocemos el universo de balotas principales, evaluamos aproximadamente
+    // la mitad (mismo criterio histórico de Eterlotto). Si la configuración aún
+    // no llegó, usamos el tamaño real de la predicción disponible.
+    final configuredPool = widget.config.maxBalotasBlancas;
+    if (configuredPool > 0) {
+      return math.max(1, configuredPool ~/ 2);
     }
     if (poolSize > 0) {
-      return (poolSize ~/ 2);
+      return math.max(1, poolSize ~/ 2);
     }
-    final lower = widget.config.nombre.toLowerCase().replaceAll(
-      RegExp(r'[\s_]+'),
-      '',
-    );
-    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
-    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
-    return 20;
+
+    // Último respaldo derivado de la regla de selección; no hay rutas ni nombres
+    // de loterías quemados.
+    final selected = widget.config.maxSeleccion;
+    return selected > 0 ? math.max(1, selected * 4) : 20;
   }
 
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
@@ -194,10 +198,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   Future<void> _cargarHistorico({bool force = false}) async {
     final cacheKey = '${widget.config.route}_ultimos50_historico_v2';
 
-    // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
+    // Cache-first/SWR: la última copia conocida nunca se elimina al expirar.
     if (_todosResultados.isEmpty) {
       final cached = await CacheService.getStaleJson(cacheKey);
-      if (cached != null && cached["resultados"] != null && mounted) {
+      if (cached is Map && cached["resultados"] is List && mounted) {
         final listCached = List<Map<String, dynamic>>.from(
           cached["resultados"],
         );
@@ -205,8 +209,8 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           final encontrados = listCached
               .map((r) => r["sorteo"]?.toString().trim())
               .where((s) => s != null && s.isNotEmpty)
-              .toSet()
               .cast<String>()
+              .toSet()
               .toList();
 
           setState(() {
@@ -223,28 +227,34 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       }
     }
 
-    if (_todosResultados.isEmpty || force) {
+    // Un pull-to-refresh no debe ocultar una lista que ya está visible.
+    if (_todosResultados.isEmpty && mounted) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        _showingStaleData = false;
       });
     }
 
-    // 2. Traer los 50 sorteos más recientes desde el servidor
+    var historyFailed = false;
+    var historyReturnedEmpty = false;
+
     try {
       final list = await ApiService.getHistorico50(widget.config.route);
-      if (mounted && list.isNotEmpty) {
+      if (list.isNotEmpty && mounted) {
         final encontrados = list
             .map((r) => r["sorteo"]?.toString().trim())
             .where((s) => s != null && s.isNotEmpty)
-            .toSet()
             .cast<String>()
+            .toSet()
             .toList();
 
         final final50 = list.take(50).toList();
 
         setState(() {
           _todosResultados = final50;
+          _errorMessage = null;
+          _showingStaleData = false;
           if (encontrados.isNotEmpty &&
               !encontrados.any(
                 (s) => s.toLowerCase() == _selectedSorteo.toLowerCase(),
@@ -253,64 +263,79 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           }
         });
 
-        // Guardar en caché local
-        CacheService.setJson(cacheKey, {"resultados": final50});
+        await CacheService.setJson(cacheKey, {"resultados": final50});
+      } else {
+        historyReturnedEmpty = true;
       }
     } catch (e) {
-      if (mounted && _todosResultados.isEmpty) {
+      historyFailed = true;
+      if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          if (_todosResultados.isEmpty) {
+            _errorMessage = e.toString();
+          } else {
+            _showingStaleData = true;
+          }
         });
       }
-    } finally {
-      if (_top20.isEmpty) {
-        try {
-          final pred = await ApiService.getPrediccionLoteria(
-            widget.config.route,
-          );
-          if (pred["numeros"] is List) {
-            final pNums = (pred["numeros"] as List)
-                .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n >= 0)
-                .toList();
-            if (pNums.isNotEmpty && mounted) {
-              setState(() {
-                _top20 = pNums.take(20).toList();
-              });
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (_prediccionesPorFecha.isEmpty && widget.modoResultadosIA) {
-        try {
-          final preds = await ApiService.getPrediccionesHistorico(
-            widget.config.route,
-          );
-          if (preds.isNotEmpty && mounted) {
-            Map<String, List<int>> pMap = {};
-            for (var p in preds) {
-              final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
-              final rawN = p["numeros"];
-              if (f.isNotEmpty && rawN is List) {
-                final nums = rawN
-                    .map((e) => int.tryParse(e.toString()) ?? -1)
-                    .where((n) => n >= 0)
-                    .toList();
-                if (nums.isNotEmpty) pMap[f] = nums;
-              }
-            }
-            if (pMap.isNotEmpty && mounted) {
-              setState(() {
-                _prediccionesPorFecha = pMap;
-              });
-            }
-          }
-        } catch (_) {}
-      }
-
-      if (mounted) setState(() => _isLoading = false);
     }
+
+    if (!historyFailed &&
+        historyReturnedEmpty &&
+        _todosResultados.isNotEmpty &&
+        mounted) {
+      // Un endpoint que antes tenía resultados y temporalmente devuelve vacío
+      // no debe borrar la copia conocida.
+      setState(() => _showingStaleData = true);
+    }
+
+    if (_top20.isEmpty) {
+      try {
+        final pred = await ApiService.getPrediccionLoteria(
+          widget.config.route,
+        );
+        if (pred["numeros"] is List) {
+          final pNums = (pred["numeros"] as List)
+              .map((e) => int.tryParse(e.toString()) ?? -1)
+              .where((n) => n >= 0)
+              .toList();
+          if (pNums.isNotEmpty && mounted) {
+            setState(() {
+              _top20 = pNums.take(_getTopLimit(pNums.length)).toList();
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (_prediccionesPorFecha.isEmpty && widget.modoResultadosIA) {
+      try {
+        final preds = await ApiService.getPrediccionesHistorico(
+          widget.config.route,
+        );
+        if (preds.isNotEmpty && mounted) {
+          final pMap = <String, List<int>>{};
+          for (var p in preds) {
+            final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
+            final rawN = p["numeros"];
+            if (f.isNotEmpty && rawN is List) {
+              final nums = rawN
+                  .map((e) => int.tryParse(e.toString()) ?? -1)
+                  .where((n) => n >= 0)
+                  .toList();
+              if (nums.isNotEmpty) pMap[f] = nums;
+            }
+          }
+          if (pMap.isNotEmpty && mounted) {
+            setState(() {
+              _prediccionesPorFecha = pMap;
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _isLoading = false);
   }
 
   List<Map<String, dynamic>> _obtenerResultadosFiltrados() {
@@ -877,46 +902,21 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                         const SizedBox(height: 16),
                       ],
 
+                      if (_showingStaleData) ...[
+                        const AppStaleDataBanner(),
+                        const SizedBox(height: 14),
+                      ],
+
                       // Estado de carga / error / lista de resultados
                       if (_isLoading)
                         _buildSkeletonHistorico()
                       else if (_errorMessage != null)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 40),
-                            child: Column(
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.redAccent,
-                                  size: 40,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  l10n?.errorConexion ?? 'Error de conexión',
-                                  style: AppTextStyles.h2.copyWith(
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  l10n?.datosLoteriaSinConexion ??
-                                      'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.',
-                                  style: AppTextStyles.mensajeSecundario,
-                                  textAlign: TextAlign.center,
-                                ),
-                                const SizedBox(height: 12),
-                                ElevatedButton(
-                                  onPressed: _cargarHistorico,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.yellow,
-                                    foregroundColor: Colors.black,
-                                  ),
-                                  child: Text(l10n?.reintentar ?? 'Reintentar'),
-                                ),
-                              ],
-                            ),
-                          ),
+                        AppDataStateCard(
+                          isConnectionError: true,
+                          onRetry: () => _cargarHistorico(force: true),
+                          retrying: _isLoading,
+                          useContainer: false,
+                          margin: const EdgeInsets.symmetric(vertical: 20),
                         )
                       else if (listToShow.isEmpty)
                         Center(

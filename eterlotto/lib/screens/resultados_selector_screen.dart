@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -26,6 +27,9 @@ class ResultadosSelectorScreen extends StatefulWidget {
 }
 
 class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
+  // Un sorteo permanece en 'Recientes' durante todo el día siguiente.
+  // Ej.: sorteo 13 Sep -> sigue reciente el 14 Sep -> pasa a historial el 15 Sep.
+  static const int _recentGraceDaysAfterDraw = 1;
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
@@ -37,6 +41,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   Set<String> _activePlayedLotteryIds = <String>{};
   Set<String> _pastPlayedLotteryIds = <String>{};
   bool _isLoading = true;
+  bool _loadFailed = false;
+  bool _showingStaleData = false;
+  bool _catalogFetchFailed = false;
   String _selectedFilter = 'recientes';
 
   @override
@@ -74,90 +81,162 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
     final uCountry = await _storage.read(key: 'pais_nombre') ?? "Internacional";
     final uCountryId = await _storage.read(key: 'pais_id');
-    // Los resultados son públicos. La preferencia de país sólo organiza la
-    // lista, por lo que la caché puede ser compartida y no depende del usuario.
+    final userId = await _storage.read(key: 'user_id');
+
+    // Los resultados son públicos; la información de jugadas usada para
+    // decidir Recientes/Historial sí es privada y se aísla por usuario.
     const cacheKey = 'resultados_selector_v6';
-    final userPlaysFuture = ApiService.getLoteriasInfoJugadas()
-        .catchError((_) => <String, Map<String, dynamic>>{});
+    final playsCacheKey = CacheService.infoMisJugadasKey(userId);
 
-    {
-      // SWR: aun vencida, la lista visible es útil mientras la consulta de
-      // red se ejecuta debajo. Nunca se comparte con una identidad privada.
-      final cached = await CacheService.getStaleJson(cacheKey);
-      final cachedPaises = await CacheService.getStaleJson(
-        'paises_list_cache',
+    final cached = await CacheService.getStaleJson(cacheKey);
+    final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+    final cachedPlaysRaw = await CacheService.getStaleJson(playsCacheKey);
+
+    Map<String, Map<String, dynamic>> cachedPlays =
+        <String, Map<String, dynamic>>{};
+    if (cachedPlaysRaw is Map) {
+      cachedPlays = cachedPlaysRaw.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          value is Map
+              ? Map<String, dynamic>.from(value)
+              : <String, dynamic>{},
+        ),
       );
-
-      if (cached != null && (cached as List).isNotEmpty && mounted) {
-        final cachedWithResults = List<Map<String, dynamic>>.from(cached)
-            .where(_hasRecordedDraw)
-            .toList();
-        setState(() {
-          _userCountry = uCountry;
-          _userCountryId = uCountryId;
-          _activePlayedRoutes = <String>{};
-          _pastPlayedRoutes = <String>{};
-          _activePlayedLotteryIds = <String>{};
-          _pastPlayedLotteryIds = <String>{};
-          _loterias = cachedWithResults;
-          _filteredLoterias = _filterBySelectedView(_loterias);
-          if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
-            _paises = List<Map<String, dynamic>>.from(cachedPaises);
-          }
-          _isLoading = false;
-        });
-      }
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (cached is List && cached.isNotEmpty && mounted) {
+      final cachedWithResults = List<Map<String, dynamic>>.from(cached)
+          .where(_hasRecordedDraw)
+          .toList();
+      setState(() {
+        _userCountry = uCountry;
+        _userCountryId = uCountryId;
+        _loterias = cachedWithResults;
+        if (cachedPaises is List && cachedPaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(cachedPaises);
+        }
+        _setPlayedRoutes(cachedPlays);
+        _filteredLoterias = _filterBySelectedView(_loterias);
+        _isLoading = false;
+        _loadFailed = false;
+      });
+    }
+
+    if (_loterias.isEmpty && mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
+
+    var userPlaysFailed = false;
+    final userPlaysFuture = ApiService.getLoteriasInfoJugadas().catchError((_) {
+      userPlaysFailed = true;
+      return <String, Map<String, dynamic>>{};
+    });
 
     try {
       final results = await Future.wait([
         _obtenerTodasLasLoterias(force: forceRefresh),
         userPlaysFuture,
       ]);
+
       final todas = results[0] as List<Map<String, dynamic>>;
-      final userPlays = results[1] as Map<String, Map<String, dynamic>>;
+      final networkUserPlays =
+          results[1] as Map<String, Map<String, dynamic>>;
+
+      // Algunas APIs legacy devuelven {} ante fallos temporales. Si ya existe
+      // una copia privada para esta cuenta, no hacemos desaparecer sus
+      // internacionales de Recientes/Historial.
+      final usedCachedPlays =
+          networkUserPlays.isEmpty && cachedPlays.isNotEmpty;
+      final effectiveUserPlays = networkUserPlays.isNotEmpty
+          ? networkUserPlays
+          : cachedPlays;
+
+      if (networkUserPlays.isNotEmpty) {
+        await CacheService.setJson(playsCacheKey, networkUserPlays);
+      }
+
       final finalLoterias = todas.where(_hasRecordedDraw).toList()
         ..sort((a, b) => _lastDrawDate(b).compareTo(_lastDrawDate(a)));
 
-      if (mounted) {
+      if (!mounted) return;
+
+      // Si la red falló y _obtenerTodasLasLoterias devolvió el catálogo stale,
+      // lo mantenemos visible y lo marcamos. Si no pudo devolver nada pero la
+      // pantalla ya estaba hidratada, tampoco se borra.
+      if (finalLoterias.isEmpty && _loterias.isNotEmpty) {
         setState(() {
           _userCountry = uCountry;
           _userCountryId = uCountryId;
-          _setPlayedRoutes(userPlays);
-          _loterias = finalLoterias;
-          _filteredLoterias = _filterBySelectedView(finalLoterias);
+          _setPlayedRoutes(effectiveUserPlays);
+          _filteredLoterias = _filterBySelectedView(_loterias);
           _isLoading = false;
+          _loadFailed = false;
+          _showingStaleData =
+              _catalogFetchFailed || userPlaysFailed || usedCachedPlays;
         });
-        CacheService.setJson(cacheKey, finalLoterias);
+        return;
+      }
+
+      setState(() {
+        _userCountry = uCountry;
+        _userCountryId = uCountryId;
+        _setPlayedRoutes(effectiveUserPlays);
+        _loterias = finalLoterias;
+        _filteredLoterias = _filterBySelectedView(finalLoterias);
+        _isLoading = false;
+        _loadFailed = finalLoterias.isEmpty && _catalogFetchFailed;
+        _showingStaleData =
+            finalLoterias.isNotEmpty &&
+            (_catalogFetchFailed || userPlaysFailed || usedCachedPlays);
+      });
+
+      if (finalLoterias.isNotEmpty && !_catalogFetchFailed) {
+        await CacheService.setJson(cacheKey, finalLoterias);
+      }
+      if (!_catalogFetchFailed) {
         DataRefreshManager.instance.markUpdated(RefreshModules.resultados);
       }
     } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = _loterias.isEmpty;
+        _showingStaleData = _loterias.isNotEmpty;
+      });
     }
   }
 
+  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({
+    bool force = false,
+  }) async {
+    _catalogFetchFailed = false;
 
-
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
     if (!force) {
       final cachedMapeo = await CacheService.getJson(
         CacheService.catalogoLoteriasKey,
       );
       final cachedPaises = await CacheService.getJson('paises_list_cache');
-      if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
+      if (cachedPaises is List && cachedPaises.isNotEmpty) {
         _paises = List<Map<String, dynamic>>.from(cachedPaises);
       }
-      if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
+      if (cachedMapeo is List && cachedMapeo.isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
     }
 
+    var hadNetworkFailure = false;
     try {
       final results = await Future.wait([
-        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getPaises().catchError((_) {
+          hadNetworkFailure = true;
+          return <Map<String, dynamic>>[];
+        }),
         ApiService.getAllLoterias().catchError((_) {
+          hadNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -165,7 +244,14 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       final paisesRaw = results[0] as List<Map<String, dynamic>>;
       if (paisesRaw.isNotEmpty) {
         _paises = paisesRaw;
-        CacheService.setJson('paises_list_cache', _paises);
+        await CacheService.setJson('paises_list_cache', _paises);
+      } else if (_paises.isEmpty) {
+        final stalePaises = await CacheService.getStaleJson(
+          'paises_list_cache',
+        );
+        if (stalePaises is List && stalePaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(stalePaises);
+        }
       }
 
       final loteriasRaw = results[1];
@@ -173,12 +259,31 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
+      _catalogFetchFailed = hadNetworkFailure;
+
       if (todas.isNotEmpty) {
-        CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
+        await CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
+        return todas;
+      }
+
+      if (hadNetworkFailure) {
+        final staleCatalog = await CacheService.getStaleJson(
+          CacheService.catalogoLoteriasKey,
+        );
+        if (staleCatalog is List && staleCatalog.isNotEmpty) {
+          return List<Map<String, dynamic>>.from(staleCatalog);
+        }
       }
       return todas;
     } catch (_) {
-      return [];
+      _catalogFetchFailed = true;
+      final staleCatalog = await CacheService.getStaleJson(
+        CacheService.catalogoLoteriasKey,
+      );
+      if (staleCatalog is List && staleCatalog.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(staleCatalog);
+      }
+      return <Map<String, dynamic>>[];
     }
   }
 
@@ -228,7 +333,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               (int.tryParse(entry.key) != null ? entry.key : ''))
           .trim();
       final drawDate = info['fecha']?.toString();
-      final isActive = _drawDayDifference(drawDate) >= 0;
+      final dayDifference = _drawDayDifference(drawDate);
+      final isActive =
+          dayDifference != null &&
+          dayDifference >= -_recentGraceDaysAfterDraw;
 
       if (loteriaId.isNotEmpty) {
         (isActive ? _activePlayedLotteryIds : _pastPlayedLotteryIds)
@@ -248,12 +356,12 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
         (_userCountry ?? '').trim().toLowerCase();
   }
 
-  int _drawDayDifference(String? fecha) {
-    if (fecha == null || fecha.trim().isEmpty) return -1;
+  int? _drawDayDifference(String? fecha) {
+    if (fecha == null || fecha.trim().isEmpty) return null;
     final clean = fecha.trim();
     final parsed = DateTime.tryParse(clean) ??
         (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
-    if (parsed == null) return -1;
+    if (parsed == null) return null;
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final drawDay = DateTime(parsed.year, parsed.month, parsed.day);
@@ -374,8 +482,24 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               SliverToBoxAdapter(
                 child: _buildFilterToggleButtons(l10n),
               ),
+              if (_showingStaleData)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 2, 16, 10),
+                    child: AppStaleDataBanner(),
+                  ),
+                ),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
+              else if (_loadFailed && _loterias.isEmpty)
+                SliverToBoxAdapter(
+                  child: AppDataStateCard(
+                    isConnectionError: true,
+                    onRetry: () => cargarLoterias(forceRefresh: true),
+                    retrying: _isLoading,
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  ),
+                )
               else if (_filteredLoterias.isEmpty)
                 SliverToBoxAdapter(
                   child: _buildEmptyState(l10n),
@@ -662,17 +786,21 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       if (parsed == null) return fecha;
 
       final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en' 
+      final dias = langCode == 'en'
           ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt' 
+          : (langCode == 'pt'
               ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+              : (langCode == 'fr'
+                  ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+                  : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]));
 
       final meses = langCode == 'en'
           ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
           : (langCode == 'pt'
               ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+              : (langCode == 'fr'
+                  ? ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"]
+                  : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]));
 
       final diaSemana = dias[parsed.weekday - 1];
       final mes = meses[parsed.month - 1];
@@ -698,16 +826,31 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       final langCode = Localizations.localeOf(context).languageCode;
 
       if (diff == 0) {
-        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
+        if (langCode == 'en') return "Draws today";
+        if (langCode == 'pt') return "Sorteia hoje";
+        if (langCode == 'fr') return "Tirage aujourd’hui";
+        return "Sortea hoy";
       } else if (diff == 1) {
-        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+        if (langCode == 'en') return "Tomorrow";
+        if (langCode == 'pt') return "Amanhã";
+        if (langCode == 'fr') return "Demain";
+        return "Mañana";
       } else if (diff > 1) {
-        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+        if (langCode == 'en') return "In $diff days";
+        if (langCode == 'pt') return "Faltam $diff dias";
+        if (langCode == 'fr') return "Dans $diff jours";
+        return "Faltan $diff días";
       } else if (diff == -1) {
-        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
+        if (langCode == 'en') return "Drew yesterday";
+        if (langCode == 'pt') return "Sorteado ontem";
+        if (langCode == 'fr') return "Tiré hier";
+        return "Sorteó ayer";
       } else {
         final dias = diff.abs();
-        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
+        if (langCode == 'en') return "Drew $dias days ago";
+        if (langCode == 'pt') return "Sorteado há $dias dias";
+        if (langCode == 'fr') return "Tiré il y a $dias jours";
+        return "Sorteó hace $dias días";
       }
     } catch (_) {
       return "";

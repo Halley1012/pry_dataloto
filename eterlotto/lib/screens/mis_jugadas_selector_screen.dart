@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
@@ -35,6 +36,8 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   String? _userCountry;
   bool _isLoading = true;
   bool _loadFailed = false;
+  bool _showingStaleData = false;
+  bool _catalogFetchFailed = false;
   String _selectedFilter = 'proximos'; // 'proximos' or 'historial'
 
   @override
@@ -191,6 +194,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           setState(() {
             _isLoading = false;
             _loadFailed = false;
+            _showingStaleData = true;
           });
           return;
         }
@@ -200,6 +204,9 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           _routeCounts = routeCounts;
           _loterias = jugadasLoterias;
           _isLoading = false;
+          _showingStaleData =
+              jugadasLoterias.isNotEmpty &&
+              (hadRequestError || _catalogFetchFailed);
           // Sin el catálogo no es posible relacionar las jugadas con sus
           // loterías; en ese caso un listado vacío no debe parecer que el
           // usuario nunca guardó jugadas.
@@ -218,6 +225,7 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
         setState(() {
           _isLoading = false;
           _loadFailed = _loterias.isEmpty;
+          _showingStaleData = _loterias.isNotEmpty;
         });
       }
     }
@@ -226,20 +234,26 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({
     bool force = false,
   }) async {
+    _catalogFetchFailed = false;
+
     if (!force) {
       final cachedMapeo = await CacheService.getJson(
         CacheService.catalogoLoteriasKey,
       );
-      if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
+      if (cachedMapeo is List && cachedMapeo.isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
     }
 
+    var hadNetworkFailure = false;
     try {
-      // Cargar países y loterías en paralelo de manera ultra rápida
       final results = await Future.wait([
-        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getPaises().catchError((_) {
+          hadNetworkFailure = true;
+          return <Map<String, dynamic>>[];
+        }),
         ApiService.getAllLoterias().catchError((_) {
+          hadNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -247,7 +261,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final paisesRaw = results[0] as List<Map<String, dynamic>>;
       if (paisesRaw.isNotEmpty) {
         _paises = paisesRaw;
-        CacheService.setJson('paises_list_cache', _paises);
+        await CacheService.setJson('paises_list_cache', _paises);
+      } else if (_paises.isEmpty) {
+        final stalePaises = await CacheService.getStaleJson(
+          'paises_list_cache',
+        );
+        if (stalePaises is List && stalePaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(stalePaises);
+        }
       }
 
       final loteriasRaw = results[1];
@@ -255,11 +276,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
+      _catalogFetchFailed = hadNetworkFailure;
+
       if (todas.isNotEmpty) {
-        CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
-      } else {
-        // El catálogo es público: sólo lo usamos como respaldo visual si la
-        // red falló, nunca lo reescribimos ni lo invalidamos desde Jugadas.
+        await CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
+        return todas;
+      }
+
+      if (hadNetworkFailure) {
         final staleCatalog = await CacheService.getStaleJson(
           CacheService.catalogoLoteriasKey,
         );
@@ -269,7 +293,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       }
       return todas;
     } catch (_) {
-      return [];
+      _catalogFetchFailed = true;
+      final staleCatalog = await CacheService.getStaleJson(
+        CacheService.catalogoLoteriasKey,
+      );
+      if (staleCatalog is List && staleCatalog.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(staleCatalog);
+      }
+      return <Map<String, dynamic>>[];
     }
   }
 
@@ -358,6 +389,13 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
               ),
               SliverToBoxAdapter(child: _buildInfoBanner(l10n)),
               SliverToBoxAdapter(child: _buildFilterToggleButtons(l10n)),
+              if (_showingStaleData)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 2, 16, 10),
+                    child: AppStaleDataBanner(),
+                  ),
+                ),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
               else if (_filteredLoterias.isEmpty)
@@ -437,53 +475,42 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
     final isConnectionIssue = _loadFailed && _loterias.isEmpty;
+    if (isConnectionIssue) {
+      return AppDataStateCard(
+        isConnectionError: true,
+        onRetry: () => cargarLoterias(forceRefresh: true),
+        retrying: _isLoading,
+        useContainer: false,
+        margin: const EdgeInsets.all(20),
+      );
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isConnectionIssue
-                  ? Icons.cloud_off_outlined
-                  : Icons.bookmark_border,
-              color: isConnectionIssue ? Colors.redAccent : Colors.white24,
+            const Icon(
+              Icons.bookmark_border,
+              color: Colors.white24,
               size: 80,
             ),
             const SizedBox(height: 20),
             Text(
-              isConnectionIssue
-                  ? (l10n?.errorConexion ?? 'Error de conexión')
-                  : (l10n?.aunNoTienesJugadas ?? 'Aún no tienes jugadas'),
+              l10n?.aunNoTienesJugadas ?? 'Aún no tienes jugadas',
               style: AppTextStyles.h2.copyWith(color: Colors.white),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
-              isConnectionIssue
-                  ? (l10n?.datosLoteriaSinConexion ??
-                        'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
-                  : (l10n?.empiezaAGuardarNumeros ??
-                        'Empieza a guardar tus números favoritos desde la sección Explorar.'),
+              l10n?.empiezaAGuardarNumeros ??
+                  'Empieza a guardar tus números favoritos desde la sección Explorar.',
               style: AppTextStyles.mensajeSecundario.copyWith(
                 color: Colors.white54,
               ),
               textAlign: TextAlign.center,
             ),
-            if (isConnectionIssue) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _isLoading
-                    ? null
-                    : () => cargarLoterias(forceRefresh: true),
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n?.reintentar ?? 'Reintentar'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.yellow,
-                  side: const BorderSide(color: AppColors.yellow),
-                ),
-              ),
-            ],
           ],
         ),
       ),
