@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:http/http.dart' as http;
 import 'dart:math' as math;
 import 'package:eterlotto/services/api_service.dart';
@@ -54,6 +55,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   bool _isLoading = true;
   bool _dataRequestFailed = false;
   bool _showingStaleData = false;
+  bool _userPlaysFetchFailed = false;
 
   // Estado de Datos Reales de API
   List<Map<String, dynamic>> _ultimosSorteos = [];
@@ -64,8 +66,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<String> _sorteosNombres = [];
   String _fechaSorteo = "";
   String _jackpot = "";
-  int _probablesCount = 20;
-  int _totalWinningCount = 5;
+  int _probablesCount = 0;
+  int _totalWinningCount = 0;
   // Una serie por cada sub-sorteo. La llave conserva el nombre recibido por
   // la API para que la leyenda sea útil sin configuraciones por lotería.
   Map<String, List<double>> _historialCoberturasPorSorteo = {};
@@ -75,6 +77,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   List<int> _distribucionAciertos = [0, 0, 0, 0, 0, 0];
   int _selectedResultadosTab = 0; // Índice de tab seleccionado
   Map<String, List<int>> _prediccionesPorFecha = {};
+  Map<String, List<int>> _prediccionesEspecialesPorFecha = {};
+
+  // Metadatos de reglas resueltos desde el catálogo cuando la pantalla se abre
+  // sólo con nombre/route (por ejemplo, desde una notificación). Nunca se usa
+  // este mapa para inventar la identidad de una lotería compartida entre países.
+  Map<String, dynamic>? _resolvedLoteriaData;
 
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
@@ -107,8 +115,11 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   int get _topHitsCount =>
       _subSorteos.isNotEmpty ? _subSorteos.first.topHitsCount : 0;
 
+  Map<String, dynamic>? get _effectiveLoteriaData =>
+      _resolvedLoteriaData ?? widget.loteriaData;
+
   LoteriaConfig get _numberConfig {
-    final data = widget.loteriaData;
+    final data = _effectiveLoteriaData;
     return data == null
         ? LoteriaConfig.fromNombre(
             _selectedLoteria,
@@ -118,6 +129,177 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             data,
             fallbackNombre: _selectedLoteria,
           );
+  }
+
+  bool _hasNumericRules(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    final maxSel = int.tryParse(
+      (data['max_seleccion'] ?? data['maxSeleccion'])?.toString() ?? '',
+    );
+    final maxBlancas = int.tryParse(
+      (data['max_balotas_blancas'] ??
+              data['maxBalotasBlancas'] ??
+              data['total_balotas'] ??
+              data['totalBalotas'])
+          ?.toString() ??
+          '',
+    );
+    return maxSel != null &&
+        maxSel > 0 &&
+        maxBlancas != null &&
+        maxBlancas > 0;
+  }
+
+  /// Completa únicamente las REGLAS numéricas desde el catálogo cuando la
+  /// pantalla fue abierta sin `loteriaData`. La identidad (`loteria_id`) sigue
+  /// viniendo exclusivamente de la navegación original para no confundir
+  /// loterías compartidas por varios países.
+  Future<void> _resolverReglasLoteria(String route) async {
+    if (_hasNumericRules(_effectiveLoteriaData)) return;
+
+    try {
+      final all = await ApiService.getAllLoterias();
+      if (all.isEmpty) return;
+
+      Map<String, dynamic>? match;
+      final explicitId = _loteriaId;
+
+      if (explicitId != null) {
+        for (final raw in all) {
+          if (raw is! Map) continue;
+          final item = Map<String, dynamic>.from(raw);
+          final itemId = int.tryParse(
+            (item['loteria_id'] ?? item['id'])?.toString() ?? '',
+          );
+          if (itemId == explicitId) {
+            match = item;
+            break;
+          }
+        }
+      }
+
+      if (match == null) {
+        for (final raw in all) {
+          if (raw is! Map) continue;
+          final item = Map<String, dynamic>.from(raw);
+          final itemRoute = item['route']?.toString().trim().toLowerCase();
+          if (itemRoute == route) {
+            match = item;
+            break;
+          }
+        }
+      }
+
+      if (match == null) return;
+
+      final merged = <String, dynamic>{
+        ...?widget.loteriaData,
+        ...match,
+        'route': route,
+        'nombre': widget.loteriaData?['nombre'] ?? _selectedLoteria,
+      };
+
+      // Si la navegación no conocía un ID, no adoptemos el ID arbitrario de
+      // uno de los países que comparten la misma route.
+      if (explicitId == null) {
+        merged.remove('id');
+        merged.remove('loteria_id');
+        merged.remove('pais_id');
+        merged.remove('pais_nombre');
+        merged.remove('paisNombre');
+      }
+
+      _resolvedLoteriaData = merged;
+    } catch (_) {
+      // La pantalla sigue funcionando con LoteriaConfig.fromNombre como último
+      // respaldo. No se bloquea Resultados por una falla del catálogo.
+    }
+  }
+
+  List<int> _parsePredictionNumbers(dynamic raw) {
+    if (raw == null) return <int>[];
+
+    if (raw is List) {
+      return raw
+          .map((e) => int.tryParse(e.toString()) ?? -1)
+          .where((n) => n >= 0)
+          .toList();
+    }
+
+    final text = raw.toString().trim();
+    if (text.isEmpty) return <int>[];
+
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is List) {
+        return decoded
+            .map((e) => int.tryParse(e.toString()) ?? -1)
+            .where((n) => n >= 0)
+            .toList();
+      }
+    } catch (_) {}
+
+    return text
+        .replaceAll(RegExp(r'[\[\]]'), '')
+        .split(RegExp(r'[,;\s]+'))
+        .map((e) => int.tryParse(e.trim()) ?? -1)
+        .where((n) => n >= 0)
+        .toList();
+  }
+
+  (List<int> main, List<int> specials)? _predictionHistoricaExacta(
+    List<Map<String, dynamic>> historico,
+    String targetDate,
+  ) {
+    if (targetDate.isEmpty) return null;
+
+    for (final p in historico) {
+      final fecha = _normalizarFechaISO(p['fecha']?.toString() ?? '');
+      if (fecha != targetDate) continue;
+
+      final main = _parsePredictionNumbers(
+        p['numeros'] ??
+            p['probables'] ??
+            p['top20'] ??
+            p['lista_probables'],
+      );
+      if (main.isEmpty) continue;
+
+      final specials = _parsePredictionNumbers(
+        p['balotaroja'] ??
+            p['balota_roja'] ??
+            p['balotas_rojas'] ??
+            p['especiales'],
+      );
+      return (main, specials);
+    }
+
+    return null;
+  }
+
+  Map<String, dynamic> _sorteoPrincipal(
+    List<Map<String, dynamic>> sorteos,
+  ) {
+    if (sorteos.isEmpty) return <String, dynamic>{};
+
+    final target = _claveSorteo(_selectedLoteria);
+
+    for (final sorteo in sorteos) {
+      if (_claveSorteo(_nombreSorteo(sorteo)) == target) {
+        return sorteo;
+      }
+    }
+
+    final compactTarget = target.replaceAll(' ', '');
+    for (final sorteo in sorteos) {
+      final candidate = _claveSorteo(_nombreSorteo(sorteo)).replaceAll(' ', '');
+      if (candidate.contains(compactTarget) ||
+          compactTarget.contains(candidate)) {
+        return sorteo;
+      }
+    }
+
+    return sorteos.first;
   }
 
   /// Lee roles exclusivamente por posición. Los campos antiguos de una sola
@@ -152,6 +334,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     super.initState();
     ScreenSecurityHelper.enableSecureScreen();
     _selectedLoteria = widget.loteriaNombreInicial;
+    _resolvedLoteriaData = widget.loteriaData == null
+        ? null
+        : Map<String, dynamic>.from(widget.loteriaData!);
     DataRefreshManager.instance.refreshNotifier.addListener(
       _onDataRefreshNotification,
     );
@@ -209,43 +394,49 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   int _getTopLimitForLoteria(String name, [int? totalPoolSize]) {
-    // 1. Dinámico por configuración de la lotería en BD
-    if (widget.loteriaData != null) {
-      final m = int.tryParse(
-        widget.loteriaData!['max_balotas_blancas']?.toString() ??
-            widget.loteriaData!['maxBalotasBlancas']?.toString() ??
-            widget.loteriaData!['total_balotas']?.toString() ??
-            widget.loteriaData!['totalBalotas']?.toString() ??
-            '',
-      );
-      if (m != null && m > 0) {
-        return (m ~/ 2);
-      }
-    }
-    // 2. Dinámico por el tamaño del conjunto de números recibido de la IA
-    if (totalPoolSize != null && totalPoolSize > 0) {
-      return (totalPoolSize ~/ 2);
+    // La cantidad evaluada se deriva de la configuración recibida de BD.
+    // No hay nombres de loterías quemados.
+    final data = _effectiveLoteriaData;
+    final configuredTop = int.tryParse(
+      (data?['top_probables_count'] ??
+              data?['topProbablesCount'] ??
+              data?['cantidad_probables'])
+          ?.toString() ??
+          '',
+    );
+    if (configuredTop != null && configuredTop > 0) {
+      return configuredTop;
     }
 
-    // 3. Fallback auxiliar
-    final lower = name.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-    if (lower.contains("megamillions") || lower.contains("megamillion"))
-      return 35;
-    if (lower.contains("powerball") || lower.contains("doubleplay")) return 34;
-    if (lower.contains("millionaire") || lower.contains("millionairelife"))
-      return 29;
-    if (lower.contains("lottoamerica")) return 26;
-    if (lower.contains("5deoro") || lower.contains("cincodeoro")) return 24;
-    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
-    return 21;
+    final maxBlancas = int.tryParse(
+      (data?['max_balotas_blancas'] ??
+              data?['maxBalotasBlancas'] ??
+              data?['total_balotas'] ??
+              data?['totalBalotas'])
+          ?.toString() ??
+          '',
+    );
+
+    if (maxBlancas != null && maxBlancas > 0) {
+      return math.max(1, maxBlancas ~/ 2);
+    }
+
+    // Si por alguna razón no llegó el catálogo, el tamaño real del ranking
+    // recibido es un respaldo más seguro que identificar juegos por nombre.
+    if (totalPoolSize != null && totalPoolSize > 0) {
+      return math.max(1, totalPoolSize ~/ 2);
+    }
+
+    // Último respaldo estructural: rango configurado en LoteriaConfig.
+    final configuredMax = _numberConfig.maxBalotasBlancas;
+    return configuredMax > 0 ? math.max(1, configuredMax ~/ 2) : 1;
   }
 
   Future<List<Map<String, dynamic>>> _obtenerJugadasUsuario(
     String loteriaName, {
     String? fecha,
   }) async {
+    _userPlaysFetchFailed = false;
     try {
       final route = _getRouteForLoteria(loteriaName);
       // Petición 100% genérica para cualquier lotería actual o futura
@@ -256,12 +447,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       );
       return List<Map<String, dynamic>>.from(raw);
     } catch (_) {
+      _userPlaysFetchFailed = true;
       return [];
     }
   }
 
   Future<void> _cargarDatosReales({bool forceRefresh = false}) async {
     final route = _getRouteForLoteria(_selectedLoteria);
+    await _resolverReglasLoteria(route);
+
     final requestedDrawDate = _normalizarFechaISO(
       widget.targetDrawDate?.toString() ?? '',
     );
@@ -274,15 +468,17 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         ? 'id_${_loteriaId}_$route'
         : 'route_$route';
     final cacheKey =
-        'resultados_dashboard_cache_v11_${lotteryIdentity}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
+        'resultados_dashboard_cache_v12_${lotteryIdentity}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
     // 1. SWR: el payload es privado por usuario, pero sigue siendo válido
     // para esa misma sesión aunque haya vencido mientras llega la red.
+    Map<String, dynamic>? cachedPayload;
     {
       final cached = await CacheService.getStaleJson(cacheKey);
-      if (cached != null && mounted) {
+      if (cached is Map && mounted) {
+        cachedPayload = Map<String, dynamic>.from(cached);
         setState(() {
-          _procesarDatosCargados(cached);
+          _procesarDatosCargados(cachedPayload!);
           if (_winningNums.isNotEmpty) {
             _isLoading = false;
           }
@@ -382,24 +578,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         // últimos resultados disponibles a la fecha seleccionada.
       }
 
-      // Determinar la fecha exacta del sorteo evaluado
+      // Determinar la fecha exacta del sorteo evaluado sin reglas por nombre.
       String targetDrawDate = requestedDrawDate;
       if (sorteosList.isNotEmpty) {
-        final isBalotoSession = _selectedLoteria.toLowerCase().contains(
-          "baloto",
-        );
-        Map<String, dynamic>? firstSort = isBalotoSession
-            ? (sorteosList.firstWhere(
-                (s) =>
-                    (s["sorteo"]?.toString().toLowerCase() ?? "").contains(
-                      "baloto",
-                    ) ||
-                    (s["sorteo"]?.toString() ?? "").trim().isEmpty,
-                orElse: () => sorteosList.first,
-              ))
-            : sorteosList.first;
+        final primarySort = _sorteoPrincipal(sorteosList);
         targetDrawDate = _normalizarFechaISO(
-          firstSort["fecha"]?.toString() ?? "",
+          primarySort["fecha"]?.toString() ?? "",
         );
       }
 
@@ -410,49 +594,92 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         ApiService.getPrediccionesHistorico(route),
       ]);
 
-      final userJugadas = responses[0] as List<Map<String, dynamic>>;
+      var userJugadas = responses[0] as List<Map<String, dynamic>>;
       final cachedPred = responses[1];
-      final prediccionesHistoricas = responses[2] as List<Map<String, dynamic>>;
+      var prediccionesHistoricas =
+          responses[2] as List<Map<String, dynamic>>;
+
+      var usedPrivateStale = false;
+      if (_userPlaysFetchFailed &&
+          cachedPayload != null &&
+          cachedPayload!['jugadas'] is List) {
+        userJugadas = List<Map<String, dynamic>>.from(
+          cachedPayload!['jugadas'] as List,
+        );
+        usedPrivateStale = true;
+      }
+
+      // El histórico de predicciones es público. Si el endpoint temporalmente
+      // devolvió vacío y ya existe una copia útil del mismo dashboard,
+      // conservarla evita perder gráficas/cobertura histórica al quedar offline.
+      if (prediccionesHistoricas.isEmpty &&
+          cachedPayload != null &&
+          cachedPayload!['prediccionesHistoricas'] is List) {
+        final stalePreds = List<Map<String, dynamic>>.from(
+          cachedPayload!['prediccionesHistoricas'] as List,
+        );
+        if (stalePreds.isNotEmpty) {
+          prediccionesHistoricas = stalePreds;
+          usedPrivateStale = true;
+        }
+      }
 
       List<int> top20 = [];
       List<int> predictionNumeros = [];
       List<int> predictionBalotaroja = [];
       String? jackpotVal;
 
-      if (cachedPred != null && cachedPred["jackpot"] != null) {
+      if (cachedPred is Map && cachedPred["jackpot"] != null) {
         jackpotVal = cachedPred["jackpot"].toString();
       }
 
-      // 1. Intentar usar la predicción guardada específicamente para la fecha de ese sorteo (ej. 10 Ago 2026)
-      if (cachedPred != null && cachedPred["numeros"] != null) {
+      // 1. Usar caché sólo cuando pertenece exactamente al sorteo evaluado.
+      if (cachedPred is Map) {
         final String predFecha = _normalizarFechaISO(
           cachedPred["fecha"]?.toString() ?? "",
         );
         if (targetDrawDate.isNotEmpty && predFecha == targetDrawDate) {
-          final rawNums = cachedPred["numeros"];
-          final rawRoja = cachedPred["balotaroja"] ?? cachedPred["balota_roja"];
-          if (rawNums is List) {
-            predictionNumeros = rawNums
-                .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n >= 0)
-                .toList();
+          predictionNumeros = _parsePredictionNumbers(
+            cachedPred["numeros"] ??
+                cachedPred["probables"] ??
+                cachedPred["top20"] ??
+                cachedPred["lista_probables"],
+          );
+          predictionBalotaroja = _parsePredictionNumbers(
+            cachedPred["balotaroja"] ??
+                cachedPred["balota_roja"] ??
+                cachedPred["balotas_rojas"] ??
+                cachedPred["especiales"],
+          );
+          if (predictionNumeros.isNotEmpty) {
             final limit = _getTopLimitForLoteria(
               _selectedLoteria,
               predictionNumeros.length,
             );
             top20 = predictionNumeros.take(limit).toList();
           }
-          if (rawRoja is List) {
-            predictionBalotaroja = rawRoja
-                .map((e) => int.tryParse(e.toString()))
-                .where((n) => n != null && n >= 0)
-                .cast<int>()
-                .toList();
-          }
         }
       }
 
-      // 2. Si no coincide la fecha de la caché previa, consultar al backend pasando la fecha exacta del sorteo (?fecha=$targetDrawDate)
+      // 2. CLAVE DEL ARREGLO: si la caché corresponde al siguiente sorteo,
+      // buscar primero la predicción HISTÓRICA exacta del resultado mostrado.
+      if (top20.isEmpty && targetDrawDate.isNotEmpty) {
+        final historical = _predictionHistoricaExacta(
+          prediccionesHistoricas,
+          targetDrawDate,
+        );
+        if (historical != null) {
+          predictionNumeros = historical.$1;
+          predictionBalotaroja = historical.$2;
+          final limit = _getTopLimitForLoteria(
+            _selectedLoteria,
+            predictionNumeros.length,
+          );
+          top20 = predictionNumeros.take(limit).toList();
+        }
+      }
+
+      // 3. Último intento: pedir al backend la predicción para esa fecha exacta.
       if (top20.isEmpty) {
         final String endpoint = targetDrawDate.isNotEmpty
             ? "/$route?fecha=$targetDrawDate"
@@ -490,23 +717,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             predictionNumeros = [];
             predictionBalotaroja = [];
           } else {
-            if (rawNums is List) {
-              predictionNumeros = rawNums
-                  .map((e) => int.tryParse(e.toString()) ?? -1)
-                  .where((n) => n >= 0)
-                  .toList();
+            predictionNumeros = _parsePredictionNumbers(rawNums);
+            predictionBalotaroja = _parsePredictionNumbers(rawRoja);
+            if (predictionNumeros.isNotEmpty) {
               final limit = _getTopLimitForLoteria(
                 _selectedLoteria,
                 predictionNumeros.length,
               );
               top20 = predictionNumeros.take(limit).toList();
-            }
-            if (rawRoja is List) {
-              predictionBalotaroja = rawRoja
-                  .map((e) => int.tryParse(e.toString()))
-                  .where((n) => n != null && n >= 0)
-                  .cast<int>()
-                  .toList();
             }
           }
         }
@@ -530,7 +748,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         _procesarDatosCargados(payload);
         setState(() {
           _isLoading = false;
-          _showingStaleData = false;
+          _dataRequestFailed = false;
+          _showingStaleData = usedPrivateStale;
         });
       }
     } catch (_) {
@@ -593,28 +812,39 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     final rawPredList = List<Map<String, dynamic>>.from(
       data["prediccionesHistoricas"] ?? [],
     );
-    Map<String, List<int>> predMap = {};
-    for (var p in rawPredList) {
+    final Map<String, List<int>> predMap = {};
+    final Map<String, List<int>> specialPredMap = {};
+    for (final p in rawPredList) {
       final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
-      final rawN = p["numeros"];
-      if (f.isNotEmpty && rawN is List) {
-        final nums = rawN
-            .map((e) => int.tryParse(e.toString()) ?? -1)
-            .where((n) => n >= 0)
-            .toList();
-        if (nums.isNotEmpty) {
-          predMap[f] = nums;
-        }
+      if (f.isEmpty) continue;
+
+      final nums = _parsePredictionNumbers(
+        p["numeros"] ??
+            p["probables"] ??
+            p["top20"] ??
+            p["lista_probables"],
+      );
+      if (nums.isNotEmpty) {
+        predMap[f] = nums;
+      }
+
+      final specials = _parsePredictionNumbers(
+        p["balotaroja"] ??
+            p["balota_roja"] ??
+            p["balotas_rojas"] ??
+            p["especiales"],
+      );
+      if (specials.isNotEmpty) {
+        specialPredMap[f] = specials;
       }
     }
     _prediccionesPorFecha = predMap;
+    _prediccionesEspecialesPorFecha = specialPredMap;
 
     final jugadasRaw = List<Map<String, dynamic>>.from(data["jugadas"] ?? []);
 
-    final int maxSel =
-        int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ??
-        int.tryParse(widget.loteriaData?['maxSeleccion']?.toString() ?? '') ??
-        (_selectedLoteria.toLowerCase().contains("colorloto") ? 6 : 5);
+    // Única fuente para la cantidad de números principales.
+    final int maxSel = _numberConfig.maxSeleccion;
     String drawDateISO = "";
     List<SubSorteoData> subSorteosParsed = [];
 
@@ -711,44 +941,29 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       _selectedResultadosTab = 0;
     }
 
-    // 2. Cobertura IA real (sobre las balotas principales)
-    if (top20.isNotEmpty) {
-      _probablesCount = top20.length;
+    // Si la predicción exacta vino de caché o del endpoint por fecha, agréguela
+    // al mapa histórico para que tabla y gráficas usen la misma verdad.
+    if (drawDateISO.isNotEmpty && _predictionNumeros.isNotEmpty) {
+      _prediccionesPorFecha[drawDateISO] = List<int>.from(_predictionNumeros);
     }
+    if (drawDateISO.isNotEmpty && _predictionBalotaroja.isNotEmpty) {
+      _prediccionesEspecialesPorFecha[drawDateISO] =
+          List<int>.from(_predictionBalotaroja);
+    }
+
+    // 2. Cobertura IA real (sobre las balotas principales)
+    _probablesCount = top20.length;
     _totalWinningCount = maxSel;
 
-    // 3. Procesar jugadas del usuario (Filtrando estrictamente por la fecha del sorteo)
+    // 3. Procesar jugadas del usuario. Una jugada de otra fecha nunca debe
+    // compararse contra el resultado actual.
+    _misJugadas = [];
     if (jugadasRaw.isNotEmpty) {
-      List<Map<String, dynamic>> jugadasFiltradas = [];
-
-      if (drawDateISO.isNotEmpty) {
-        final exactMatches = jugadasRaw.where((j) {
-          final String playDateISO = _extraerFechaDeJugada(j);
-          return playDateISO == drawDateISO;
-        }).toList();
-
-        if (exactMatches.isNotEmpty) {
-          jugadasFiltradas = exactMatches;
-        } else {
-          final pastOrEqualMatches = jugadasRaw.where((j) {
-            final String playDateISO = _extraerFechaDeJugada(j);
-            return playDateISO.isNotEmpty &&
-                playDateISO.compareTo(drawDateISO) <= 0;
-          }).toList();
-
-          if (pastOrEqualMatches.isNotEmpty) {
-            final String maxDateInPast = pastOrEqualMatches
-                .map((j) => _extraerFechaDeJugada(j))
-                .reduce((a, b) => a.compareTo(b) >= 0 ? a : b);
-
-            jugadasFiltradas = pastOrEqualMatches.where((j) {
-              return _extraerFechaDeJugada(j) == maxDateInPast;
+      final jugadasFiltradas = drawDateISO.isEmpty
+          ? List<Map<String, dynamic>>.from(jugadasRaw)
+          : jugadasRaw.where((j) {
+              return _extraerFechaDeJugada(j) == drawDateISO;
             }).toList();
-          }
-        }
-      } else {
-        jugadasFiltradas = jugadasRaw;
-      }
 
       _misJugadas = jugadasFiltradas.map((j) {
         final int originalIdx = jugadasRaw.indexOf(j) + 1;
@@ -767,8 +982,14 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }).toList();
     }
 
-    // 4. Calcular distribución de aciertos
-    List<int> dist = [0, 0, 0, 0, 0, 0];
+    // 4. Calcular distribución de aciertos de forma dinámica.
+    // No todas las loterías tienen 5 números principales: EuroDreams,
+    // Mega Millions, etc. pueden alcanzar más de 5 aciertos contando especiales.
+    final int maxPossibleHits = math.max(
+      0,
+      maxSel + _numberConfig.cantidadEspeciales,
+    );
+    final List<int> dist = List<int>.filled(maxPossibleHits + 1, 0);
     for (var jugada in _misJugadas) {
       final nums = (jugada["nums"] as List)
           .map((e) => int.tryParse(e.toString()) ?? 0)
@@ -792,7 +1013,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         maxHits += specials.where(_winningSpecials.contains).length;
       }
 
-      int bucket = maxHits.clamp(0, 5);
+      final int bucket = maxHits.clamp(0, maxPossibleHits);
       dist[bucket]++;
     }
     _distribucionAciertos = dist;
@@ -837,9 +1058,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       for (final sorteo in sorteosCandidatos.take(10)) {
         final sortDate = sorteo["fecha"]?.toString() ?? "";
-        final predForDate = _prediccionesPorFecha.isNotEmpty
-            ? _obtenerPrediccionParaFecha(sortDate)
-            : (_obtenerPrediccionParaFecha(sortDate) ?? top20);
+        // Nunca evaluar un sorteo histórico con la predicción de otra fecha.
+        final predForDate = _obtenerPrediccionParaFecha(sortDate);
         if (predForDate == null || predForDate.isEmpty) continue;
 
         final mainDrawNums = _splitByRole(sorteo).$1;
@@ -981,7 +1201,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
             ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
             : (langCode == 'pt'
                   ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-                  : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+                  : (langCode == 'fr'
+                        ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+                        : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]));
         final meses = langCode == 'en'
             ? [
                 "Jan",
@@ -1012,20 +1234,35 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                       "Nov",
                       "Dez",
                     ]
-                  : [
-                      "Ene",
-                      "Feb",
-                      "Mar",
-                      "Abr",
-                      "May",
-                      "Jun",
-                      "Jul",
-                      "Ago",
-                      "Sep",
-                      "Oct",
-                      "Nov",
-                      "Dic",
-                    ]);
+                  : (langCode == 'fr'
+                        ? [
+                            "Jan",
+                            "Fév",
+                            "Mar",
+                            "Avr",
+                            "Mai",
+                            "Juin",
+                            "Juil",
+                            "Aoû",
+                            "Sep",
+                            "Oct",
+                            "Nov",
+                            "Déc",
+                          ]
+                        : [
+                            "Ene",
+                            "Feb",
+                            "Mar",
+                            "Abr",
+                            "May",
+                            "Jun",
+                            "Jul",
+                            "Ago",
+                            "Sep",
+                            "Oct",
+                            "Nov",
+                            "Dic",
+                          ]));
         final diaSemana = dias[parsed.weekday - 1];
         return "$diaSemana, ${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
       }
@@ -1034,7 +1271,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _formatearFechaCorta(String rawDate) {
-    if (rawDate.isEmpty) return "18-08-26";
+    if (rawDate.isEmpty) return "--";
     try {
       final clean = rawDate.trim();
       if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
@@ -1077,8 +1314,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     }
 
     final langCode = Localizations.localeOf(context).languageCode;
-    final enPrep = langCode == 'en' ? "in" : (langCode == 'pt' ? "em" : "en");
-    final yConj = langCode == 'en' ? "and" : (langCode == 'pt' ? "e" : "y");
+    final enPrep = langCode == 'en'
+        ? "in"
+        : (langCode == 'pt' ? "em" : (langCode == 'fr' ? "dans" : "en"));
+    final yConj = langCode == 'en'
+        ? "and"
+        : (langCode == 'pt' ? "e" : (langCode == 'fr' ? "et" : "y"));
 
     List<String> parts = [];
     for (var s in _subSorteos) {
@@ -1106,9 +1347,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final canPop = Navigator.canPop(context);
-    int dynamicMaxSel =
-        int.tryParse(widget.loteriaData?['max_seleccion']?.toString() ?? '') ??
-        (_winningNums.length > 5 ? 6 : 5);
+    final config = _numberConfig;
+    final int dynamicMaxSel = config.maxSeleccion > 0
+        ? config.maxSeleccion
+        : (_winningNums.isNotEmpty ? _winningNums.length : 5);
 
     // Preparar listToRender para la tabla
     List<Map<String, dynamic>> rawSource = _ultimosSorteos;
@@ -1212,11 +1454,15 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               "nums": currentSub?.winningNums ?? _winningNums,
               "specials": currentSub?.winningSpecials ?? _winningSpecials,
               "complementaria": currentSub?.compBall,
-              "cobertura":
-                  "${((currentSub?.coberturaPorcentaje ?? _coberturaPorcentaje) * 100).round()}%",
-              "aciertos":
-                  "${currentSub?.topHitsCount ?? _topHitsCount} / $dynamicMaxSel",
-              "color": Colors.greenAccent,
+              "cobertura": _top20List.isNotEmpty
+                  ? "${((currentSub?.coberturaPorcentaje ?? _coberturaPorcentaje) * 100).round()}%"
+                  : "--",
+              "aciertos": _top20List.isNotEmpty
+                  ? "${currentSub?.topHitsCount ?? _topHitsCount} / $dynamicMaxSel"
+                  : "--",
+              "color": _top20List.isNotEmpty
+                  ? Colors.greenAccent
+                  : Colors.white38,
             },
           ];
 
@@ -1264,21 +1510,8 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     fechaSorteo: _fechaSorteo,
                     subSorteos: _subSorteos,
                     maxSeleccion: dynamicMaxSel,
-                    tieneComplementario:
-                        widget.loteriaData?['tiene_complementario'] == true ||
-                        widget.loteriaData?['tieneComplementario'] == true ||
-                        (_winningNums.length > dynamicMaxSel),
-                    totalBalotasSorteo:
-                        int.tryParse(
-                          widget.loteriaData?['total_balotas_sorteo']
-                                  ?.toString() ??
-                              '',
-                        ) ??
-                        int.tryParse(
-                          widget.loteriaData?['totalBalotasSorteo']
-                                  ?.toString() ??
-                              '',
-                        ),
+                    tieneComplementario: config.tieneComplementario,
+                    totalBalotasSorteo: config.totalBalotasSorteo,
                   ),
                   const SizedBox(height: 14),
                   // 2. 🏆 Mejor Jugada del Sorteo
@@ -1304,12 +1537,16 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // 4. Cobertura del Resultado
-                  CoberturaGaugeCard(
-                    subSorteos: _subSorteos,
-                    probablesCount: _probablesCount,
-                    totalWinningCount: _totalWinningCount,
-                  ),
+                  // 4. Cobertura del Resultado. Sin predicción exacta para
+                  // esta fecha no se presenta un 0% falso.
+                  if (_top20List.isNotEmpty)
+                    CoberturaGaugeCard(
+                      subSorteos: _subSorteos,
+                      probablesCount: _probablesCount,
+                      totalWinningCount: _totalWinningCount,
+                    )
+                  else
+                    _buildCoverageUnavailable(l10n),
                   const SizedBox(height: 14),
 
                   // 5. Insights IA
@@ -1320,9 +1557,9 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     coberturaPorcentaje: _coberturaPorcentaje,
                     subSorteos: _subSorteos,
                     fechaSorteo: _fechaSorteo,
-                    predictionNumeros: _predictionNumeros.isNotEmpty
-                        ? _predictionNumeros
-                        : _top20List,
+                    // El diálogo debe resaltar sólo el TOP evaluado, no el
+                    // ranking completo.
+                    predictionNumeros: _top20List,
                     predictionBalotaroja: _predictionBalotaroja,
                   ),
                   const SizedBox(height: 14),
@@ -1359,10 +1596,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     subTitulo: subTitulo,
                     listToRender: listToRender,
                     maxSeleccion: dynamicMaxSel,
-                    tieneComplementario:
-                        widget.loteriaData?['tiene_complementario'] == true ||
-                        widget.loteriaData?['tieneComplementario'] == true ||
-                        (_winningNums.length > dynamicMaxSel),
+                    tieneComplementario: config.tieneComplementario,
                     tabSelector: ResultadosTabSelector(
                       sorteos: _sorteosNombres,
                       selectedIndex: _selectedResultadosTab,
@@ -1384,78 +1618,40 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     );
   }
 
-  Widget _buildDataUnavailableState(AppLocalizations l10n) {
-    final isConnectionIssue = _dataRequestFailed;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 72, horizontal: 16),
-      child: Center(
-        child: Column(
-          children: [
-            Icon(
-              isConnectionIssue
-                  ? Icons.cloud_off_outlined
-                  : Icons.receipt_long_outlined,
-              color: isConnectionIssue ? Colors.redAccent : AppColors.yellow,
-              size: 48,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              isConnectionIssue
-                  ? l10n.errorConexion
-                  : (l10n.informacionNoDisponible),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isConnectionIssue
-                  ? l10n.datosLoteriaSinConexion
-                  : l10n.datosLoteriaNoDisponibles,
-              style: const TextStyle(color: Colors.white70, height: 1.35),
-              textAlign: TextAlign.center,
-            ),
-            if (isConnectionIssue) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _isLoading
-                    ? null
-                    : () => _cargarDatosReales(forceRefresh: true),
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n.reintentar),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.yellow,
-                  side: const BorderSide(color: AppColors.yellow),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStaleDataNotice() {
+  Widget _buildCoverageUnavailable(AppLocalizations l10n) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
-      ),
-      child: const Row(
+      padding: const EdgeInsets.all(14),
+      decoration: cardBoxDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
-          SizedBox(width: 8),
-          Expanded(
+          Text(
+            l10n.coberturaResultado,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 18),
+          const Center(
+            child: Icon(
+              Icons.history_toggle_off_rounded,
+              color: Colors.white38,
+              size: 42,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Center(
             child: Text(
-              'Sin conexión · mostrando los últimos datos disponibles',
-              style: TextStyle(color: Colors.white70, fontSize: 11.5),
+              l10n.prediccionesNoDisponibles,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -1463,9 +1659,27 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
     );
   }
 
+  Widget _buildDataUnavailableState(AppLocalizations l10n) {
+    return AppDataStateCard(
+      isConnectionError: _dataRequestFailed,
+      onRetry: _dataRequestFailed
+          ? () => _cargarDatosReales(forceRefresh: true)
+          : null,
+      retrying: _isLoading,
+      emptyTitle: l10n.informacionNoDisponible,
+      emptyMessage: l10n.datosLoteriaNoDisponibles,
+      emptyIcon: Icons.receipt_long_outlined,
+      margin: const EdgeInsets.symmetric(vertical: 18),
+    );
+  }
+
+  Widget _buildStaleDataNotice() {
+    return const AppStaleDataBanner();
+  }
+
   void _abrirHistoricoResultados() {
     final route = _getRouteForLoteria(_selectedLoteria);
-    final configData = Map<String, dynamic>.from(widget.loteriaData ?? {});
+    final configData = Map<String, dynamic>.from(_effectiveLoteriaData ?? {});
     configData['route'] = route;
     configData.putIfAbsent('nombre', () => _selectedLoteria);
     var config = LoteriaConfig.fromJson(

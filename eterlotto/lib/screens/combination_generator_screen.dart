@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -988,35 +989,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
     String message,
     CombinationGeneratorProvider provider,
   ) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(28),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, color: Colors.white54, size: 48),
-            const SizedBox(height: 14),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 14),
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: provider.reload,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: Text(
-                'Reintentar',
-                style: GoogleFonts.montserrat(fontWeight: FontWeight.bold),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.yellow,
-                side: const BorderSide(color: AppColors.yellow),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppDataStateCard(
+      isConnectionError: true,
+      onRetry: provider.reload,
+      retrying: provider.isLoadingLotteries,
+      useContainer: false,
+      margin: const EdgeInsets.all(20),
     );
   }
 

@@ -31,9 +31,30 @@ class EstadisticasCards extends StatelessWidget {
     );
   }
 
+  int _at(int index) =>
+      index >= 0 && index < distribucionAciertos.length
+          ? distribucionAciertos[index]
+          : 0;
+
+  int _sumFrom(int start) {
+    if (start >= distribucionAciertos.length) return 0;
+    return distribucionAciertos
+        .skip(start)
+        .fold<int>(0, (sum, value) => sum + value);
+  }
+
+  String _fivePlusLabel(String base) {
+    if (distribucionAciertos.length <= 6) return base;
+    return base.contains('5') ? base.replaceFirst('5', '5+') : '5+';
+  }
+
   Widget _buildDistribucionAciertosCard(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final int totalJugadas = misJugadas.length;
+    final int zeroHits = _at(0);
+    final int oneTwoHits = _at(1) + _at(2);
+    final int threeFourHits = _at(3) + _at(4);
+    final int fiveOrMoreHits = _sumFrom(5);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -68,10 +89,10 @@ class EstadisticasCards extends StatelessWidget {
               child: CustomPaint(
                 painter: DonutChartPainter(
                   values: [
-                    distribucionAciertos[0],
-                    distribucionAciertos[1] + distribucionAciertos[2],
-                    distribucionAciertos[3] + distribucionAciertos[4],
-                    distribucionAciertos[5],
+                    zeroHits,
+                    oneTwoHits,
+                    threeFourHits,
+                    fiveOrMoreHits,
                   ],
                 ),
                 child: Center(
@@ -105,22 +126,22 @@ class EstadisticasCards extends StatelessWidget {
           _buildDonutLegendItem(
             Colors.grey,
             l10n.ceroAciertos,
-            "${distribucionAciertos[0]}",
+            "$zeroHits",
           ),
           _buildDonutLegendItem(
             Colors.blueAccent,
             l10n.unoDosAciertos,
-            "${distribucionAciertos[1] + distribucionAciertos[2]}",
+            "$oneTwoHits",
           ),
           _buildDonutLegendItem(
             Colors.amber,
             l10n.tresCuatroAciertos,
-            "${distribucionAciertos[3] + distribucionAciertos[4]}",
+            "$threeFourHits",
           ),
           _buildDonutLegendItem(
             Colors.greenAccent,
-            l10n.cincoAciertos,
-            "${distribucionAciertos[5]}",
+            _fivePlusLabel(l10n.cincoAciertos),
+            "$fiveOrMoreHits",
           ),
         ],
       ),

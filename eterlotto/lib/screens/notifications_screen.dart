@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
@@ -220,60 +221,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Widget _buildOfflineNotice() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Sin conexión · mostrando las últimas notificaciones disponibles',
-              style: TextStyle(color: Colors.white70, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
+    return const AppStaleDataBanner(
+      margin: EdgeInsets.fromLTRB(16, 6, 16, 2),
     );
   }
 
   Widget _buildConnectionError(NotificationProvider provider) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.cloud_off_outlined,
-              size: 64,
-              color: Colors.white38,
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'No pudimos cargar las notificaciones.',
-              style: AppTextStyles.mensajeSecundario,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: () => provider.fetchNotifications(force: true),
-              icon: const Icon(Icons.refresh),
-              label: const Text('Reintentar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.yellow,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppDataStateCard(
+      isConnectionError: true,
+      onRetry: () => provider.fetchNotifications(force: true),
+      retrying: provider.isLoading,
+      useContainer: false,
+      margin: const EdgeInsets.all(20),
     );
   }
 

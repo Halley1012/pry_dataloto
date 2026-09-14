@@ -1554,6 +1554,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get marcadaComoFavorita => 'Marcado como favorito';
 
   @override
+  String get sinConexionDatos =>
+      'Sem conexão · mostrando os últimos dados disponíveis';
+
+  @override
   String get sinConexionAnuncios =>
       'Sem conexão · mostrando seus últimos anúncios disponíveis';
 

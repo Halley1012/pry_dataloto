@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
@@ -66,6 +67,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   Set<int> _selectedIds = {};
   bool _cargando = true;
   bool _loadFailed = false;
+  bool _showingStaleData = false;
   String? _userId;
   LoteriaConfig? _config;
   late bool _soloProximos = widget.soloProximos;
@@ -231,6 +233,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
           _selectedIds.clear();
           _cargando = false;
           _loadFailed = false;
+          _showingStaleData = false;
         });
         await CacheService.setJson(cacheKeyUser, data);
       }
@@ -239,6 +242,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
         setState(() {
           _cargando = false;
           _loadFailed = _jugadasList.isEmpty;
+          _showingStaleData = _jugadasList.isNotEmpty;
         });
       }
     }
@@ -1094,6 +1098,10 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                             _buildToolbarActionPanel(l10n, hasSelection),
                             const SizedBox(height: 12),
                             _buildMisJugadasToggleButtons(l10n),
+                            if (_showingStaleData) ...[
+                              const SizedBox(height: 12),
+                              const AppStaleDataBanner(),
+                            ],
                             const SizedBox(height: 16),
                             Center(
                               child: Column(
@@ -2003,51 +2011,45 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     );
   }
 
-  Widget _buildEmptyJugadasState(AppLocalizations? l10n, String emptySubtext) {
+  Widget _buildEmptyJugadasState(
+    AppLocalizations? l10n,
+    String emptySubtext,
+  ) {
     final isConnectionIssue = _loadFailed && _jugadasList.isEmpty;
+
+    if (isConnectionIssue) {
+      return AppDataStateCard(
+        isConnectionError: true,
+        onRetry: () => _cargarJugadas(force: true),
+        retrying: _cargando,
+        useContainer: false,
+        margin: const EdgeInsets.symmetric(vertical: 18),
+      );
+    }
 
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 12),
         child: Column(
           children: [
-            Icon(
-              isConnectionIssue
-                  ? Icons.cloud_off_outlined
-                  : Icons.bookmark_border,
-              color: isConnectionIssue ? Colors.redAccent : Colors.white38,
+            const Icon(
+              Icons.bookmark_border,
+              color: Colors.white38,
               size: 44,
             ),
             const SizedBox(height: 12),
             Text(
-              isConnectionIssue
-                  ? (l10n?.errorConexion ?? 'Error de conexión')
-                  : (l10n?.noTienesJugadasGuardadas ??
-                        'No tienes jugadas guardadas aún'),
+              l10n?.noTienesJugadasGuardadas ??
+                  'No tienes jugadas guardadas aún',
               style: AppTextStyles.h2.copyWith(fontSize: 16),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             Text(
-              isConnectionIssue
-                  ? (l10n?.datosLoteriaSinConexion ??
-                        'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
-                  : emptySubtext,
+              emptySubtext,
               style: AppTextStyles.caption,
               textAlign: TextAlign.center,
             ),
-            if (isConnectionIssue) ...[
-              const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: _cargando ? null : () => _cargarJugadas(force: true),
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n?.reintentar ?? 'Reintentar'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.yellow,
-                  side: const BorderSide(color: AppColors.yellow),
-                ),
-              ),
-            ],
           ],
         ),
       ),
