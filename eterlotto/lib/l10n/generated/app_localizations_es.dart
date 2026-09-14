@@ -1558,6 +1558,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get marcadaComoFavorita => 'Marcada como favorita';
 
   @override
+  String get sinConexionDatos =>
+      'Sin conexión · mostrando los últimos datos disponibles';
+
+  @override
   String get sinConexionAnuncios =>
       'Sin conexión · mostrando tus últimos anuncios disponibles';
 

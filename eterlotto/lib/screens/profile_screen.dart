@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/custom_dialogs.dart';
@@ -378,39 +379,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                   if (_showingStaleProfile) ...[
                     const SizedBox(height: 10),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.yellow.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.yellow.withValues(alpha: 0.28),
-                        ),
-                      ),
-                      child: const Row(
-                        children: [
-                          Icon(
-                            Icons.sync_problem_outlined,
-                            color: AppColors.yellow,
-                            size: 16,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'No pudimos actualizar tu perfil · mostrando la última copia',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 11.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    const AppStaleDataBanner(),
                   ],
                   const SizedBox(height: 30),
 
@@ -695,6 +664,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 style: TextStyle(color: Colors.white),
               ),
               onTap: () => _confirmLanguageChange(context, const Locale('pt')),
+            ),
+            ListTile(
+              leading: const Text("🇫🇷", style: TextStyle(fontSize: 22)),
+              title: const Text(
+                "Français",
+                style: TextStyle(color: Colors.white),
+              ),
+              onTap: () => _confirmLanguageChange(context, const Locale('fr')),
             ),
             const Divider(color: Colors.white24),
             ListTile(

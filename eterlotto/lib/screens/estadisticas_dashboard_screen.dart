@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -40,6 +41,7 @@ class _EstadisticasDashboardScreenState
   bool cargando = true;
   String? errorMensaje;
   bool _dataRequestFailed = false;
+  bool _showingStaleData = false;
   List<Map<String, dynamic>> todosResultados = [];
   Map<String, dynamic>? prediccionIA;
 
@@ -352,15 +354,24 @@ class _EstadisticasDashboardScreenState
       '${routeName}_prediccion',
     );
 
-    if (cachedHist != null && cachedHist["resultados"] != null && mounted) {
-      setState(() {
-        todosResultados = List<Map<String, dynamic>>.from(
-          cachedHist["resultados"],
-        );
-        if (cachedPred != null) prediccionIA = cachedPred;
-        _autoCalibrarParametros();
-        cargando = false;
-      });
+    final bool hadCachedHistory =
+        cachedHist is Map && cachedHist["resultados"] is List;
+    final bool hadCachedPrediction = cachedPred is Map;
+
+    if (hadCachedHistory && mounted) {
+      final cachedResults = List<Map<String, dynamic>>.from(
+        cachedHist["resultados"],
+      );
+      if (cachedResults.isNotEmpty) {
+        setState(() {
+          todosResultados = cachedResults;
+          if (hadCachedPrediction) {
+            prediccionIA = Map<String, dynamic>.from(cachedPred);
+          }
+          _autoCalibrarParametros();
+          cargando = false;
+        });
+      }
     }
 
     if (!mounted) return;
@@ -369,86 +380,119 @@ class _EstadisticasDashboardScreenState
         cargando = true;
         errorMensaje = null;
         _dataRequestFailed = false;
+        _showingStaleData = false;
       });
     }
 
-    try {
-      // Sincronizar reglas oficiales de la lotería desde la base de datos de forma 100% dinámica
-      if (widget.loteriaData == null ||
-          widget.loteriaData!['max_seleccion'] == null) {
-        try {
-          final loteriasList = await ApiService.getAllLoterias();
-          final cleanRoute = routeName.toLowerCase().replaceAll(
+    // Las reglas, el histórico y la predicción se actualizan de manera
+    // independiente. Un fallo de la predicción nunca debe borrar un histórico
+    // válido, ni viceversa.
+    if (widget.loteriaData == null ||
+        widget.loteriaData!['max_seleccion'] == null) {
+      try {
+        final loteriasList = await ApiService.getAllLoterias();
+        final cleanRoute = routeName.toLowerCase().replaceAll(
+          RegExp(r'[\s_]+'),
+          '',
+        );
+        final cleanNombre = widget.loteriaNombreInicial
+            .toLowerCase()
+            .replaceAll(RegExp(r'[\s_]+'), '');
+        final match = loteriasList.firstWhere((l) {
+          final lr = (l['route'] ?? '').toString().toLowerCase().replaceAll(
             RegExp(r'[\s_]+'),
             '',
           );
-          final cleanNombre = widget.loteriaNombreInicial
-              .toLowerCase()
-              .replaceAll(RegExp(r'[\s_]+'), '');
-          final match = loteriasList.firstWhere((l) {
-            final lr = (l['route'] ?? '').toString().toLowerCase().replaceAll(
-              RegExp(r'[\s_]+'),
-              '',
-            );
-            final ln = (l['nombre'] ?? '').toString().toLowerCase().replaceAll(
-              RegExp(r'[\s_]+'),
-              '',
-            );
-            return lr == cleanRoute ||
-                ln == cleanNombre ||
-                (cleanRoute.isNotEmpty && lr.contains(cleanRoute));
-          }, orElse: () => <String, dynamic>{});
-          if (match.isNotEmpty && mounted) {
-            setState(() {
-              if (match['max_seleccion'] != null) {
-                maxSeleccion =
-                    int.tryParse(match['max_seleccion'].toString()) ??
-                    maxSeleccion;
-              }
-              if (match['max_balotas_blancas'] != null) {
-                maxBalota =
-                    int.tryParse(match['max_balotas_blancas'].toString()) ??
-                    maxBalota;
-              }
-              if (match['max_balotas_rojas'] != null) {
-                maxRoja =
-                    int.tryParse(match['max_balotas_rojas'].toString()) ??
-                    maxRoja;
-              }
-            });
-          }
-        } catch (_) {}
-      }
-
-      final listResultados = await ApiService.getHistoricoCompleto(routeName);
-      if (listResultados.isNotEmpty && mounted) {
-        setState(() {
-          todosResultados = listResultados;
-          _autoCalibrarParametros();
-        });
-        CacheService.setJson('${routeName}_historico_completo', {
-          "resultados": listResultados,
-        });
-      }
-
-      final dataP = await ApiService.getPrediccionLoteria(routeName);
-      if (mounted) {
-        setState(() {
-          prediccionIA = dataP;
-          _autoCalibrarParametros();
-        });
-      }
-      CacheService.setJson('${routeName}_prediccion', dataP);
-    } catch (_) {
-      if (todosResultados.isEmpty) {
-        errorMensaje = "No se pudieron cargar los datos de estadísticas.";
-        _dataRequestFailed = true;
-      }
-    } finally {
-      if (mounted) {
-        setState(() => cargando = false);
+          final ln = (l['nombre'] ?? '').toString().toLowerCase().replaceAll(
+            RegExp(r'[\s_]+'),
+            '',
+          );
+          return lr == cleanRoute ||
+              ln == cleanNombre ||
+              (cleanRoute.isNotEmpty && lr.contains(cleanRoute));
+        }, orElse: () => <String, dynamic>{});
+        if (match.isNotEmpty && mounted) {
+          setState(() {
+            if (match['max_seleccion'] != null) {
+              maxSeleccion =
+                  int.tryParse(match['max_seleccion'].toString()) ??
+                  maxSeleccion;
+            }
+            if (match['max_balotas_blancas'] != null) {
+              maxBalota =
+                  int.tryParse(match['max_balotas_blancas'].toString()) ??
+                  maxBalota;
+            }
+            if (match['max_balotas_rojas'] != null) {
+              maxRoja =
+                  int.tryParse(match['max_balotas_rojas'].toString()) ??
+                  maxRoja;
+            }
+          });
+        }
+      } catch (_) {
+        // Las reglas ya presentes en widget/cache siguen siendo utilizables.
       }
     }
+
+    bool historyFailed = false;
+    bool historyReturnedEmpty = false;
+    bool predictionFailed = false;
+
+    try {
+      final listResultados = await ApiService.getHistoricoCompleto(routeName);
+      if (listResultados.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            todosResultados = listResultados;
+            _autoCalibrarParametros();
+          });
+        }
+        await CacheService.setJson('${routeName}_historico_completo', {
+          "resultados": listResultados,
+        });
+      } else {
+        historyReturnedEmpty = true;
+      }
+    } catch (_) {
+      historyFailed = true;
+    }
+
+    try {
+      final dataP = await ApiService.getPrediccionLoteria(routeName);
+      if (dataP.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            prediccionIA = dataP;
+            _autoCalibrarParametros();
+          });
+        }
+        await CacheService.setJson('${routeName}_prediccion', dataP);
+      }
+    } catch (_) {
+      predictionFailed = true;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      cargando = false;
+
+      final hasHistory = todosResultados.isNotEmpty;
+      _dataRequestFailed = historyFailed && !hasHistory;
+
+      // Si existe respaldo local y el servidor no pudo confirmar una versión
+      // fresca (error o respuesta vacía inesperada), conservamos el contenido
+      // y lo marcamos visualmente como stale.
+      _showingStaleData =
+          (hasHistory && (historyFailed || historyReturnedEmpty)) ||
+          (prediccionIA != null && hadCachedPrediction && predictionFailed);
+
+      if (!_dataRequestFailed) {
+        errorMensaje = null;
+      } else {
+        errorMensaje = "No se pudieron cargar los datos de estadísticas.";
+      }
+    });
   }
 
   List<Map<String, dynamic>> _filtrarResultados() {
@@ -532,6 +576,10 @@ class _EstadisticasDashboardScreenState
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              if (_showingStaleData) ...[
+                                const AppStaleDataBanner(),
+                                const SizedBox(height: 14),
+                              ],
                               _buildFiltrosBarra(l10n),
                               const SizedBox(height: 20),
                               _buildCardResumenGeneral(
@@ -602,59 +650,20 @@ class _EstadisticasDashboardScreenState
   }
 
   Widget _buildDataUnavailableState(AppLocalizations? l10n) {
-    final isConnectionIssue = _dataRequestFailed;
-
     return Center(
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        child: AppContainer3(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                isConnectionIssue
-                    ? Icons.cloud_off_outlined
-                    : Icons.insights_outlined,
-                color: isConnectionIssue ? Colors.redAccent : AppColors.yellow,
-                size: 44,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                isConnectionIssue
-                    ? (l10n?.errorConexion ?? 'Error de conexión')
-                    : (l10n?.informacionNoDisponible ??
-                          'Información no disponible'),
-                style: AppTextStyles.h2.copyWith(
-                  color: Colors.white,
-                  fontSize: 18,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                isConnectionIssue
-                    ? (l10n?.datosLoteriaSinConexion ??
-                          'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
-                    : (l10n?.datosLoteriaNoDisponibles ??
-                          'Esta lotería aún no tiene resultados ni predicciones disponibles.'),
-                style: AppTextStyles.mensajeSecundario.copyWith(
-                  color: Colors.white70,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: cargando ? null : _cargarDatos,
-                icon: const Icon(Icons.refresh),
-                label: Text(l10n?.reintentar ?? 'Reintentar'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.yellow,
-                  side: const BorderSide(color: AppColors.yellow),
-                ),
-              ),
-            ],
-          ),
+        child: AppDataStateCard(
+          isConnectionError: _dataRequestFailed,
+          onRetry: _dataRequestFailed ? _cargarDatos : null,
+          retrying: cargando,
+          emptyTitle:
+              l10n?.informacionNoDisponible ?? 'Información no disponible',
+          emptyMessage:
+              l10n?.datosLoteriaNoDisponibles ??
+              'Esta lotería aún no tiene resultados ni predicciones disponibles.',
+          emptyIcon: Icons.insights_outlined,
         ),
       ),
     );

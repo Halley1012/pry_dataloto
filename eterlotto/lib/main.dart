@@ -114,11 +114,7 @@ class EterlottoApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale('es', ''), // Español
-            Locale('en', ''), // Inglés
-            Locale('pt', ''), // Portugués
-          ],
+          supportedLocales: AppLocalizations.supportedLocales,
           localeResolutionCallback: (deviceLocale, supportedLocales) {
             if (localeProvider.locale != null) {
               return localeProvider.locale;
@@ -130,7 +126,7 @@ class EterlottoApp extends StatelessWidget {
                 }
               }
             }
-            return supportedLocales.first; // Default fallback: Español
+            return const Locale('es'); // Default fallback: Español
           },
           theme: ThemeData.dark().copyWith(
             textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),

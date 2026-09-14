@@ -1,5 +1,6 @@
 import 'package:eterlotto/screens/loteria_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -32,6 +33,8 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   String? _userCountry;
 
   bool _isLoading = true;
+  bool _loadFailed = false;
+  bool _showingStaleData = false;
   bool _isShowingAll = false;
   final ValueNotifier<Offset?> _fabPositionNotifier = ValueNotifier<Offset?>(null);
 
@@ -51,33 +54,48 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   Future<void> _cargarExplorarMundial({bool forceRefresh = false}) async {
     if (!mounted) return;
 
-    if (!forceRefresh) {
-      // ⚡ 1. Mostrar caché al instante (0 ms)
-      final cached = await CacheService.getJson('explorar_loterias_mundial');
-      final cachedPaises = await CacheService.getJson('paises_list_cache');
-      final uCountry = await _storage.read(key: 'pais_nombre');
+    final uCountry = await _storage.read(key: 'pais_nombre');
 
-      if (cached != null && mounted) {
-        setState(() {
-          _userCountry = uCountry;
-          _loterias = List<Map<String, dynamic>>.from(cached);
-          _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
-          if (cachedPaises != null) {
-            _paises = List<Map<String, dynamic>>.from(cachedPaises);
-          }
-          _isLoading = false;
-        });
-      }
+    final fresh = forceRefresh
+        ? null
+        : await CacheService.getJson('explorar_loterias_mundial');
+    final cached =
+        fresh ?? await CacheService.getStaleJson('explorar_loterias_mundial');
+    final freshPaises = forceRefresh
+        ? null
+        : await CacheService.getJson('paises_list_cache');
+    final cachedPaises =
+        freshPaises ?? await CacheService.getStaleJson('paises_list_cache');
+
+    if (cached is List && cached.isNotEmpty && mounted) {
+      setState(() {
+        _userCountry = uCountry;
+        _loterias = List<Map<String, dynamic>>.from(cached);
+        _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
+        if (cachedPaises is List && cachedPaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(cachedPaises);
+        }
+        _isLoading = false;
+        _loadFailed = false;
+      });
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (_loterias.isEmpty && mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
 
+    var hadNetworkFailure = false;
     try {
-      final uCountry = await _storage.read(key: 'pais_nombre');
-      // ⚡ Cargar países y todas las loterías de forma ultra rápida en 1 sola petición
       final results = await Future.wait([
-        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
+        ApiService.getPaises().catchError((_) {
+          hadNetworkFailure = true;
+          return <Map<String, dynamic>>[];
+        }),
         ApiService.getAllLoterias().catchError((_) {
+          hadNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -85,27 +103,55 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       final paisesRaw = results[0] as List<Map<String, dynamic>>;
       if (paisesRaw.isNotEmpty) {
         _paises = paisesRaw;
-        CacheService.setJson('paises_list_cache', _paises);
+        await CacheService.setJson('paises_list_cache', _paises);
       }
 
       final loteriasRaw = results[1];
-      final List<Map<String, dynamic>> todas = loteriasRaw
+      final todas = loteriasRaw
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
-      if (mounted) {
+      if (!mounted) return;
+
+      if (todas.isNotEmpty) {
+        final q = _searchController.text.trim().toLowerCase();
+        final filtered = q.isEmpty
+            ? List<Map<String, dynamic>>.from(todas)
+            : todas.where((l) {
+                final name = (l["nombre"] ?? "").toString().toLowerCase();
+                final pNombre = _getPaisNombre(l["pais_id"]).toLowerCase();
+                return name.contains(q) || pNombre.contains(q);
+              }).toList();
         setState(() {
           _userCountry = uCountry;
           _loterias = todas;
-          _onSearchChanged(_searchController.text);
+          _filteredLoterias = filtered;
           _isLoading = false;
+          _loadFailed = false;
+          _showingStaleData = false;
         });
-        if (todas.isNotEmpty) {
-          CacheService.setJson('explorar_loterias_mundial', todas);
-        }
+        await CacheService.setJson('explorar_loterias_mundial', todas);
+      } else if (_loterias.isNotEmpty && hadNetworkFailure) {
+        setState(() {
+          _isLoading = false;
+          _loadFailed = false;
+          _showingStaleData = true;
+        });
+      } else {
+        setState(() {
+          _userCountry = uCountry;
+          _isLoading = false;
+          _loadFailed = hadNetworkFailure;
+          _showingStaleData = false;
+        });
       }
-    } catch (_) {} finally {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = _loterias.isEmpty;
+        _showingStaleData = _loterias.isNotEmpty;
+      });
     }
   }
 
@@ -193,8 +239,26 @@ class _LoteriasPaisState extends State<LoteriasPais> {
                       SliverToBoxAdapter(
                         child: _buildSearchBar(l10n),
                       ),
+                      if (_showingStaleData)
+                        const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+                            child: AppStaleDataBanner(),
+                          ),
+                        ),
                       if (_isLoading && _loterias.isEmpty)
                         _buildSliverSkeletonList()
+                      else if (_loadFailed && _loterias.isEmpty)
+                        SliverToBoxAdapter(
+                          child: AppDataStateCard(
+                            isConnectionError: true,
+                            onRetry: () => _cargarExplorarMundial(
+                              forceRefresh: true,
+                            ),
+                            retrying: _isLoading,
+                            margin: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                          ),
+                        )
                       else if (_filteredLoterias.isEmpty)
                         SliverToBoxAdapter(
                           child: _buildEmptyState(l10n),

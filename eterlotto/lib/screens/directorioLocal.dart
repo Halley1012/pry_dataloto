@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/screens/publicidad.dart';
 import 'package:eterlotto/services/api_service.dart';
 import '../services/cache_service.dart';
@@ -588,49 +589,17 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   }
 
   Widget _buildOfflineNotice() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
-          SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Sin conexión · mostrando últimos anuncios disponibles',
-              style: TextStyle(color: Colors.white70, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
+    return const AppStaleDataBanner(
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 12),
     );
   }
 
   Widget _buildConnectionError() {
-    return Padding(
-      padding: const EdgeInsets.all(36),
-      child: Column(
-        children: [
-          const Icon(Icons.cloud_off_outlined, size: 60, color: Colors.white38),
-          const SizedBox(height: 14),
-          Text(
-            'No pudimos cargar los anuncios.',
-            style: AppTextStyles.mensajeSecundario,
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: () => buscarAnuncios(tituloController.text.trim()),
-            icon: const Icon(Icons.refresh),
-            label: const Text('Reintentar'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.yellow),
-          ),
-        ],
-      ),
+    return AppDataStateCard(
+      isConnectionError: true,
+      onRetry: () => buscarAnuncios(tituloController.text.trim()),
+      useContainer: false,
+      margin: const EdgeInsets.all(18),
     );
   }
 
