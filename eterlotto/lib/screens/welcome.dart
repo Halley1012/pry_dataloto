@@ -108,13 +108,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Logo adaptativo
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400, maxHeight: 300),
-                  child: Image.asset(
-                    "assets/images/logo_letras_.png",
-                    fit: BoxFit.contain,
-                    width: MediaQuery.of(context).size.width * 0.6,
+                // Logo principal Eterlotto
+                Center(
+                  child: Container(
+                    width: 190,
+                    height: 190,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(36),
+                      boxShadow: [
+
+                      ],
+                    ),
+                    child: Image.asset(
+                      "assets/images/logo_icon_black.png",
+                      width: 175,
+                      height: 175,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               const SizedBox(height: 16),

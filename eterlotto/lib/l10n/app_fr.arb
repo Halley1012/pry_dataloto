@@ -1,0 +1,838 @@
+{
+  "@@locale": "fr",
+  "tituloApp": "Eterlotto",
+  "iniciarSesion": "Se connecter",
+  "registrarse": "S'inscrire",
+  "bienvenido": "Bienvenue sur Eterlotto !",
+  "descripcionBienvenida": "Nous sommes ravis de vous aider avec des prédictions intelligentes et de vous faire profiter pleinement de l'excitation de chaque tirage.",
+  "prediccionesInteligentes": "Prédictions intelligentes",
+  "ultimosResultados": "5 derniers résultats",
+  "ultimosResultadosBaloto": "5 derniers résultats du Baloto",
+  "ultimosResultadosRevancha": "5 derniers résultats du Baloto Revancha",
+  "verMasResultados": "Voir l'historique complet des résultats",
+  "historicoResultadosTitulo": "Historique des résultats",
+  "ultimos50Resultados": "Historique des tirages de {loteria}",
+  "@ultimos50Resultados": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "tusNumerosSuerte": "Vos numéros porte-bonheur",
+  "generar": "Générer",
+  "guardar": "Enregistrer",
+  "misJugadas": "Mes grilles",
+  "estadisticas": "Statistiques",
+  "estadisticasAvanzadas": "Statistiques avancées et graphiques",
+  "seleccionaNumeros": "Sélectionnez vos numéros",
+  "sorteosEvaluados": "Tirages évalués",
+  "numerosCalientes": "Numéros chauds",
+  "numerosFrios": "Numéros froids",
+  "frecuenciaHistorica": "Fréquence historique",
+  "ausenciaSorteos": "Tirages / jours sans sortie",
+  "parImpar": "Répartition pairs / impairs",
+  "bajosAltos": "Bas / élevés",
+  "sumaCombinacion": "Somme de la combinaison",
+  "parejasFrecuentes": "Paires les plus fréquentes",
+  "scoreProbabilidadIA": "Score de probabilité IA",
+  "comparacionIA": "Comportement historique vs IA",
+  "idioma": "Langue",
+  "cambiarIdioma": "Changer de langue",
+  "email": "Adresse e-mail",
+  "contrasena": "Mot de passe",
+  "olvidoContrasena": "Mot de passe oublié ?",
+  "ingresar": "Se connecter",
+  "iniciaSesionParaContinuar": "Connectez-vous pour continuer",
+  "nombre": "Nom",
+  "crearCuenta": "Créer un compte",
+  "notificaciones": "Notifications",
+  "configuracion": "Paramètres",
+  "cerrarSesion": "Se déconnecter",
+  "perfil": "Profil",
+  "inicio": "Accueil",
+  "resultados": "Résultats",
+  "misAnuncios": "Mes annonces",
+  "metodosPago": "Modes de paiement",
+  "invitarAmigos": "Inviter des amis",
+  "ayudaSoporte": "Aide et assistance",
+  "eliminarCuenta": "Supprimer le compte",
+  "pais": "Pays",
+  "departamentoEstado": "État / région",
+  "editarPerfil": "Modifier le profil",
+  "guardarCambios": "Enregistrer les modifications",
+  "miPais": "Mon pays",
+  "internacionales": "Internationales",
+  "todas": "Toutes",
+  "sinNotificaciones": "Vous n'avez pas encore de notifications",
+  "explorar": "Explorer",
+  "buscarLoteria": "Rechercher une loterie...",
+  "populares": "Populaires",
+  "verTodas": "Voir toutes",
+  "proximoSorteo": "Prochain tirage",
+  "todasLasLoterias": "Toutes les loteries",
+  "comentarios": "Commentaires",
+  "responder": "Répondre",
+  "respuesta": "réponse",
+  "respuestas": "réponses",
+  "sinPosts": "Aucune publication pour le moment",
+  "anunciosDestacados": "Annonces en vedette",
+  "derechosReservados": "© 2025 Eterlotto. Tous droits réservés.",
+  "version": "Version",
+  "sinNotificacionesCategoria": "Aucune notification pour votre pays",
+  "verTodasNotificaciones": "Voir toutes les notifications",
+  "explorarLoterias": "Explorer les loteries",
+  "buscarLoteriaOPais": "Rechercher une loterie ou un pays...",
+  "buscarPorLoteriaOPais": "Rechercher par loterie ou pays...",
+  "proximoSorteoConFecha": "Prochain tirage :",
+  "verTodasLoteriasMundo": "Voir toutes les loteries du monde",
+  "analisisYResultados": "Analyses et résultats",
+  "aunNoTienesJugadas": "Vous n'avez pas encore de grilles enregistrées",
+  "empiezaAGuardarNumeros": "Commencez à enregistrer vos numéros favoris depuis la section Explorer.",
+  "usuarioPremium": "Utilisateur Premium",
+  "ganaBeneficios": "Obtenez des avantages",
+  "avisoLegal": "Mentions légales",
+  "aceptoLos": "J'accepte les ",
+  "terminosCondicionesAviso": "Conditions générales et mentions légales",
+  "debesAceptarTerminos": "Vous devez accepter les conditions générales pour continuer",
+  "acercaDe": "À propos",
+  "cerrar": "Fermer",
+  "contenidoAvisoLegal": "Eterlotto est une application indépendante d'analyse statistique et d'intelligence artificielle. Ce n'est pas une loterie, elle n'organise aucun tirage et n'est ni affiliée, ni sponsorisée, ni approuvée par les opérateurs des loteries affichées dans l'application.\n\nLes prédictions, statistiques et recommandations sont générées à partir de l'analyse de données historiques et sont fournies uniquement à titre informatif et de divertissement.\n\nAucun résultat n'est garanti et les prédictions n'augmentent ni ne garantissent les chances de gagner un prix.\n\nEterlotto n'accepte aucun pari et ne participe pas à la vente de billets ou de jeux de loterie.",
+  "contenidoAcercaDe": "Eterlotto utilise l'intelligence artificielle pour analyser les tendances historiques des loteries et proposer des prédictions éclairées. Même si nos prédictions reposent sur des données, il n'existe aucune certitude absolue que ces numéros seront gagnants, car la loterie est un jeu de hasard. Nous ne garantissons aucun gain ; nous vous aidons simplement à choisir avec davantage de confiance. Utilisez l'application de manière responsable et uniquement à des fins de divertissement. La décision d'utiliser ces prédictions relève de votre seule responsabilité.",
+  "notificacionesIA": "Notifications",
+  "marcarTodoComoLeido": "Tout marquer comme lu",
+  "seleccionarTodo": "Tout sélectionner",
+  "desmarcarTodo": "Tout désélectionner",
+  "eliminar": "Supprimer",
+  "imprimirPDF": "Imprimer le PDF",
+  "historialJugadas": "Historique des grilles",
+  "guardadasCantidad": "enregistrée(s)",
+  "noTienesJugadasGuardadas": "Vous n'avez pas encore de grilles enregistrées",
+  "eliminarJugadas": "Supprimer les grilles",
+  "confirmarCerrarSesion": "Voulez-vous vraiment vous déconnecter ?",
+  "idiomaSistema": "Langue du système",
+  "seleccionarIdioma": "Sélectionner la langue",
+  "confirmarCambioIdioma": "Voulez-vous changer la langue de l'application ?",
+  "si": "Oui",
+  "cancelar": "Annuler",
+  "jackpotEstimado": "Jackpot estimé",
+  "millonesCOP": "millions COP",
+  "millonesUSD": "millions USD",
+  "resumenRapido": "Résumé rapide",
+  "verEstadisticasCompletas": "Voir les statistiques complètes ›",
+  "masCaliente": "Le plus chaud",
+  "masFrio": "Le plus froid",
+  "prediccionIAHoy": "Prédiction IA du jour",
+  "basadaEnAnalisisDe": "Basée sur l'analyse de {count} tirages",
+  "@basadaEnAnalisisDe": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "indiceAfinidadHistorica": "Indice d'affinité historique",
+  "tuJugadaSeleccionada": "Votre grille sélectionnée",
+  "balotasPrincipales": "{count} boules principales",
+  "@balotasPrincipales": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotaRoja": "1 boule rouge",
+  "tocaNumerosModificar": "Touchez les numéros ci-dessous pour les modifier",
+  "numeroSuerteSugerido": "Numéro porte-bonheur suggéré par l'IA",
+  "jugada": "Grille",
+  "notaTendenciasEstadisticas": "Remarque : il s'agit uniquement de tendances statistiques, et non de garanties absolues.",
+  "generarJugada": "Générer une grille",
+  "guardarJugada": "Enregistrer la grille",
+  "guardando": "Enregistrement...",
+  "jugadaGuardadaExito": "Grille enregistrée avec succès ! 🎉",
+  "errorGuardarJugada": "Erreur lors de l'enregistrement de la grille",
+  "cargandoPrediccion": "Chargement de la prédiction... Réessayez",
+  "debesSeleccionarBalotas": "Vous devez sélectionner 5 boules principales et 1 boule rouge pour enregistrer votre grille.",
+  "jugadaYaExiste": "Cette grille figure déjà parmi vos grilles enregistrées",
+  "balotasRojas": "Boules rouges",
+  "numerosOrdenadosProbabilidad": "Numéros classés de la probabilité la plus élevée à la plus faible.",
+  "tocaNumeroSeleccionar": "Touchez un numéro pour le sélectionner",
+  "ultimoSorteo": "Dernier tirage",
+  "sinNumeros": "Aucun numéro",
+  "noticiasAlertas": "Actualités / Alertes",
+  "hoyEsSorteo": "Aujourd'hui a lieu le tirage de {loteria}",
+  "@hoyEsSorteo": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noOlvidesRevisar": "N'oubliez pas de vérifier vos numéros. Bonne chance !",
+  "paresImpares": "Pairs - Impairs",
+  "analizados": "Analysés",
+  "veces": "fois",
+  "versionApp": "Version de l'application",
+  "tocaParaVerMas": "Touchez pour en voir plus",
+  "filtrosAnalisis": "Filtres d'analyse",
+  "sorteos": "Tirages",
+  "tipo": "Type",
+  "numerosCalientesFrios": "Numéros chauds et froids 🔥❄️",
+  "masFrecuentes": "Les plus fréquents",
+  "menosFrecuentes": "Les moins fréquents",
+  "ausenciaSorteosTitle": "Tirages / jours sans sortie (absence)",
+  "balotasMayorTiempo": "Boules absentes depuis le plus longtemps :",
+  "apariciones": "apparitions",
+  "pareja": "Paire",
+  "altaConsistenciaIA": "✅ Forte cohérence avec les tendances historiques pairs/impairs et la dispersion des sommes.",
+  "moderadaConsistenciaIA": "⚡ Affinité modérée à élevée avec les fréquences historiques et une dispersion équilibrée.",
+  "variabilidadConsistenciaIA": "📊 Forte variabilité statistique par rapport aux tendances précédentes.",
+  "comportamientoHistoricoVsIA": "Comportement historique vs IA ⚡",
+  "numerosMayorTendencia": "Numéros présentant la plus forte tendance historique :",
+  "prediccionActualIA": "Prédiction actuelle du modèle IA :",
+  "coberturaIA": "Couverture IA",
+  "verTodasNotificacionesButton": "Voir toutes les notifications",
+  "sinNotificacionesAun": "Vous n'avez pas encore de notifications",
+  "miPaisFilter": "Mon pays",
+  "internacionalesFilter": "Internationales",
+  "todasFilter": "Toutes",
+  "marcarLeido": "Marquer comme lu",
+  "errorConexion": "Erreur de connexion",
+  "credencialesInvalidas": "Identifiants invalides",
+  "errorObtenerTokens": "Erreur lors de l'obtention des jetons",
+  "ingresaEmailContrasena": "⚠️ Saisissez votre e-mail et votre mot de passe",
+  "enviadoEnlace": "Un lien a été envoyé à {email}",
+  "@enviadoEnlace": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "recuperarContrasena": "Récupérer le mot de passe",
+  "cancelarButton": "Annuler",
+  "enviarButton": "Envoyer",
+  "noDisponible": "Indisponible pour le moment...",
+  "estadisticasLoteria": "Statistiques de {loteria}",
+  "@estadisticasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "rangoBalotas": "Plage des boules",
+  "powerballRoja": "Powerball rouge",
+  "starBall": "Star Ball",
+  "megaBall": "Mega Ball",
+  "cashBall": "Cash Ball",
+  "errorCargarEstadisticas": "Impossible de se connecter au serveur pour obtenir les statistiques.",
+  "promedioSumaHistorica": "Somme historique moyenne : {valor}",
+  "@promedioSumaHistorica": {
+    "placeholders": {
+      "valor": {
+        "type": "String"
+      }
+    }
+  },
+  "coberturaResultado": "Couverture du résultat",
+  "numerosEnTopIA": "Numéros dans le Top {count} de l'IA",
+  "@numerosEnTopIA": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "hitsDeAciertos": "{hits} sur {total} correspondances",
+  "@hitsDeAciertos": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "excelenteResultado": "Excellent résultat ! 🎯",
+  "buenDesempeno": "Bonne performance 📊",
+  "insightsIA": "Analyses IA",
+  "resultadoReal": "Résultat réel",
+  "tendenciasIA": "Tendances IA",
+  "noHayTendencias": "Aucune tendance détaillée enregistrée pour ce tirage.",
+  "sorteoDel": "Tirage du {fecha}",
+  "@sorteoDel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "revancha": "Revancha",
+  "ultimos5ResultadosNombre": "5 derniers résultats {nombre}",
+  "@thisLoteriaResultados": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "ultimosSorteos": "Derniers tirages",
+  "reciente": "Récent",
+  "prediccionesNoDisponibles": "Les prédictions IA pour ce tirage passé ne sont pas disponibles dans l'historique.",
+  "insightIACayeron": "Parmi les {count} numéros les plus probables générés par l'IA pour {loteria}, {hits} ont correspondu.",
+  "@insightIACayeron": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIANoCoincidencias": "Parmi les {count} numéros les plus probables générés par l'IA pour {loteria}, aucun n'a correspondu lors de ce tirage.",
+  "@insightIANoCoincidencias": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIACayeronDual": "Parmi les {count} numéros les plus probables générés par l'IA pour {loteria}, {bText} et {rText} ont correspondu.",
+  "@insightIACayeronDual": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "bText": {
+        "type": "String"
+      },
+      "rText": {
+        "type": "String"
+      }
+    }
+  },
+  "aciertoIA": "Correspondance IA",
+  "balotasPrincipalesTitle": "Boules principales",
+  "balotasRojasEspeciales": "Boules rouges / spéciales",
+  "resultadosLoteria": "Résultats - {loteria}",
+  "@resultadosLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "sorteoFechaLabel": "Tirage : {fecha}",
+  "@sorteoFechaLabel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "numerosGanadores": "Numéros gagnants",
+  "comparacionJugadas": "Comparaison de mes grilles avec le résultat",
+  "aciertosLabel": "Correspondances",
+  "balotaLabel": "Boule",
+  "sinAciertoLabel": "Aucune correspondance",
+  "tusJugadasVsGanadores": "Vos grilles enregistrées vs numéros gagnants du tirage",
+  "noRealizasteJugadas": "Vous n'avez enregistré aucune grille pour ce tirage.",
+  "cantidadAciertos": "{count} correspondance(s)",
+  "@cantidadAciertos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaLabel": "Date",
+  "aciertosSimple": "Correspondances",
+  "coberturaIndividualDetalle": "{hits} des {total} numéros gagnants figurent parmi les {top} plus probables",
+  "@coberturaIndividualDetalle": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "top": {
+        "type": "int"
+      }
+    }
+  },
+  "nEnBaloto": "{count} dans Baloto ({nums})",
+  "ceroEnBaloto": "0 dans Baloto",
+  "nEnRevancha": "{count} dans Revancha ({nums})",
+  "ceroEnRevancha": "0 dans Revancha",
+  "nNumeros": "{count} numéros",
+  "@nNumeros": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errorEnviarCorreo": "Erreur : impossible d'envoyer l'e-mail",
+  "usuarioRequerido": "Utilisateur requis",
+  "correoInvalido": "E-mail invalide",
+  "contrasenaMinima": "6 caractères minimum",
+  "seleccionaPais": "Sélectionnez un pays",
+  "seleccionaDepartamento": "Sélectionnez un département",
+  "yaTienesCuenta": "Vous avez déjà un compte ? Connectez-vous",
+  "actualizaTusDatos": "Mettez à jour vos informations",
+  "registroUsuario": "Inscription de l'utilisateur",
+  "modificaInformacion": "Modifiez vos informations",
+  "confirmarEliminarCuenta": "Voulez-vous vraiment supprimer votre compte ? Cette action est irréversible.",
+  "error": "Erreur",
+  "sinResultadosAnalisis": "Aucune analyse de résultats pour le moment",
+  "buscaloAqui": "Trouvez-le ici",
+  "anunciateHoy": "Faites votre publicité dès aujourd'hui et faites-vous connaître de tous !",
+  "crearNuevaPublicidad": "Créer une nouvelle annonce",
+  "buscarPorTitulo": "Rechercher par titre",
+  "noHayAnunciosFiltros": "Aucune annonce disponible \npour les filtres sélectionnés.",
+  "todos": "Tous",
+  "todasCategorias": "Toutes les catégories",
+  "noHayPaisesDisponibles": "Aucun pays disponible",
+  "noHayDepartamentosDisponibles": "Aucun département disponible",
+  "noHayCategoriasDisponibles": "Aucune catégorie disponible",
+  "estadoProvincia": "État / Province",
+  "categoria": "Catégorie",
+  "presionaOtraVezSalir": "Appuyez à nouveau pour quitter",
+  "tusJugadasHoy": "Vos grilles pour aujourd'hui",
+  "errorCargarJugadas": "Erreur lors du chargement des grilles",
+  "errorAgregarJugada": "Erreur lors de l'ajout de la grille",
+  "nro": "N°",
+  "totalLabel": "Total",
+  "misAnunciosTitle": "Mes annonces",
+  "noHasPublicadoAnuncios": "Vous n'avez encore publié aucune annonce.\nCréez la première maintenant !",
+  "eliminarAnuncio": "Supprimer l'annonce",
+  "confirmarEliminarAnuncio": "Voulez-vous vraiment supprimer cette annonce ?",
+  "editar": "Modifier",
+  "crearPublicidad": "Créer une annonce",
+  "editarAnuncio": "Modifier l'annonce",
+  "crearNuevoAnuncio": "Créer une nouvelle annonce",
+  "promocionaNegocioStyle": "Faites la promotion de votre entreprise avec style",
+  "titulo": "Titre",
+  "descripcion": "Description",
+  "descripcionObligatoria": "Description obligatoire",
+  "telefono": "Téléphone",
+  "telefonoObligatorio": "Téléphone obligatoire",
+  "direccion": "Adresse",
+  "imagenUrl": "URL de l'image",
+  "ciudad": "Ville",
+  "redesSociales": "Réseaux sociaux",
+  "paginaWeb": "Site web",
+  "whatsappObligatorio": "WhatsApp obligatoire",
+  "anuncioActualizado": "Annonce mise à jour",
+  "anuncioCreado": "Annonce créée",
+  "errorGuardar": "Erreur lors de l'enregistrement",
+  "campoRequerido": "{campo} requis",
+  "@campoRequerido": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "seleccionaCampo": "Sélectionnez {campo}",
+  "@seleccionaCampo": {
+    "placeholders": {
+      "campo": {
+        "type": "String"
+      }
+    }
+  },
+  "misJugadasLoteria": "Mes grilles de {loteria} - Eterlotto",
+  "@misJugadasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "noHayJugadasCompartir": "Aucune grille à partager",
+  "buenaSuerteDataLoto": "Bonne chance avec Eterlotto !",
+  "tiqueteDataloto": "ETERLOTTO - TICKET {loteria}",
+  "@tiqueteDataloto": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "reporteJugadasGuardadas": "Rapport des grilles enregistrées ({count} grille(s))",
+  "@reporteJugadasGuardadas": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaGuardado": "Date d'enregistrement",
+  "balotasLoteria": "Boules {loteria}",
+  "@balotasLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "muchosExitosJuego": "Bonne chance pour votre jeu ! - Généré depuis l'application Eterlotto",
+  "jugadaShare": "Grille n°{index}",
+  "@jugadaShare": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      }
+    }
+  },
+  "noHayJugadasSeleccionadasImprimir": "Aucune grille sélectionnée pour l'impression",
+  "generaGuardaJugadas": "Générez et enregistrez vos grilles depuis l'écran principal de {loteria}",
+  "@generaGuardaJugadas": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "confirmarEliminarVarios": "Voulez-vous vraiment supprimer {count} grille(s) ?",
+  "@confirmarEliminarVarios": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "eliminadasExito": "{count} grille(s) supprimée(s) avec succès.",
+  "@eliminadasExito": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "superbalotaConValor": "[Superbalota : {valor}]",
+  "@superbalotaConValor": {
+    "placeholders": {
+      "valor": {
+        "type": "int"
+      }
+    }
+  },
+  "misJugadasConLoteria": "Mes grilles - {loteria}",
+  "@misJugadasConLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "whatsapp": "WhatsApp",
+  "nombreArchivoPDF": "Ticket_{loteria}_Eterlotto.pdf",
+  "@nombreArchivoPDF": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "usdDia": "USD / jour",
+  "postEliminado": "Publication supprimée avec succès",
+  "errorEliminarPost": "Erreur lors de la suppression de la publication : {error}",
+  "@errorEliminarPost": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "editarPost": "Modifier la publication",
+  "crearPost": "Créer une publication",
+  "todosCamposObligatorios": "Tous les champs sont obligatoires",
+  "errorGuardarPost": "Erreur lors de l'enregistrement de la publication",
+  "contenido": "Contenu",
+  "publicar": "Publier",
+  "escribeComentario": "Écrire un commentaire",
+  "errorEnviarComentario": "Erreur lors de l'envoi du commentaire : {error}",
+  "@errorEnviarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioEliminado": "Commentaire supprimé",
+  "errorEliminarComentario": "Erreur lors de la suppression : {error}",
+  "@errorEliminarComentario": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "comentarioReportado": "Commentaire de @{usuario} signalé.",
+  "@comentarioReportado": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "respondiendoA": "Réponse à @{usuario}",
+  "@respondiendoA": {
+    "placeholders": {
+      "usuario": {
+        "type": "String"
+      }
+    }
+  },
+  "escribeRespuesta": "Écrivez votre réponse...",
+  "escribeComentarioHint": "Écrivez un commentaire...",
+  "noHayComentarios": "Aucun commentaire pour le moment. Soyez le premier à commenter !",
+  "opcionPago": "Option de paiement",
+  "completaDatosPago": "Complétez vos informations de paiement",
+  "nombreTarjeta": "Nom sur la carte",
+  "numeroTarjeta": "Numéro de carte",
+  "ingresaNombre": "Saisissez le nom",
+  "tarjetaInvalida": "Numéro de carte invalide",
+  "fechaInvalida": "Date invalide",
+  "cvvInvalido": "CVV invalide",
+  "pagar": "Payer",
+  "pagoExito": "✅ Paiement effectué avec succès",
+  "pagarEpayco": "Payer avec ePayco",
+  "errorAnuncios": "Erreur lors du chargement des annonces.",
+  "numerosLabel": "Numéros",
+  "descripcionHistoricoResultados": "Consultez les 25 tirages les plus récents ou téléchargez l'historique complet pour analyser les données vous-même.",
+  "cargarMasSorteos": "Charger 50 de plus ({count} restants)",
+  "@cargarMasSorteos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "verTodosSorteos": "Voir tous",
+  "descripcionMisJugadasBanner": "Vous trouverez ici toutes vos grilles et le prochain tirage de chaque loterie",
+  "descripcionResultadosBanner": "Vous trouverez ici les derniers résultats officiels, l'historique des tirages et l'analyse des prédictions de chaque loterie",
+  "descripcionExplorarBanner": "Vous pouvez ici explorer les loteries disponibles par pays et générer des prédictions intelligentes pour vos prochaines grilles",
+  "mostrarLoteriasPrincipales": "Afficher uniquement les loteries principales",
+  "saludoUsuario": "Bonjour, {nombre} ! 👋",
+  "@saludoUsuario": {
+    "placeholders": {
+      "nombre": {
+        "type": "String"
+      }
+    }
+  },
+  "subtituloSuerte": "Votre chance commence ici.",
+  "tituloDescargaExcel": "Télécharger l'historique complet",
+  "mensajeDescargaExcel": "Souhaitez-vous télécharger le fichier Excel contenant 100 % des tirages historiques enregistrés dans la base de données afin d'effectuer vos propres analyses ?",
+  "descargar": "Télécharger",
+  "descargandoHistorico": "Téléchargement de l'historique complet depuis la base de données...",
+  "planBasicoHazteVip": "Forfait de base (Passez VIP)",
+  "vipSinAnuncios": "VIP sans publicité",
+  "eterlottoVipSinAnuncios": "Eterlotto VIP (Sans publicité)",
+  "obtener": "Obtenir",
+  "activo": "Actif",
+  "subtituloVip": "Profitez de la meilleure expérience sans interruption ni publicité",
+  "ceroPublicidadTitulo": "Zéro publicité",
+  "ceroPublicidadDesc": "Aucune bannière ni publicité lors de la consultation des résultats et des statistiques.",
+  "maximaVelocidadTitulo": "Vitesse maximale",
+  "maximaVelocidadDesc": "Navigation fluide et chargement instantané sur tous les écrans.",
+  "soporteNuevasFuncionesTitulo": "Assistance et nouvelles fonctionnalités",
+  "soporteNuevasFuncionesDesc": "Accès prioritaire aux futurs outils et algorithmes d'IA.",
+  "suscripcionActiva": "Abonnement actif",
+  "suscripcionActivaDesc": "Votre forfait VIP est actif. Merci pour votre soutien !",
+  "administrarGooglePlay": "Gérer dans Google Play",
+  "planMensual": "Forfait mensuel",
+  "renovacionAutomatica": "Renouvellement mensuel automatique",
+  "suscribirmeAhora": "M'abonner maintenant",
+  "restaurarCompras": "Restaurer les achats",
+  "terminosSuscripcionGooglePlay": "L'abonnement est renouvelé automatiquement chaque mois via Google Play, sauf annulation au moins 24 heures avant la fin de la période en cours. Vous pouvez gérer ou annuler votre abonnement à tout moment dans les paramètres de votre compte Google Play.",
+  "comprasRestauradasExito": "✅ Achats restaurés avec succès.",
+  "noComprasActivas": "ℹ️ Aucun achat actif antérieur trouvé.",
+  "usuariosVipSinAnuncios": "Les utilisateurs VIP profitent de cette fonctionnalité et de toutes les autres sans publicité.",
+  "hacermeVip": "Passer VIP 💎",
+  "verVideo": "Voir la vidéo",
+  "descripcionVideoHistorico": "Regardez une courte vidéo publicitaire pour accéder à l'historique complet des résultats et le consulter.",
+  "descripcionVideoJugadas": "Regardez une courte vidéo publicitaire pour accéder à l'historique complet de vos grilles.",
+  "descripcionVideoInsight": "Regardez une courte vidéo publicitaire pour débloquer l'analyse intelligente par Intelligence Artificielle.",
+  "desbloquearAnalisisIA": "Débloquer l'analyse IA",
+  "distribucionAciertosTitulo": "Répartition des correspondances",
+  "tusJugadasGuardadasParentesis": "(Vos grilles enregistrées)",
+  "jugadaSingular": "grille",
+  "jugadasPlural": "grilles",
+  "ceroAciertos": "0 correspondance",
+  "unoDosAciertos": "1 - 2 correspondances",
+  "tresCuatroAciertos": "3 - 4 correspondances",
+  "cincoAciertos": "5 correspondances",
+  "distribucionCalculada": "Répartition calculée à partir de vos {count} grille(s).",
+  "@distribucionCalculada": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agregaJugadasDistribucion": "Ajoutez des grilles pour afficher la répartition des correspondances.",
+  "historialCoberturaTitulo": "Historique de couverture",
+  "promedioGeneralSorteos": "Moyenne générale : {avg}% (sur les {count} derniers tirages)",
+  "@promedioGeneralSorteos": {
+    "placeholders": {
+      "avg": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "rachaActualTitulo": "Série actuelle",
+  "jugadasConsecutivasAciertos": "grille(s) consécutive(s) avec correspondances",
+  "mejorRachaTitulo": "Meilleure série",
+  "ultimosNSorteosRegistrados": "{count} derniers tirages enregistrés",
+  "@ultimosNSorteosRegistrados": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "balotas": "Boules",
+  "sorteoLabel": "Tirage",
+  "preparaTusJugadasIA": "Préparez vos grilles avec les prédictions de l'IA.",
+  "publicidadLabel": "PUBLICITÉ",
+  "quitarAnuncios": "Supprimer les publicités",
+  "buscarDirectorioHint": "Trouvez des entreprises, services et commerces locaux...",
+  "mejorJugadaTitulo": "Meilleure grille",
+  "mejorJugadaSorteo": "Meilleure grille du tirage",
+  "aciertosConPorcentaje": "{hits} / {total} correspondances — {percent}%",
+  "@aciertosConPorcentaje": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "superoRendimientoJugadas": "⭐ A dépassé les performances de {percent}% de vos grilles précédentes.",
+  "@superoRendimientoJugadas": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "tuMejorJugadaSorteo": "⭐ Votre meilleur résultat pour ce tirage.",
+  "sinJugadasParaSorteo": "Vous n'avez aucune grille enregistrée pour ce tirage.",
+  "rendimientoUltimosSorteos": "Performance sur les {count} derniers tirages",
+  "@rendimientoUltimosSorteos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tuRendimiento": "Votre performance",
+  "coberturaPromedio": "Couverture moyenne",
+  "mejorCobertura": "Meilleure couverture",
+  "peorCobertura": "Couverture la plus faible",
+  "nSorteosLabel": "{count} tirages",
+  "@nSorteosLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "numerosMayorAfinidadHistorica": "🤖 Numéros présentant la plus forte affinité historique :",
+  "disclaimerAfinidadHistorica": "Basé sur des tendances historiques. Cela ne représente pas une probabilité réelle que le numéro soit tiré.",
+  "generaTusPropiasCombinaciones": "Générez vos propres combinaisons",
+  "usaTusNumerosFavoritos": "Utilisez vos numéros favoris (dates, âges, etc.) et créez jusqu'à 10 grilles personnalisées.",
+  "seleccionaLaLoteria": "Sélectionnez la loterie",
+  "reglasDeEstaLoteria": "Règles de cette loterie",
+  "cargandoReglas": "Chargement des règles...",
+  "tusNumeros": "Vos numéros",
+  "ingresaNumerosFecha": "Saisissez des numéros, une date ou des valeurs qui ont une signification pour vous.",
+  "ejemploNumeros": "Exemple : 12/10/1986, 7 14 21, 100, etc.",
+  "numerosDetectados": "Numéros détectés",
+  "cantidadDeJugadas": "Nombre de grilles",
+  "seleccionaCuantasCombinaciones": "Sélectionnez le nombre de combinaisons à générer.",
+  "estrategia": "Stratégie",
+  "usaTusNumerosComoBase": "Utilisez vos numéros comme base et ajoutez des variations.",
+  "estrategiaEquilibrada": "Équilibrée",
+  "estrategiaAleatoria": "Aléatoire",
+  "generando": "GÉNÉRATION...",
+  "generarCombinaciones": "GÉNÉRER LES COMBINAISONS",
+  "combinacionesGeneradas": "combinaisons générées",
+  "generarOtras": "En générer d'autres",
+  "guardarTodas": "Tout enregistrer",
+  "jugadasGuardadasConExito": "Grilles enregistrées avec succès",
+  "errorAlGuardarJugadas": "Une erreur s'est produite lors de l'enregistrement de certaines grilles",
+  "debesIniciarSesionParaGuardar": "Vous devez vous connecter pour enregistrer",
+  "informacionNoDisponible": "Informations indisponibles",
+  "datosLoteriaNoDisponibles": "Cette loterie ne dispose pas encore de résultats ni de prédictions.",
+  "datosLoteriaSinConexion": "Nous n'avons pas pu mettre les données à jour. Vérifiez votre connexion et réessayez.",
+  "reintentar": "Réessayer",
+  "sinResultadosRegistrados": "Aucun résultat n'a encore été enregistré",
+  "sinResultadosRegistradosDescripcion": "Les loteries apparaîtront ici dès que leur premier tirage officiel aura été enregistré.",
+  "resultadosRecientes": "Récents",
+  "sinHistorialResultados": "Vous n'avez encore aucun résultat dans l'historique",
+  "sinHistorialResultadosDescripcion": "Les loteries internationales apparaîtront ici une fois le tirage de votre dernière grille passé.",
+  "porDefinir": "À confirmer",
+  "desarrolladoCon": "Développé avec ",
+  "por": " par ",
+  "sitioWeb": "Site web",
+  "contacto": "Contact",
+  "perfilActualizadoExito": "Profil mis à jour avec succès",
+  "errorActualizarPerfil": "Erreur lors de la mise à jour du profil : {error}",
+  "@errorActualizarPerfil": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "estrategiaSoloMisNumeros": "Uniquement mes numéros",
+  "estrategiaVariaciones": "Variations",
+  "estrategiaEquilibradas": "Équilibrées",
+  "descEstrategiaSoloMis": "Utilise uniquement les numéros que vous avez sélectionnés.",
+  "descEstrategiaVariaciones": "Conserve vos numéros et complète la combinaison avec d'autres numéros valides.",
+  "descEstrategiaBalanced": "Combine vos numéros avec d'autres valeurs de la loterie.",
+  "descEstrategiaDefault": "Génère des combinaisons à partir de vos numéros.",
+  "limpiar": "Effacer",
+  "seGeneraranHasta": "Jusqu'à {count}\ncombinaisons uniques seront générées.",
+  "@seGeneraranHasta": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "copiar": "Copier",
+  "combinacionCopiada": "Combinaison copiée dans le presse-papiers",
+  "favorito": "Favori",
+  "marcadaComoFavorita": "Ajoutée aux favoris",
+  "sinConexionDatos": "Hors connexion · affichage des dernières données disponibles",
+  "sinConexionAnuncios": "Hors connexion · affichage de vos dernières annonces disponibles",
+  "errorCargarAnuncios": "Impossible de charger vos annonces.",
+  "continuarConGoogle": "Continuer avec Google"
+}

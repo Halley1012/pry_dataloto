@@ -1545,6 +1545,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get marcadaComoFavorita => 'Marked as favorite';
 
   @override
+  String get sinConexionDatos => 'Offline · showing the latest available data';
+
+  @override
   String get sinConexionAnuncios => 'Offline · showing your last available ads';
 
   @override

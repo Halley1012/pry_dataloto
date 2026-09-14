@@ -333,7 +333,8 @@ class CacheService {
         if (!rawKey.endsWith('_$activeUserId')) return false;
 
         if ((prefix == 'user_jugadas_' ||
-                prefix == 'resultados_dashboard_cache_v11_') &&
+                (prefix == 'resultados_dashboard_cache_v11_' ||
+                    prefix == 'resultados_dashboard_cache_v12_')) &&
             specificLotteryId != null) {
           final exactPrefix = '${prefix}id_${specificLotteryId}_';
           // También limpiamos la clave legacy por route para que una versión
@@ -365,7 +366,8 @@ class CacheService {
             isRouteCacheForUser(rawKey, 'jugadas_list_') ||
             isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v9_') ||
             isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v10_') ||
-            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v11_');
+            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v11_') ||
+            isRouteCacheForUser(rawKey, 'resultados_dashboard_cache_v12_');
       }).toList();
 
       for (final k in keys) {

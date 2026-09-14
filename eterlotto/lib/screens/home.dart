@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -2343,84 +2344,17 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildHomeUnavailableState() {
-    final lang = Localizations.localeOf(context).languageCode;
-    final title = lang == 'en'
-        ? 'Unable to load Home'
-        : lang == 'pt'
-        ? 'Não foi possível carregar o início'
-        : 'No pudimos cargar el inicio';
-    final body = lang == 'en'
-        ? 'Check your connection and try again.'
-        : lang == 'pt'
-        ? 'Verifique sua conexão e tente novamente.'
-        : 'Revisa tu conexión e inténtalo de nuevo.';
-    final retry = lang == 'en'
-        ? 'Retry'
-        : lang == 'pt'
-        ? 'Tentar novamente'
-        : 'Reintentar';
-
-    return Container(
+    return AppDataStateCard(
+      isConnectionError: true,
+      onRetry: () => _loadUserAndData(forceRefresh: true),
+      retrying: isLoading,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white10),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.cloud_off_outlined,
-            color: AppColors.yellow,
-            size: 38,
-          ),
-          const SizedBox(height: 14),
-          Text(
-            title,
-            style: AppTextStyles.h2.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54),
-          ),
-          const SizedBox(height: 14),
-          OutlinedButton.icon(
-            onPressed: () => _loadUserAndData(forceRefresh: true),
-            icon: const Icon(Icons.refresh_rounded),
-            label: Text(retry),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildStaleHomeNotice() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white12),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.sync_problem_outlined, size: 15, color: Colors.white54),
-          SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              'No pudimos actualizar · mostrando los últimos datos disponibles',
-              style: TextStyle(color: Colors.white70, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
+    return const AppStaleDataBanner(
+      margin: EdgeInsets.fromLTRB(16, 0, 16, 4),
     );
   }
 

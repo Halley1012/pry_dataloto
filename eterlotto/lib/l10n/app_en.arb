@@ -827,6 +827,7 @@
   "combinacionCopiada": "Combination copied to clipboard",
   "favorito": "Favorite",
   "marcadaComoFavorita": "Marked as favorite",
+  "sinConexionDatos": "Offline · showing the latest available data",
   "sinConexionAnuncios": "Offline · showing your last available ads",
   "errorCargarAnuncios": "We couldn't load your ads.",
   "continuarConGoogle": "Continue with Google"

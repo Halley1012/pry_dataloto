@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_fr.dart';
 import 'app_localizations_pt.dart';
 
 // ignore_for_file: type=lint
@@ -97,6 +98,7 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('es'),
+    Locale('fr'),
     Locale('pt'),
   ];
 
@@ -2859,6 +2861,12 @@ abstract class AppLocalizations {
   /// **'Marcada como favorita'**
   String get marcadaComoFavorita;
 
+  /// No description provided for @sinConexionDatos.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin conexión · mostrando los últimos datos disponibles'**
+  String get sinConexionDatos;
+
   /// No description provided for @sinConexionAnuncios.
   ///
   /// In es, this message translates to:
@@ -2889,7 +2897,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['en', 'es', 'pt'].contains(locale.languageCode);
+      <String>['en', 'es', 'fr', 'pt'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -2902,6 +2910,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'fr':
+      return AppLocalizationsFr();
     case 'pt':
       return AppLocalizationsPt();
   }

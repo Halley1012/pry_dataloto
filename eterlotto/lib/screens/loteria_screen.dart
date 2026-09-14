@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:google_fonts/google_fonts.dart';
@@ -1216,94 +1217,23 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Widget _buildDataUnavailableState(AppLocalizations? l10n) {
-    final isConnectionIssue = _dataRequestFailed;
-    return AppContainer3(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 12),
-        child: Column(
-          children: [
-            Icon(
-              isConnectionIssue
-                  ? Icons.cloud_off_outlined
-                  : Icons.insights_outlined,
-              size: 44,
-              color: isConnectionIssue ? Colors.white54 : AppColors.yellow,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isConnectionIssue
-                  ? (l10n?.errorConexion ?? 'Error de conexión')
-                  : (l10n?.informacionNoDisponible ??
-                        'Información no disponible'),
-              textAlign: TextAlign.center,
-              style: AppTextStyles.h2.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isConnectionIssue
-                  ? (l10n?.datosLoteriaSinConexion ??
-                        'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.')
-                  : (l10n?.datosLoteriaNoDisponibles ??
-                        'Esta lotería aún no tiene resultados ni predicciones disponibles.'),
-              textAlign: TextAlign.center,
-              style: AppTextStyles.bodySmall.copyWith(
-                color: Colors.white60,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: cargando
-                  ? null
-                  : () => _cargarDataOptimizado(force: true),
-              icon: const Icon(Icons.refresh, size: 18),
-              label: Text(l10n?.reintentar ?? 'Reintentar'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.yellow,
-                side: const BorderSide(color: AppColors.yellow),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return AppDataStateCard(
+      isConnectionError: _dataRequestFailed,
+      onRetry: _dataRequestFailed
+          ? () => _cargarDataOptimizado(force: true)
+          : null,
+      retrying: cargando,
+      emptyTitle:
+          l10n?.informacionNoDisponible ?? 'Información no disponible',
+      emptyMessage:
+          l10n?.datosLoteriaNoDisponibles ??
+          'Esta lotería aún no tiene resultados ni predicciones disponibles.',
+      emptyIcon: Icons.insights_outlined,
     );
   }
 
   Widget _buildStaleDataNotice() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Sin conexión · mostrando los últimos datos disponibles',
-              style: AppTextStyles.bodySmall.copyWith(
-                color: Colors.white70,
-                fontSize: 11.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    return const AppStaleDataBanner();
   }
 
   Widget _buildHeader(AppLocalizations? l10n) {
