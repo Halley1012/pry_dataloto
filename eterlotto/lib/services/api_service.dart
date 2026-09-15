@@ -2278,9 +2278,12 @@ class ApiService {
       queryParameters: queryParameters.isEmpty ? null : queryParameters,
     );
 
+    // Render puede tardar más durante un cold start.
+    // La navegación normal mantiene la caché del backend; el refresh manual
+    // agrega force_refresh=true para obligar al backend a consultar la BD.
     final timeout = forceRefresh
-        ? const Duration(seconds: 25)
-        : _requestTimeout;
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 25);
 
     Future<http.Response> request() async {
       return http
@@ -2296,10 +2299,8 @@ class ApiService {
     try {
       response = await request();
     } on TimeoutException {
-      // En Render Free el servicio puede estar despertando. Para un refresh
-      // manual hacemos un único reintento antes de declarar que no hubo red.
-      if (!forceRefresh) rethrow;
-
+      // Un único reintento cubre el caso en que Render todavía está
+      // despertando. No cambia la semántica de force_refresh.
       await Future<void>.delayed(const Duration(milliseconds: 700));
       response = await request();
     }

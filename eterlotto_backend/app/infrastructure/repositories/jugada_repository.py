@@ -189,7 +189,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                             fecha_sorteo IS NULL
                             AND (
                                 fecha_guardado::date = $4
-                                OR (fecha_guardado AT TIME ZONE 'America/Bogota')::date = $4
                             )
                         )
                       )
@@ -571,20 +570,24 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     return []
 
                 cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5),
-                           COALESCE(max_balotas_rojas, 0),
-                           COALESCE(tiene_complementario, false),
-                           COALESCE(tiene_reintegro, false)
+                    SELECT max_seleccion,
+                           max_balotas_rojas,
+                           tiene_complementario,
+                           tiene_reintegro
                     FROM loterias
                     WHERE LOWER(REPLACE(REPLACE(TRIM(route), ' ', '_'), '-', '_')) = %s
                     ORDER BY id
                     LIMIT 1;
                 """, (canonical_route,))
                 lot_config = cur.fetchone()
-                max_sel = lot_config[0] if lot_config else None
-                max_rojas_cfg = lot_config[1] if lot_config else 0
-                tiene_comp_cfg = bool(lot_config[2]) if lot_config else False
-                min_special = 0 if lot_config and bool(lot_config[3]) else 1
+                if not lot_config or lot_config[0] is None:
+                    raise ValueError(
+                        f"La route '{canonical_route}' no tiene max_seleccion configurado en loterias"
+                    )
+                max_sel = int(lot_config[0])
+                max_rojas_cfg = int(lot_config[1]) if lot_config[1] is not None else None
+                tiene_comp_cfg = bool(lot_config[2]) if lot_config[2] is not None else False
+                min_special = 0 if bool(lot_config[3]) else 1
 
                 cur.execute("""
                     SELECT column_name
@@ -603,7 +606,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 results = []
                 if balota_cols:
                     special_cols = []
-                    if max_rojas_cfg > 0 or lot_config is None:
+                    if max_rojas_cfg is None or max_rojas_cfg > 0:
                         special_cols = [c for c in ("balotaroja", "balotaroja2", "superbalota") if c in cols]
 
                     select_cols = ["fecha"] + balota_cols + special_cols
@@ -631,10 +634,11 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         if max_sel is not None:
                             numeros = numeros[: max_sel + (1 if tiene_comp_cfg else 0)]
                         especiales = [n for n in row[1 + main_count:1 + main_count + special_count] if n is not None and n >= min_special]
-                        if max_rojas_cfg > 0:
-                            especiales = especiales[:max_rojas_cfg]
-                        else:
-                            especiales = []
+                        if max_rojas_cfg is not None:
+                            if max_rojas_cfg > 0:
+                                especiales = especiales[:max_rojas_cfg]
+                            else:
+                                especiales = []
                         sorteo_name = display_name
                         if "sorteo" in cols:
                             sorteo_name = row[1 + main_count + special_count] or display_name
