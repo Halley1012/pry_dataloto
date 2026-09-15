@@ -492,7 +492,19 @@ class CincoDeOroScraper:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
+            """))
+            conn.execute(text("""
+                ALTER TABLE resultados_5deoro ADD COLUMN IF NOT EXISTS concurso INT;
+                ALTER TABLE resultados_5deoro ADD COLUMN IF NOT EXISTS loteria_id INT REFERENCES loterias(id);
+                ALTER TABLE resultados_5deoro ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_5deoro ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                WITH duplicados AS (
+                    SELECT ctid, ROW_NUMBER() OVER (PARTITION BY fecha, sorteo ORDER BY (balota1 > 0) DESC, updated_at DESC NULLS LAST, ctid DESC) AS posicion
+                    FROM resultados_5deoro
+                ) DELETE FROM resultados_5deoro r USING duplicados d WHERE r.ctid = d.ctid AND d.posicion > 1;
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_5deoro_fecha_sorteo ON resultados_5deoro (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_5deoro_concurso ON resultados_5deoro (concurso);
+                CREATE INDEX IF NOT EXISTS idx_5deoro_loteria_id ON resultados_5deoro (loteria_id);
             """))
 
         # Limpiar posibles placeholders obsoletos anteriores a proxima_fecha

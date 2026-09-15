@@ -346,7 +346,7 @@ class _EstadisticasDashboardScreenState
     }
   }
 
-  Future<void> _cargarDatos() async {
+  Future<void> _cargarDatos({bool forceRefresh = false}) async {
     final cachedHist = await CacheService.getStaleJson(
       '${routeName}_historico_completo',
     );
@@ -390,7 +390,9 @@ class _EstadisticasDashboardScreenState
     if (widget.loteriaData == null ||
         widget.loteriaData!['max_seleccion'] == null) {
       try {
-        final loteriasList = await ApiService.getAllLoterias();
+        final loteriasList = await ApiService.getAllLoterias(
+          forceRefresh: forceRefresh,
+        );
         final cleanRoute = routeName.toLowerCase().replaceAll(
           RegExp(r'[\s_]+'),
           '',
@@ -440,7 +442,10 @@ class _EstadisticasDashboardScreenState
     bool predictionFailed = false;
 
     try {
-      final listResultados = await ApiService.getHistoricoCompleto(routeName);
+      final listResultados = await ApiService.getHistoricoCompleto(
+        routeName,
+        forceRefresh: forceRefresh,
+      );
       if (listResultados.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -459,7 +464,10 @@ class _EstadisticasDashboardScreenState
     }
 
     try {
-      final dataP = await ApiService.getPrediccionLoteria(routeName);
+      final dataP = await ApiService.getPrediccionLoteria(
+        routeName,
+        forceRefresh: forceRefresh,
+      );
       if (dataP.isNotEmpty) {
         if (mounted) {
           setState(() {
@@ -567,7 +575,7 @@ class _EstadisticasDashboardScreenState
                         backgroundColor: const Color(0xFF1E1E1E),
                         displacement: 25.0,
                         onRefresh: () async {
-                          await _cargarDatos();
+                          await _cargarDatos(forceRefresh: true);
                         },
                         child: SingleChildScrollView(
                           controller: _scrollController,
@@ -656,7 +664,9 @@ class _EstadisticasDashboardScreenState
         padding: const EdgeInsets.all(24),
         child: AppDataStateCard(
           isConnectionError: _dataRequestFailed,
-          onRetry: _dataRequestFailed ? _cargarDatos : null,
+          onRetry: _dataRequestFailed
+              ? () => _cargarDatos(forceRefresh: true)
+              : null,
           retrying: cargando,
           emptyTitle:
               l10n?.informacionNoDisponible ?? 'Información no disponible',

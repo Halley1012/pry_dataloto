@@ -56,6 +56,7 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
   List<String> get notFoundIDs => _notFoundIDs;
 
   bool _isSyncingGooglePlay = false;
+  bool _wasBackgrounded = false;
 
   String get diagnosticInfo =>
       'Disponibilidad Google Play: $_isAvailable\n'
@@ -255,7 +256,14 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _wasBackgrounded = true;
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed && _wasBackgrounded) {
+      _wasBackgrounded = false;
       unawaited(_syncGooglePlayPurchases());
     }
   }
