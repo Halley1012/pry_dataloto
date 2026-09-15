@@ -200,7 +200,19 @@ class LottoAmericaScraper:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
+            """))
+            conn.execute(text("""
+                ALTER TABLE resultados_lotto_america ADD COLUMN IF NOT EXISTS concurso INT;
+                ALTER TABLE resultados_lotto_america ADD COLUMN IF NOT EXISTS loteria_id INT REFERENCES loterias(id);
+                ALTER TABLE resultados_lotto_america ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_lotto_america ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                WITH duplicados AS (
+                    SELECT ctid, ROW_NUMBER() OVER (PARTITION BY fecha, sorteo ORDER BY (balota1 > 0) DESC, updated_at DESC NULLS LAST, ctid DESC) AS posicion
+                    FROM resultados_lotto_america
+                ) DELETE FROM resultados_lotto_america r USING duplicados d WHERE r.ctid = d.ctid AND d.posicion > 1;
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_lotto_america_fecha_sorteo ON resultados_lotto_america (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_lotto_america_concurso ON resultados_lotto_america (concurso);
+                CREATE INDEX IF NOT EXISTS idx_lotto_america_loteria_id ON resultados_lotto_america (loteria_id);
             """))
 
         # 2. Detección temprana

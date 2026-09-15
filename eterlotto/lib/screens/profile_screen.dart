@@ -885,42 +885,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color? iconColor,
     String? trailingText,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
         color: color ?? const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-      ),
-      child: ListTile(
-        onTap: onTap,
-        leading: Icon(icon, color: iconColor ?? Colors.white70),
-        title: Text(
-          title,
-          style: GoogleFonts.montserrat(
-            color: Colors.white,
-            fontSize: 15,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (trailingText != null)
-              Text(
-                trailingText,
-                style: GoogleFonts.montserrat(
-                  color: Colors.greenAccent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            const SizedBox(width: 8),
-            const Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.white24,
-              size: 14,
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
+          onTap: onTap,
+          leading: Icon(icon, color: iconColor ?? Colors.white70),
+          title: Text(
+            title,
+            style: GoogleFonts.montserrat(
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
             ),
-          ],
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (trailingText != null)
+                Text(
+                  trailingText,
+                  style: GoogleFonts.montserrat(
+                    color: Colors.greenAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.arrow_forward_ios,
+                color: Colors.white24,
+                size: 14,
+              ),
+            ],
+          ),
         ),
       ),
     );

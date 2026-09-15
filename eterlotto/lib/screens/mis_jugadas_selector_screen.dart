@@ -117,22 +117,24 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       var hadRequestError = false;
       // ⚡ 2. Cargar datos en PARALELO
       final resultados = await Future.wait([
-        ApiService.getLoteriasInfoJugadas().catchError((_) {
+        ApiService.getLoteriasInfoJugadas(
+          forceRefresh: forceRefresh,
+        ).catchError((_) {
           hadRequestError = true;
           return <String, Map<String, dynamic>>{};
-        }),
-        ApiService.getLoteriasConJugadas().catchError((_) {
-          hadRequestError = true;
-          return <String>[];
         }),
         _obtenerTodasLasLoterias(force: forceRefresh),
       ]);
 
       final Map<String, Map<String, dynamic>> infoMap =
           Map<String, Map<String, dynamic>>.from(resultados[0] as Map);
-      final List<String> activas = List<String>.from(resultados[1] as List);
       final List<Map<String, dynamic>> todas =
-          resultados[2] as List<Map<String, dynamic>>;
+          resultados[1] as List<Map<String, dynamic>>;
+      final List<String> activas = infoMap.values
+          .map((value) => value['route']?.toString().trim().toLowerCase() ?? '')
+          .where((route) => route.isNotEmpty)
+          .toSet()
+          .toList();
 
       final routeCounts = <String, int>{};
       for (final lot in todas) {
@@ -245,15 +247,16 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       }
     }
 
-    var hadNetworkFailure = false;
+    var loteriasNetworkFailure = false;
     try {
       final results = await Future.wait([
         ApiService.getPaises().catchError((_) {
-          hadNetworkFailure = true;
           return <Map<String, dynamic>>[];
         }),
-        ApiService.getAllLoterias().catchError((_) {
-          hadNetworkFailure = true;
+        ApiService.getAllLoterias(
+          forceRefresh: force,
+        ).catchError((_) {
+          loteriasNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -276,14 +279,14 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
-      _catalogFetchFailed = hadNetworkFailure;
+      _catalogFetchFailed = loteriasNetworkFailure;
 
       if (todas.isNotEmpty) {
         await CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
         return todas;
       }
 
-      if (hadNetworkFailure) {
+      if (loteriasNetworkFailure) {
         final staleCatalog = await CacheService.getStaleJson(
           CacheService.catalogoLoteriasKey,
         );

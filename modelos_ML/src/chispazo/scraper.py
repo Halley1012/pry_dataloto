@@ -332,8 +332,36 @@ class ChispazoScraper:
         else:
             df_combined = df_existente
 
-        df_combined['fecha'] = pd.to_datetime(df_combined['fecha']).dt.date
-        df_combined['concurso'] = df_combined['concurso'].astype(int)
+        # La web puede incluir una fila vacía/de encabezado y algunos registros
+        # antiguos de la BD pueden venir incompletos.  Nunca convertir directamente
+        # a ``int``: pandas lanza "Cannot convert non-finite values (NA or inf) to
+        # integer" si una sola fila contiene NaN.
+        columnas_numericas = [
+            'concurso', 'loteria_id', 'balota1', 'balota2', 'balota3',
+            'balota4', 'balota5', 'balotaroja'
+        ]
+        df_combined['fecha'] = pd.to_datetime(
+            df_combined['fecha'], errors='coerce'
+        ).dt.date
+        for columna in columnas_numericas:
+            df_combined[columna] = pd.to_numeric(
+                df_combined[columna], errors='coerce'
+            )
+
+        columnas_requeridas = ['fecha', 'sorteo', *columnas_numericas]
+        filas_antes = len(df_combined)
+        df_combined = df_combined.dropna(
+            subset=columnas_requeridas
+        ).copy()
+        filas_descartadas = filas_antes - len(df_combined)
+        if filas_descartadas:
+            print(
+                f"⚠️ Chispazo: se descartaron {filas_descartadas} fila(s) "
+                "incompleta(s) antes de convertir a enteros."
+            )
+
+        for columna in columnas_numericas:
+            df_combined[columna] = df_combined[columna].astype(int)
 
         # Deduplicar preservando todos los concursos únicos ordenados descendentemente (prioridad a recién scrapeados)
         df_combined = df_combined.drop_duplicates(subset=['concurso'], keep='first').sort_values('concurso', ascending=False).reset_index(drop=True)
@@ -374,6 +402,26 @@ class ChispazoScraper:
             df_to_save = pd.concat([pd.DataFrame([fila_proximo]), df_scraped], ignore_index=True)
             df_to_save = df_to_save.drop_duplicates(subset=['concurso'], keep='first')
 
+        # La ejecución normal guarda sólo los recientes, pero la fuente puede
+        # contener una fila parcial. Reaplicamos la misma limpieza antes del
+        # UPSERT para que ningún NaN alcance las conversiones int(...) de abajo.
+        df_to_save['fecha'] = pd.to_datetime(
+            df_to_save['fecha'], errors='coerce'
+        ).dt.date
+        for columna in columnas_numericas:
+            df_to_save[columna] = pd.to_numeric(
+                df_to_save[columna], errors='coerce'
+            )
+        df_to_save = df_to_save.dropna(
+            subset=['fecha', 'sorteo', *columnas_numericas]
+        ).copy()
+        for columna in columnas_numericas:
+            df_to_save[columna] = df_to_save[columna].astype(int)
+
+        if df_to_save.empty:
+            print("❌ No hay filas válidas para guardar en resultados_chispazo.")
+            return False
+
         # 6. Guardar en PostgreSQL asegurando estructura, índices y UPSERT
         try:
             with self.engine.begin() as conn:
@@ -394,6 +442,32 @@ class ChispazoScraper:
                     );
                     CREATE INDEX IF NOT EXISTS idx_chispazo_fecha ON resultados_chispazo(fecha DESC);
                     CREATE INDEX IF NOT EXISTS idx_chispazo_loteria_id ON resultados_chispazo(loteria_id);
+                """))
+
+                # La tabla puede venir de una versión anterior sin PK/UNIQUE en
+                # concurso. ON CONFLICT (concurso) exige esa restricción. Si hay
+                # duplicados heredados, conservamos primero el resultado real
+                # (balota1 > 0) y luego el registro más recientemente actualizado.
+                conn.execute(text("""
+                    WITH concursos_duplicados AS (
+                        SELECT ctid,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY concurso
+                                   ORDER BY
+                                       (balota1 > 0) DESC,
+                                       updated_at DESC NULLS LAST,
+                                       ctid DESC
+                               ) AS posicion
+                        FROM resultados_chispazo
+                    )
+                    DELETE FROM resultados_chispazo AS resultado
+                    USING concursos_duplicados AS duplicado
+                    WHERE resultado.ctid = duplicado.ctid
+                      AND duplicado.posicion > 1;
+
+                    CREATE UNIQUE INDEX IF NOT EXISTS
+                        uq_resultados_chispazo_concurso
+                    ON resultados_chispazo(concurso);
                 """))
 
             # Eliminar posibles placeholders obsoletos anteriores al nuevo próximo sorteo
