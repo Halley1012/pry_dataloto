@@ -87,15 +87,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       });
     }
 
-    var hadNetworkFailure = false;
+    var loteriasNetworkFailure = false;
     try {
       final results = await Future.wait([
+        // Países es un catálogo auxiliar. Si falla, no debemos mostrar
+        // "Sin conexión" mientras /loterias sí haya refrescado correctamente.
         ApiService.getPaises().catchError((_) {
-          hadNetworkFailure = true;
           return <Map<String, dynamic>>[];
         }),
-        ApiService.getAllLoterias().catchError((_) {
-          hadNetworkFailure = true;
+        ApiService.getAllLoterias(
+          forceRefresh: forceRefresh,
+        ).catchError((_) {
+          loteriasNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -131,7 +134,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           _showingStaleData = false;
         });
         await CacheService.setJson('explorar_loterias_mundial', todas);
-      } else if (_loterias.isNotEmpty && hadNetworkFailure) {
+      } else if (_loterias.isNotEmpty && loteriasNetworkFailure) {
         setState(() {
           _isLoading = false;
           _loadFailed = false;
@@ -141,7 +144,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         setState(() {
           _userCountry = uCountry;
           _isLoading = false;
-          _loadFailed = hadNetworkFailure;
+          _loadFailed = loteriasNetworkFailure;
           _showingStaleData = false;
         });
       }
