@@ -2252,40 +2252,98 @@ class ApiService {
 
   /////////////////////////// Loterias ////////////////////////////
 
-  /// 📋 Listar loterías disponibles (por país o todas)
-  static Future<List<dynamic>> getLoteriasPorPais([String? paisId]) async {
-    final uri = (paisId != null && paisId.isNotEmpty)
-        ? Uri.parse("$baseUrl/loterias?pais_id=$paisId")
-        : Uri.parse("$baseUrl/loterias");
+  /// 📋 Consulta interna de loterías.
+  ///
+  /// [forceRefresh] = false:
+  /// navegación normal; el backend puede responder desde su caché.
+  ///
+  /// [forceRefresh] = true:
+  /// envía `force_refresh=true` para que el backend ignore su caché de
+  /// `/loterias`, consulte nuevamente la BD y renueve su caché.
+  static Future<List<dynamic>> _getLoterias({
+    String? paisId,
+    bool forceRefresh = false,
+  }) async {
+    final queryParameters = <String, String>{};
 
-    final response = await http
-        .get(
-          uri,
-          headers: await _getHeaders(withAuth: false),
-        )
-        .timeout(_requestTimeout);
+    if (paisId != null && paisId.trim().isNotEmpty) {
+      queryParameters["pais_id"] = paisId.trim();
+    }
+
+    if (forceRefresh) {
+      queryParameters["force_refresh"] = "true";
+    }
+
+    final uri = Uri.parse("$baseUrl/loterias").replace(
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+
+    final timeout = forceRefresh
+        ? const Duration(seconds: 25)
+        : _requestTimeout;
+
+    Future<http.Response> request() async {
+      return http
+          .get(
+            uri,
+            headers: await _getHeaders(withAuth: false),
+          )
+          .timeout(timeout);
+    }
+
+    http.Response response;
+
+    try {
+      response = await request();
+    } on TimeoutException {
+      // En Render Free el servicio puede estar despertando. Para un refresh
+      // manual hacemos un único reintento antes de declarar que no hubo red.
+      if (!forceRefresh) rethrow;
+
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      response = await request();
+    }
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) return data;
       throw Exception("Formato inválido de loterías");
-    } else {
-      throw Exception("Error al obtener loterías: ${response.statusCode}");
     }
+
+    throw Exception("Error al obtener loterías: ${response.statusCode}");
   }
 
-  /// 🌐 Obtener todas las loterías de una sola petición
-  static Future<List<dynamic>> getAllLoterias() async {
-    return getLoteriasPorPais(null);
+  /// 📋 Listar loterías disponibles por país.
+  ///
+  /// Se conserva la firma existente para no romper las pantallas que llaman
+  /// `getLoteriasPorPais(paisId)`.
+  static Future<List<dynamic>> getLoteriasPorPais([String? paisId]) async {
+    return _getLoterias(paisId: paisId);
+  }
+
+  /// 🌐 Obtener todas las loterías.
+  static Future<List<dynamic>> getAllLoterias({
+    bool forceRefresh = false,
+  }) async {
+    return _getLoterias(forceRefresh: forceRefresh);
   }
 
   /// 🔮 Obtener predicción de IA, números probables y jackpot de una lotería
-  static Future<Map<String, dynamic>> getPrediccionLoteria(String route) async {
+  static Future<Map<String, dynamic>> getPrediccionLoteria(
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute");
+    final uri = Uri.parse("$baseUrl/$cleanRoute").replace(
+      queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 25)
+        : const Duration(seconds: 12);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 12));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -2327,13 +2385,20 @@ class ApiService {
 
   /// 📊 Obtener últimos sorteos de una lotería
   static Future<List<Map<String, dynamic>>> getUltimosResultados(
-    String route,
-  ) async {
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5");
+    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5").replace(
+      queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 25)
+        : const Duration(seconds: 12);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 12));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -2386,13 +2451,20 @@ class ApiService {
 
   /// 📜 Obtener histórico completo de resultados de una lotería (para exportación)
   static Future<List<Map<String, dynamic>>> getHistoricoCompleto(
-    String route,
-  ) async {
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
+    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo").replace(
+      queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 20);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 20));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);

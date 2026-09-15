@@ -1,9 +1,9 @@
 import logging
+import re
 from typing import Optional, Tuple, List, Dict, Any
 from datetime import datetime, date
 from app.domain.ports import JugadaRepositoryPort
 from app.infrastructure import db_connection
-from app.core.cache import cached
 
 class PostgresJugadaRepository(JugadaRepositoryPort):
     _table_ensured: bool = False
@@ -83,16 +83,13 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 raise ValueError(f"La lotería con id={loteria_id} no existe")
 
             canonical_route = (row['route'] or '').strip().lower()
-            accepted_routes = {canonical_route}
-            for alias_group in (
-                {'cloto', 'colorloto'},
-                {'baloto', 'bloto'},
-                {'miloto', 'mloto'},
-            ):
-                if canonical_route in alias_group:
-                    accepted_routes.update(alias_group)
+            canonical_name = self._normalize_identity(row['nombre'])
+            accepted_routes = {
+                self._normalize_identity(canonical_route),
+                canonical_name,
+            }
 
-            if clean_route and canonical_route and clean_route not in accepted_routes:
+            if clean_route and canonical_route and self._normalize_identity(clean_route) not in accepted_routes:
                 raise ValueError(
                     f"loteria_id={loteria_id} corresponde a route '{canonical_route}', "
                     f"no a '{clean_route}'"
@@ -325,230 +322,213 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     'fecha': str(r['latest_fecha']) if r['latest_fecha'] else None,
                 }
             return result
+    @staticmethod
+    def _normalize_identity(value: Optional[str]) -> str:
+        return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", (value or "").strip().lower())).strip("_")
 
+    def _resolve_catalog_identity(self, cur, route: str):
+        requested = self._normalize_identity(route)
+        if not requested:
+            raise ValueError("La route de la lotería está vacía")
+        if not re.fullmatch(r"[a-z0-9_]+", requested):
+            raise ValueError("Route de lotería inválida")
 
-    @cached(ttl=300)
-    def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
-        row = self.get_prediccion_generico("predicciones_mloto", fecha)
-        if row:
-            return (row[0], row[1])
-        return None
-    
-    @cached(ttl=300)
-    def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
-        return self.get_prediccion_generico("predicciones_bloto", fecha)
+        cur.execute("""
+            SELECT route, nombre
+            FROM loterias
+            WHERE LOWER(REPLACE(REPLACE(TRIM(route), ' ', '_'), '-', '_')) = %s
+               OR LOWER(REPLACE(REPLACE(TRIM(nombre), ' ', '_'), '-', '_')) = %s
+            ORDER BY id;
+        """, (requested, requested))
+        rows = cur.fetchall()
 
-    @cached(ttl=300)
-    def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
-        clean = loteria.strip().lower()
-        clean_spaces = clean.replace('_', ' ')
-        clean_under = clean.replace(' ', '_')
+        canonical_route = requested
+        display_name = route.replace('_', ' ').strip().title()
+        aliases = {requested}
+        if rows:
+            canonical_route = self._normalize_identity(rows[0][0]) or requested
+            display_name = str(rows[0][1] or display_name)
+            for row in rows:
+                aliases.add(self._normalize_identity(row[0]))
+                aliases.add(self._normalize_identity(row[1]))
+        aliases.discard("")
+        return canonical_route, display_name, sorted(aliases)
+
+    def _resolve_data_table(self, cur, prefix: str, route: str) -> Optional[str]:
+        canonical_route, _, aliases = self._resolve_catalog_identity(cur, route)
+        cur.execute("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name LIKE %s;
+        """, (f"{prefix}_%",))
+        available = [row[0].lower() for row in cur.fetchall()]
+
+        candidate_prefixes = [f"{prefix}_{alias}" for alias in aliases]
+        candidates = [
+            name for name in available
+            if any(name == base or re.fullmatch(re.escape(base) + r"\d+", name) for base in candidate_prefixes)
+        ]
+        if not candidates:
+            exact = f"{prefix}_{canonical_route}"
+            return exact if exact in available else None
+
+        latest_by_table = []
+        for table_name in candidates:
+            if not re.fullmatch(r"[a-z0-9_]+", table_name):
+                continue
+            latest = None
+            try:
+                cur.execute(f"SELECT MAX(fecha) FROM {table_name};")
+                row = cur.fetchone()
+                latest = row[0] if row else None
+            except Exception:
+                try:
+                    cur.connection.rollback()
+                except Exception:
+                    pass
+            exact_priority = 0 if table_name == f"{prefix}_{canonical_route}" else 1
+            latest_by_table.append((latest is not None, latest, -exact_priority, table_name))
+
+        if not latest_by_table:
+            return None
+        latest_by_table.sort(reverse=True)
+        return latest_by_table[0][3]
+
+    def get_jackpot_reciente(self, route: str) -> Optional[str]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                _, _, aliases = self._resolve_catalog_identity(cur, route)
                 cur.execute("""
                     SELECT jackpot
                     FROM loterias_jackpots
-                    WHERE LOWER(loteria) = %s 
-                       OR LOWER(loteria) = %s
-                       OR LOWER(loteria) = %s
-                       OR LOWER(loteria) LIKE %s
+                    WHERE LOWER(REPLACE(REPLACE(TRIM(loteria), ' ', '_'), '-', '_')) = ANY(%s)
                     ORDER BY fecha DESC
                     LIMIT 1;
-                """, (clean, clean_spaces, clean_under, f"%{clean}%"))
+                """, (aliases,))
                 row = cur.fetchone()
                 return row[0] if row else None
 
-    @cached(ttl=300)
-    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:              
-                cur.execute("""
-                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, j.jackpot
-                    FROM resultados_mloto r
-                    LEFT JOIN loterias_jackpots j ON j.loteria = 'miloto' AND j.fecha = r.fecha
-                    WHERE r.balota1 <> 0
-                    ORDER BY r.fecha DESC
-                    LIMIT 10;
-                """)
-                rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
-            
-    @cached(ttl=300)
-    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+    def get_predicciones_historico(self, route: str, limit: int) -> List[Tuple[datetime, List[int]]]:
+        safe_limit = max(1, min(int(limit), 200))
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                if sorteo:
-                    cur.execute("""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
-                        FROM resultados_bloto r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        AND LOWER(r.sorteo) = LOWER(%s)
-                        ORDER BY r.fecha DESC
-                        LIMIT 10;
-                    """, (sorteo,))
-                else:
-                    cur.execute("""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
-                        FROM resultados_bloto r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC
-                        LIMIT 10;
-                    """)
-                rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
-
-    @cached(ttl=600)
-    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                if sorteo:
-                    cur.execute("""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
-                        FROM resultados_bloto r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        AND LOWER(r.sorteo) = LOWER(%s)
-                        ORDER BY r.fecha DESC;
-                    """, (sorteo,))
-                else:
-                    cur.execute("""
-                        SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, r.balotaroja, r.sorteo, j.jackpot
-                        FROM resultados_bloto r
-                        LEFT JOIN loterias_jackpots j ON j.loteria = LOWER(r.sorteo) AND j.fecha = r.fecha
-                        WHERE r.balota1 <> 0
-                        ORDER BY r.fecha DESC;
-                    """)
-                rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], [r[6]], r[7] if len(r) > 7 and r[7] else "Baloto", r[8]) for r in rows]
-
-    @cached(ttl=600)
-    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT r.fecha, r.balota1, r.balota2, r.balota3, r.balota4, r.balota5, j.jackpot
-                    FROM resultados_mloto r
-                    LEFT JOIN loterias_jackpots j ON j.loteria = 'miloto' AND j.fecha = r.fecha
-                    WHERE r.balota1 <> 0
-                    ORDER BY r.fecha DESC;
-                """)
-                rows = cur.fetchall()
-                return [(r[0], [r[1], r[2], r[3], r[4], r[5]], r[6]) for r in rows]
-
-    @cached(ttl=300)
-    def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
-        clean_tipo = tipo.strip().lower()
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
+                _, _, aliases = self._resolve_catalog_identity(cur, route)
                 try:
                     cur.execute("""
                         SELECT fecha, numeros
                         FROM predicciones
-                        WHERE LOWER(loteria_route) = %s
+                        WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
                           AND fecha >= CURRENT_DATE - INTERVAL '15 days'
                         ORDER BY fecha DESC
                         LIMIT %s;
-                    """, (clean_tipo, limit))
+                    """, (aliases, safe_limit))
                     rows = cur.fetchall()
                     if rows:
                         return [(r[0], r[1]) for r in rows]
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
-                    pass
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Predicciones globales no disponibles: %s", exc)
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
 
+                table_name = self._resolve_data_table(cur, "predicciones", route)
+                if not table_name:
+                    return []
                 try:
                     cur.execute(f"""
                         SELECT fecha, numeros
-                        FROM predicciones_{clean_tipo}
+                        FROM {table_name}
                         WHERE fecha >= CURRENT_DATE - INTERVAL '15 days'
                         ORDER BY fecha DESC
                         LIMIT %s;
-                    """, (limit,))
-                    rows = cur.fetchall()
-                    return [(r[0], r[1]) for r in rows]
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
+                    """, (safe_limit,))
+                    return [(r[0], r[1]) for r in cur.fetchall()]
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Predicciones por tabla no disponibles: %s", exc)
                     return []
 
-    @cached(ttl=180)
-
-    def _get_alias(self, name: str) -> str:
-        mapping = {"mloto": "miloto", "bloto": "baloto", "cloto": "colorloto"}
-        return mapping.get(name, name)
-
-    def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
-        clean_tipo = tipo.strip().lower()
-        alias_loteria = self._get_alias(clean_tipo)
+    def get_predicciones_historico_completas(self, route: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
+        safe_limit = max(1, min(int(limit), 200))
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                # 1. Intentar en tabla global predicciones
+                _, _, aliases = self._resolve_catalog_identity(cur, route)
                 try:
                     cur.execute("""
                         SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
                         FROM predicciones
-                        WHERE LOWER(loteria_route) = %s 
-                           OR LOWER(loteria_route) = %s
-                           OR LOWER(loteria_route) = %s
+                        WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
                         ORDER BY fecha DESC
                         LIMIT %s;
-                    """, (clean_tipo, alias_loteria, clean_tipo.replace("_", ""), limit))
+                    """, (aliases, safe_limit))
                     rows = cur.fetchall()
                     if rows:
-                        return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
-                    pass
+                        return [
+                            (r[0], list(r[1] or []), list(r[2] or []))
+                            for r in rows
+                        ]
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Histórico global de predicciones no disponible: %s", exc)
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
 
-                # 2. Fallback a tabla específica predicciones_{clean_tipo}
+                table_name = self._resolve_data_table(cur, "predicciones", route)
+                if not table_name:
+                    return []
                 try:
                     cur.execute(f"""
                         SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
-                        FROM predicciones_{clean_tipo}
+                        FROM {table_name}
                         ORDER BY fecha DESC
                         LIMIT %s;
-                    """, (limit,))
-                    rows = cur.fetchall()
-                    return [(r[0], r[1] if isinstance(r[1], list) else list(r[1]), r[2] if isinstance(r[2], list) else list(r[2])) for r in rows]
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
+                    """, (safe_limit,))
+                    return [(r[0], list(r[1] or []), list(r[2] or [])) for r in cur.fetchall()]
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Histórico específico de predicciones no disponible: %s", exc)
                     return []
 
-    @cached(ttl=300)
-    def get_prediccion_generico(self, tabla: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
-        clean_tipo = tabla.replace("predicciones_", "").strip().lower()
+    def get_prediccion_generico(self, route: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
+                _, _, aliases = self._resolve_catalog_identity(cur, route)
                 try:
                     if fecha:
                         cur.execute("""
                             SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
                             FROM predicciones
-                            WHERE LOWER(loteria_route) = %s AND fecha <= %s
+                            WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
+                              AND fecha <= %s
                             ORDER BY fecha DESC
                             LIMIT 1;
-                        """, (clean_tipo, fecha))
+                        """, (aliases, fecha))
                     else:
                         cur.execute("""
                             SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
                             FROM predicciones
-                            WHERE LOWER(loteria_route) = %s
+                            WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
                             ORDER BY fecha DESC
                             LIMIT 1;
-                        """, (clean_tipo,))
+                        """, (aliases,))
                     row = cur.fetchone()
                     if row:
                         return row
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
-                    pass
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Predicción global no disponible: %s", exc)
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
 
+                table_name = self._resolve_data_table(cur, "predicciones", route)
+                if not table_name:
+                    return None
                 try:
                     if fecha:
                         cur.execute(f"""
                             SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
-                            FROM {tabla}
+                            FROM {table_name}
                             WHERE fecha <= %s
                             ORDER BY fecha DESC
                             LIMIT 1;
@@ -556,266 +536,154 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     else:
                         cur.execute(f"""
                             SELECT fecha, numeros, COALESCE(balotaroja, ARRAY[]::integer[])
-                            FROM {tabla}
+                            FROM {table_name}
                             ORDER BY fecha DESC
                             LIMIT 1;
                         """)
-                    row = cur.fetchone()
-                    return row if row else None
-                except Exception as e:
-                    logging.getLogger(__name__).error(f'Error capturado: {e}')
+                    return cur.fetchone()
+                except Exception as exc:
+                    logging.getLogger(__name__).debug("Predicción específica no disponible: %s", exc)
                     return None
 
-    @cached(ttl=300)
-    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        loteria_nombre = tabla.replace("resultados_", "")
+    def _jackpots_by_date(self, cur, aliases: List[str], draw_names: List[str]) -> Dict[Any, str]:
+        all_aliases = {self._normalize_identity(x) for x in aliases + draw_names}
+        all_aliases.discard("")
+        if not all_aliases:
+            return {}
+        cur.execute("""
+            SELECT fecha, jackpot
+            FROM loterias_jackpots
+            WHERE LOWER(REPLACE(REPLACE(TRIM(loteria), ' ', '_'), '-', '_')) = ANY(%s)
+            ORDER BY fecha DESC;
+        """, (sorted(all_aliases),))
+        result = {}
+        for fecha, jackpot in cur.fetchall():
+            if fecha not in result and jackpot:
+                result[fecha] = jackpot
+        return result
+
+    def _fetch_resultados_generico(self, route: str, limit: Optional[int], sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         with db_connection.get_connection() as conn:
             with conn.cursor() as cur:
-                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
+                canonical_route, display_name, aliases = self._resolve_catalog_identity(cur, route)
+                table_name = self._resolve_data_table(cur, "resultados", canonical_route)
+                if not table_name:
+                    return []
+
                 cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
+                    SELECT COALESCE(max_seleccion, 5),
+                           COALESCE(max_balotas_rojas, 0),
+                           COALESCE(tiene_complementario, false),
+                           COALESCE(tiene_reintegro, false)
                     FROM loterias
-                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
+                    WHERE LOWER(REPLACE(REPLACE(TRIM(route), ' ', '_'), '-', '_')) = %s
+                    ORDER BY id
                     LIMIT 1;
-                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
+                """, (canonical_route,))
                 lot_config = cur.fetchone()
                 max_sel = lot_config[0] if lot_config else None
                 max_rojas_cfg = lot_config[1] if lot_config else 0
-                tiene_comp_cfg = lot_config[2] if lot_config else False
-                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
-                min_roja_val = 0 if is_reintegro else 1
+                tiene_comp_cfg = bool(lot_config[2]) if lot_config else False
+                min_special = 0 if lot_config and bool(lot_config[3]) else 1
 
                 cur.execute("""
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = %s
                     ORDER BY ordinal_position;
-                """, (tabla,))
+                """, (table_name,))
                 cols = [r[0].lower() for r in cur.fetchall()]
-                if not cols:
+                if not cols or "fecha" not in cols:
                     return []
 
+                # Formato ancho: balota1..N + especiales opcionales.
                 balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
-                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
-
-                # Si la lotería no tiene balota roja configurada, ignoramos cualquier columna balotaroja residual
-                if max_rojas_cfg > 0 or lot_config is None:
-                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
-                else:
-                    roja_cols = []
-
-                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
-                first_balota = balota_cols[0] if balota_cols else "fecha"
-                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
-
-                alias_loteria = self._get_alias(loteria_nombre)
-                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
-                if "sorteo" in cols:
-                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
-
-                query = f"""
-                    SELECT {', '.join(select_cols)}
-                    FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
-                    ORDER BY r.fecha DESC
-                    LIMIT 40;
-                """
-                cur.execute(query)
-                rows = cur.fetchall()
-
-                num_balotas = len(balota_cols)
-                num_rojas = len(roja_cols)
+                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 999)
 
                 results = []
-                seen_draws = set()
-                for r in rows:
-                    fecha = r[0]
-                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
-                    if max_sel is not None:
-                        limite = max_sel + (1 if tiene_comp_cfg else 0)
-                        numeros = numeros[:limite]
+                if balota_cols:
+                    special_cols = []
+                    if max_rojas_cfg > 0 or lot_config is None:
+                        special_cols = [c for c in ("balotaroja", "balotaroja2", "superbalota") if c in cols]
 
-                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
-                    if max_rojas_cfg > 0:
-                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
-                    else:
-                        balotas_rojas = []
+                    select_cols = ["fecha"] + balota_cols + special_cols
+                    if "sorteo" in cols:
+                        select_cols.append("sorteo")
+                    where = ["fecha <= CURRENT_DATE", f"{balota_cols[0]} IS NOT NULL", f"{balota_cols[0]} > 0"]
+                    params = []
+                    if sorteo and "sorteo" in cols:
+                        where.append("LOWER(sorteo) = LOWER(%s)")
+                        params.append(sorteo)
+                    limit_sql = ""
+                    if limit is not None:
+                        limit_sql = " LIMIT %s"
+                        params.append(max(1, int(limit)))
+                    cur.execute(
+                        f"SELECT {', '.join(select_cols)} FROM {table_name} WHERE {' AND '.join(where)} ORDER BY fecha DESC{limit_sql};",
+                        tuple(params),
+                    )
+                    rows = cur.fetchall()
+                    main_count = len(balota_cols)
+                    special_count = len(special_cols)
+                    for row in rows:
+                        fecha = row[0]
+                        numeros = [n for n in row[1:1 + main_count] if n is not None and n >= 0]
+                        if max_sel is not None:
+                            numeros = numeros[: max_sel + (1 if tiene_comp_cfg else 0)]
+                        especiales = [n for n in row[1 + main_count:1 + main_count + special_count] if n is not None and n >= min_special]
+                        if max_rojas_cfg > 0:
+                            especiales = especiales[:max_rojas_cfg]
+                        else:
+                            especiales = []
+                        sorteo_name = display_name
+                        if "sorteo" in cols:
+                            sorteo_name = row[1 + main_count + special_count] or display_name
+                        results.append((fecha, numeros, especiales, sorteo_name, None))
 
-                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
-                    jackpot = r[1 + num_balotas + num_rojas + 1]
-                    draw_key = (str(fecha), str(sorteo).strip().lower())
-                    if draw_key not in seen_draws:
-                        seen_draws.add(draw_key)
-                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
-
-                return results
-
-    @cached(ttl=300)
-    def get_ultimos50_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        loteria_nombre = tabla.replace("resultados_", "")
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
-                cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
-                    FROM loterias
-                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
-                    LIMIT 1;
-                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
-                lot_config = cur.fetchone()
-                max_sel = lot_config[0] if lot_config else None
-                max_rojas_cfg = lot_config[1] if lot_config else 0
-                tiene_comp_cfg = lot_config[2] if lot_config else False
-                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
-                min_roja_val = 0 if is_reintegro else 1
-
-                cur.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = %s
-                    ORDER BY ordinal_position;
-                """, (tabla,))
-                cols = [r[0].lower() for r in cur.fetchall()]
-                if not cols:
+                # Formato largo: una fila por número/color. Se detecta por esquema, no por nombre de lotería.
+                elif "numero" in cols:
+                    select_cols = ["fecha", "numero"]
+                    if "color" in cols:
+                        select_cols.append("color")
+                    if "sorteo" in cols:
+                        select_cols.append("sorteo")
+                    where = ["fecha <= CURRENT_DATE", "numero IS NOT NULL", "numero > 0"]
+                    params = []
+                    if sorteo and "sorteo" in cols:
+                        where.append("LOWER(sorteo) = LOWER(%s)")
+                        params.append(sorteo)
+                    cur.execute(
+                        f"SELECT {', '.join(select_cols)} FROM {table_name} WHERE {' AND '.join(where)} ORDER BY fecha DESC;",
+                        tuple(params),
+                    )
+                    grouped = {}
+                    for row in cur.fetchall():
+                        fecha = row[0]
+                        numero = row[1]
+                        idx = 2
+                        if "color" in cols:
+                            idx += 1
+                        sorteo_name = row[idx] if "sorteo" in cols else display_name
+                        key = (fecha, sorteo_name or display_name)
+                        grouped.setdefault(key, []).append(int(numero))
+                    for (fecha, sorteo_name), numeros in grouped.items():
+                        results.append((fecha, numeros[:max_sel] if max_sel else numeros, [], sorteo_name, None))
+                    results.sort(key=lambda item: item[0], reverse=True)
+                    if limit is not None:
+                        results = results[: max(1, int(limit))]
+                else:
                     return []
 
-                balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
-                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
+                draw_names = [str(r[3]) for r in results if r[3]]
+                jackpot_map = self._jackpots_by_date(cur, aliases, draw_names)
+                return [(r[0], r[1], r[2], r[3], jackpot_map.get(r[0])) for r in results]
 
-                if max_rojas_cfg > 0 or lot_config is None:
-                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
-                else:
-                    roja_cols = []
+    def get_ultimos_resultados_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        # Se consultan hasta 40 filas porque una route puede agrupar varios sorteos.
+        return self._fetch_resultados_generico(route, limit=40, sorteo=sorteo)
 
-                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
-                first_balota = balota_cols[0] if balota_cols else "fecha"
-                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
+    def get_ultimos50_resultados_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        return self._fetch_resultados_generico(route, limit=50, sorteo=sorteo)
 
-                alias_loteria = self._get_alias(loteria_nombre)
-                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
-                if "sorteo" in cols:
-                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
-
-                query = f"""
-                    SELECT {', '.join(select_cols)}
-                    FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
-                    ORDER BY r.fecha DESC
-                    LIMIT 50;
-                """
-                cur.execute(query)
-                rows = cur.fetchall()
-
-                num_balotas = len(balota_cols)
-                num_rojas = len(roja_cols)
-
-                results = []
-                seen_draws = set()
-                for r in rows:
-                    fecha = r[0]
-                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
-                    if max_sel is not None:
-                        limite = max_sel + (1 if tiene_comp_cfg else 0)
-                        numeros = numeros[:limite]
-
-                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
-                    if max_rojas_cfg > 0:
-                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
-                    else:
-                        balotas_rojas = []
-
-                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
-                    jackpot = r[1 + num_balotas + num_rojas + 1]
-                    draw_key = (str(fecha), str(sorteo).strip().lower())
-                    if draw_key not in seen_draws:
-                        seen_draws.add(draw_key)
-                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
-
-                return results
-
-    @cached(ttl=600)
-    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        loteria_nombre = tabla.replace("resultados_", "")
-        with db_connection.get_connection() as conn:
-            with conn.cursor() as cur:
-                # 1. Obtener reglas oficiales de la lotería para respetar cantidad exacta de balotas
-                cur.execute("""
-                    SELECT COALESCE(max_seleccion, 5), COALESCE(max_balotas_rojas, 0), COALESCE(tiene_complementario, false), COALESCE(tiene_reintegro, false)
-                    FROM loterias
-                    WHERE LOWER(route) = %s OR LOWER(nombre) = %s OR LOWER(route) = %s
-                    LIMIT 1;
-                """, (loteria_nombre, loteria_nombre, loteria_nombre.replace("_", "")))
-                lot_config = cur.fetchone()
-                max_sel = lot_config[0] if lot_config else None
-                max_rojas_cfg = lot_config[1] if lot_config else 0
-                tiene_comp_cfg = lot_config[2] if lot_config else False
-                is_reintegro = bool(lot_config[3]) if lot_config and len(lot_config) > 3 else False
-                min_roja_val = 0 if is_reintegro else 1
-
-                cur.execute("""
-                    SELECT column_name
-                    FROM information_schema.columns
-                    WHERE table_schema = 'public' AND table_name = %s
-                    ORDER BY ordinal_position;
-                """, (tabla,))
-                cols = [r[0].lower() for r in cur.fetchall()]
-                if not cols:
-                    return []
-
-                balota_cols = [c for c in cols if c.startswith("balota") and not c.startswith("balotaroja")]
-                balota_cols.sort(key=lambda x: int(x.replace("balota", "")) if x.replace("balota", "").isdigit() else 99)
-
-                # Si la lotería no tiene balota roja configurada, ignoramos cualquier columna balotaroja residual
-                if max_rojas_cfg > 0 or lot_config is None:
-                    roja_cols = [c for c in ["balotaroja", "balotaroja2", "superbalota"] if c in cols]
-                else:
-                    roja_cols = []
-
-                sorteo_col = "r.sorteo" if "sorteo" in cols else f"'{sorteo_nombre}'"
-                first_balota = balota_cols[0] if balota_cols else "fecha"
-                select_cols = ["r.fecha"] + [f"r.{c}" for c in balota_cols] + [f"r.{c}" for c in roja_cols] + [sorteo_col, "j.jackpot"]
-
-                alias_loteria = self._get_alias(loteria_nombre)
-                jackpot_cond = f"(j.loteria = '{loteria_nombre}' OR j.loteria = '{alias_loteria}')"
-                if "sorteo" in cols:
-                    jackpot_cond = f"({jackpot_cond} OR LOWER(j.loteria) = LOWER(r.sorteo))"
-
-                query = f"""
-                    SELECT {', '.join(select_cols)}
-                    FROM {tabla} r
-                    LEFT JOIN loterias_jackpots j ON {jackpot_cond} AND j.fecha = r.fecha
-                    WHERE r.fecha <= CURRENT_DATE AND r.{first_balota} IS NOT NULL AND r.{first_balota} > 0
-                    ORDER BY r.fecha DESC;
-                """
-                cur.execute(query)
-                rows = cur.fetchall()
-
-                num_balotas = len(balota_cols)
-                num_rojas = len(roja_cols)
-
-                results = []
-                seen_draws = set()
-                for r in rows:
-                    fecha = r[0]
-                    numeros = [r[i] for i in range(1, 1 + num_balotas) if r[i] is not None and r[i] >= 0]
-                    if max_sel is not None:
-                        limite = max_sel + (1 if tiene_comp_cfg else 0)
-                        numeros = numeros[:limite]
-
-                    balotas_rojas = [r[i] for i in range(1 + num_balotas, 1 + num_balotas + num_rojas) if r[i] is not None and r[i] >= min_roja_val]
-                    if max_rojas_cfg > 0:
-                        balotas_rojas = balotas_rojas[:max_rojas_cfg]
-                    else:
-                        balotas_rojas = []
-
-                    sorteo = r[1 + num_balotas + num_rojas] or sorteo_nombre
-                    jackpot = r[1 + num_balotas + num_rojas + 1]
-                    draw_key = (str(fecha), str(sorteo).strip().lower())
-                    if draw_key not in seen_draws:
-                        seen_draws.add(draw_key)
-                        results.append((fecha, numeros, balotas_rojas, sorteo, jackpot))
-
-                return results
-
+    def get_historico_completo_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+        return self._fetch_resultados_generico(route, limit=None, sorteo=sorteo)

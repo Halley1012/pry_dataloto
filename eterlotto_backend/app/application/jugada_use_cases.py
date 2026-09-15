@@ -1,7 +1,6 @@
 from datetime import datetime, date, timedelta, timezone
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import null
 from app.domain.ports import JugadaRepositoryPort
 
 def _normalize_numeros(val) -> List[int]:
@@ -33,9 +32,9 @@ class JugadaUseCases:
         self.jugada_repo = jugada_repo
 
     async def guardar_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[str] = None, loteria_id: Optional[int] = None) -> Dict[str, Any]:
-        colombia_tz = timezone(timedelta(hours=-5))
-        hoy = datetime.now(colombia_tz)
-        fecha_guardado = hoy
+        # UTC evita imponer una zona horaria de un país a una aplicación global.
+        now = datetime.now(timezone.utc)
+        fecha_guardado = now
 
         sorteo_date: Optional[date] = None
         if fecha_sorteo and isinstance(fecha_sorteo, str) and fecha_sorteo.strip():
@@ -43,22 +42,21 @@ class JugadaUseCases:
                 clean_str = fecha_sorteo.replace('"', '').replace("'", "").strip().split("T")[0]
                 sorteo_date = datetime.strptime(clean_str, "%Y-%m-%d").date()
             except Exception:
-                sorteo_date = hoy.date()
+                sorteo_date = now.date()
         else:
-            sorteo_date = hoy.date()
+            sorteo_date = now.date()
 
-        # La jugada expira 7 días después del sorteo
+        # La jugada expira 7 días después del sorteo.
         expira = datetime(
             sorteo_date.year, sorteo_date.month, sorteo_date.day,
-            23, 59, 59, tzinfo=colombia_tz
+            23, 59, 59, tzinfo=timezone.utc,
         ) + timedelta(days=7)
 
         numeros_clean = [int(n) for n in numeros]
-        record = await self.jugada_repo.create_jugada(
+        return await self.jugada_repo.create_jugada(
             tipo, user_id, numeros_clean, sorteo_date, fecha_guardado, expira,
             loteria_id=loteria_id,
         )
-        return record
 
     async def listar_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None, loteria_id: Optional[int] = None) -> List[Dict[str, Any]]:
         rows = await self.jugada_repo.list_jugadas(tipo, user_id, fecha, loteria_id=loteria_id)
@@ -88,156 +86,79 @@ class JugadaUseCases:
     async def obtener_loterias_info(self, user_id: int) -> Dict[str, Dict[str, Any]]:
         return await self.jugada_repo.list_active_lotteries_info(user_id)
 
-    def obtener_prediccion_colorloto(self, tipo: str) -> Dict[str, Any]:
-        return null
-    
-    def obtener_prediccion_bloto(self, fecha: Optional[str] = None) -> Dict[str, Any]:
-        row = self.jugada_repo.get_prediccion_reciente_bloto(fecha)
-        if not row:
-            return {"error": "No hay predicciones registradas"}
-        fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        jackpot = self.jugada_repo.get_jackpot_reciente("baloto")
-        res = {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
-        if jackpot:
-            res["jackpot"] = jackpot
-        return res
-    
-    def obtener_prediccion_mloto(self, fecha: Optional[str] = None) -> Dict[str, Any]:
-        row = self.jugada_repo.get_prediccion_reciente_mloto(fecha)
-        if not row:
-            return {"error": "No hay predicciones registradas"}
-            
-        fecha_res, numeros = row[0], _normalize_numeros(row[1])
-        jackpot = self.jugada_repo.get_jackpot_reciente("miloto")
-        res = {"fecha": _format_fecha(fecha_res), "numeros": numeros}
-        if jackpot:
-            res["jackpot"] = jackpot
-        return res
-       
-
-    def obtener_ultimos5_mloto(self) -> Dict[str, Any]:
-        return self.obtener_ultimos5_generico("mloto", "MiLoto")
-
-    def obtener_ultimos5_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
-        res = self.obtener_ultimos5_generico("bloto", "Baloto")
-        if sorteo and "resultados" in res:
-            res["resultados"] = [r for r in res["resultados"] if r.get("sorteo", "").lower() == sorteo.lower()]
-        return res
-
-    def obtener_historico_completo_bloto(self, sorteo: Optional[str] = None) -> Dict[str, Any]:
-        res = self.obtener_historico_completo_generico("bloto", "Baloto")
-        if sorteo and "resultados" in res:
-            res["resultados"] = [r for r in res["resultados"] if r.get("sorteo", "").lower() == sorteo.lower()]
-        return res
-
-    def obtener_historico_completo_mloto(self) -> Dict[str, Any]:
-        return self.obtener_historico_completo_generico("mloto", "MiLoto")
-
-    def obtener_historico(self, tipo: str, limit: int) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_predicciones_historico(tipo, limit)
+    def obtener_historico(self, route: str, limit: int) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_predicciones_historico(route, limit)
         data = [{"fecha": _format_fecha(r[0]), "numeros": _normalize_numeros(r[1])} for r in rows]
         return {"items": data}
 
-    def obtener_predicciones_historico_generico(self, loteria_nombre: str, limit: int = 50) -> Dict[str, Any]:
-        rows = self.jugada_repo.get_predicciones_historico_completas(loteria_nombre, limit)
+    def obtener_predicciones_historico_generico(self, route: str, limit: int = 50) -> Dict[str, Any]:
+        rows = self.jugada_repo.get_predicciones_historico_completas(route, limit)
         data = [
             {
                 "fecha": _format_fecha(r[0]),
                 "numeros": _normalize_numeros(r[1]),
-                "balotaroja": _normalize_numeros(r[2]) if len(r) > 2 else []
+                "balotaroja": _normalize_numeros(r[2]) if len(r) > 2 else [],
             }
             for r in rows
         ]
         return {"predicciones": data}
 
-    def obtener_prediccion_generico(self, loteria_nombre: str, fecha: Optional[str] = None) -> Dict[str, Any]:
-        tabla = f"predicciones_{loteria_nombre}"
-        row = self.jugada_repo.get_prediccion_generico(tabla, fecha)
+    def obtener_prediccion_generico(self, route: str, fecha: Optional[str] = None) -> Dict[str, Any]:
+        row = self.jugada_repo.get_prediccion_generico(route, fecha)
         if not row:
-            return {"error": f"No hay predicciones registradas para {loteria_nombre}"}
-        fecha_res, numeros, balotaroja = row[0], _normalize_numeros(row[1]), _normalize_numeros(row[2])
-        jackpot = self.jugada_repo.get_jackpot_reciente(loteria_nombre)
+            return {"error": f"No hay predicciones registradas para {route}"}
+        fecha_res = row[0]
+        numeros = _normalize_numeros(row[1])
+        balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+        jackpot = self.jugada_repo.get_jackpot_reciente(route)
         res = {"fecha": _format_fecha(fecha_res), "numeros": numeros, "balotaroja": balotaroja}
         if jackpot:
             res["jackpot"] = jackpot
         return res
 
-    def obtener_ultimos5_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
-        tabla = f"resultados_{loteria_nombre}"
-        rows = self.jugada_repo.get_ultimos_resultados_generico(tabla, display_name)
+    def _format_resultados(self, route: str, rows) -> Dict[str, Any]:
         if not rows:
-            return {"error": f"No hay resultados registrados para {loteria_nombre}"}
-        
-        jackpot_reciente = self.jugada_repo.get_jackpot_reciente(loteria_nombre)
+            return {"error": f"No hay resultados registrados para {route}"}
+
+        jackpot_reciente = self.jugada_repo.get_jackpot_reciente(route)
         resultados = []
-        for i, row in enumerate(rows):
+        for index, row in enumerate(rows):
             fecha = row[0]
             numeros = _normalize_numeros(row[1])
-            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
+            especiales = _normalize_numeros(row[2]) if len(row) > 2 else []
+            sorteo = row[3] if len(row) > 3 else None
             jackpot = row[4] if len(row) > 4 else None
-            if not jackpot and i == 0:
+            if not jackpot and index == 0:
                 jackpot = jackpot_reciente
+
             item = {
                 "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja,
+                "numeros": numeros + especiales,
                 "balotas_blancas": numeros,
-                "balotas_rojas": balotaroja,
-                "sorteo": row[3] if len(row) > 3 and row[3] else display_name
+                "balotas_rojas": especiales,
+                "sorteo": sorteo or route,
             }
-            if balotaroja:
-                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
+            if especiales:
+                item["balotaroja"] = especiales[0] if len(especiales) == 1 else especiales
             if jackpot:
                 item["jackpot"] = jackpot
             resultados.append(item)
         return {"resultados": resultados}
 
-    def obtener_ultimos50_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
-        tabla = f"resultados_{loteria_nombre}"
-        rows = self.jugada_repo.get_ultimos50_resultados_generico(tabla, display_name)
-        if not rows:
-            return {"error": f"No hay resultados registrados para {loteria_nombre}"}
-        resultados = []
-        for row in rows:
-            fecha = row[0]
-            numeros = _normalize_numeros(row[1])
-            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            jackpot = row[4] if len(row) > 4 else None
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja,
-                "balotas_blancas": numeros,
-                "balotas_rojas": balotaroja,
-                "sorteo": row[3] if len(row) > 3 and row[3] else display_name
-            }
-            if balotaroja:
-                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
+    def obtener_ultimos5_generico(self, route: str, sorteo: Optional[str] = None) -> Dict[str, Any]:
+        return self._format_resultados(
+            route,
+            self.jugada_repo.get_ultimos_resultados_generico(route, sorteo=sorteo),
+        )
 
-    def obtener_historico_completo_generico(self, loteria_nombre: str, display_name: str) -> Dict[str, Any]:
-        tabla = f"resultados_{loteria_nombre}"
-        rows = self.jugada_repo.get_historico_completo_generico(tabla, display_name)
-        if not rows:
-            return {"error": f"No hay resultados registrados para {loteria_nombre}"}
-        resultados = []
-        for row in rows:
-            fecha = row[0]
-            numeros = _normalize_numeros(row[1])
-            balotaroja = _normalize_numeros(row[2]) if len(row) > 2 else []
-            jackpot = row[4] if len(row) > 4 else None
-            item = {
-                "fecha": _format_fecha(fecha),
-                "numeros": numeros + balotaroja,
-                "balotas_blancas": numeros,
-                "balotas_rojas": balotaroja,
-                "sorteo": row[3] if len(row) > 3 and row[3] else display_name
-            }
-            if balotaroja:
-                item["balotaroja"] = balotaroja[0] if len(balotaroja) == 1 else balotaroja
-            if jackpot:
-                item["jackpot"] = jackpot
-            resultados.append(item)
-        return {"resultados": resultados}
+    def obtener_ultimos50_generico(self, route: str, sorteo: Optional[str] = None) -> Dict[str, Any]:
+        return self._format_resultados(
+            route,
+            self.jugada_repo.get_ultimos50_resultados_generico(route, sorteo=sorteo),
+        )
 
+    def obtener_historico_completo_generico(self, route: str, sorteo: Optional[str] = None) -> Dict[str, Any]:
+        return self._format_resultados(
+            route,
+            self.jugada_repo.get_historico_completo_generico(route, sorteo=sorteo),
+        )
