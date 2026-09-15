@@ -60,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen>
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
   int _selectedIndex = 0;
+  final Set<int> _loadedBottomTabs = <int>{0};
   DateTime? _lastBackPressTime;
   static const String _bottomNavOrderStorageKey =
       'eterlotto_bottom_nav_order_v4';
@@ -224,9 +225,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadUserAndDataInternal({bool forceRefresh = false}) async {
     try {
-      if (mounted) {
-        context.read<SubscriptionProvider>().refreshSubscriptionStatus();
-      }
+      // SubscriptionProvider hidrata y valida el plan por cuenta al iniciar y
+      // tras login. Home no dispara una segunda consulta redundante.
 
       // 1. Resolver la sesión antes de leer o aplicar cualquier dato privado.
       final keys = await Future.wait([
@@ -357,12 +357,17 @@ class _HomeScreenState extends State<HomeScreen>
       );
       final loteriasFuture = _keepCachedValueOnFailure(
         paisIdStr != null && paisIdStr.isNotEmpty
-            ? ApiService.getLoteriasPorPais(paisIdStr)
-            : ApiService.getAllLoterias(),
+            ? ApiService.getLoteriasPorPais(
+                paisIdStr,
+                forceRefresh: forceRefresh,
+              )
+            : ApiService.getAllLoterias(forceRefresh: forceRefresh),
       );
       final globalFuture = paisIdStr == null || paisIdStr.isEmpty
           ? Future<List<dynamic>?>.value(null)
-          : _keepCachedValueOnFailure(ApiService.getAllLoterias());
+          : _keepCachedValueOnFailure(
+              ApiService.getAllLoterias(forceRefresh: forceRefresh),
+            );
       final profileFuture = _fetchProfile(userIdStr);
 
       final resultados = await Future.wait([
@@ -1349,7 +1354,11 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _selectBottomTab(int index) {
-    if (mounted) setState(() => _selectedIndex = index);
+    if (!mounted) return;
+    setState(() {
+      _selectedIndex = index;
+      _loadedBottomTabs.add(index);
+    });
   }
 
   void _startBottomNavPointer(int index, PointerDownEvent event) {
@@ -1984,9 +1993,15 @@ class _HomeScreenState extends State<HomeScreen>
                 index: _selectedIndex,
                 children: [
                   _buildHomeTab(),
-                  const LoteriasPais(),
-                  const MisJugadasSelectorScreen(),
-                  const ResultadosSelectorScreen(),
+                  _loadedBottomTabs.contains(1)
+                      ? const LoteriasPais()
+                      : const SizedBox.shrink(),
+                  _loadedBottomTabs.contains(2)
+                      ? const MisJugadasSelectorScreen()
+                      : const SizedBox.shrink(),
+                  _loadedBottomTabs.contains(3)
+                      ? const ResultadosSelectorScreen()
+                      : const SizedBox.shrink(),
                 ],
               ),
               _buildFloatingBottomNavOverlay(),

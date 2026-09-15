@@ -143,14 +143,14 @@ class LoteriaOut(BaseModel):
     proximo_sorteo: Optional[str] = None
     ultimo_sorteo: Optional[str] = None
     route: Optional[str] = None
-    max_seleccion: Optional[int] = 5
-    max_balotas_blancas: Optional[int] = 45
-    max_balotas_rojas: Optional[int] = 0
+    max_seleccion: Optional[int] = None
+    max_balotas_blancas: Optional[int] = None
+    max_balotas_rojas: Optional[int] = None
     superbalota_nombre: Optional[str] = None
-    has_revancha: Optional[bool] = False
-    total_balotas_sorteo: Optional[int] = 5
-    tiene_complementario: Optional[bool] = False
-    tiene_reintegro: Optional[bool] = False
+    has_revancha: Optional[bool] = None
+    total_balotas_sorteo: Optional[int] = None
+    tiene_complementario: Optional[bool] = None
+    tiene_reintegro: Optional[bool] = None
     jackpot: Optional[str] = None
 
 class PublicidadQuery:

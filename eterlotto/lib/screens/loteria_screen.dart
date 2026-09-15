@@ -317,9 +317,9 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       if (mounted) setState(() => userId = uId);
 
       final coreDataRequests = Future.wait<bool>([
-        _fetchNumeros(),
-        _fetchUltimosResultados(),
-        _fetchHistoricoCompleto(),
+        _fetchNumeros(forceRefresh: force),
+        _fetchUltimosResultados(forceRefresh: force),
+        _fetchHistoricoCompleto(forceRefresh: force),
       ]);
       final secondaryRequests = Future.wait([_loadJugadas(), _loadAnuncios()]);
       final coreDataResponses = await coreDataRequests;
@@ -347,9 +347,12 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
   }
 
-  Future<bool> _fetchNumeros() async {
+  Future<bool> _fetchNumeros({bool forceRefresh = false}) async {
     try {
-      final data = await ApiService.getPrediccionLoteria(config.route);
+      final data = await ApiService.getPrediccionLoteria(
+        config.route,
+        forceRefresh: forceRefresh,
+      );
       if (data["numeros"] != null && mounted) {
         final nums = (data["numeros"] as List)
             .map((e) => int.tryParse(e.toString()) ?? -1)
@@ -396,9 +399,12 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
   }
 
-  Future<bool> _fetchUltimosResultados() async {
+  Future<bool> _fetchUltimosResultados({bool forceRefresh = false}) async {
     try {
-      final list = await ApiService.getUltimosResultados(config.route);
+      final list = await ApiService.getUltimosResultados(
+        config.route,
+        forceRefresh: forceRefresh,
+      );
       if (mounted && list.isNotEmpty) {
         final sorteosUnicos = list
             .map((r) => r["sorteo"]?.toString().trim())
@@ -440,7 +446,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
   }
 
-  Future<bool> _fetchHistoricoCompleto() async {
+  Future<bool> _fetchHistoricoCompleto({bool forceRefresh = false}) async {
     final cacheKey = '${config.route}_historico_completo';
     final cached = await CacheService.getStaleJson(cacheKey);
     if (cached != null && cached["resultados"] != null && mounted) {
@@ -452,7 +458,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     }
 
     try {
-      final list = await ApiService.getHistoricoCompleto(config.route);
+      final list = await ApiService.getHistoricoCompleto(
+        config.route,
+        forceRefresh: forceRefresh,
+      );
       if (mounted && list.isNotEmpty) {
         setState(() {
           todosResultadosHistorico = list;

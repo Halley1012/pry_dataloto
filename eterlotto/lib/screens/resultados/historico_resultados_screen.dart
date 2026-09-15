@@ -240,7 +240,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     var historyReturnedEmpty = false;
 
     try {
-      final list = await ApiService.getHistorico50(widget.config.route);
+      final list = await ApiService.getHistorico50(
+        widget.config.route,
+        forceRefresh: force,
+      );
       if (list.isNotEmpty && mounted) {
         final encontrados = list
             .map((r) => r["sorteo"]?.toString().trim())
@@ -289,10 +292,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       setState(() => _showingStaleData = true);
     }
 
-    if (_top20.isEmpty) {
+    if (_top20.isEmpty || force) {
       try {
         final pred = await ApiService.getPrediccionLoteria(
           widget.config.route,
+          forceRefresh: force,
         );
         if (pred["numeros"] is List) {
           final pNums = (pred["numeros"] as List)
@@ -308,10 +312,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       } catch (_) {}
     }
 
-    if (_prediccionesPorFecha.isEmpty && widget.modoResultadosIA) {
+    if ((_prediccionesPorFecha.isEmpty || force) && widget.modoResultadosIA) {
       try {
         final preds = await ApiService.getPrediccionesHistorico(
           widget.config.route,
+          forceRefresh: force,
         );
         if (preds.isNotEmpty && mounted) {
           final pMap = <String, List<int>>{};

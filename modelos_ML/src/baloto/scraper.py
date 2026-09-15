@@ -364,9 +364,39 @@ class BalotoScraper:
                         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                     );
-                    CREATE UNIQUE INDEX IF NOT EXISTS uq_bloto_fecha_sorteo ON resultados_bloto (fecha, sorteo);
-                    CREATE INDEX IF NOT EXISTS idx_bloto_concurso ON resultados_bloto (concurso);
-                    CREATE INDEX IF NOT EXISTS idx_bloto_loteria_id ON resultados_bloto (loteria_id);
+                """))
+
+                # Migración para tablas creadas antes de concurso/loteria_id y
+                # auditoría. CREATE TABLE IF NOT EXISTS no modifica una tabla ya
+                # existente, por eso las columnas deben agregarse explícitamente.
+                conn.execute(text("""
+                    ALTER TABLE resultados_bloto ADD COLUMN IF NOT EXISTS concurso INT;
+                    ALTER TABLE resultados_bloto ADD COLUMN IF NOT EXISTS loteria_id INT REFERENCES loterias(id);
+                    ALTER TABLE resultados_bloto ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                    ALTER TABLE resultados_bloto ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+                    WITH registros_duplicados AS (
+                        SELECT ctid,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY fecha, sorteo
+                                   ORDER BY
+                                       (balota1 > 0) DESC,
+                                       updated_at DESC NULLS LAST,
+                                       ctid DESC
+                               ) AS posicion
+                        FROM resultados_bloto
+                    )
+                    DELETE FROM resultados_bloto AS resultado
+                    USING registros_duplicados AS duplicado
+                    WHERE resultado.ctid = duplicado.ctid
+                      AND duplicado.posicion > 1;
+
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_bloto_fecha_sorteo
+                    ON resultados_bloto (fecha, sorteo);
+                    CREATE INDEX IF NOT EXISTS idx_bloto_concurso
+                    ON resultados_bloto (concurso);
+                    CREATE INDEX IF NOT EXISTS idx_bloto_loteria_id
+                    ON resultados_bloto (loteria_id);
                 """))
 
             # Eliminar posibles placeholders obsoletos anteriores a la próxima fecha
