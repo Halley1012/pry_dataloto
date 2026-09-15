@@ -42,6 +42,8 @@ class NotificationGenerator:
         if "ganadiario" in lower or "gana_diario" in lower: return 18
         if "5deoro" in lower or "cincodeoro" in lower or "oro" in lower: return 24
         if "lotto_cr" in lower or "lotto costa rica" in lower or "lottocr" in lower: return 20
+        if "eurojackpot" in lower: return 25
+        if "6aus49" in lower or "lotto_6aus49" in lower: return 25
         return 21  # Default / Baloto
 
     def run(self, loteria="all"):
@@ -263,6 +265,24 @@ class NotificationGenerator:
                 "query_resultados": "SELECT * FROM resultados_lotto_cr WHERE sorteo = 'Lotto' AND balota1 > 0 ORDER BY fecha DESC LIMIT 1",
                 "mitad": 20,
                 "has_special": False,
+                "is_baloto": False,
+            },
+            "eurojackpot": {
+                "route": "eurojackpot",
+                "nombre": "Eurojackpot",
+                "tabla_resultados": "resultados_eurojackpot",
+                "query_resultados": "SELECT * FROM resultados_eurojackpot WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 25,
+                "has_special": True,
+                "is_baloto": False,
+            },
+            "lotto_6aus49": {
+                "route": "lotto_6aus49",
+                "nombre": "Lotto 6aus49",
+                "tabla_resultados": "resultados_lotto_6aus49",
+                "query_resultados": "SELECT * FROM resultados_lotto_6aus49 WHERE balota1 > 0 ORDER BY fecha DESC LIMIT 1",
+                "mitad": 25,
+                "has_special": True,
                 "is_baloto": False,
             },
         }

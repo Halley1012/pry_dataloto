@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 # Asegurar import de módulos del proyecto
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,7 @@ class TotolotoScraper:
         self.resultados_url = "https://www.combinacionganadora.com/pt/totoloto/resultados/"
         self.game_name = "Totoloto"
         self.route = "totoloto"
+        self.loteria_id = None
         # Sorteos de Totoloto: Miércoles (2) y Sábados (5)
         self.draw_days = (2, 5)
 
@@ -45,6 +47,84 @@ class TotolotoScraper:
             'abril': '04', 'maio': '05', 'junho': '06', 'julho': '07',
             'agosto': '08', 'setembro': '09', 'outubro': '10', 'novembro': '11', 'dezembro': '12'
         }
+
+    def _obtener_loteria_id(self) -> int:
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT id FROM loterias WHERE LOWER(route) = :route LIMIT 1;
+            """), {"route": self.route}).fetchone()
+        if not row:
+            raise RuntimeError(f"No existe loteria con route='{self.route}' en la tabla loterias.")
+        return int(row[0])
+
+    def _guardar_resultados(self, df: pd.DataFrame) -> None:
+        """Guarda por UPSERT; no reemplaza ni elimina el histórico existente."""
+        df = df.copy()
+        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
+        df = df.dropna(subset=['fecha', 'sorteo']).copy()
+        if df.empty:
+            raise RuntimeError("No hay filas válidas de Totoloto para guardar.")
+
+        # La fuente consultada no expone el número oficial de concurso. La fecha
+        # YYYYMMDD es un identificador estable porque Totoloto tiene un sorteo por día.
+        df['concurso'] = pd.to_datetime(df['fecha']).dt.strftime('%Y%m%d').astype(int)
+        df['loteria_id'] = self._obtener_loteria_id()
+
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_totoloto (
+                    concurso INTEGER CONSTRAINT pk_resultados_totoloto PRIMARY KEY,
+                    loteria_id INTEGER NOT NULL REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL, balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL, balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL, balotaroja INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            # Migración de la versión anterior, que usaba PK(fecha).
+            conn.execute(text("""
+                ALTER TABLE resultados_totoloto ADD COLUMN IF NOT EXISTS concurso INTEGER;
+                ALTER TABLE resultados_totoloto ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
+                ALTER TABLE resultados_totoloto ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_totoloto ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                UPDATE resultados_totoloto
+                SET concurso = TO_CHAR(fecha, 'YYYYMMDD')::INTEGER
+                WHERE concurso IS NULL;
+                UPDATE resultados_totoloto SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
+                ALTER TABLE resultados_totoloto DROP CONSTRAINT IF EXISTS pk_resultados_totoloto;
+                ALTER TABLE resultados_totoloto ALTER COLUMN concurso SET NOT NULL;
+                ALTER TABLE resultados_totoloto ALTER COLUMN loteria_id SET NOT NULL;
+                ALTER TABLE resultados_totoloto ADD CONSTRAINT pk_resultados_totoloto PRIMARY KEY (concurso);
+                CREATE INDEX IF NOT EXISTS idx_totoloto_fecha ON resultados_totoloto(fecha DESC);
+                CREATE INDEX IF NOT EXISTS idx_totoloto_loteria_id ON resultados_totoloto(loteria_id);
+            """), {"loteria_id": int(df['loteria_id'].iloc[0])})
+
+        insert_sql = """
+            INSERT INTO resultados_totoloto (
+                concurso, loteria_id, sorteo, fecha, balota1, balota2,
+                balota3, balota4, balota5, balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (concurso) DO UPDATE SET
+                loteria_id = EXCLUDED.loteria_id, sorteo = EXCLUDED.sorteo,
+                fecha = EXCLUDED.fecha, balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2, balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4, balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja, updated_at = CURRENT_TIMESTAMP;
+        """
+        columnas = ['concurso', 'loteria_id', 'sorteo', 'fecha', 'balota1', 'balota2',
+                   'balota3', 'balota4', 'balota5', 'balotaroja']
+        valores = [tuple(r[c] for c in columnas) for r in df.to_dict(orient='records')]
+        raw_conn = self.engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, valores,
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+            raw_conn.commit()
+        finally:
+            raw_conn.close()
 
     def _parse_date(self, text_str: str) -> date | None:
         """Extrae la fecha a partir de cadenas como 'Miércoles, 09 septiembre 2026' o '09 setembro 2026'."""
@@ -352,24 +432,8 @@ class TotolotoScraper:
         }
         df_final = pd.concat([pd.DataFrame([fila_proximo]), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balotaroja': Integer(),
-        }
-
-        with self.engine.connect() as conn:
-            df_final.to_sql('resultados_totoloto', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.execute(text("""
-                ALTER TABLE resultados_totoloto ADD CONSTRAINT pk_resultados_totoloto PRIMARY KEY (fecha);
-            """))
-            conn.commit()
+        # 5. Guardar en PostgreSQL sin reemplazar ni perder el histórico.
+        self._guardar_resultados(df_final)
 
         print(f"✅ ¡Resultados de Totoloto guardados exitosamente! Total filas: {len(df_final)} ({len(df_combined)} sorteos reales)")
 
