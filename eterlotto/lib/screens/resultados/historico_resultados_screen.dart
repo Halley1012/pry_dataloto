@@ -1,12 +1,13 @@
 import 'dart:convert';
-import 'package:collection/collection.dart';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
-import 'package:eterlotto/screens/loteria_screen.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -14,12 +15,16 @@ import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
+import 'widgets/resultados_shared.dart';
 
 class HistoricoResultadosScreen extends StatefulWidget {
   final LoteriaConfig config;
   final List<String> sorteosDisponibles;
   final String? initialSorteo;
   final List<Map<String, dynamic>>? initialResultados;
+  final List<int>? top20;
+  final Map<String, List<int>>? prediccionesPorFecha;
+  final bool modoResultadosIA;
 
   const HistoricoResultadosScreen({
     super.key,
@@ -27,18 +32,120 @@ class HistoricoResultadosScreen extends StatefulWidget {
     this.sorteosDisponibles = const [],
     this.initialSorteo,
     this.initialResultados,
+    this.top20,
+    this.prediccionesPorFecha,
+    this.modoResultadosIA = false,
   });
 
   @override
-  State<HistoricoResultadosScreen> createState() => _HistoricoResultadosScreenState();
+  State<HistoricoResultadosScreen> createState() =>
+      _HistoricoResultadosScreenState();
 }
 
 class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
+  static const int _visibleResultsLimit = 25;
+
   bool _isLoading = true;
   bool _isExporting = false;
   String? _errorMessage;
+  bool _showingStaleData = false;
   List<Map<String, dynamic>> _todosResultados = [];
   late String _selectedSorteo;
+  List<int> _top20 = [];
+  Map<String, List<int>> _prediccionesPorFecha = {};
+
+  (List<int> main, List<int> specials, int? complementary) _splitByRole(
+    Map<String, dynamic> item,
+  ) {
+    final raw = (item['numeros'] as List<dynamic>? ?? const []);
+    final groups = widget.config.numberLayout.split(raw);
+    final specials = List<int>.from(groups.specials);
+    if (specials.isEmpty && widget.config.cantidadEspeciales > 0) {
+      final legacyRaw =
+          item['balotaroja2'] ??
+          item['reintegro'] ??
+          item['balotaroja'] ??
+          item['balota_roja'] ??
+          item['superbalota'] ??
+          item['red'];
+      final legacy = int.tryParse(legacyRaw?.toString() ?? '');
+      if (legacy != null) specials.add(legacy);
+    }
+    return (
+      groups.main,
+      specials,
+      groups.complementary.isEmpty ? null : groups.complementary.first,
+    );
+  }
+
+  String _normalizarFechaISO(String rawDate) {
+    if (rawDate.isEmpty) return "";
+    try {
+      final clean = rawDate.trim();
+      if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
+        return clean.substring(0, 10);
+      }
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        final y = parsed.year.toString().padLeft(4, '0');
+        final m = parsed.month.toString().padLeft(2, '0');
+        final d = parsed.day.toString().padLeft(2, '0');
+        return "$y-$m-$d";
+      }
+    } catch (_) {}
+    return rawDate;
+  }
+
+  int _getTopLimit(int poolSize) {
+    // La cantidad evaluada sale de las reglas de la lotería y nunca de su nombre.
+    // Si conocemos el universo de balotas principales, evaluamos aproximadamente
+    // la mitad (mismo criterio histórico de Eterlotto). Si la configuración aún
+    // no llegó, usamos el tamaño real de la predicción disponible.
+    final configuredPool = widget.config.maxBalotasBlancas;
+    if (configuredPool > 0) {
+      return math.max(1, configuredPool ~/ 2);
+    }
+    if (poolSize > 0) {
+      return math.max(1, poolSize ~/ 2);
+    }
+
+    // Último respaldo derivado de la regla de selección; no hay rutas ni nombres
+    // de loterías quemados.
+    final selected = widget.config.maxSeleccion;
+    return selected > 0 ? math.max(1, selected * 4) : 20;
+  }
+
+  List<int>? _obtenerPrediccionParaFecha(String rawDate) {
+    final isoDate = _normalizarFechaISO(rawDate);
+    if (isoDate.isEmpty) return null;
+    if (_prediccionesPorFecha.containsKey(isoDate)) {
+      final fullList = _prediccionesPorFecha[isoDate]!;
+      final limit = _getTopLimit(fullList.length);
+      return fullList.take(limit).toList();
+    }
+    return null;
+  }
+
+  String _formatearFechaCorta(String rawDate) {
+    if (rawDate.isEmpty) return "";
+    try {
+      final clean = rawDate.trim();
+      if (clean.length >= 10 && clean[4] == '-' && clean[7] == '-') {
+        final year = clean.substring(2, 4);
+        final month = clean.substring(5, 7);
+        final day = clean.substring(8, 10);
+        return "$day-$month-$year";
+      }
+      final parsed = DateTime.tryParse(clean);
+      if (parsed != null) {
+        final day = parsed.day.toString().padLeft(2, '0');
+        final month = parsed.month.toString().padLeft(2, '0');
+        final year = (parsed.year % 100).toString().padLeft(2, '0');
+        return "$day-$month-$year";
+      }
+    } catch (_) {}
+    return rawDate;
+  }
 
   List<String> get sorteosActivos {
     final encontrados = _todosResultados
@@ -55,11 +162,26 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   void initState() {
     super.initState();
     ScreenSecurityHelper.enableSecureScreen();
-    _selectedSorteo = widget.initialSorteo ??
-        (widget.sorteosDisponibles.isNotEmpty ? widget.sorteosDisponibles.first : widget.config.nombre);
+    _selectedSorteo =
+        widget.initialSorteo ??
+        (widget.sorteosDisponibles.isNotEmpty
+            ? widget.sorteosDisponibles.first
+            : widget.config.nombre);
+
+    if (widget.top20 != null && widget.top20!.isNotEmpty) {
+      _top20 = List<int>.from(widget.top20!);
+    }
+
+    if (widget.prediccionesPorFecha != null &&
+        widget.prediccionesPorFecha!.isNotEmpty) {
+      _prediccionesPorFecha = Map<String, List<int>>.from(
+        widget.prediccionesPorFecha!,
+      );
+    }
 
     // ⚡ Optimización Cache-First: Usar datos iniciales si vienen pre-cargados
-    if (widget.initialResultados != null && widget.initialResultados!.isNotEmpty) {
+    if (widget.initialResultados != null &&
+        widget.initialResultados!.isNotEmpty) {
       _todosResultados = widget.initialResultados!.take(50).toList();
       _isLoading = false;
     }
@@ -74,26 +196,30 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   Future<void> _cargarHistorico({bool force = false}) async {
-    final cacheKey = '${widget.config.route}_ultimos50_historico';
+    final cacheKey = '${widget.config.route}_ultimos50_historico_v2';
 
-    // 1. Si no teníamos datos iniciales, leer de la caché local primero (0ms)
-    if (_todosResultados.isEmpty && !force) {
-      final cached = await CacheService.getJson(cacheKey);
-      if (cached != null && cached["resultados"] != null && mounted) {
-        final listCached = List<Map<String, dynamic>>.from(cached["resultados"]);
+    // Cache-first/SWR: la última copia conocida nunca se elimina al expirar.
+    if (_todosResultados.isEmpty) {
+      final cached = await CacheService.getStaleJson(cacheKey);
+      if (cached is Map && cached["resultados"] is List && mounted) {
+        final listCached = List<Map<String, dynamic>>.from(
+          cached["resultados"],
+        );
         if (listCached.isNotEmpty) {
           final encontrados = listCached
               .map((r) => r["sorteo"]?.toString().trim())
               .where((s) => s != null && s.isNotEmpty)
-              .toSet()
               .cast<String>()
+              .toSet()
               .toList();
 
           setState(() {
             _todosResultados = listCached.take(50).toList();
             _isLoading = false;
             if (encontrados.isNotEmpty &&
-                !encontrados.any((s) => s.toLowerCase() == _selectedSorteo.toLowerCase())) {
+                !encontrados.any(
+                  (s) => s.toLowerCase() == _selectedSorteo.toLowerCase(),
+                )) {
               _selectedSorteo = encontrados.first;
             }
           });
@@ -101,46 +227,115 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       }
     }
 
-    if (_todosResultados.isEmpty || force) {
+    // Un pull-to-refresh no debe ocultar una lista que ya está visible.
+    if (_todosResultados.isEmpty && mounted) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        _showingStaleData = false;
       });
     }
 
-    // 2. Traer los 50 sorteos más recientes desde el servidor
+    var historyFailed = false;
+    var historyReturnedEmpty = false;
+
     try {
       final list = await ApiService.getHistorico50(widget.config.route);
-      if (mounted && list.isNotEmpty) {
+      if (list.isNotEmpty && mounted) {
         final encontrados = list
             .map((r) => r["sorteo"]?.toString().trim())
             .where((s) => s != null && s.isNotEmpty)
-            .toSet()
             .cast<String>()
+            .toSet()
             .toList();
 
         final final50 = list.take(50).toList();
 
         setState(() {
           _todosResultados = final50;
+          _errorMessage = null;
+          _showingStaleData = false;
           if (encontrados.isNotEmpty &&
-              !encontrados.any((s) => s.toLowerCase() == _selectedSorteo.toLowerCase())) {
+              !encontrados.any(
+                (s) => s.toLowerCase() == _selectedSorteo.toLowerCase(),
+              )) {
             _selectedSorteo = encontrados.first;
           }
         });
 
-        // Guardar en caché local
-        CacheService.setJson(cacheKey, {"resultados": final50});
+        await CacheService.setJson(cacheKey, {"resultados": final50});
+      } else {
+        historyReturnedEmpty = true;
       }
     } catch (e) {
-      if (mounted && _todosResultados.isEmpty) {
+      historyFailed = true;
+      if (mounted) {
         setState(() {
-          _errorMessage = e.toString();
+          if (_todosResultados.isEmpty) {
+            _errorMessage = e.toString();
+          } else {
+            _showingStaleData = true;
+          }
         });
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
+
+    if (!historyFailed &&
+        historyReturnedEmpty &&
+        _todosResultados.isNotEmpty &&
+        mounted) {
+      // Un endpoint que antes tenía resultados y temporalmente devuelve vacío
+      // no debe borrar la copia conocida.
+      setState(() => _showingStaleData = true);
+    }
+
+    if (_top20.isEmpty) {
+      try {
+        final pred = await ApiService.getPrediccionLoteria(
+          widget.config.route,
+        );
+        if (pred["numeros"] is List) {
+          final pNums = (pred["numeros"] as List)
+              .map((e) => int.tryParse(e.toString()) ?? -1)
+              .where((n) => n >= 0)
+              .toList();
+          if (pNums.isNotEmpty && mounted) {
+            setState(() {
+              _top20 = pNums.take(_getTopLimit(pNums.length)).toList();
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (_prediccionesPorFecha.isEmpty && widget.modoResultadosIA) {
+      try {
+        final preds = await ApiService.getPrediccionesHistorico(
+          widget.config.route,
+        );
+        if (preds.isNotEmpty && mounted) {
+          final pMap = <String, List<int>>{};
+          for (var p in preds) {
+            final f = _normalizarFechaISO(p["fecha"]?.toString() ?? "");
+            final rawN = p["numeros"];
+            if (f.isNotEmpty && rawN is List) {
+              final nums = rawN
+                  .map((e) => int.tryParse(e.toString()) ?? -1)
+                  .where((n) => n >= 0)
+                  .toList();
+              if (nums.isNotEmpty) pMap[f] = nums;
+            }
+          }
+          if (pMap.isNotEmpty && mounted) {
+            setState(() {
+              _prediccionesPorFecha = pMap;
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _isLoading = false);
   }
 
   List<Map<String, dynamic>> _obtenerResultadosFiltrados() {
@@ -149,70 +344,58 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
     if (disponibles.length > 1) {
       final filtrados = _todosResultados
-          .where((r) =>
-              (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
-              _selectedSorteo.trim().toLowerCase())
+          .where(
+            (r) =>
+                (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
+                _selectedSorteo.trim().toLowerCase(),
+          )
           .toList();
       if (filtrados.isNotEmpty) {
         baseList = filtrados;
       }
     }
 
-    // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0
-    return baseList.where((r) {
+    final now = DateTime.now();
+    final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+    // Filtrar filas de predicción futura / placeholders donde todas las balotas son 0 o fecha es futura
+    final validos = baseList.where((r) {
       final rawNums = (r["numeros"] as List<dynamic>? ?? []);
       if (rawNums.isEmpty) return false;
-      final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
-      return parsed.any((n) => n > 0);
-    }).take(50).toList();
-  }
+      final parsed = rawNums
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .toList();
+      if (!parsed.any((n) => n > 0)) return false;
+      final fIso = _normalizarFechaISO(r["fecha"]?.toString() ?? "");
+      final dt = DateTime.tryParse(fIso);
+      if (dt != null && dt.isAfter(todayEnd)) return false;
+      return true;
+    }).toList();
 
-  Widget _build3DBall(
-    int? numero, {
-    Color baseColor = const Color(0xFFF33A21),
-    double size = 32,
-  }) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            baseColor.withValues(alpha: 0.95),
-            baseColor.withValues(alpha: 0.8),
-            baseColor.withValues(alpha: 0.6),
-          ],
-          center: Alignment.topLeft,
-          radius: 0.9,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black45,
-            offset: Offset(1.2, 1.2),
-            blurRadius: 2.5,
-          ),
-        ],
-        border: Border.all(color: Colors.white24, width: 0.8),
-      ),
-      child: Center(
-        child: Text(
-          numero?.toString() ?? "–",
-          style: GoogleFonts.montserrat(
-            fontSize: size * 0.40,
-            fontWeight: FontWeight.w700,
-            color: Colors.white,
-            shadows: const [
-              Shadow(
-                color: Colors.black87,
-                offset: Offset(0.6, 0.6),
-                blurRadius: 1.5,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    // Deduplicar por fecha y sorteo
+    final seen = <String>{};
+    final dedup = validos.where((r) {
+      final key =
+          "${_normalizarFechaISO(r['fecha']?.toString() ?? '')}_${r['sorteo']?.toString().trim().toLowerCase()}";
+      return seen.add(key);
+    }).toList();
+
+    // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,
+    // filtrar para mostrar únicamente los sorteos que tienen predicción real evaluada
+    if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
+      final evaluados = dedup
+          .where(
+            (r) =>
+                _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") !=
+                null,
+          )
+          .toList();
+      if (evaluados.isNotEmpty) {
+        return evaluados.take(_visibleResultsLimit).toList();
+      }
+    }
+
+    return dedup.take(_visibleResultsLimit).toList();
   }
 
   Widget _buildActionButton({
@@ -275,16 +458,16 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                   ),
                 )
               : (icon is IconData
-                  ? Icon(
-                      icon,
-                      color: isEnabled ? color : Colors.white24,
-                      size: size * 0.42,
-                    )
-                  : FaIcon(
-                      icon,
-                      color: isEnabled ? color : Colors.white24,
-                      size: size * 0.42,
-                    )),
+                    ? Icon(
+                        icon,
+                        color: isEnabled ? color : Colors.white24,
+                        size: size * 0.42,
+                      )
+                    : FaIcon(
+                        icon,
+                        color: isEnabled ? color : Colors.white24,
+                        size: size * 0.42,
+                      )),
         ),
       ),
     );
@@ -311,7 +494,11 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
                 color: const Color(0xFF10B981).withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: const FaIcon(FontAwesomeIcons.fileExcel, color: Color(0xFF10B981), size: 20),
+              child: const FaIcon(
+                FontAwesomeIcons.fileExcel,
+                color: Color(0xFF10B981),
+                size: 20,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -351,12 +538,18 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF10B981),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               elevation: 2,
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            icon: const FaIcon(FontAwesomeIcons.fileArrowDown, size: 14, color: Colors.white),
+            icon: const FaIcon(
+              FontAwesomeIcons.fileArrowDown,
+              size: 14,
+              color: Colors.white,
+            ),
             label: Text(
               l10n?.descargar ?? "Descargar",
               style: AppTextStyles.button.copyWith(
@@ -385,7 +578,10 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n?.descargandoHistorico ?? "Descargando histórico completo de la base de datos..."),
+            content: Text(
+              l10n?.descargandoHistorico ??
+                  "Descargando histórico completo de la base de datos...",
+            ),
             duration: const Duration(seconds: 2),
             backgroundColor: const Color(0xFF10B981),
           ),
@@ -393,27 +589,65 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       }
 
       // Descargar el histórico 100% completo del servidor
-      final listCompleta = await ApiService.getHistoricoCompleto(widget.config.route);
-      List<Map<String, dynamic>> listToExport = listCompleta.isNotEmpty ? listCompleta : _todosResultados;
+      final listCompleta = await ApiService.getHistoricoCompleto(
+        widget.config.route,
+      );
+      List<Map<String, dynamic>> listToExport = listCompleta.isNotEmpty
+          ? listCompleta
+          : _todosResultados;
 
       if (sorteosActivos.length > 1) {
         final filtrados = listToExport
-            .where((r) =>
-                (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
-                _selectedSorteo.trim().toLowerCase())
+            .where(
+              (r) =>
+                  (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
+                  _selectedSorteo.trim().toLowerCase(),
+            )
             .toList();
         if (filtrados.isNotEmpty) {
           listToExport = filtrados;
         }
       }
 
-      // Filtrar filas vacías o con ceros
+      final now = DateTime.now();
+      final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      // Filtrar filas vacías, con ceros o de fecha futura
       listToExport = listToExport.where((r) {
         final rawNums = (r["numeros"] as List<dynamic>? ?? []);
         if (rawNums.isEmpty) return false;
-        final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
-        return parsed.any((n) => n > 0);
+        final parsed = rawNums
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .toList();
+        if (!parsed.any((n) => n > 0)) return false;
+        final fIso = _normalizarFechaISO(r["fecha"]?.toString() ?? "");
+        final dt = DateTime.tryParse(fIso);
+        if (dt != null && dt.isAfter(todayEnd)) return false;
+        return true;
       }).toList();
+
+      // Deduplicar por fecha y sorteo
+      final seen = <String>{};
+      listToExport = listToExport.where((r) {
+        final key =
+            "${_normalizarFechaISO(r['fecha']?.toString() ?? '')}_${r['sorteo']?.toString().trim().toLowerCase()}";
+        return seen.add(key);
+      }).toList();
+
+      // Si estamos en modoResultadosIA y tenemos predicciones históricas en BD,
+      // filtrar para exportar únicamente los sorteos que tienen predicción real evaluada
+      if (widget.modoResultadosIA && _prediccionesPorFecha.isNotEmpty) {
+        final evaluados = listToExport
+            .where(
+              (r) =>
+                  _obtenerPrediccionParaFecha(r["fecha"]?.toString() ?? "") !=
+                  null,
+            )
+            .toList();
+        if (evaluados.isNotEmpty) {
+          listToExport = evaluados;
+        }
+      }
 
       if (listToExport.isEmpty) {
         if (mounted) {
@@ -427,20 +661,46 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
       final buffer = StringBuffer();
       // UTF-8 BOM para que Excel abra acentos y símbolos correctamente
       buffer.write('\uFEFF');
-      buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota");
+      if (widget.modoResultadosIA) {
+        buffer.writeln(
+          "#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota,Cobertura_IA,Aciertos",
+        );
+      } else {
+        buffer.writeln("#,Fecha,Sorteo,Numeros_Ganadores,Especial_Superbalota");
+      }
 
       for (int i = 0; i < listToExport.length; i++) {
         final r = listToExport[i];
-        final rawNums = (r["numeros"] as List<dynamic>? ?? []);
-        final nums = rawNums.map((e) => int.tryParse(e.toString()) ?? -1).where((n) => n >= 0).toList();
-        final rawRed = r["balotaroja"] ?? r["superbalota"] ?? r["comodin"] ?? r["reintegro"];
-        final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0) ? int.parse(rawRed.toString()) : null;
-
-        final mainBalls = nums.length > widget.config.maxSeleccion ? nums.sublist(0, widget.config.maxSeleccion) : nums;
+        final (main, specials, complementary) = _splitByRole(r);
+        final mainBalls = main;
         final numbersStr = mainBalls.join(' - ');
-        final specialStr = red?.toString() ?? "";
+        final specialStr = [
+          ...specials.map((value) => value.toString()),
+          if (complementary != null) complementary.toString(),
+        ].join(' - ');
 
-        buffer.writeln('${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"');
+        if (widget.modoResultadosIA) {
+          final predParaFecha = _obtenerPrediccionParaFecha(
+            r["fecha"]?.toString() ?? "",
+          );
+          final bool tienePred =
+              predParaFecha != null && predParaFecha.isNotEmpty;
+          final hits = tienePred
+              ? mainBalls.where((n) => predParaFecha.contains(n)).length
+              : 0;
+          final covPercent = (mainBalls.isNotEmpty && tienePred)
+              ? ((hits / mainBalls.length) * 100).round()
+              : 0;
+          final covStr = tienePred ? "$covPercent%" : "--";
+          final aciertosStr = tienePred ? "$hits / ${mainBalls.length}" : "--";
+          buffer.writeln(
+            '${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr","$covStr","$aciertosStr"',
+          );
+        } else {
+          buffer.writeln(
+            '${i + 1},"${r["fecha"]}","${r["sorteo"] ?? _selectedSorteo}","$numbersStr","$specialStr"',
+          );
+        }
       }
 
       final bytes = utf8.encode(buffer.toString());
@@ -449,10 +709,12 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           XFile.fromData(
             Uint8List.fromList(bytes),
             mimeType: 'text/csv',
-            name: 'Historial_Completo_${widget.config.nombre}_$_selectedSorteo.csv',
+            name:
+                'Historial_Completo_${widget.config.nombre}_$_selectedSorteo.csv',
           ),
         ],
-        subject: 'Historial Completo de Resultados ${widget.config.nombre} ($_selectedSorteo)',
+        subject:
+            'Historial Completo de Resultados ${widget.config.nombre} ($_selectedSorteo)',
       );
     } catch (e) {
       if (mounted) {
@@ -473,22 +735,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
     final l10n = AppLocalizations.of(context);
     final listToShow = _obtenerResultadosFiltrados();
 
-    final int maxBallsInResults = listToShow.isNotEmpty
-        ? listToShow
-            .map((r) => (r["numeros"] as List<dynamic>? ?? [])
-                .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n >= 0)
-                .length)
-            .fold(0, (max, len) => len > max ? len : max)
-        : widget.config.totalBalotasSorteo;
-
-    final double ballSpacing = maxBallsInResults <= 5
-        ? 4.5
-        : (maxBallsInResults == 6 ? 3.0 : (maxBallsInResults == 7 ? 2.0 : 1.2));
-    final double defaultBallSize = maxBallsInResults <= 5
-        ? 34.0
-        : (maxBallsInResults == 6 ? 31.0 : (maxBallsInResults == 7 ? 28.0 : 25.0));
-
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: AppColors.blackfondo,
@@ -504,365 +750,632 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
-              CustomSliverAppBar(
-                title: widget.config.nombre,
-              ),
+              CustomSliverAppBar(title: widget.config.nombre),
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 12.0,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                    // Título, Subtítulo y Botón de Exportar Excel
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                l10n?.historicoResultadosTitulo ?? "Historial de Resultados",
-                                style: AppTextStyles.h2.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                listToShow.isNotEmpty
-                                    ? (l10n?.ultimosNSorteosRegistrados(listToShow.length) ?? "Últimos ${listToShow.length} sorteos registrados")
-                                    : (l10n?.ultimos50Resultados(widget.config.nombre) ?? "Historial de ${widget.config.nombre}"),
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 13,
-                                  color: Colors.white60,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildActionButton(
-                          icon: FontAwesomeIcons.fileExcel,
-                          color: const Color(0xFF10B981), // Verde Esmeralda Excel
-                          isLoading: _isExporting,
-                          onPressed: _exportarExcel,
-                        ),
-                      ],
-                    ),
-                    if (listToShow.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1C23),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: Colors.white12),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline, size: 16, color: AppColors.yellow),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                l10n?.descripcionHistoricoResultados ?? "Consulta los 50 sorteos más recientes o pulsa el botón Excel para descargar el histórico completo de la base de datos.",
-                                style: GoogleFonts.montserrat(
-                                  fontSize: 11,
-                                  color: Colors.white70,
-                                  height: 1.3,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-
-                    // Selector de Sub-Sorteos (ej. Melate / Revancha / Revanchita / Baloto / Revancha / 5 de Oro / Revancha)
-                    if (sorteosActivos.length > 1) ...[
+                      // Título, Subtítulo y Botón de Exportar Excel
                       Row(
-                        children: sorteosActivos.map((sorteo) {
-                          final isSelected =
-                              _selectedSorteo.toLowerCase() == sorteo.toLowerCase();
-                          return Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                              child: GestureDetector(
-                                onTap: () => setState(() {
-                                  _selectedSorteo = sorteo;
-                                }),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(vertical: 10),
-                                  decoration: BoxDecoration(
-                                    color: isSelected ? AppColors.yellow : const Color(0xFF2A2A2A),
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: isSelected
-                                        ? [
-                                            BoxShadow(
-                                              color: AppColors.yellow.withValues(alpha: 0.3),
-                                              blurRadius: 6,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                  child: Text(
-                                    sorteo,
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      color: isSelected ? Colors.black : Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Estado de carga / error / lista de resultados
-                    if (_isLoading)
-                      _buildSkeletonHistorico()
-                    else if (_errorMessage != null)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 40),
-                          child: Column(
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.redAccent, size: 40),
-                              const SizedBox(height: 10),
-                              Text(
-                                "No se pudieron cargar los resultados.",
-                                style: AppTextStyles.mensajeSecundario,
-                              ),
-                              const SizedBox(height: 12),
-                              ElevatedButton(
-                                onPressed: _cargarHistorico,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.yellow,
-                                  foregroundColor: Colors.black,
-                                ),
-                                child: const Text("Reintentar"),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else if (listToShow.isEmpty)
-                      Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 50),
-                          child: Text(
-                            l10n?.sinNumeros ?? "No hay resultados registrados",
-                            style: AppTextStyles.mensajeSecundario,
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1E1E1E),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.white12, width: 0.8),
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          children: [
-                            // Encabezado de la tabla
-                            Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                SizedBox(
-                                  width: 28,
-                                  child: Text(
-                                    "#",
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                Text(
+                                  l10n?.historicoResultadosTitulo ??
+                                      "Historial de Resultados",
+                                  style: AppTextStyles.h2.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
                                   ),
                                 ),
-                                const SizedBox(width: 6),
-                                SizedBox(
-                                  width: 82,
-                                  child: Text(
-                                    l10n?.sorteoLabel ?? "Sorteo",
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.montserrat(
-                                      fontSize: 11,
-                                      color: Colors.white38,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Center(
-                                    child: Text(
-                                      l10n?.resultados ?? "Resultados",
-                                      style: GoogleFonts.montserrat(
-                                        fontSize: 11,
-                                        color: Colors.white38,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  listToShow.isNotEmpty
+                                      ? (l10n?.ultimosNSorteosRegistrados(
+                                              listToShow.length,
+                                            ) ??
+                                            "Últimos ${listToShow.length} sorteos registrados")
+                                      : (l10n?.ultimos50Resultados(
+                                              widget.config.nombre,
+                                            ) ??
+                                            "Historial de ${widget.config.nombre}"),
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 13,
+                                    color: Colors.white60,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
-                            const Divider(color: Colors.white12, height: 16),
+                          ),
+                          const SizedBox(width: 8),
+                          _buildActionButton(
+                            icon: FontAwesomeIcons.fileExcel,
+                            color: const Color(
+                              0xFF10B981,
+                            ), // Verde Esmeralda Excel
+                            isEnabled: listToShow.isNotEmpty,
+                            isLoading: _isExporting,
+                            onPressed: _exportarExcel,
+                          ),
+                        ],
+                      ),
+                      if (listToShow.isNotEmpty) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1A1C23),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.info_outline,
+                                size: 16,
+                                color: AppColors.yellow,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  l10n?.descripcionHistoricoResultados ??
+                                      "Consulta los 25 sorteos más recientes o pulsa el botón Excel para descargar el histórico completo de la base de datos.",
+                                  style: GoogleFonts.montserrat(
+                                    fontSize: 11,
+                                    color: Colors.white70,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
 
-                            // Filas de sorteos visibles (máximo 50)
-                            ...List.generate(listToShow.length, (rowIndex) {
-                              final resultado = listToShow[rowIndex];
-                              final fecha = resultado["fecha"]?.toString() ?? "S/F";
-                              final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
-                              final int limiteBalotas = widget.config.totalBalotasSorteo > 0
-                                  ? widget.config.totalBalotasSorteo
-                                  : 20;
-                              final bool isReintegro = widget.config.tieneReintegro;
-                              final numeros = rawNumeros
-                                  .map((e) => int.tryParse(e.toString()) ?? -1)
-                                  .whereIndexed((index, n) {
-                                    if (n < 0) return false;
-                                    if (n == 0 && index >= widget.config.maxSeleccion && !isReintegro) {
-                                      return false;
-                                    }
-                                    return true;
-                                  })
-                                  .take(limiteBalotas)
-                                  .toList();
-
-                              return Container(
-                                padding: const EdgeInsets.symmetric(vertical: 6.5),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    bottom: BorderSide(
-                                      color: rowIndex == listToShow.length - 1
-                                          ? Colors.transparent
-                                          : Colors.white10,
-                                      width: 0.5,
+                      // Selector de Sub-Sorteos (ej. Melate / Revancha / Revanchita / Baloto / Revancha / 5 de Oro / Revancha)
+                      if (sorteosActivos.length > 1) ...[
+                        Row(
+                          children: sorteosActivos.map((sorteo) {
+                            final isSelected =
+                                _selectedSorteo.toLowerCase() ==
+                                sorteo.toLowerCase();
+                            return Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4.0,
+                                ),
+                                child: GestureDetector(
+                                  onTap: () => setState(() {
+                                    _selectedSorteo = sorteo;
+                                  }),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? AppColors.yellow
+                                          : const Color(0xFF2A2A2A),
+                                      borderRadius: BorderRadius.circular(10),
+                                      boxShadow: isSelected
+                                          ? [
+                                              BoxShadow(
+                                                color: AppColors.yellow
+                                                    .withValues(alpha: 0.3),
+                                                blurRadius: 6,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: Text(
+                                      sorteo,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.montserrat(
+                                        color: isSelected
+                                            ? Colors.black
+                                            : Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
                                     ),
                                   ),
                                 ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (_showingStaleData) ...[
+                        const AppStaleDataBanner(),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Estado de carga / error / lista de resultados
+                      if (_isLoading)
+                        _buildSkeletonHistorico()
+                      else if (_errorMessage != null)
+                        AppDataStateCard(
+                          isConnectionError: true,
+                          onRetry: () => _cargarHistorico(force: true),
+                          retrying: _isLoading,
+                          useContainer: false,
+                          margin: const EdgeInsets.symmetric(vertical: 20),
+                        )
+                      else if (listToShow.isEmpty)
+                        Center(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 8, 20, 50),
+                            child: Column(
+                              children: [
+                                const Icon(
+                                  Icons.history_toggle_off,
+                                  color: Colors.white38,
+                                  size: 44,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  l10n?.informacionNoDisponible ??
+                                      'Información no disponible',
+                                  style: AppTextStyles.h2.copyWith(
+                                    fontSize: 16,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  l10n?.datosLoteriaNoDisponibles ??
+                                      'Esta lotería aún no tiene resultados ni predicciones disponibles.',
+                                  style: AppTextStyles.mensajeSecundario,
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1E1E1E),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: Colors.white12,
+                              width: 0.8,
+                            ),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            children: [
+                              // Encabezado dinámico según el modo
+                              if (widget.modoResultadosIA)
+                                Row(
                                   children: [
-                                    // Índice
+                                    Expanded(
+                                      flex: 3,
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.sorteoLabel ?? "Sorteo",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 10,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 12,
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.numerosGanadores ??
+                                              "Números ganadores",
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 10,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.coberturaIA ?? "Cobertura IA",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 10,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Expanded(
+                                      flex: 3,
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.aciertosSimple ?? "Aciertos",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 10,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
                                     SizedBox(
                                       width: 28,
                                       child: Text(
-                                        "${rowIndex + 1}",
+                                        "#",
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.montserrat(
                                           fontSize: 11,
                                           color: Colors.white38,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 6),
-                                    // Fecha
                                     SizedBox(
-                                      width: 82,
+                                      width: 84,
                                       child: Text(
-                                        fecha,
+                                        l10n?.sorteoLabel ?? "Sorteo",
                                         textAlign: TextAlign.center,
                                         style: GoogleFonts.montserrat(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.white,
+                                          fontSize: 11,
+                                          color: Colors.white38,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 4),
-                                    // Balotas
                                     Expanded(
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) {
-                                          final totalBalls = numeros.length;
-                                          final double calculatedSize = totalBalls > 0
-                                              ? ((constraints.maxWidth -
-                                                      (totalBalls * ballSpacing * 2)) /
-                                                  totalBalls)
-                                              : defaultBallSize;
-                                          final double ballSize =
-                                              calculatedSize.clamp(15.0, defaultBallSize);
+                                      child: Center(
+                                        child: Text(
+                                          l10n?.resultados ?? "Resultados",
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              const Divider(color: Colors.white12, height: 16),
 
-                                          return Center(
+                              // Filas de sorteos visibles (hasta 25 por pestaña).
+                              ...List.generate(listToShow.length, (rowIndex) {
+                                final resultado = listToShow[rowIndex];
+                                final rawDate =
+                                    resultado["fecha"]?.toString() ?? "";
+                                final dateDisplay = _formatearFechaCorta(
+                                  rawDate,
+                                );
+
+                                final (main, specials, complementary) =
+                                    _splitByRole(resultado);
+                                final List<int> mainBalls = main;
+                                final int? compBall = complementary;
+
+                                final predParaFecha =
+                                    _obtenerPrediccionParaFecha(
+                                      resultado["fecha"]?.toString() ?? "",
+                                    );
+                                final bool tienePred =
+                                    predParaFecha != null &&
+                                    predParaFecha.isNotEmpty;
+                                final int hits = tienePred
+                                    ? mainBalls
+                                          .where(
+                                            (n) => predParaFecha.contains(n),
+                                          )
+                                          .length
+                                    : 0;
+                                final int covPercent =
+                                    (mainBalls.isNotEmpty && tienePred)
+                                    ? ((hits / mainBalls.length) * 100).round()
+                                    : 0;
+                                final Color coverageColor = tienePred
+                                    ? (covPercent >= 60
+                                          ? Colors.greenAccent
+                                          : Colors.amber)
+                                    : Colors.white38;
+
+                                final int totalBalls =
+                                    mainBalls.length +
+                                    (compBall != null ? 1 : 0) +
+                                    specials.length;
+
+                                final double ballSize = totalBalls <= 5
+                                    ? 27.0
+                                    : (totalBalls == 6
+                                          ? 25.0
+                                          : (totalBalls == 7 ? 22.0 : 20.0));
+                                final double ballPadding = totalBalls <= 5
+                                    ? 2.0
+                                    : (totalBalls == 6
+                                          ? 1.8
+                                          : (totalBalls == 7 ? 1.4 : 1.0));
+
+                                if (widget.modoResultadosIA) {
+                                  return Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 7.0,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        bottom: BorderSide(
+                                          color:
+                                              rowIndex == listToShow.length - 1
+                                              ? Colors.transparent
+                                              : Colors.white10,
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          flex: 3,
+                                          child: Center(
+                                            child: Text(
+                                              dateDisplay,
+                                              textAlign: TextAlign.center,
+                                              style: GoogleFonts.montserrat(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white70,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 12,
+                                          child: Center(
                                             child: FittedBox(
                                               fit: BoxFit.scaleDown,
                                               alignment: Alignment.center,
                                               child: Row(
                                                 mainAxisSize: MainAxisSize.min,
-                                                mainAxisAlignment: MainAxisAlignment.center,
-                                                children: List.generate(numeros.length, (index) {
-                                                  final n = numeros[index];
-                                                  final bool isLastBall =
-                                                      index == numeros.length - 1;
-                                                  final bool isComp =
-                                                      widget.config.tieneComplementario &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          index == widget.config.maxSeleccion;
-                                                  final bool isSpecial =
-                                                      widget.config.tieneBalotaRoja &&
-                                                          numeros.length >
-                                                              widget.config.maxSeleccion &&
-                                                          (index >=
-                                                                  widget.config.maxSeleccion +
-                                                                      (widget.config
-                                                                              .tieneComplementario
-                                                                          ? 1
-                                                                          : 0) ||
-                                                              isLastBall);
-                                                  final Color ballColor = isSpecial
-                                                      ? const Color(0xFFB91C1C)
-                                                      : (isComp
-                                                          ? const Color(0xFF0D9488)
-                                                          : Colors.amber);
-
-                                                  return Padding(
-                                                    padding: EdgeInsets.symmetric(
-                                                        horizontal: ballSpacing),
-                                                    child: _build3DBall(
-                                                      n,
-                                                      baseColor: ballColor,
-                                                      size: ballSize,
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  ...mainBalls.map(
+                                                    (n) => Padding(
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal:
+                                                                ballPadding,
+                                                          ),
+                                                      child: buildMiniBall(
+                                                        n,
+                                                        baseColor:
+                                                            coverageColor,
+                                                        size: ballSize,
+                                                      ),
                                                     ),
-                                                  );
-                                                }),
+                                                  ),
+                                                  if (compBall != null) ...[
+                                                    SizedBox(
+                                                      width: ballPadding,
+                                                    ),
+                                                    Padding(
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal:
+                                                                ballPadding,
+                                                          ),
+                                                      child: buildMiniBall(
+                                                        compBall,
+                                                        baseColor: const Color(
+                                                          0xFF0D9488,
+                                                        ),
+                                                        size: ballSize,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                  ...specials.map(
+                                                    (special) => Padding(
+                                                      padding:
+                                                          EdgeInsets.symmetric(
+                                                            horizontal:
+                                                                ballPadding,
+                                                          ),
+                                                      child: buildMiniBall(
+                                                        special,
+                                                        baseColor: const Color(
+                                                          0xFFB91C1C,
+                                                        ),
+                                                        size: ballSize,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
-                                          );
-                                        },
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 3,
+                                          child: Center(
+                                            child: Text(
+                                              tienePred ? "$covPercent%" : "--",
+                                              style: GoogleFonts.montserrat(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: coverageColor,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          flex: 3,
+                                          child: Center(
+                                            child: Text(
+                                              tienePred
+                                                  ? "$hits / ${mainBalls.length}"
+                                                  : "--",
+                                              style: GoogleFonts.montserrat(
+                                                fontSize: 12.5,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
+
+                                // Modo Tabla Principal (Lotería): #, Sorteo, Resultados (balotas doradas + roja)
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 6.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                        color: rowIndex == listToShow.length - 1
+                                            ? Colors.transparent
+                                            : Colors.white10,
+                                        width: 0.5,
                                       ),
                                     ),
-                                  ],
-                                ),
-                              );
-                            }),
-                          ],
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 28,
+                                        child: Text(
+                                          "${rowIndex + 1}",
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 11,
+                                            color: Colors.white38,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      SizedBox(
+                                        width: 84,
+                                        child: Text(
+                                          rawDate,
+                                          textAlign: TextAlign.center,
+                                          style: GoogleFonts.montserrat(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Center(
+                                          child: FittedBox(
+                                            fit: BoxFit.scaleDown,
+                                            alignment: Alignment.center,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                ...mainBalls.map(
+                                                  (n) => Padding(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal:
+                                                              ballPadding,
+                                                        ),
+                                                    child: buildMiniBall(
+                                                      n,
+                                                      baseColor: Colors.amber,
+                                                      size: ballSize,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (compBall != null) ...[
+                                                  SizedBox(width: ballPadding),
+                                                  Padding(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal:
+                                                              ballPadding,
+                                                        ),
+                                                    child: buildMiniBall(
+                                                      compBall,
+                                                      baseColor: const Color(
+                                                        0xFF0D9488,
+                                                      ),
+                                                      size: ballSize,
+                                                    ),
+                                                  ),
+                                                ],
+                                                ...specials.map(
+                                                  (special) => Padding(
+                                                    padding:
+                                                        EdgeInsets.symmetric(
+                                                          horizontal:
+                                                              ballPadding,
+                                                        ),
+                                                    child: buildMiniBall(
+                                                      special,
+                                                      baseColor: const Color(
+                                                        0xFFB91C1C,
+                                                      ),
+                                                      size: ballSize,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
                         ),
-                      ),
-                    const SizedBox(height: 36),
-                  ],
+                      const SizedBox(height: 36),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildSkeletonHistorico() {

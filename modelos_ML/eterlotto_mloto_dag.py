@@ -102,7 +102,7 @@ with DAG(
     'eterlotto_ejecucion_mloto',
     default_args=default_args,
     description='Ejecuta scraping y predicción de MiLoto usando main_mloto.py',
-    schedule='0 3 * * 2-6',  # Martes a Sábado a las 3:00 AM (2=Martes, 6=Sábado)
+    schedule='0 3 * * *',  # Martes a Sábado a las 3:00 AM (2=Martes, 6=Sábado)
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'miloto'],

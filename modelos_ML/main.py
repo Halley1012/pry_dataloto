@@ -169,9 +169,15 @@ def main():
                 # Check if run supports backfill argument
                 import inspect
                 if 'backfill' in inspect.signature(scraper_inst.run).parameters:
-                    scraper_inst.run(backfill=backfill)
+                    hubo_sorteo = scraper_inst.run(backfill=backfill)
+                    if hubo_sorteo is False:
+                        print(f'No hay sorteo nuevo para {loteria}. Saltando.')
+                        continue
                 else:
-                    scraper_inst.run()
+                    hubo_sorteo = scraper_inst.run()
+                    if hubo_sorteo is False:
+                        print(f'No hay sorteo nuevo para {loteria}. Saltando.')
+                        continue
             except Exception as e:
                 print(f"❌ Falló la tarea de scraping para {loteria}: {e}")
                 sys.exit(1)

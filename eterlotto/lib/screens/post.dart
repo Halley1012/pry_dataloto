@@ -1,11 +1,13 @@
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
+import 'package:flutter/services.dart';
 import 'package:eterlotto/services/api_service.dart';
+import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 
@@ -33,8 +35,14 @@ class _PostScreenState extends State<PostScreen> {
   final storage = AppSecureStorage.instance;
 
   bool isLoading = false;
+  bool isSubmittingComment = false;
   List<Comment> comments = [];
   String? currentUserId;
+  String? _commentsError;
+  bool _showingStaleComments = false;
+  bool _hasCommentsSnapshot = false;
+  int _commentsRequestVersion = 0;
+  final Set<int> _reportingCommentIds = {};
 
   // 💬 Estado para la lógica de respuesta estilo YouTube
   String? replyingToUser;
@@ -57,27 +65,98 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   Future<void> _cargarDatosInicialesOptimizado() async {
-    if (!mounted) return;
-    setState(() => isLoading = true);
+    final requestVersion = ++_commentsRequestVersion;
+    final requestUserId = (await storage.read(key: 'user_id'))?.trim();
+    if (!mounted || requestVersion != _commentsRequestVersion) return;
+
+    setState(() {
+      isLoading = true;
+      _commentsError = null;
+    });
+
+    final cacheKey = CacheService.comentariosPostKey(widget.postId);
+    final fresh = await CacheService.getJson(cacheKey);
+    final cached = fresh ?? await CacheService.getStaleJson(cacheKey);
+    final cachedComments = _commentsFromCache(cached);
+    final hasCachedSnapshot = cached is List;
+
+    if (!await _isCurrentSession(requestUserId) ||
+        requestVersion != _commentsRequestVersion) {
+      return;
+    }
+
+    if (hasCachedSnapshot && mounted) {
+      setState(() {
+        currentUserId = requestUserId;
+        comments = cachedComments;
+        _hasCommentsSnapshot = true;
+        isLoading = false;
+        _showingStaleComments = false;
+      });
+    }
 
     try {
-      final userIdFuture = storage.read(key: 'user_id');
-      final commentsFuture = ApiService.getComments(widget.postId);
-
-      final userId = await userIdFuture;
-      final fetchedComments = await commentsFuture;
-
-      if (!mounted) return;
-
+      final fetchedComments = await ApiService.getComments(widget.postId);
+      if (!await _isCurrentSession(requestUserId) ||
+          requestVersion != _commentsRequestVersion ||
+          !mounted) {
+        return;
+      }
+      await CacheService.setJson(
+        cacheKey,
+        fetchedComments.map((comment) => comment.toJson()).toList(),
+      );
+      if (!mounted || requestVersion != _commentsRequestVersion) return;
       setState(() {
-        currentUserId = userId;
+        currentUserId = requestUserId;
         comments = fetchedComments;
+        _hasCommentsSnapshot = true;
         isLoading = false;
+        _showingStaleComments = false;
+        _commentsError = null;
       });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => isLoading = false);
+    } catch (_) {
+      if (!await _isCurrentSession(requestUserId) ||
+          requestVersion != _commentsRequestVersion ||
+          !mounted) {
+        return;
+      }
+      setState(() {
+        currentUserId = requestUserId;
+        isLoading = false;
+        _showingStaleComments = hasCachedSnapshot;
+        _commentsError = hasCachedSnapshot
+            ? null
+            : 'No pudimos cargar los comentarios. Revisa tu conexión e inténtalo de nuevo.';
+      });
     }
+  }
+
+  List<Comment> _commentsFromCache(dynamic cached) {
+    if (cached is! List) return <Comment>[];
+    final result = <Comment>[];
+    for (final rawComment in cached) {
+      if (rawComment is! Map) continue;
+      try {
+        result.add(Comment.fromJson(Map<String, dynamic>.from(rawComment)));
+      } catch (_) {
+        // Una entrada corrupta no debe ocultar el resto de comentarios.
+      }
+    }
+    return result;
+  }
+
+  Future<bool> _isCurrentSession(String? expectedUserId) async {
+    if (!mounted) return false;
+    final currentUserId = (await storage.read(key: 'user_id'))?.trim();
+    return currentUserId == expectedUserId;
+  }
+
+  Future<void> _persistCommentsCache() {
+    return CacheService.setJson(
+      CacheService.comentariosPostKey(widget.postId),
+      comments.map((comment) => comment.toJson()).toList(),
+    );
   }
 
   // Añadir comentario o respuesta
@@ -91,8 +170,10 @@ class _PostScreenState extends State<PostScreen> {
       return;
     }
 
+    final requestUserId = (await storage.read(key: 'user_id'))?.trim();
+    final requestVersion = ++_commentsRequestVersion;
     if (!mounted) return;
-    setState(() => isLoading = true);
+    setState(() => isSubmittingComment = true);
 
     try {
       final comment = await ApiService.createComment(
@@ -100,7 +181,11 @@ class _PostScreenState extends State<PostScreen> {
         text,
         parentId: replyingToCommentId,
       );
-      if (!mounted) return;
+      if (!await _isCurrentSession(requestUserId) ||
+          requestVersion != _commentsRequestVersion ||
+          !mounted) {
+        return;
+      }
       setState(() {
         comments.insert(0, comment);
         if (replyingToCommentId != null) {
@@ -109,30 +194,53 @@ class _PostScreenState extends State<PostScreen> {
         _commentController.clear();
         replyingToUser = null;
         replyingToCommentId = null;
-        isLoading = false;
+        isSubmittingComment = false;
+        _hasCommentsSnapshot = true;
+        _showingStaleComments = false;
+        _commentsError = null;
       });
+      await _persistCommentsCache();
     } catch (e) {
-      if (!mounted) return;
-      setState(() => isLoading = false);
+      if (!await _isCurrentSession(requestUserId) ||
+          requestVersion != _commentsRequestVersion ||
+          !mounted) {
+        return;
+      }
+      setState(() => isSubmittingComment = false);
+      final rawError = e.toString().replaceAll("Exception: ", "").trim();
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(l10n?.errorEnviarComentario(e.toString()) ?? "Error al enviar comentario: $e")));
+      ).showSnackBar(SnackBar(
+        content: Text(rawError.isNotEmpty ? rawError : (l10n?.errorEnviarComentario(e.toString()) ?? "Error al enviar comentario: $e")),
+        backgroundColor: Colors.redAccent.shade700,
+        behavior: SnackBarBehavior.floating,
+      ));
     }
   }
 
   // Eliminar comentario
   Future<void> _eliminarComentario(int id) async {
     final l10n = AppLocalizations.of(context);
+    final requestUserId = (await storage.read(key: 'user_id'))?.trim();
+    final requestVersion = ++_commentsRequestVersion;
     try {
-      await ApiService.deleteComment(id);
-      if (mounted) {
-        setState(() => comments.removeWhere((c) => c.id == id));
+      await ApiService.deleteComment(id, postId: widget.postId);
+      if (await _isCurrentSession(requestUserId) &&
+          requestVersion == _commentsRequestVersion &&
+          mounted) {
+        setState(() {
+          comments.removeWhere((c) => c.id == id || c.parentId == id);
+          _hasCommentsSnapshot = true;
+        });
+        await _persistCommentsCache();
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(l10n?.comentarioEliminado ?? "Comentario eliminado")));
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted &&
+          await _isCurrentSession(requestUserId) &&
+          requestVersion == _commentsRequestVersion) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(l10n?.errorEliminarComentario(e.toString()) ?? "Error al eliminar: $e")));
@@ -141,15 +249,45 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   // Denunciar comentario
-  void _denunciarComentario(Comment comment) {
+  Future<void> _denunciarComentario(Comment comment) async {
+    if (_reportingCommentIds.contains(comment.id)) return;
+
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n?.comentarioReportado(comment.userName) ?? "Comentario de @${comment.userName} reportado."),
-        backgroundColor: Colors.amber.shade900,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() => _reportingCommentIds.add(comment.id));
+    try {
+      final created = await ApiService.reportComment(comment.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            created
+                ? (l10n?.comentarioReportado(comment.userName) ??
+                    "Comentario de @${comment.userName} reportado.")
+                : 'Ya habías reportado este comentario.',
+          ),
+          backgroundColor: Colors.amber.shade900,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'No pudimos reportar el comentario. Inténtalo de nuevo.'
+                : message,
+          ),
+          backgroundColor: Colors.redAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reportingCommentIds.remove(comment.id));
+      }
+    }
   }
 
   // Activar modo respuesta estilo YouTube
@@ -174,9 +312,28 @@ class _PostScreenState extends State<PostScreen> {
     });
   }
 
+  bool _comentarioVisible(Comment comment) {
+    final status = comment.status.trim().toLowerCase();
+
+    // Estados públicos normales.
+    if (status == 'approved' || status == 'active') {
+      return true;
+    }
+
+    // Un comentario pendiente sólo lo puede ver quien lo escribió.
+    if (status == 'pending') {
+      return currentUserId != null &&
+          comment.userId.toString() == currentUserId;
+    }
+
+    // rejected, hidden, deleted, etc.
+    return false;
+  }
+
   // 🔍 Filtra las respuestas que pertenecen a un comentario principal
   List<Comment> _obtenerRespuestas(Comment parentComment) {
     return comments.where((c) {
+      if (!_comentarioVisible(c)) return false;
       if (c.id == parentComment.id) return false;
       return c.parentId != null && c.parentId == parentComment.id;
     }).toList();
@@ -185,7 +342,9 @@ class _PostScreenState extends State<PostScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final rootComments = comments.where((c) => c.parentId == null).toList();
+    final rootComments = comments
+        .where((c) => c.parentId == null && _comentarioVisible(c))
+        .toList();
 
     return PopScope(
       canPop: false,
@@ -214,7 +373,7 @@ class _PostScreenState extends State<PostScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 8),
                         Text(l10n?.comentarios ?? "Comentarios", style: AppTextStyles.h2),
                         const SizedBox(height: 12),
                         Container(
@@ -238,10 +397,26 @@ class _PostScreenState extends State<PostScreen> {
                           ),
                         ),
                         const SizedBox(height: 12),
+                        if (_showingStaleComments)
+                          const AppStaleDataBanner(
+                            margin: EdgeInsets.only(bottom: 12),
+                          ),
                         AppContainer4(
-                          child: isLoading && comments.isEmpty
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 6,
+                          ),
+                          child: isLoading && !_hasCommentsSnapshot
                               ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
-                              : rootComments.isEmpty
+                              : _commentsError != null
+                                  ? AppDataStateCard(
+                                      isConnectionError: true,
+                                      onRetry: _cargarDatosInicialesOptimizado,
+                                      retrying: isLoading,
+                                      useContainer: false,
+                                      padding: const EdgeInsets.all(20),
+                                    )
+                                  : rootComments.isEmpty
                                   ? Center(
                                       child: Padding(
                                         padding: const EdgeInsets.all(20.0),
@@ -252,6 +427,8 @@ class _PostScreenState extends State<PostScreen> {
                                       ),
                                     )
                                   : ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      primary: false,
                                       shrinkWrap: true,
                                       physics: const NeverScrollableScrollPhysics(),
                                       itemCount: rootComments.length,
@@ -314,7 +491,20 @@ class _PostScreenState extends State<PostScreen> {
                             child: TextField(
                               controller: _commentController,
                               focusNode: _commentFocusNode,
+                              maxLength: 300,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(300),
+                              ],
                               style: AppTextStyles.mensajeSecundario,
+                              buildCounter: (context, {required currentLength, required isFocused, maxLength}) {
+                                if (currentLength > 240) {
+                                  return Text(
+                                    "$currentLength/$maxLength",
+                                    style: const TextStyle(fontSize: 10, color: AppColors.yellow),
+                                  );
+                                }
+                                return null;
+                              },
                               decoration: InputDecoration(
                                 hintText: replyingToUser != null
                                     ? (l10n?.escribeRespuesta ?? "Escribe tu respuesta...")
@@ -324,14 +514,31 @@ class _PostScreenState extends State<PostScreen> {
                                 fillColor: AppColors.grayBlue.withOpacity(0.3),
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                counterText: _commentController.text.length > 240 ? null : "",
                               ),
                               onChanged: (_) => setState(() {}),
                             ),
                           ),
                           const SizedBox(width: 8),
                           IconButton(
-                            onPressed: _commentController.text.trim().isEmpty ? null : _addComment,
-                            icon: Icon(Icons.send_rounded, color: _commentController.text.trim().isEmpty ? Colors.grey : AppColors.yellow),
+                            onPressed: _commentController.text.trim().isEmpty || isSubmittingComment
+                                ? null
+                                : _addComment,
+                            icon: isSubmittingComment
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.yellow,
+                                    ),
+                                  )
+                                : Icon(
+                                    Icons.send_rounded,
+                                    color: _commentController.text.trim().isEmpty
+                                        ? Colors.grey
+                                        : AppColors.yellow,
+                                  ),
                             iconSize: 26,
                           ),
                         ],
@@ -374,18 +581,34 @@ class _PostScreenState extends State<PostScreen> {
                 showBorder: false,
               ),
               const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  "@${comment.userName}",
-                  style: AppTextStyles.mensajeSecundario.copyWith(fontWeight: FontWeight.w600, fontSize: isReply ? 13 : 14, color: Colors.white),
-                  overflow: TextOverflow.ellipsis,
+              Expanded(
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 6,
+                  runSpacing: 2,
+                  children: [
+                    Text(
+                      "@${comment.userName}",
+                      style: AppTextStyles.mensajeSecundario.copyWith(
+                        fontWeight: FontWeight.w600,
+                        fontSize: isReply ? 13 : 14,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const Text(
+                      "•",
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    Text(
+                      comment.relativeTime,
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 11,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 6),
-              const Text("•", style: TextStyle(color: Colors.white38, fontSize: 12)),
-              const SizedBox(width: 6),
-              Text(comment.relativeTime, style: AppTextStyles.caption.copyWith(fontSize: 11, color: Colors.white54)),
-              const Spacer(),
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert, color: Colors.white54, size: 16),
                 color: const Color(0xFF1E1E2E),

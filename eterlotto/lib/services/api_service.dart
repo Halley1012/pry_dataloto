@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -12,13 +13,57 @@ class ApiService {
   static const String baseUrl = "https://pry-dataloto.onrender.com";
   static final _storage = AppSecureStorage.instance;
 
+  static const Duration _requestTimeout = Duration(seconds: 10);
+  static const Duration _refreshTimeout = Duration(seconds: 6);
+  static Future<bool>? _refreshFuture;
+
+  static const List<String> _profileStorageKeys = [
+    'name',
+    'email',
+    'pais_id',
+    'pais_nombre',
+    'departamento_id',
+    'departamento_nombre',
+    'avatar_url',
+    'auth_provider',
+    'telefono',
+    'idioma',
+  ];
+
+  /// Antes de sustituir la sesión, elimina sólo el perfil de la cuenta previa.
+  /// Los tokens se escriben después y las cachés estructuradas permanecen
+  /// aisladas por user_id, por lo que no pueden cruzarse entre cuentas.
+  static Future<void> _clearPreviousProfileIfAccountChanged(
+    dynamic userId,
+  ) async {
+    final incoming = userId?.toString().trim();
+    if (incoming == null || incoming.isEmpty) return;
+    final previous = (await _storage.read(key: 'user_id'))?.trim();
+    if (previous == null || previous.isEmpty || previous == incoming) return;
+    for (final key in _profileStorageKeys) {
+      await _storage.delete(key: key);
+    }
+  }
+
+  static Future<void> _cacheProfileForUser(
+    dynamic userId,
+    dynamic rawUser,
+  ) async {
+    final normalizedUserId = userId?.toString().trim();
+    if (normalizedUserId == null ||
+        normalizedUserId.isEmpty ||
+        rawUser is! Map) {
+      return;
+    }
+    await CacheService.setJson(
+      CacheService.perfilUsuarioKey(normalizedUserId),
+      Map<String, dynamic>.from(rawUser),
+    );
+  }
+
   /// Headers dinámicos, con o sin token
   static Future<Map<String, String>> _getHeaders({bool withAuth = true}) async {
-    String? token;
-    if (withAuth) {
-      await ensureValidSession();
-      token = await _storage.read(key: "auth_token");
-    }
+    final token = withAuth ? await _storage.read(key: "auth_token") : null;
 
     return {
       "Content-Type": "application/json",
@@ -53,6 +98,7 @@ class ApiService {
         final departamentoNombre = user?["departamento_nombre"];
 
         if (accessToken != null) {
+          await _clearPreviousProfileIfAccountChanged(userId);
           await _storage.write(key: "auth_token", value: accessToken);
           if (refreshToken != null) {
             await _storage.write(key: "refresh_token", value: refreshToken);
@@ -88,11 +134,17 @@ class ApiService {
 
           final avatarUrl = user?["avatar_url"];
           if (avatarUrl != null && avatarUrl.toString().isNotEmpty) {
-            await _storage.write(key: "avatar_url", value: avatarUrl.toString());
+            await _storage.write(
+              key: "avatar_url",
+              value: avatarUrl.toString(),
+            );
           }
           final authProvider = user?["auth_provider"];
           if (authProvider != null) {
-            await _storage.write(key: "auth_provider", value: authProvider.toString());
+            await _storage.write(
+              key: "auth_provider",
+              value: authProvider.toString(),
+            );
           }
           final telefono = user?["telefono"];
           if (telefono != null) {
@@ -102,6 +154,7 @@ class ApiService {
           if (idioma != null) {
             await _storage.write(key: "idioma", value: idioma.toString());
           }
+          await _cacheProfileForUser(userId, user);
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -123,13 +176,20 @@ class ApiService {
           };
         }
 
-        return {'success': false, 'error': 'No access_token in response', 'message': 'No access_token in response'};
+        return {
+          'success': false,
+          'error': 'No access_token in response',
+          'message': 'No access_token in response',
+        };
       } else {
         String errorDetail = 'Credenciales inválidas';
         try {
           final errBody = jsonDecode(response.body);
           if (errBody is Map) {
-            errorDetail = errBody['detail']?.toString() ?? errBody['message']?.toString() ?? errorDetail;
+            errorDetail =
+                errBody['detail']?.toString() ??
+                errBody['message']?.toString() ??
+                errorDetail;
           }
         } catch (_) {}
         return {
@@ -149,10 +209,24 @@ class ApiService {
     String token,
   ) async {
     try {
-      final response = await post("/auth/social-login", {
-        "provider": provider,
-        "token": token,
-      }, withAuth: false);
+      Future<http.Response> request() => post(
+        "/auth/social-login",
+        {"provider": provider, "token": token},
+        withAuth: false,
+        // El backend puede despertar en frío; 10 segundos es insuficiente
+        // para un intercambio OAuth aunque el teléfono tenga Internet.
+        timeout: const Duration(seconds: 25),
+      );
+
+      http.Response response;
+      try {
+        response = await request();
+      } on TimeoutException {
+        // El intercambio es idempotente: un único reintento evita obligar al
+        // usuario a tocar Google repetidas veces cuando el servidor despierta.
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        response = await request();
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -170,6 +244,7 @@ class ApiService {
         final departamentoNombre = user?["departamento_nombre"];
 
         if (accessToken != null) {
+          await _clearPreviousProfileIfAccountChanged(userId);
           await _storage.write(key: "auth_token", value: accessToken);
           if (refreshToken != null) {
             await _storage.write(key: "refresh_token", value: refreshToken);
@@ -205,10 +280,17 @@ class ApiService {
 
           final avatarUrl = user?["avatar_url"];
           if (avatarUrl != null && avatarUrl.toString().isNotEmpty) {
-            await _storage.write(key: "avatar_url", value: avatarUrl.toString());
+            await _storage.write(
+              key: "avatar_url",
+              value: avatarUrl.toString(),
+            );
           }
           final authProvider = user?["auth_provider"] ?? provider;
-          await _storage.write(key: "auth_provider", value: authProvider.toString());
+          await _storage.write(
+            key: "auth_provider",
+            value: authProvider.toString(),
+          );
+          await _cacheProfileForUser(userId, user);
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -227,6 +309,12 @@ class ApiService {
           'error': 'Social login failed with status ${response.statusCode}',
         };
       }
+    } on TimeoutException {
+      return {
+        'success': false,
+        'error':
+            'El servicio tardó demasiado en responder. Verifica tu red e inténtalo de nuevo.',
+      };
     } catch (e) {
       return {'success': false, 'error': e.toString()};
     }
@@ -234,8 +322,24 @@ class ApiService {
 
   /// 🔓 LOGOUT
   static Future<void> logout() async {
-    await _storage.delete(key: "auth_token");
-    await _storage.delete(key: "user_id");
+    final activeUserId = (await _storage.read(key: 'user_id'))?.trim();
+    if (activeUserId != null && activeUserId.isNotEmpty) {
+      await CacheService.removeJson(
+        CacheService.perfilUsuarioKey(activeUserId),
+      );
+      await CacheService.removeJson(
+        CacheService.subscriptionStatusKey(activeUserId),
+      );
+    }
+
+    for (final key in [
+      'auth_token',
+      'refresh_token',
+      'user_id',
+      ..._profileStorageKeys,
+    ]) {
+      await _storage.delete(key: key);
+    }
   }
 
   /// 🔑 Obtener token guardado
@@ -243,12 +347,24 @@ class ApiService {
     return await _storage.read(key: "auth_token");
   }
 
-  /// Intentar refrescar el access_token usando refresh_token
+  /// Intentar refrescar el access_token usando refresh_token.
+  /// Coalesces concurrent refresh requests into one HTTP call.
   static Future<bool> refreshAccessToken() async {
-    final refreshToken = await _storage.read(key: "refresh_token");
-    if (refreshToken == null || refreshToken.isEmpty) {
-      return false;
+    final inFlight = _refreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshAccessTokenInternal();
+    _refreshFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshFuture, future)) _refreshFuture = null;
     }
+  }
+
+  static Future<bool> _refreshAccessTokenInternal() async {
+    final refreshToken = await _storage.read(key: "refresh_token");
+    if (refreshToken == null || refreshToken.isEmpty) return false;
 
     try {
       final encodedToken = Uri.encodeComponent(refreshToken);
@@ -258,39 +374,39 @@ class ApiService {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"refresh_token": refreshToken}),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(_refreshTimeout);
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final newAccessToken = data["access_token"];
-        final newRefreshToken = data["refresh_token"];
+      if (response.statusCode != 200) return false;
 
-        if (newAccessToken != null) {
-          await _storage.write(key: "auth_token", value: newAccessToken);
-          if (newRefreshToken != null) {
-            await _storage.write(key: "refresh_token", value: newRefreshToken);
-          }
-
-          // Extraer y persistir user_id
-          try {
-            final parts = (newAccessToken as String).split('.');
-            if (parts.length == 3) {
-              final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
-              final pData = jsonDecode(payload);
-              final sub = pData['sub'];
-              if (sub != null) {
-                await _storage.write(key: "user_id", value: sub.toString());
-              }
-            }
-          } catch (_) {}
-
-          return true;
-        }
+      final data = jsonDecode(response.body);
+      final newAccessToken = data["access_token"];
+      final newRefreshToken = data["refresh_token"];
+      if (newAccessToken == null || newAccessToken.toString().isEmpty)
         return false;
-      } else {
-        return false;
+
+      await _storage.write(key: "auth_token", value: newAccessToken.toString());
+      if (newRefreshToken != null && newRefreshToken.toString().isNotEmpty) {
+        await _storage.write(
+          key: "refresh_token",
+          value: newRefreshToken.toString(),
+        );
       }
-    } catch (e) {
+
+      try {
+        final parts = newAccessToken.toString().split('.');
+        if (parts.length == 3) {
+          final payload = utf8.decode(
+            base64Url.decode(base64Url.normalize(parts[1])),
+          );
+          final pData = jsonDecode(payload);
+          final sub = pData['sub'];
+          if (sub != null)
+            await _storage.write(key: "user_id", value: sub.toString());
+        }
+      } catch (_) {}
+
+      return true;
+    } catch (_) {
       return false;
     }
   }
@@ -321,16 +437,12 @@ class ApiService {
 
   /// 🔁 Asegura sesión válida (valida o refresca)
   static Future<bool> ensureValidSession() async {
-    if (await isTokenValid()) {
-      return true;
+    try {
+      if (await isTokenValid()) return true;
+      return await refreshAccessToken();
+    } catch (_) {
+      return false;
     }
-
-    final refreshed = await refreshAccessToken();
-    if (refreshed) {
-      return true;
-    }
-
-    return false;
   }
 
   static Future<Map<String, dynamic>> deleteUser(int userId) async {
@@ -358,11 +470,10 @@ class ApiService {
     try {
       final response = await post("/users/fcm_token", {
         "user_id": userId,
-        "fcm_token": fcmToken
+        "fcm_token": fcmToken,
       });
       return response.statusCode == 200;
-    } catch (e) {
-      debugPrint("⚠️ Error actualizando FCM token: $e");
+    } catch (_) {
       return false;
     }
   }
@@ -371,9 +482,10 @@ class ApiService {
     int userId,
     Map<String, dynamic> updateData,
   ) async {
+    await ensureValidSession();
     final response = await http.put(
       Uri.parse('$baseUrl/users/$userId'),
-      headers: {"Content-Type": "application/json"},
+      headers: await _getHeaders(withAuth: true),
       body: json.encode(updateData),
     );
 
@@ -438,7 +550,9 @@ class ApiService {
       if (token != null && token.isNotEmpty) {
         final parts = token.split('.');
         if (parts.length == 3) {
-          final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+          final payload = utf8.decode(
+            base64Url.decode(base64Url.normalize(parts[1])),
+          );
           final data = jsonDecode(payload);
           final sub = data['sub'] ?? data['user_id'] ?? data['id'];
           if (sub != null) {
@@ -455,10 +569,15 @@ class ApiService {
   }
 
   /// 📅 Calcular o normalizar la fecha del próximo sorteo para guardar jugadas
-  static String getProximoSorteoFecha(String loteriaName, {String? fechaPrediccion, String? ultimoSorteoFecha}) {
+  static String getProximoSorteoFecha(
+    String loteriaName, {
+    String? fechaPrediccion,
+    String? ultimoSorteoFecha,
+  }) {
     if (fechaPrediccion != null && fechaPrediccion.trim().isNotEmpty) {
       final clean = fechaPrediccion.trim().split("T").first;
-      if (clean.length >= 10 && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(clean.substring(0, 10))) {
+      if (clean.length >= 10 &&
+          RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(clean.substring(0, 10))) {
         return clean.substring(0, 10);
       }
     }
@@ -498,7 +617,13 @@ class ApiService {
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      CacheService.registrarJugadaOptimista("mloto");
+      await CacheService.registrarJugadaOptimista("mloto", userId: userId);
+      await CacheService.invalidarCachesDeJugadas(
+        specificRoute: "mloto",
+        userId: userId,
+        preserveRouteJugadas: true,
+        preserveSelector: true,
+      );
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
@@ -514,6 +639,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarJugadasMloto({
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -523,14 +649,15 @@ class ApiService {
       return [];
     }
 
-    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+    final queryParams =
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http.get(
-          Uri.parse(
-            "$baseUrl/jugadas_mloto?$queryParams",
-          ),
+          Uri.parse("$baseUrl/jugadas_mloto?$queryParams"),
           headers: {"Content-Type": "application/json"},
         );
 
@@ -564,7 +691,10 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      CacheService.invalidarCachesDeJugadas(specificRoute: "mloto");
+      await CacheService.invalidarCachesDeJugadas(
+        specificRoute: "mloto",
+        userId: userId,
+      );
       return true;
     } else {
       throw Exception(
@@ -600,7 +730,13 @@ class ApiService {
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      CacheService.registrarJugadaOptimista("bloto");
+      await CacheService.registrarJugadaOptimista("bloto", userId: userId);
+      await CacheService.invalidarCachesDeJugadas(
+        specificRoute: "bloto",
+        userId: userId,
+        preserveRouteJugadas: true,
+        preserveSelector: true,
+      );
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
@@ -616,6 +752,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarJugadasBloto({
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -625,14 +762,15 @@ class ApiService {
       return [];
     }
 
-    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+    final queryParams =
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http.get(
-          Uri.parse(
-            "$baseUrl/jugadas_bloto?$queryParams",
-          ),
+          Uri.parse("$baseUrl/jugadas_bloto?$queryParams"),
           headers: {"Content-Type": "application/json"},
         );
 
@@ -667,7 +805,10 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      CacheService.invalidarCachesDeJugadas(specificRoute: "bloto");
+      await CacheService.invalidarCachesDeJugadas(
+        specificRoute: "bloto",
+        userId: userId,
+      );
       return true;
     } else {
       throw Exception(
@@ -681,6 +822,8 @@ class ApiService {
     String loteriaName,
     List<int> numeros,
     String userId, {
+    int? loteriaId,
+    List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
   }) async {
@@ -693,31 +836,51 @@ class ApiService {
       route = "cloto";
     }
 
-    final List<int> numerosParaGuardar = (balotaRoja != null)
-        ? (numeros.isNotEmpty && numeros.last == balotaRoja ? numeros : [...numeros, balotaRoja])
-        : numeros;
+    // `numeros` es posicional: principales primero y especiales después.
+    // Nunca se deduplica por valor; 9 principal + 9 especial son dos balotas.
+    final especiales =
+        specialNumbers ??
+        (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
+    final List<int> numerosParaGuardar = [...numeros, ...especiales];
 
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
+      "loteria_route": route,
+      if (loteriaId != null) "loteria_id": loteriaId,
     };
-    if (balotaRoja != null) {
-      payload["balota_roja"] = balotaRoja;
-      payload["balotaroja"] = balotaRoja;
+    if (especiales.isNotEmpty) {
+      // Los campos antiguos mantienen compatibilidad; `numeros` conserva todas
+      // las especiales en orden para loterías 5+2, 6+2 y similares.
+      payload["balota_roja"] = especiales.first;
+      payload["balotaroja"] = especiales.first;
     }
     if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
       payload["fecha_sorteo"] = fechaSorteo;
       payload["fecha"] = fechaSorteo;
     }
 
-    final response = await http.post(
-      Uri.parse("$baseUrl/jugadas_$route"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(payload),
-    ).timeout(const Duration(seconds: 15));
+    final response = await http
+        .post(
+          Uri.parse("$baseUrl/jugadas_$route"),
+          headers: {"Content-Type": "application/json"},
+          body: jsonEncode(payload),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      CacheService.registrarJugadaOptimista(route);
+      await CacheService.registrarJugadaOptimista(
+        route,
+        userId: userId,
+        loteriaId: loteriaId,
+      );
+      await CacheService.invalidarCachesDeJugadas(
+        specificRoute: route,
+        specificLotteryId: loteriaId,
+        userId: userId,
+        preserveRouteJugadas: true,
+        preserveSelector: true,
+      );
       final data = jsonDecode(response.body);
       if (data is Map<String, dynamic>) {
         return data;
@@ -730,6 +893,7 @@ class ApiService {
   static Future<List<dynamic>> listarJugadasGenerica(
     String loteriaName, {
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -737,56 +901,210 @@ class ApiService {
 
     if (userId == null) return [];
 
-    // Mapeo especial para ColorLoto
     String route = loteriaName.trim().toLowerCase();
     if (route == "colorloto") {
       route = "cloto";
     }
 
-    final queryParams = "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+    final queryParams =
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
+    Object? lastError;
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
-        final response = await http.get(
-          Uri.parse("$baseUrl/jugadas_$route?$queryParams"),
-          headers: {"Content-Type": "application/json"},
-        ).timeout(const Duration(seconds: 12));
+        final response = await http
+            .get(
+              Uri.parse("$baseUrl/jugadas_$route?$queryParams"),
+              headers: {"Content-Type": "application/json"},
+            )
+            .timeout(const Duration(seconds: 12));
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data is List) return data;
-        } else {
-          debugPrint("⚠️ HTTP ${response.statusCode} al listar jugadas ($route): ${response.body}");
+          throw Exception('Formato inválido al listar jugadas de $route');
         }
+
+        lastError = Exception(
+          'Error al listar jugadas $route: ${response.statusCode}',
+        );
       } catch (e) {
-        if (attempt == retries) {
-          debugPrint("❌ Error final al listar jugadas ($route): $e");
-        } else {
-          await Future.delayed(Duration(milliseconds: delayMs));
-        }
+        lastError = e;
+      }
+
+      if (attempt < retries) {
+        await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
-    return [];
+
+    // Un fallo de red no equivale a "el usuario no tiene jugadas". Lanzar la
+    // excepción permite que las pantallas conserven su caché stale y muestren
+    // el estado offline correcto en lugar de sobrescribirla con una lista vacía.
+    throw lastError ?? Exception('No se pudieron cargar las jugadas de $route');
   }
 
   /// 🗑️ Borrar jugada genérica
-  static Future<bool> borrarJugadaGenerica(String loteriaName, int jugadaId, String userId) async {
+  static Future<bool> borrarJugadaGenerica(
+    String loteriaName,
+    int jugadaId,
+    String userId, {
+    int? loteriaId,
+  }) async {
     String route = loteriaName.trim().toLowerCase();
     if (route == "colorloto") {
       route = "cloto";
     }
     try {
-      final response = await http.delete(
-        Uri.parse("$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse(
+              "$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"
+              "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}",
+            ),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
-        CacheService.invalidarCachesDeJugadas(specificRoute: route);
+        await CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          specificLotteryId: loteriaId,
+          userId: userId,
+        );
         return true;
       }
       return false;
-    } catch (e) {
-      debugPrint("⚠️ Error al borrar jugada ($route/$jugadaId): $e");
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// ✏️ Actualizar jugada genérica (con soporte directo PUT y fallback inteligente)
+  static Future<bool> actualizarJugadaGenerica(
+    String loteriaName,
+    int jugadaId,
+    List<int> numeros,
+    String userId, {
+    int? loteriaId,
+    List<int>? specialNumbers,
+    int? balotaRoja,
+    String? fechaSorteo,
+  }) async {
+    if (userId.isEmpty) return false;
+    String route = loteriaName.trim().toLowerCase();
+    if (route == "colorloto") {
+      route = "cloto";
+    }
+
+    // Mantiene la misma semántica posicional del alta de jugadas.
+    final especiales =
+        specialNumbers ??
+        (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
+    final List<int> numerosParaGuardar = [...numeros, ...especiales];
+
+    final Map<String, dynamic> payload = {
+      "numeros": numerosParaGuardar,
+      "user_id": userId,
+      "loteria_route": route,
+      if (loteriaId != null) "loteria_id": loteriaId,
+    };
+    if (especiales.isNotEmpty) {
+      payload["balota_roja"] = especiales.first;
+    }
+    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
+      payload["fecha_sorteo"] = fechaSorteo;
+    }
+
+    try {
+      final token = await getToken();
+      final headers = {
+        "Content-Type": "application/json",
+        if (token != null && token.isNotEmpty) "Authorization": "Bearer $token",
+      };
+
+      // 1. Intentar endpoint dinámico PUT en el backend
+      var putResponse = await http
+          .put(
+            Uri.parse("$baseUrl/jugadas_$route/$jugadaId"),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (putResponse.statusCode == 200) {
+        await CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          specificLotteryId: loteriaId,
+          userId: userId,
+        );
+        return true;
+      }
+
+      // 2. Intentar endpoint unificado PUT
+      putResponse = await http
+          .put(
+            Uri.parse("$baseUrl/jugadas/$jugadaId"),
+            headers: headers,
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (putResponse.statusCode == 200) {
+        await CacheService.invalidarCachesDeJugadas(
+          specificRoute: route,
+          specificLotteryId: loteriaId,
+          userId: userId,
+        );
+        return true;
+      }
+
+      // 3. Si el backend en Render aún no ha desplegado el PUT (404 o 405), fallback: borrar y crear
+      if (putResponse.statusCode == 404 || putResponse.statusCode == 405) {
+        final deleted = await borrarJugadaGenerica(
+          route, jugadaId, userId,
+          loteriaId: loteriaId,
+        );
+        if (deleted) {
+          await crearJugadaGenerica(
+            route,
+            numeros,
+            userId,
+            loteriaId: loteriaId,
+            specialNumbers: especiales,
+            fechaSorteo: fechaSorteo,
+          );
+          await CacheService.invalidarCachesDeJugadas(
+            specificRoute: route,
+            userId: userId,
+          );
+          return true;
+        }
+      }
+
+      return false;
+    } catch (_) {
+      try {
+        final deleted = await borrarJugadaGenerica(
+          route, jugadaId, userId,
+          loteriaId: loteriaId,
+        );
+        if (deleted) {
+          await crearJugadaGenerica(
+            route,
+            numeros,
+            userId,
+            loteriaId: loteriaId,
+            specialNumbers: especiales,
+            fechaSorteo: fechaSorteo,
+          );
+          await CacheService.invalidarCachesDeJugadas(
+            specificRoute: route,
+            userId: userId,
+          );
+          return true;
+        }
+      } catch (_) {}
       return false;
     }
   }
@@ -796,20 +1114,24 @@ class ApiService {
     final userId = await getUserId();
     if (userId == null) return [];
 
-    try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
-        headers: {"Content-Type": "application/json"},
-      );
+    final response = await http
+        .get(
+          Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
+          headers: {"Content-Type": "application/json"},
+        )
+        .timeout(_requestTimeout);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<String>();
-      }
-    } catch (e) {
-      debugPrint("Error obteniendo loterías activas: $e");
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is List) return decoded.cast<String>();
+      throw Exception('Formato inválido en mis_loterias_activas');
     }
-    return [];
+
+    // Una petición fallida no equivale a "el usuario no tiene jugadas". Los
+    // callers cache-first pueden así conservar su último estado privado.
+    throw Exception(
+      'Error al obtener loterías con jugadas: ${response.statusCode}',
+    );
   }
 
   /// 🔍 Obtener mapa de loterías con conteo de jugadas {route: count}
@@ -818,15 +1140,22 @@ class ApiService {
     if (userId == null) return {};
 
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/mis_loterias_con_conteo?user_id=$userId"),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 3));
+      final response = await http
+          .get(
+            Uri.parse("$baseUrl/mis_loterias_con_conteo?user_id=$userId"),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic> && !decoded.containsKey("error")) {
-          return decoded.map((key, value) => MapEntry(key.toString().toLowerCase(), int.tryParse(value.toString()) ?? 0));
+          return decoded.map(
+            (key, value) => MapEntry(
+              key.toString().toLowerCase(),
+              int.tryParse(value.toString()) ?? 0,
+            ),
+          );
         }
       }
     } catch (_) {}
@@ -848,82 +1177,122 @@ class ApiService {
         }),
       );
       return conteos;
-    } catch (e) {
-      debugPrint("Error en conteos fallback: $e");
-    }
+    } catch (_) {}
     return {};
   }
 
-  /// 🔍 Obtener mapa de loterías con información de jugadas {route: {count: int, fecha: String?}}
-  static Future<Map<String, Map<String, dynamic>>> getLoteriasInfoJugadas() async {
+  /// 🔍 Obtener mapa de loterías con información de jugadas, indexado por loteria_id cuando está disponible.
+  static Future<Map<String, Map<String, dynamic>>>
+  getLoteriasInfoJugadas() async {
     final userId = await getUserId();
     if (userId == null) return {};
 
+    Object? primaryError;
     try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/mis_loterias_info?user_id=$userId"),
-        headers: {"Content-Type": "application/json"},
-      ).timeout(const Duration(seconds: 3));
+      final response = await http
+          .get(
+            Uri.parse("$baseUrl/mis_loterias_info?user_id=$userId"),
+            headers: {"Content-Type": "application/json"},
+          )
+          .timeout(const Duration(seconds: 3));
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic> && !decoded.containsKey("error")) {
-          return decoded.map((key, value) => MapEntry(key.toString().toLowerCase(), Map<String, dynamic>.from(value as Map)));
+          return decoded.map(
+            (key, value) => MapEntry(
+              key.toString().toLowerCase(),
+              Map<String, dynamic>.from(value as Map),
+            ),
+          );
         }
+        primaryError = Exception('Formato inválido en mis_loterias_info');
+      } else {
+        primaryError = Exception(
+          'Error en mis_loterias_info: ${response.statusCode}',
+        );
       }
-    } catch (_) {}
+    } catch (e) {
+      primaryError = e;
+    }
 
-    // Fallback garantizado para Render
+    // Fallback para despliegues donde /mis_loterias_info aún no esté disponible.
+    // Si las jugadas ya traen loteria_id, reconstruimos la identidad exacta
+    // aunque varias filas del catálogo compartan la misma route.
     try {
       final activas = await getLoteriasConJugadas();
       if (activas.isEmpty) return {};
 
       final Map<String, Map<String, dynamic>> infoMap = {};
+      var routeFailure = false;
+
       await Future.wait(
         activas.map((r) async {
           try {
+            final route = r.toLowerCase();
             final list = await listarJugadasGenerica(r, retries: 1);
-            if (list.isNotEmpty) {
-              final fechas = list
-                  .map((j) => (j['fecha_sorteo'] ?? (j['fecha_guardado'] != null ? j['fecha_guardado'].toString().substring(0, 10) : null))?.toString())
-                  .where((f) => f != null && f.isNotEmpty)
-                  .cast<String>()
-                  .toList();
-              
-              fechas.sort();
-              final latestFecha = fechas.isNotEmpty ? fechas.last : null;
-              infoMap[r.toLowerCase()] = {
-                "count": list.length,
-                "fecha": latestFecha,
-              };
-            } else {
-              infoMap[r.toLowerCase()] = {
-                "count": 1,
-                "fecha": null,
-              };
+            if (list.isEmpty) return;
+
+            for (final raw in list) {
+              if (raw is! Map) continue;
+              final jugada = Map<String, dynamic>.from(raw);
+              final id = int.tryParse(jugada['loteria_id']?.toString() ?? '');
+              final itemRoute =
+                  jugada['loteria_route']?.toString().trim().toLowerCase() ??
+                  route;
+              final fecha =
+                  (jugada['fecha_sorteo'] ??
+                          (jugada['fecha_guardado'] != null
+                              ? jugada['fecha_guardado']
+                                  .toString()
+                                  .substring(0, 10)
+                              : null))
+                      ?.toString();
+              final key = id != null ? id.toString() : 'route:$itemRoute';
+              final current = infoMap[key];
+              if (current == null) {
+                infoMap[key] = {
+                  "loteria_id": id,
+                  "route": itemRoute,
+                  "count": 1,
+                  "fecha": fecha,
+                };
+              } else {
+                current['count'] =
+                    (int.tryParse(current['count']?.toString() ?? '') ?? 0) + 1;
+                final currentFecha = current['fecha']?.toString();
+                if (fecha != null &&
+                    fecha.isNotEmpty &&
+                    (currentFecha == null ||
+                        currentFecha.isEmpty ||
+                        fecha.compareTo(currentFecha) > 0)) {
+                  current['fecha'] = fecha;
+                }
+              }
             }
           } catch (_) {
-            infoMap[r.toLowerCase()] = {
-              "count": 1,
-              "fecha": null,
-            };
+            routeFailure = true;
           }
         }),
       );
-      return infoMap;
-    } catch (e) {
-      debugPrint("Error obteniendo info de jugadas: $e");
-    }
-    return {};
-  }
 
+      // No devolvemos un mapa parcial como si fuera una respuesta completa:
+      // podría borrar del selector jugadas que sólo faltaron por un timeout.
+      if (routeFailure) {
+        throw Exception('No se pudo reconstruir completamente mis_loterias_info');
+      }
+      return infoMap;
+    } catch (fallbackError) {
+      throw primaryError ?? fallbackError;
+    }
+  }
 
   /// GET genérico con timeout, auto-retry y soporte para forceRefresh
   static Future<http.Response> get(
     String endpoint, {
     bool withAuth = true,
     bool forceRefresh = false,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     if (forceRefresh) {
@@ -957,7 +1326,7 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> body, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
@@ -990,7 +1359,7 @@ class ApiService {
     String endpoint,
     Map<String, dynamic> body, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
@@ -1022,14 +1391,11 @@ class ApiService {
   static Future<http.Response> delete(
     String endpoint, {
     bool withAuth = true,
-    Duration timeout = const Duration(seconds: 15),
+    Duration timeout = _requestTimeout,
   }) async {
     var headers = await _getHeaders(withAuth: withAuth);
     var response = await http
-        .delete(
-          Uri.parse("$baseUrl$endpoint"),
-          headers: headers,
-        )
+        .delete(Uri.parse("$baseUrl$endpoint"), headers: headers)
         .timeout(timeout);
 
     if (withAuth && response.statusCode == 401) {
@@ -1037,10 +1403,7 @@ class ApiService {
       if (refreshed) {
         headers = await _getHeaders(withAuth: true);
         response = await http
-            .delete(
-              Uri.parse("$baseUrl$endpoint"),
-              headers: headers,
-            )
+            .delete(Uri.parse("$baseUrl$endpoint"), headers: headers)
             .timeout(timeout);
       }
     }
@@ -1053,21 +1416,36 @@ class ApiService {
   static Future<Post> createPost(String title, String content) async {
     await ensureValidSession();
 
-    final headers = await _getHeaders(withAuth: true);
-
-    final response = await http.post(
-      Uri.parse("$baseUrl/posts"),
-      headers: headers,
-      body: jsonEncode({"title": title, "content": content}),
+    final response = await post(
+      '/posts',
+      {'title': title, 'content': content},
+      withAuth: true,
     );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
-      return Post.fromJson(data);
+      final created = Post.fromJson(data);
+      await CacheService.removeJson(CacheService.homePostsKey);
+      return created;
     } else {
-      throw Exception(
-        "Error al crear post: ${response.statusCode} ${response.body}",
-      );
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List &&
+              detail.isNotEmpty &&
+              detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al crear post (${response.statusCode})");
     }
   }
 
@@ -1075,12 +1453,7 @@ class ApiService {
   static Future<List<Post>> getPosts() async {
     await ensureValidSession();
 
-    final headers = await _getHeaders();
-
-    final response = await http.get(
-      Uri.parse("$baseUrl/posts"),
-      headers: headers,
-    );
+    final response = await get('/posts', withAuth: true);
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
@@ -1094,20 +1467,36 @@ class ApiService {
   static Future<Post> updatePost(int id, String title, String content) async {
     await ensureValidSession();
 
-    final response = await http.put(
-      Uri.parse('$baseUrl/posts/$id'),
-      headers: {
-        'Authorization': 'Bearer ${await getToken()}',
-        'Content-Type': 'application/json',
-      },
-      body: jsonEncode({'title': title, 'content': content}),
+    final response = await put(
+      '/posts/$id',
+      {'title': title, 'content': content},
+      withAuth: true,
     );
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
-      return Post.fromJson(data);
+      final updated = Post.fromJson(data);
+      await CacheService.removeJson(CacheService.homePostsKey);
+      return updated;
     } else {
-      throw Exception("Error al actualizar el post: ${response.statusCode}");
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List &&
+              detail.isNotEmpty &&
+              detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al actualizar el post (${response.statusCode})");
     }
   }
 
@@ -1115,18 +1504,13 @@ class ApiService {
   static Future<void> deletePost(int id) async {
     await ensureValidSession();
 
-    final headers = await _getHeaders();
-
-    final response = await http.delete(
-      Uri.parse("$baseUrl/posts/$id"),
-      headers: headers,
-    );
+    final response = await delete('/posts/$id', withAuth: true);
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception("Error al eliminar el post: ${response.statusCode}");
     }
+    await CacheService.removeJson(CacheService.homePostsKey);
   }
-
 
   // Crear un comentario o respuesta
   static Future<Comment> createComment(
@@ -1136,35 +1520,47 @@ class ApiService {
   }) async {
     await ensureValidSession();
 
-    final payloadContent =
-        parentId != null ? "[replyTo:$parentId] $content" : content;
     final body = <String, dynamic>{
-      "content": payloadContent,
+      "content": content.trim(),
+      if (parentId != null) "parent_id": parentId,
     };
-    if (parentId != null) {
-      body["parent_id"] = parentId;
-    }
 
-    final response = await post("/posts/$postId/comments", body, withAuth: true);
+    final response = await post(
+      "/posts/$postId/comments",
+      body,
+      withAuth: true,
+    );
 
-    if (response.statusCode == 200) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
       final data = jsonDecode(response.body);
-      return Comment.fromJson(data);
+      final created = Comment.fromJson(data);
+      await CacheService.removeJson(CacheService.comentariosPostKey(postId));
+      return created;
     } else {
-      throw Exception("Error al crear comentario: ${response.statusCode}");
+      try {
+        final errorData = jsonDecode(response.body);
+        if (errorData is Map && errorData['detail'] != null) {
+          final detail = errorData['detail'];
+          if (detail is String) {
+            throw Exception(detail);
+          } else if (detail is List &&
+              detail.isNotEmpty &&
+              detail[0]['msg'] != null) {
+            throw Exception(detail[0]['msg'].toString());
+          }
+        }
+      } catch (e) {
+        if (e is Exception && !e.toString().contains("FormatException")) {
+          rethrow;
+        }
+      }
+      throw Exception("Error al crear comentario (${response.statusCode})");
     }
   }
 
   // Obtener comentarios de un post
   static Future<List<Comment>> getComments(int postId) async {
-    final response = await http.get(
-      Uri.parse("$baseUrl/posts/$postId/comments"),
-      headers: {
-        "Content-Type": "application/json",
-        if (await getToken() != null)
-          "Authorization": "Bearer ${await getToken()}",
-      },
-    );
+    final response = await get('/posts/$postId/comments', withAuth: true);
 
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);
@@ -1174,21 +1570,56 @@ class ApiService {
     }
   }
 
-  static Future<void> deleteComment(int commentId) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/comments/$commentId"),
-      headers: {"Authorization": "Bearer ${await getToken()}"},
-    );
+  static Future<void> deleteComment(int commentId, {int? postId}) async {
+    final response = await delete('/comments/$commentId', withAuth: true);
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception("Error al eliminar comentario");
     }
+    if (postId != null) {
+      await CacheService.removeJson(CacheService.comentariosPostKey(postId));
+    }
+  }
+
+  /// Registra una denuncia. Devuelve `false` si este usuario ya la había
+  /// enviado antes; así el botón no confirma una operación inexistente.
+  static Future<bool> reportComment(int commentId) async {
+    await ensureValidSession();
+
+    final response = await post(
+      '/comments/$commentId/reports',
+      const <String, dynamic>{},
+      withAuth: true,
+    );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data['created'] == true;
+      }
+      if (data is Map) {
+        return data['created'] == true;
+      }
+      throw Exception('Respuesta inválida al reportar el comentario');
+    }
+
+    String? detail;
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['detail'] != null) {
+        detail = data['detail'].toString();
+      }
+    } catch (_) {
+      // Se usa el estado HTTP si el backend no incluyó detalle JSON.
+    }
+    throw Exception(detail ?? 'Error al reportar comentario (${response.statusCode})');
   }
 
   static Future<List<Map<String, dynamic>>> getCiudades() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/ciudades'),
-      headers: {"Content-Type": "application/json"},
-    );
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/ciudades'),
+          headers: {"Content-Type": "application/json"},
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> jsonData = json.decode(response.body);
@@ -1211,44 +1642,74 @@ class ApiService {
   }
 
   static Future<List<Map<String, dynamic>>> getCategorias() async {
+    const cacheKey = 'categorias_list_cache';
+
+    final fresh = await CacheService.getJson(cacheKey);
+    if (fresh is List && fresh.isNotEmpty) {
+      return fresh
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List && stale.isNotEmpty) {
+      unawaited(_refreshCategoriasCatalog());
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    return _refreshCategoriasCatalog();
+  }
+
+  static Future<List<Map<String, dynamic>>> _refreshCategoriasCatalog() async {
+    const cacheKey = 'categorias_list_cache';
+
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/categorias'),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await get(
+        '/categorias',
+        withAuth: false,
+        forceRefresh: true,
+        timeout: _requestTimeout,
+      );
 
       if (response.statusCode == 200) {
         final dynamic decoded = json.decode(response.body);
-        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
-            ? decoded['data']
-            : (decoded is List ? decoded : []);
+        final List<dynamic> data =
+            decoded is Map && decoded.containsKey('data')
+                ? (decoded['data'] as List<dynamic>? ?? <dynamic>[])
+                : (decoded is List ? decoded : <dynamic>[]);
 
         final result = data
+            .whereType<Map>()
             .map<Map<String, dynamic>>(
               (e) => {
-                "id": (e['id'] is int)
+                "id": e['id'] is int
                     ? e['id']
-                    : int.tryParse(e['id'].toString()) ?? 0,
+                    : int.tryParse(e['id']?.toString() ?? '') ?? 0,
                 "nombre": e['nombre']?.toString() ?? '',
+                "icono": e['icono']?.toString(),
               },
             )
             .toList();
 
         if (result.isNotEmpty) {
-          CacheService.setJson('categorias_list_cache', result);
+          await CacheService.setJson(cacheKey, result);
         }
         return result;
       }
     } catch (_) {}
 
-    // Fallback de caché local
-    final cached = await CacheService.getJson('categorias_list_cache');
-    if (cached is List && cached.isNotEmpty) {
-      return List<Map<String, dynamic>>.from(cached);
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List) {
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
-    return [];
+    return <Map<String, dynamic>>[];
   }
 
   // 📢 Obtener anuncios filtrados (por ID)
@@ -1285,10 +1746,9 @@ class ApiService {
       ).replace(queryParameters: queryParams);
 
       // 📬 3. Enviar solicitud HTTP
-      final response = await http.get(
-        uri,
-        headers: await _getHeaders(withAuth: true),
-      );
+      final response = await http
+          .get(uri, headers: await _getHeaders(withAuth: false))
+          .timeout(_requestTimeout);
 
       // ✅ 4. Validar estado de la respuesta
       if (response.statusCode == 200) {
@@ -1302,12 +1762,11 @@ class ApiService {
           resultList = List<Map<String, dynamic>>.from(decoded);
         }
 
-        final localFavs = await getFavoritosLocales();
-        for (var ad in resultList) {
-          final int? id = ad["id"] is int ? ad["id"] : int.tryParse(ad["id"]?.toString() ?? "");
-          if (id != null && localFavs.contains(id)) {
-            ad["is_favorite"] = true;
-          }
+        // Nunca mezclar estado privado de una cuenta con el catálogo público.
+        for (final ad in resultList) {
+          ad.remove('is_favorite');
+          ad.remove('is_favorito');
+          ad.remove('favorito');
         }
         return resultList;
       } else {
@@ -1324,44 +1783,73 @@ class ApiService {
 
   // ✅ Obtener lista de países
   static Future<List<Map<String, dynamic>>> getPaises() async {
+    const cacheKey = 'paises_list_cache';
+
+    final fresh = await CacheService.getJson(cacheKey);
+    if (fresh is List && fresh.isNotEmpty) {
+      return fresh
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List && stale.isNotEmpty) {
+      unawaited(_refreshPaisesCatalog());
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    return _refreshPaisesCatalog();
+  }
+
+  static Future<List<Map<String, dynamic>>> _refreshPaisesCatalog() async {
+    const cacheKey = 'paises_list_cache';
+
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/paises'),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await get(
+        '/paises',
+        withAuth: false,
+        forceRefresh: true,
+        timeout: _requestTimeout,
+      );
 
       if (response.statusCode == 200) {
         final dynamic decoded = json.decode(response.body);
-        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
-            ? decoded['data']
-            : (decoded is List ? decoded : []);
+        final List<dynamic> data =
+            decoded is Map && decoded.containsKey('data')
+                ? (decoded['data'] as List<dynamic>? ?? <dynamic>[])
+                : (decoded is List ? decoded : <dynamic>[]);
 
         final result = data
+            .whereType<Map>()
             .map<Map<String, dynamic>>(
               (e) => {
-                "id": (e['id'] is int)
+                "id": e['id'] is int
                     ? e['id']
-                    : int.tryParse(e['id'].toString()) ?? 0,
+                    : int.tryParse(e['id']?.toString() ?? '') ?? 0,
                 "nombre": e['nombre']?.toString() ?? '',
               },
             )
             .toList();
 
         if (result.isNotEmpty) {
-          CacheService.setJson('paises_list_cache', result);
+          await CacheService.setJson(cacheKey, result);
         }
         return result;
       }
     } catch (_) {}
 
-    // Fallback caché
-    final cached = await CacheService.getJson('paises_list_cache');
-    if (cached is List && cached.isNotEmpty) {
-      return List<Map<String, dynamic>>.from(cached);
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List) {
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
-    return [];
+    return <Map<String, dynamic>>[];
   }
 
   // ✅ Obtener departamentos por país (usa el id del país)
@@ -1376,78 +1864,149 @@ class ApiService {
     required int paisId,
   }) async {
     final cacheKey = 'departamentos_cache_$paisId';
+
+    final fresh = await CacheService.getJson(cacheKey);
+    if (fresh is List && fresh.isNotEmpty) {
+      return fresh
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List && stale.isNotEmpty) {
+      unawaited(_refreshDepartamentosCatalog(paisId));
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    return _refreshDepartamentosCatalog(paisId);
+  }
+
+  static Future<List<Map<String, dynamic>>> _refreshDepartamentosCatalog(
+    int paisId,
+  ) async {
+    final cacheKey = 'departamentos_cache_$paisId';
+
     try {
-      final response = await http
-          .get(
-            Uri.parse('$baseUrl/departamentos/$paisId'),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await get(
+        '/departamentos/$paisId',
+        withAuth: false,
+        forceRefresh: true,
+        timeout: _requestTimeout,
+      );
 
       if (response.statusCode == 200) {
         final dynamic decoded = json.decode(response.body);
-        final List<dynamic> data = decoded is Map && decoded.containsKey('data')
-            ? decoded['data']
-            : (decoded is List ? decoded : []);
+        final List<dynamic> data =
+            decoded is Map && decoded.containsKey('data')
+                ? (decoded['data'] as List<dynamic>? ?? <dynamic>[])
+                : (decoded is List ? decoded : <dynamic>[]);
 
         final result = data
+            .whereType<Map>()
             .map<Map<String, dynamic>>(
               (e) => {
-                "id": (e['id'] is int)
+                "id": e['id'] is int
                     ? e['id']
-                    : int.tryParse(e['id'].toString()) ?? 0,
+                    : int.tryParse(e['id']?.toString() ?? '') ?? 0,
                 "nombre": e['nombre']?.toString() ?? '',
               },
             )
             .toList();
 
         if (result.isNotEmpty) {
-          CacheService.setJson(cacheKey, result);
+          await CacheService.setJson(cacheKey, result);
         }
         return result;
       }
     } catch (_) {}
 
-    // Fallback caché
-    final cached = await CacheService.getJson(cacheKey);
-    if (cached is List && cached.isNotEmpty) {
-      return List<Map<String, dynamic>>.from(cached);
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List) {
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
-    return [];
+    return <Map<String, dynamic>>[];
   }
 
   // --- Obtener Ciudades por departamento ---
   static Future<List<Map<String, dynamic>>> getCiudadesPorDepartamento({
     required int departamentoId,
   }) async {
-    final response = await http.get(
-      Uri.parse(
-        '$baseUrl/ciudades?departamento_id=$departamentoId',
-      ), // 👈 Corregido: Usa query param en lugar de path param para evitar 404
-      headers: {"Content-Type": "application/json"},
-    );
+    final cacheKey = 'ciudades_$departamentoId';
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> jsonData = json.decode(response.body);
+    final fresh = await CacheService.getJson(cacheKey);
+    if (fresh is List && fresh.isNotEmpty) {
+      return fresh
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
 
-      if (jsonData["success"] == true && jsonData["data"] is List) {
-        final List<dynamic> data = jsonData["data"];
-        return data
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List && stale.isNotEmpty) {
+      unawaited(_refreshCiudadesCatalog(departamentoId));
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+
+    return _refreshCiudadesCatalog(departamentoId);
+  }
+
+  static Future<List<Map<String, dynamic>>> _refreshCiudadesCatalog(
+    int departamentoId,
+  ) async {
+    final cacheKey = 'ciudades_$departamentoId';
+
+    try {
+      final response = await get(
+        '/ciudades?departamento_id=$departamentoId',
+        withAuth: false,
+        forceRefresh: true,
+        timeout: _requestTimeout,
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic decoded = json.decode(response.body);
+        final List<dynamic> data =
+            decoded is Map && decoded['data'] is List
+                ? decoded['data'] as List<dynamic>
+                : (decoded is List ? decoded : <dynamic>[]);
+
+        final result = data
+            .whereType<Map>()
             .map<Map<String, dynamic>>(
               (e) => {
-                "id": (e['id'] is int)
+                'id': e['id'] is int
                     ? e['id']
-                    : int.tryParse(e['id'].toString()) ?? 0,
-                "nombre": e['nombre']?.toString() ?? '',
+                    : int.tryParse(e['id']?.toString() ?? '') ?? 0,
+                'nombre': e['nombre']?.toString() ?? '',
               },
             )
             .toList();
-      } else {
-        throw Exception('⚠️ Respuesta inesperada del servidor.');
+
+        if (result.isNotEmpty) {
+          await CacheService.setJson(cacheKey, result);
+        }
+        return result;
       }
-    } else {
-      throw Exception('❌ Error al obtener ciudades (${response.statusCode}).');
+    } catch (_) {}
+
+    final stale = await CacheService.getStaleJson(cacheKey);
+    if (stale is List) {
+      return stale
+          .whereType<Map>()
+          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+          .toList();
     }
+    return <Map<String, dynamic>>[];
   }
 
   // --- CREAR PUBLICIDAD ---
@@ -1479,6 +2038,11 @@ class ApiService {
       "tiktok_url": data["tiktok_url"],
       "pagina_url": data["pagina_url"],
       "direccion": data["direccion"],
+      "es_24_7": data["es_24_7"],
+      "hora_apertura": data["hora_apertura"],
+      "hora_cierre": data["hora_cierre"],
+      "dias_atencion": data["dias_atencion"],
+      "estado_texto": data["estado_texto"],
     };
 
     try {
@@ -1494,6 +2058,9 @@ class ApiService {
       final json = jsonDecode(response.body);
 
       if (response.statusCode == 200 && json['success'] == true) {
+        await CacheService.invalidarCachesPublicidad(
+          userId: (await getUserId())?.toString(),
+        );
         return json;
       } else {
         // 🚨 Manejo explícito de errores del servidor FastAPI
@@ -1509,14 +2076,17 @@ class ApiService {
 
   // 🔹 Obtener mis anuncios
   static Future<List<Map<String, dynamic>>> getMisPublicidades() async {
+    await ensureValidSession();
     final token = await getToken();
-    final response = await http.get(
-      Uri.parse('$baseUrl/mis_publicidades'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/mis_publicidades'),
+          headers: {
+            'Authorization': 'Bearer $token',
+            'Content-Type': 'application/json',
+          },
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200) {
       final List<dynamic> data = json.decode(response.body);
@@ -1539,6 +2109,9 @@ class ApiService {
     if (response.statusCode != 200) {
       throw Exception('Error al eliminar la publicidad');
     }
+    await CacheService.invalidarCachesPublicidad(
+      userId: (await getUserId())?.toString(),
+    );
   }
 
   static Future<Map<String, dynamic>> actualizarPublicidad(
@@ -1556,67 +2129,93 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return json.decode(response.body);
+      final result = json.decode(response.body) as Map<String, dynamic>;
+      await CacheService.invalidarCachesPublicidad(
+        userId: (await getUserId())?.toString(),
+      );
+      return result;
     } else {
       throw Exception('Error al actualizar: ${response.body}');
     }
   }
 
-  static const String _favsStorageKey = "usuario_publicidades_favoritas";
-
   // ⭐ Obtener conjunto de IDs favoritos guardados localmente
-  static Future<Set<int>> getFavoritosLocales() async {
+  static Future<Set<int>> getFavoritosLocales({String? userId}) async {
     try {
-      final str = await _storage.read(key: _favsStorageKey);
-      if (str != null && str.isNotEmpty) {
-        final list = jsonDecode(str) as List<dynamic>;
-        return list.map((e) => int.tryParse(e.toString()) ?? 0).where((e) => e > 0).toSet();
+      final activeUserId = userId ?? (await getUserId())?.toString();
+      if (activeUserId == null || activeUserId.isEmpty) return {};
+      final cached = await CacheService.getStaleJson(
+        CacheService.favoritosPublicidadKey(activeUserId),
+      );
+      if (cached is List) {
+        final list = cached;
+        return list
+            .map((e) => int.tryParse(e.toString()) ?? 0)
+            .where((e) => e > 0)
+            .toSet();
       }
     } catch (_) {}
     return {};
   }
 
   // ⭐ Guardar o remover favorito localmente
-  static Future<void> guardarFavoritoLocal(int publicidadId, bool isFavorite) async {
+  static Future<void> guardarFavoritoLocal(
+    int publicidadId,
+    bool isFavorite, {
+    String? userId,
+  }) async {
     try {
-      final favs = await getFavoritosLocales();
+      final activeUserId = userId ?? (await getUserId())?.toString();
+      if (activeUserId == null || activeUserId.isEmpty) return;
+      final favs = await getFavoritosLocales(userId: activeUserId);
       if (isFavorite) {
         favs.add(publicidadId);
       } else {
         favs.remove(publicidadId);
       }
-      await _storage.write(key: _favsStorageKey, value: jsonEncode(favs.toList()));
+      await CacheService.setJson(
+        CacheService.favoritosPublicidadKey(activeUserId),
+        favs.toList(),
+      );
     } catch (_) {}
   }
 
   // ⭐ Toggle Favorito en anuncio (con persistencia local instantánea)
   static Future<Map<String, dynamic>> toggleFavoritoPublicidad(int id) async {
-    final localFavs = await getFavoritosLocales();
+    final activeUserId = (await getUserId())?.toString();
+    if (activeUserId == null || activeUserId.isEmpty) {
+      throw Exception('Debes iniciar sesión para guardar favoritos');
+    }
+    final localFavs = await getFavoritosLocales(userId: activeUserId);
     final bool willBeFav = !localFavs.contains(id);
-    await guardarFavoritoLocal(id, willBeFav);
+    await guardarFavoritoLocal(id, willBeFav, userId: activeUserId);
 
     try {
       final token = await getToken();
       if (token != null && token.isNotEmpty) {
-        final response = await http.post(
-          Uri.parse('$baseUrl/publicidad/$id/favorito'),
-          headers: {
-            'Authorization': 'Bearer $token',
-            'Content-Type': 'application/json',
-          },
-        ).timeout(const Duration(seconds: 8));
+        final response = await http
+            .post(
+              Uri.parse('$baseUrl/publicidad/$id/favorito'),
+              headers: {
+                'Authorization': 'Bearer $token',
+                'Content-Type': 'application/json',
+              },
+            )
+            .timeout(const Duration(seconds: 8));
 
         if (response.statusCode == 200) {
           final res = json.decode(response.body);
           if (res is Map<String, dynamic> && res["is_favorite"] != null) {
-            await guardarFavoritoLocal(id, res["is_favorite"] == true);
+            await guardarFavoritoLocal(
+              id,
+              res["is_favorite"] == true,
+              userId: activeUserId,
+            );
           }
           return res;
         }
       }
-    } catch (e) {
-      debugPrint("⚠️ Toggle favorito remoto pendiente de sync: $e");
-    }
+    } catch (_) {}
 
     return {
       "success": true,
@@ -1651,7 +2250,7 @@ class ApiService {
     }
   }
 
-/////////////////////////// Loterias ////////////////////////////
+  /////////////////////////// Loterias ////////////////////////////
 
   /// 📋 Listar loterías disponibles (por país o todas)
   static Future<List<dynamic>> getLoteriasPorPais([String? paisId]) async {
@@ -1659,19 +2258,19 @@ class ApiService {
         ? Uri.parse("$baseUrl/loterias?pais_id=$paisId")
         : Uri.parse("$baseUrl/loterias");
 
-    final response = await http.get(
-      uri,
-      headers: await _getHeaders(withAuth: false),
-    );
+    final response = await http
+        .get(
+          uri,
+          headers: await _getHeaders(withAuth: false),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data is List) return data;
       throw Exception("Formato inválido de loterías");
     } else {
-      throw Exception(
-        "Error al obtener loterías: ${response.statusCode}",
-      );
+      throw Exception("Error al obtener loterías: ${response.statusCode}");
     }
   }
 
@@ -1695,12 +2294,41 @@ class ApiService {
       }
       throw Exception("Formato inválido en predicción de $cleanRoute");
     } else {
-      throw Exception("Error al obtener predicción ($cleanRoute): ${response.statusCode}");
+      throw Exception(
+        "Error al obtener predicción ($cleanRoute): ${response.statusCode}",
+      );
     }
   }
 
+  /// 🧠 Obtener el histórico de predicciones generadas por la IA para una lotería
+  static Future<List<Map<String, dynamic>>> getPrediccionesHistorico(
+    String route, {
+    int limit = 50,
+  }) async {
+    final cleanRoute = route.trim().toLowerCase();
+    final uri = Uri.parse(
+      "$baseUrl/$cleanRoute/predicciones_historico?limit=$limit",
+    );
+    try {
+      final response = await http
+          .get(uri, headers: await _getHeaders(withAuth: false))
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map<String, dynamic> &&
+            decoded["predicciones"] is List) {
+          return List<Map<String, dynamic>>.from(decoded["predicciones"]);
+        }
+      }
+    } catch (_) {}
+    return <Map<String, dynamic>>[];
+  }
+
   /// 📊 Obtener últimos sorteos de una lotería
-  static Future<List<Map<String, dynamic>>> getUltimosResultados(String route) async {
+  static Future<List<Map<String, dynamic>>> getUltimosResultados(
+    String route,
+  ) async {
     final cleanRoute = route.trim().toLowerCase();
     final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5");
     final response = await http
@@ -1714,38 +2342,52 @@ class ApiService {
       }
       return <Map<String, dynamic>>[];
     } else {
-      throw Exception("Error al obtener últimos resultados ($cleanRoute): ${response.statusCode}");
+      throw Exception(
+        "Error al obtener últimos resultados ($cleanRoute): ${response.statusCode}",
+      );
     }
   }
 
   /// 📜 Obtener los 50 sorteos más recientes para visualización rápida en pantalla
   static Future<List<Map<String, dynamic>>> getHistorico50(String route) async {
     final cleanRoute = route.trim().toLowerCase();
+    Object? primaryError;
+
     try {
       final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos50");
       final response = await http
           .get(uri, headers: await _getHeaders(withAuth: false))
-          .timeout(const Duration(seconds: 10));
+          .timeout(_requestTimeout);
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
           return List<Map<String, dynamic>>.from(decoded["resultados"]);
         }
+        return <Map<String, dynamic>>[];
       }
-    } catch (_) {}
+      primaryError = Exception(
+        "Error al obtener últimos 50 ($cleanRoute): ${response.statusCode}",
+      );
+    } catch (e) {
+      primaryError = e;
+    }
 
-    // Fallback garantizado: consultar getHistoricoCompleto y tomar los primeros 50
+    // Fallback: algunos backends sólo exponen el histórico completo.
     try {
       final fullList = await getHistoricoCompleto(cleanRoute);
       return fullList.take(50).toList();
-    } catch (_) {
-      return <Map<String, dynamic>>[];
+    } catch (fallbackError) {
+      // Si ambos endpoints fallaron, el caller debe poder distinguir un fallo
+      // de conexión de un 200 legítimo sin resultados.
+      throw primaryError ?? fallbackError;
     }
   }
 
   /// 📜 Obtener histórico completo de resultados de una lotería (para exportación)
-  static Future<List<Map<String, dynamic>>> getHistoricoCompleto(String route) async {
+  static Future<List<Map<String, dynamic>>> getHistoricoCompleto(
+    String route,
+  ) async {
     final cleanRoute = route.trim().toLowerCase();
     final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
     final response = await http
@@ -1759,7 +2401,9 @@ class ApiService {
       }
       return <Map<String, dynamic>>[];
     } else {
-      throw Exception("Error al obtener histórico ($cleanRoute): ${response.statusCode}");
+      throw Exception(
+        "Error al obtener histórico ($cleanRoute): ${response.statusCode}",
+      );
     }
   }
 
@@ -1775,16 +2419,135 @@ class ApiService {
         return {'success': false, 'error': 'Usuario no autenticado'};
       }
 
-      final response = await post(
-        "/subscriptions/confirm",
-        {
-          "user_id": int.parse(userIdStr.toString()),
-          "product_id": productId,
-          "purchase_token": purchaseToken,
-          "order_id": orderId,
-          "status": "active",
-        },
+      final response = await post("/subscriptions/confirm", {
+        "user_id": int.parse(userIdStr.toString()),
+        "product_id": productId,
+        "purchase_token": purchaseToken,
+        "order_id": orderId,
+        "status": "active",
+      }, withAuth: true);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return {'success': true, 'data': data};
+      } else {
+        String errorMsg = 'Error del servidor: ${response.statusCode}';
+        try {
+          final data = jsonDecode(response.body);
+          if (data['detail'] != null) {
+            errorMsg = data['detail'];
+          }
+        } catch (_) {}
+        return {'success': false, 'error': errorMsg};
+      }
+    } catch (e) {
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// 💎 Consulta el estado VIP confirmado por el backend.
+  ///
+  /// Un fallo de red, timeout, 5xx o payload inválido devuelve
+  /// `success: false, unknown: true`. Nunca se traduce un fallo transitorio a
+  /// `is_premium: false`, porque eso revocaría visualmente una suscripción que
+  /// todavía puede estar vigente.
+  static Future<Map<String, dynamic>> getSubscriptionStatus({
+    int? userId,
+  }) async {
+    try {
+      final resolvedUserId = userId ?? await getUserId();
+      if (resolvedUserId == null) {
+        return const {
+          'success': false,
+          'unknown': true,
+          'error': 'Usuario no autenticado',
+        };
+      }
+
+      final response = await get(
+        "/subscriptions/status/$resolvedUserId",
         withAuth: true,
+      );
+      if (response.statusCode != 200) {
+        return {
+          'success': false,
+          'unknown': true,
+          'status_code': response.statusCode,
+        };
+      }
+
+      final data = jsonDecode(response.body);
+      final payload = data is Map<String, dynamic>
+          ? data
+          : (data is Map ? Map<String, dynamic>.from(data) : null);
+      // El contrato válido siempre declara explícitamente este booleano. Un
+      // payload parcial tampoco debe degradar la cuenta a Basic.
+      if (payload == null || payload['is_premium'] is! bool) {
+        return const {
+          'success': false,
+          'unknown': true,
+          'error': 'Respuesta de suscripción inválida',
+        };
+      }
+      return {...payload, 'success': true};
+    } catch (e) {
+      return {
+        'success': false,
+        'unknown': true,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  /// Conserva esta interfaz para los consumidores que sólo requieren saber
+  /// si el usuario tiene VIP activo. Para distinguir un error de red de una
+  /// cuenta Basic, los consumidores de UI deben usar getSubscriptionStatus.
+  static Future<bool> checkSubscriptionStatus({int? userId}) async {
+    final data = await getSubscriptionStatus(userId: userId);
+    return data['success'] == true && data['is_premium'] == true;
+  }
+
+  static Future<Map<String, dynamic>?> getAppConfig() async {
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl/metadata/app-config'))
+          .timeout(const Duration(seconds: 3));
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// 🎲 Generador de combinaciones personalizadas
+  /// ⏱️ Generación de combinaciones puede tardar más que una petición normal
+  /// porque el backend puede ejecutar procesamiento de generación/ML.
+  static const Duration _generationTimeout = Duration(seconds: 30);
+
+  static Future<Map<String, dynamic>> generateCombinations({
+    required String lottery,
+    required String input,
+    required int quantity,
+    String strategy = 'only_mine',
+    List<int>? selectedNumbers,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {
+        "lottery": lottery,
+        "input": input,
+        "quantity": quantity,
+        "strategy": strategy,
+      };
+      if (selectedNumbers != null) {
+        body["selected_numbers"] = selectedNumbers;
+      }
+
+      final response = await post(
+        "/combinations/generate",
+        body,
+        withAuth: false,
+        timeout: _generationTimeout,
       );
 
       if (response.statusCode == 200) {
@@ -1801,22 +2564,163 @@ class ApiService {
     }
   }
 
-  /// 💎 Consultar estado VIP del usuario desde la base de datos (fuente de verdad)
-  static Future<bool> checkSubscriptionStatus() async {
-    try {
-      final userIdStr = await getUserId();
-      if (userIdStr == null) return false;
+  /// 🎲 Obtener reglas de loterías soportadas por el generador.
+  ///
+  /// Las reglas son datos PÚBLICOS y compartidos por todos los usuarios.
+  /// Por eso esta caché NO depende de user_id.
+  ///
+  /// Apertura normal:
+  ///   1. caché fresca
+  ///   2. caché vencida + actualización silenciosa
+  ///   3. servidor cuando no existe ninguna caché
+  ///
+  /// La caché vencida es un respaldo visual: nunca se borra al caducar y sólo
+  /// se reemplaza si el backend entrega una versión válida más reciente.
+  static List<dynamic>? _combinationLotteriesMemoryCache;
+  static Future<void>? _combinationLotteriesRefreshFuture;
+  static DateTime? _lastCombinationLotteriesRefresh;
 
-      final response = await get("/subscriptions/status/$userIdStr", withAuth: false);
+  /// Avisa a los providers vivos cuando una actualización SWR ya está lista.
+  static final ValueNotifier<int> combinationLotteryRulesNotifier =
+      ValueNotifier<int>(0);
+  static const Duration _combinationLotteriesRefreshInterval =
+      CacheService.reglasTtl;
+  // Render puede tardar más que el timeout normal al despertar. Esta petición
+  // no bloquea la interfaz cuando ya se usa caché o el respaldo incluido.
+  static const Duration _combinationRulesBootstrapTimeout = Duration(
+    seconds: 45,
+  );
+
+  static Future<List<dynamic>> getCombinationLotteries({
+    bool forceRefresh = false,
+  }) async {
+    const cacheKey = CacheService.reglasCombinacionesKey;
+
+    if (!forceRefresh) {
+      // 1. Caché fresca: se muestra de inmediato y no genera una petición.
+      final fresh = await CacheService.getJson(cacheKey);
+      if (fresh is List && fresh.isNotEmpty) {
+        _combinationLotteriesMemoryCache = List<dynamic>.from(fresh);
+        return _combinationLotteriesMemoryCache!;
+      }
+
+      // 2. SWR: si caducó, se conserva el último catálogo real mientras el
+      // backend se actualiza en segundo plano. Esto es independiente del
+      // usuario que haya iniciado sesión.
+      final stale = await CacheService.getStaleJson(cacheKey);
+      if (stale is List && stale.isNotEmpty) {
+        _combinationLotteriesMemoryCache = List<dynamic>.from(stale);
+        _scheduleCombinationLotteriesRefresh(cacheKey);
+        return _combinationLotteriesMemoryCache!;
+      }
+
+      // 3. Primer inicio sin caché: la pantalla mostrará skeleton hasta que
+      // llegue la respuesta o el provider pueda presentar reintento.
+      return _fetchCombinationLotteries(cacheKey);
+    }
+
+    // 3. Sin caché o refresh manual: consultar backend.
+    return _fetchCombinationLotteries(cacheKey);
+  }
+
+  static void _scheduleCombinationLotteriesRefresh(String cacheKey) {
+    final now = DateTime.now();
+    final last = _lastCombinationLotteriesRefresh;
+
+    if (last != null &&
+        now.difference(last) < _combinationLotteriesRefreshInterval) {
+      return;
+    }
+
+    unawaited(_refreshCombinationLotteriesCache(cacheKey));
+  }
+
+  /// Actualiza la caché sin bloquear la pantalla actual.
+  ///
+  /// Se coalescen llamadas simultáneas para evitar varias peticiones
+  /// idénticas si el usuario entra/sale rápidamente de la pantalla.
+  static Future<void> _refreshCombinationLotteriesCache(String cacheKey) {
+    final inFlight = _combinationLotteriesRefreshFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _refreshCombinationLotteriesCacheInternal(cacheKey);
+    _combinationLotteriesRefreshFuture = future;
+
+    return future.whenComplete(() {
+      if (identical(_combinationLotteriesRefreshFuture, future)) {
+        _combinationLotteriesRefreshFuture = null;
+      }
+    });
+  }
+
+  static Future<void> _refreshCombinationLotteriesCacheInternal(
+    String cacheKey,
+  ) async {
+    try {
+      final base = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+
+      final response = await http
+          .get(Uri.parse('$base/combinations/lotteries'))
+          .timeout(_combinationRulesBootstrapTimeout);
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data["is_premium"] == true;
+
+        if (data is List && data.isNotEmpty) {
+          _combinationLotteriesMemoryCache = List<dynamic>.from(data);
+          _lastCombinationLotteriesRefresh = DateTime.now();
+          await CacheService.setJson(cacheKey, data);
+          combinationLotteryRulesNotifier.value++;
+        }
       }
-      return false;
-    } catch (e) {
-      debugPrint("Error verificando suscripción con backend: $e");
-      return false;
+    } catch (_) {
+      // Actualización silenciosa: la caché actual continúa disponible.
     }
   }
-}
 
+  /// Consulta las reglas desde el backend.
+  /// Si falla, utiliza la caché como fallback.
+  static Future<List<dynamic>> _fetchCombinationLotteries(
+    String cacheKey,
+  ) async {
+    try {
+      final base = baseUrl.endsWith('/')
+          ? baseUrl.substring(0, baseUrl.length - 1)
+          : baseUrl;
+
+      final response = await http
+          .get(Uri.parse('$base/combinations/lotteries'))
+          .timeout(_combinationRulesBootstrapTimeout);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        if (data is List && data.isNotEmpty) {
+          _combinationLotteriesMemoryCache = List<dynamic>.from(data);
+          _lastCombinationLotteriesRefresh = DateTime.now();
+          await CacheService.setJson(cacheKey, data);
+          return _combinationLotteriesMemoryCache!;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback final: memoria o caché persistente, incluso si ya venció.
+    // Estar offline no debe vaciar una pantalla que sí tenía datos útiles.
+    final memory = _combinationLotteriesMemoryCache;
+    if (memory != null && memory.isNotEmpty) {
+      return memory;
+    }
+
+    final cached = await CacheService.getStaleJson(cacheKey);
+    if (cached is List && cached.isNotEmpty) {
+      _combinationLotteriesMemoryCache = List<dynamic>.from(cached);
+      return _combinationLotteriesMemoryCache!;
+    }
+
+    // Sin red y sin ningún catálogo conocido: el provider mostrará el estado
+    // de error con reintento, en lugar de reglas potencialmente equivocadas.
+    return <dynamic>[];
+  }
+}

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 from typing import List, Optional
 from datetime import datetime
 from fastapi import Query
@@ -34,9 +34,18 @@ class UpdateUser(BaseModel):
 class JugadaCreate(BaseModel):
     numeros: List[int]
     user_id: str
+    # Identidad canónica de la lotería. Es obligatoria en la práctica cuando
+    # varias loterías/países comparten la misma route (Euromillions, EuroDreams, etc.).
+    loteria_id: Optional[int] = None
     loteria_route: Optional[str] = None
     fecha_sorteo: Optional[str] = None
     fecha: Optional[str] = None
+
+class JugadaUpdate(BaseModel):
+    numeros: List[int]
+    user_id: str
+    loteria_id: Optional[int] = None
+    loteria_route: Optional[str] = None
 
 class JugadaOut(BaseModel):
     id: int
@@ -59,6 +68,27 @@ class TransactionRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+class PublicidadCreate(BaseModel):
+    titulo: str
+    descripcion: str
+    categoria_id: int
+    pais_id: int
+    departamento_id: int
+    ciudad_id: Optional[int] = None
+    imagen_url: Optional[str] = None
+    telefono: Optional[str] = None
+    facebook_url: Optional[str] = None
+    instagram_url: Optional[str] = None
+    whatsapp_url: Optional[str] = None
+    tiktok_url: Optional[str] = None
+    pagina_url: Optional[str] = None
+    direccion: Optional[str] = None
+    es_24_7: Optional[bool] = False
+    hora_apertura: Optional[str] = None
+    hora_cierre: Optional[str] = None
+    dias_atencion: Optional[str] = None
+    estado_texto: Optional[str] = None
+
 class ResetPasswordWithCodeRequest(BaseModel):
     email: EmailStr
     code: str
@@ -73,7 +103,7 @@ class VerifyEmailCodeRequest(BaseModel):
     code: str
 
 class CommentCreate(BaseModel):
-    content: str
+    content: str = Field(..., min_length=1, max_length=300, description="Contenido entre 1 y 300 caracteres")
     parent_id: Optional[int] = None
 
 class CommentResponse(BaseModel):
@@ -82,12 +112,19 @@ class CommentResponse(BaseModel):
     user_id: int
     user_name: str
     content: str
+    status: str = "active"
+    moderation_reason: Optional[str] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
     parent_id: Optional[int] = None
 
+class CommentReportResponse(BaseModel):
+    comment_id: int
+    created: bool
+
 class PostCreate(BaseModel):
-    title: str
-    content: str
+    title: str = Field(..., min_length=1, max_length=100, description="Título del post entre 1 y 100 caracteres")
+    content: str = Field(..., min_length=1, max_length=500, description="Contenido del post entre 1 y 500 caracteres")
 
 class PostResponse(BaseModel):
     id: int
@@ -152,3 +189,4 @@ class SubscriptionConfirmRequest(BaseModel):
     purchase_token: Optional[str] = None
     order_id: Optional[str] = None
     status: Optional[str] = "active"
+

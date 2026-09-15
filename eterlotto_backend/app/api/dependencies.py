@@ -3,16 +3,16 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from app.core import config
+from app.application.subscription_use_cases import SubscriptionUseCases
 from app.infrastructure.postgres_repository import (
     PostgresUserRepository, PostgresJugadaRepository, PostgresPostRepository,
-    PostgresPublicidadRepository, PostgresTransactionRepository, PostgresNotificationRepository
+    PostgresPublicidadRepository, PostgresNotificationRepository
 )
 from app.infrastructure.email_service import SMTPEmailSender
 from app.application.auth_use_cases import AuthUseCases
 from app.application.jugada_use_cases import JugadaUseCases
 from app.application.post_use_cases import PostUseCases
 from app.application.publicidad_use_cases import PublicidadUseCases
-from app.application.transaction_use_cases import TransactionUseCases
 from app.application.notification_use_cases import NotificationUseCases
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
@@ -68,10 +68,17 @@ def get_publicidad_use_cases() -> PublicidadUseCases:
     publicidad_repo = PostgresPublicidadRepository()
     return PublicidadUseCases(publicidad_repo)
 
-def get_transaction_use_cases() -> TransactionUseCases:
-    trans_repo = PostgresTransactionRepository()
-    return TransactionUseCases(trans_repo)
 
 def get_notification_use_cases() -> NotificationUseCases:
     notif_repo = PostgresNotificationRepository()
     return NotificationUseCases(notif_repo)
+
+
+from app.infrastructure.google_play_service import GooglePlayService
+
+def get_subscription_use_cases() -> SubscriptionUseCases:
+    return SubscriptionUseCases(
+        user_repo=PostgresUserRepository(),
+        google_play=GooglePlayService()
+    )
+

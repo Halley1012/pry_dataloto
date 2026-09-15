@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple, Dict, Any
 from datetime import datetime, date
-from app.domain.models import User, Jugada, Post, Comment, Publicidad, Transaction
 
 class UserRepositoryPort(ABC):
     @abstractmethod
@@ -76,18 +75,47 @@ class UserRepositoryPort(ABC):
     ) -> Dict[str, Any]:
         pass
 
+    @abstractmethod
+    async def find_user_id_by_purchase_token(self, purchase_token: str) -> Optional[int]:
+        pass
+
+    @abstractmethod
+    async def update_subscription_state(
+        self,
+        user_id: int,
+        is_premium: bool,
+        expires_at: Optional[datetime] = None,
+        purchase_token: Optional[str] = None,
+        product_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def mark_expired_subscriptions(self, user_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    async def find_current_subscription(self, user_id: int) -> Optional[Dict[str, Any]]:
+        pass
+
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime) -> Dict[str, Any]:
+    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime, loteria_id: Optional[int] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def list_jugadas(self, tipo: str, user_id: int, fecha: Optional[str] = None, loteria_id: Optional[int] = None) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
-    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int) -> bool:
+    async def delete_jugada(self, tipo: str, jugada_id: int, user_id: int, loteria_id: Optional[int] = None) -> bool:
+        pass
+
+    @abstractmethod
+    async def update_jugada(self, tipo: str, jugada_id: int, user_id: int, numeros: List[int], loteria_id: Optional[int] = None) -> Optional[Dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -135,6 +163,10 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
+    def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
+        pass
+
+    @abstractmethod
     def get_prediccion_generico(self, tabla: str) -> Optional[Tuple[datetime, List[int], List[int]]]:
         pass
 
@@ -170,7 +202,7 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def create_comment(self, post_id: int, user_id: int, content: str) -> Dict[str, Any]:
+    async def create_comment(self, post_id: int, user_id: int, content: str, parent_id: Optional[int] = None, status: str = "active", moderation_reason: Optional[str] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -182,7 +214,15 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def list_comments_by_post(self, post_id: int) -> List[Dict[str, Any]]:
+    async def report_comment(self, comment_id: int, reporter_user_id: int) -> bool:
+        pass
+
+    @abstractmethod
+    async def list_comments_by_post(
+        self,
+        post_id: int,
+        requesting_user_id: int,
+    ) -> List[Dict[str, Any]]:
         pass
 
 
@@ -220,7 +260,7 @@ class PublicidadRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def aprobar_publicidad(self, publicidad_id: int) -> bool:
+    async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> bool:
         pass
 
     @abstractmethod
@@ -282,9 +322,15 @@ class NotificationRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def mark_as_read(self, notification_id: int) -> bool:
+    async def mark_as_read(self, notification_id: int, user_id: int) -> bool:
         pass
 
     @abstractmethod
     async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+        pass
+
+
+class GooglePlayPort(ABC):
+    @abstractmethod
+    async def verify_subscription_token(self, package_name: str, product_id: str, purchase_token: str) -> Dict[str, Any]:
         pass

@@ -745,5 +745,117 @@
   "publicidadLabel": "PUBLICIDADE",
   "quitarAnuncios": "Remover anúncios",
   "buscaloAqui": "Procure aqui",
-  "buscarDirectorioHint": "Encontre negócios, serviços e comércios locais..."
+  "buscarDirectorioHint": "Encontre negócios, serviços e comércios locais...",
+  "mejorJugadaTitulo": "Melhor jogo",
+  "mejorJugadaSorteo": "Melhor jogo do sorteio",
+  "aciertosConPorcentaje": "{hits} / {total} acertos — {percent}%",
+  "@aciertosConPorcentaje": {
+    "placeholders": {
+      "hits": { "type": "int" },
+      "total": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "superoRendimientoJugadas": "⭐ Superou o desempenho de {percent}% dos seus jogos anteriores.",
+  "@superoRendimientoJugadas": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "tuMejorJugadaSorteo": "⭐ Seu melhor resultado neste sorteio.",
+  "sinJugadasParaSorteo": "Você não tem jogos salvos para este sorteio.",
+  "rendimientoUltimosSorteos": "Desempenho últimos {count} sorteios",
+  "@rendimientoUltimosSorteos": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tuRendimiento": "Seu desempenho",
+  "coberturaPromedio": "Cobertura média",
+  "mejorCobertura": "Melhor cobertura",
+  "peorCobertura": "Pior cobertura",
+  "nSorteosLabel": "{count} Sorteios",
+  "@nSorteosLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "numerosMayorAfinidadHistorica": "🤖 Números com maior afinidade histórica:",
+  "disclaimerAfinidadHistorica": "Baseado em padrões históricos. Não representa uma probabilidade real de ser sorteado.",
+  "generaTusPropiasCombinaciones": "Gere suas próprias combinações",
+  "usaTusNumerosFavoritos": "Use seus números favoritos (datas, idades, etc.) e crie até 10 jogos personalizados.",
+  "seleccionaLaLoteria": "Selecione a loteria",
+  "reglasDeEstaLoteria": "Regras desta loteria",
+  "cargandoReglas": "Carregando regras...",
+  "tusNumeros": "Seus números",
+  "ingresaNumerosFecha": "Insira números, uma data ou valores que tenham significado para você.",
+  "ejemploNumeros": "Exemplo: 12/10/1986, 7 14 21, 100, etc.",
+  "numerosDetectados": "Números detectados",
+  "cantidadDeJugadas": "Quantidade de jogos",
+  "seleccionaCuantasCombinaciones": "Selecione quantas combinações gerar.",
+  "estrategia": "Estratégia",
+  "usaTusNumerosComoBase": "Use seus números como base e adicione variações.",
+  "estrategiaEquilibrada": "Equilibrada",
+  "estrategiaAleatoria": "Aleatória",
+  "generando": "GERANDO...",
+  "generarCombinaciones": "GERAR COMBINAÇÕES",
+  "combinacionesGeneradas": "combinações geradas",
+  "generarOtras": "Gerar outras",
+  "guardarTodas": "Salvar todas",
+  "guardando": "Salvando...",
+  "jugadasGuardadasConExito": "Jogos salvos com sucesso",
+  "errorAlGuardarJugadas": "Houve um erro ao salvar alguns jogos",
+  "debesIniciarSesionParaGuardar": "Você deve fazer login para salvar",
+  "descripcionHistoricoResultados": "Consulte os 25 sorteios mais recentes ou baixe o histórico completo para analisar os dados por conta própria.",
+  "informacionNoDisponible": "Informações indisponíveis",
+  "datosLoteriaNoDisponibles": "Esta loteria ainda não possui resultados ou previsões disponíveis.",
+  "datosLoteriaSinConexion": "Não foi possível atualizar os dados. Verifique sua conexão e tente novamente.",
+  "reintentar": "Tentar novamente",
+  "sinResultadosRegistrados": "Ainda não há resultados registrados",
+  "sinResultadosRegistradosDescripcion": "As loterias aparecerão aqui quando registrarem seu primeiro sorteio oficial.",
+  "resultadosRecientes": "Recentes",
+  "sinHistorialResultados": "Você ainda não tem resultados no histórico",
+  "sinHistorialResultadosDescripcion": "As loterias internacionais aparecerão aqui quando o sorteio da sua última jogada já tiver acontecido.",
+  "porDefinir": "A confirmar",
+  "desarrolladoCon": "Desenvolvido com ",
+  "por": " por ",
+  "sitioWeb": "Site",
+  "contacto": "Contato",
+  "perfilActualizadoExito": "Perfil atualizado com sucesso",
+  "errorActualizarPerfil": "Erro ao atualizar perfil: {error}",
+  "@errorActualizarPerfil": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "anunciateHoy": "Anuncie hoje e deixe que todos te conheçam!",
+  "crearNuevaPublicidad": "Criar nova publicidade",
+  "buscarPorTitulo": "Buscar por título",
+  "noHasPublicadoAnuncios": "Você ainda não publicou nenhum anúncio.\nCrie o primeiro agora!",
+  "estrategiaSoloMisNumeros": "Apenas meus números",
+  "estrategiaVariaciones": "Variações",
+  "estrategiaEquilibradas": "Equilibradas",
+  "descEstrategiaSoloMis": "Usa apenas os números que você selecionou.",
+  "descEstrategiaVariaciones": "Mantém seus números e completa a combinação com outros válidos.",
+  "descEstrategiaBalanced": "Combina seus números com outros valores da loteria.",
+  "descEstrategiaDefault": "Gera combinações de acordo com seus números.",
+  "limpiar": "Limpar",
+  "seGeneraranHasta": "Serão geradas até {count}\ncombinações únicas.",
+  "@seGeneraranHasta": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "copiar": "Copiar",
+  "combinacionCopiada": "Combinação copiada para a área de transferência",
+  "favorito": "Favorito",
+  "marcadaComoFavorita": "Marcado como favorito",
+  "sinConexionDatos": "Sem conexão · mostrando os últimos dados disponíveis",
+  "sinConexionAnuncios": "Sem conexão · mostrando seus últimos anúncios disponíveis",
+  "errorCargarAnuncios": "Não foi possível carregar seus anúncios.",
+  "continuarConGoogle": "Continuar com o Google"
 }

@@ -1106,7 +1106,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get descripcionHistoricoResultados =>
-      'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.';
+      'Consulte os 25 sorteios mais recentes ou baixe o histórico completo para analisar os dados por conta própria.';
 
   @override
   String cargarMasSorteos(int count) {
@@ -1324,4 +1324,246 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get buscarDirectorioHint =>
       'Encontre negócios, serviços e comércios locais...';
+
+  @override
+  String get mejorJugadaTitulo => 'Melhor jogo';
+
+  @override
+  String get mejorJugadaSorteo => 'Melhor jogo do sorteio';
+
+  @override
+  String aciertosConPorcentaje(int hits, int total, int percent) {
+    return '$hits / $total acertos — $percent%';
+  }
+
+  @override
+  String superoRendimientoJugadas(int percent) {
+    return '⭐ Superou o desempenho de $percent% dos seus jogos anteriores.';
+  }
+
+  @override
+  String get tuMejorJugadaSorteo => '⭐ Seu melhor resultado neste sorteio.';
+
+  @override
+  String get sinJugadasParaSorteo =>
+      'Você não tem jogos salvos para este sorteio.';
+
+  @override
+  String rendimientoUltimosSorteos(int count) {
+    return 'Desempenho últimos $count sorteios';
+  }
+
+  @override
+  String get tuRendimiento => 'Seu desempenho';
+
+  @override
+  String get coberturaPromedio => 'Cobertura média';
+
+  @override
+  String get mejorCobertura => 'Melhor cobertura';
+
+  @override
+  String get peorCobertura => 'Pior cobertura';
+
+  @override
+  String nSorteosLabel(int count) {
+    return '$count Sorteios';
+  }
+
+  @override
+  String get numerosMayorAfinidadHistorica =>
+      '🤖 Números com maior afinidade histórica:';
+
+  @override
+  String get disclaimerAfinidadHistorica =>
+      'Baseado em padrões históricos. Não representa uma probabilidade real de ser sorteado.';
+
+  @override
+  String get generaTusPropiasCombinaciones => 'Gere suas próprias combinações';
+
+  @override
+  String get usaTusNumerosFavoritos =>
+      'Use seus números favoritos (datas, idades, etc.) e crie até 10 jogos personalizados.';
+
+  @override
+  String get seleccionaLaLoteria => 'Selecione a loteria';
+
+  @override
+  String get reglasDeEstaLoteria => 'Regras desta loteria';
+
+  @override
+  String get cargandoReglas => 'Carregando regras...';
+
+  @override
+  String get tusNumeros => 'Seus números';
+
+  @override
+  String get ingresaNumerosFecha =>
+      'Insira números, uma data ou valores que tenham significado para você.';
+
+  @override
+  String get ejemploNumeros => 'Exemplo: 12/10/1986, 7 14 21, 100, etc.';
+
+  @override
+  String get numerosDetectados => 'Números detectados';
+
+  @override
+  String get cantidadDeJugadas => 'Quantidade de jogos';
+
+  @override
+  String get seleccionaCuantasCombinaciones =>
+      'Selecione quantas combinações gerar.';
+
+  @override
+  String get estrategia => 'Estratégia';
+
+  @override
+  String get usaTusNumerosComoBase =>
+      'Use seus números como base e adicione variações.';
+
+  @override
+  String get estrategiaEquilibrada => 'Equilibrada';
+
+  @override
+  String get estrategiaAleatoria => 'Aleatória';
+
+  @override
+  String get generando => 'GERANDO...';
+
+  @override
+  String get generarCombinaciones => 'GERAR COMBINAÇÕES';
+
+  @override
+  String get combinacionesGeneradas => 'combinações geradas';
+
+  @override
+  String get generarOtras => 'Gerar outras';
+
+  @override
+  String get guardarTodas => 'Salvar todas';
+
+  @override
+  String get jugadasGuardadasConExito => 'Jogos salvos com sucesso';
+
+  @override
+  String get errorAlGuardarJugadas => 'Houve um erro ao salvar alguns jogos';
+
+  @override
+  String get debesIniciarSesionParaGuardar =>
+      'Você deve fazer login para salvar';
+
+  @override
+  String get informacionNoDisponible => 'Informações indisponíveis';
+
+  @override
+  String get datosLoteriaNoDisponibles =>
+      'Esta loteria ainda não possui resultados ou previsões disponíveis.';
+
+  @override
+  String get datosLoteriaSinConexion =>
+      'Não foi possível atualizar os dados. Verifique sua conexão e tente novamente.';
+
+  @override
+  String get reintentar => 'Tentar novamente';
+
+  @override
+  String get sinResultadosRegistrados => 'Ainda não há resultados registrados';
+
+  @override
+  String get sinResultadosRegistradosDescripcion =>
+      'As loterias aparecerão aqui quando registrarem seu primeiro sorteio oficial.';
+
+  @override
+  String get resultadosRecientes => 'Recentes';
+
+  @override
+  String get sinHistorialResultados =>
+      'Você ainda não tem resultados no histórico';
+
+  @override
+  String get sinHistorialResultadosDescripcion =>
+      'As loterias internacionais aparecerão aqui quando o sorteio da sua última jogada já tiver acontecido.';
+
+  @override
+  String get porDefinir => 'A confirmar';
+
+  @override
+  String get desarrolladoCon => 'Desenvolvido com ';
+
+  @override
+  String get por => ' por ';
+
+  @override
+  String get sitioWeb => 'Site';
+
+  @override
+  String get contacto => 'Contato';
+
+  @override
+  String get perfilActualizadoExito => 'Perfil atualizado com sucesso';
+
+  @override
+  String errorActualizarPerfil(String error) {
+    return 'Erro ao atualizar perfil: $error';
+  }
+
+  @override
+  String get estrategiaSoloMisNumeros => 'Apenas meus números';
+
+  @override
+  String get estrategiaVariaciones => 'Variações';
+
+  @override
+  String get estrategiaEquilibradas => 'Equilibradas';
+
+  @override
+  String get descEstrategiaSoloMis =>
+      'Usa apenas os números que você selecionou.';
+
+  @override
+  String get descEstrategiaVariaciones =>
+      'Mantém seus números e completa a combinação com outros válidos.';
+
+  @override
+  String get descEstrategiaBalanced =>
+      'Combina seus números com outros valores da loteria.';
+
+  @override
+  String get descEstrategiaDefault =>
+      'Gera combinações de acordo com seus números.';
+
+  @override
+  String get limpiar => 'Limpar';
+
+  @override
+  String seGeneraranHasta(int count) {
+    return 'Serão geradas até $count\ncombinações únicas.';
+  }
+
+  @override
+  String get copiar => 'Copiar';
+
+  @override
+  String get combinacionCopiada =>
+      'Combinação copiada para a área de transferência';
+
+  @override
+  String get favorito => 'Favorito';
+
+  @override
+  String get marcadaComoFavorita => 'Marcado como favorito';
+
+  @override
+  String get sinConexionDatos =>
+      'Sem conexão · mostrando os últimos dados disponíveis';
+
+  @override
+  String get sinConexionAnuncios =>
+      'Sem conexão · mostrando seus últimos anúncios disponíveis';
+
+  @override
+  String get errorCargarAnuncios => 'Não foi possível carregar seus anúncios.';
+
+  @override
+  String get continuarConGoogle => 'Continuar com o Google';
 }

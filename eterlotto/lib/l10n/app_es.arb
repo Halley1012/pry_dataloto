@@ -617,7 +617,7 @@
   "pagarEpayco": "Pagar con ePayco",
   "errorAnuncios": "Error al cargar los anuncios.",
   "numerosLabel": "Números",
-  "descripcionHistoricoResultados": "Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.",
+  "descripcionHistoricoResultados": "Consulta los 25 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.",
   "cargarMasSorteos": "Cargar 50 más ({count} restantes)",
   "@cargarMasSorteos": {
     "placeholders": {
@@ -662,7 +662,7 @@
   "planMensual": "Plan Mensual",
   "renovacionAutomatica": "Renovación mensual automática",
   "suscribirmeAhora": "Suscribirme Ahora",
-  "restaurarCompras": "Restaurar compras",
+  "restaurarCompras": "Restaurar suscripción",
   "terminosSuscripcionGooglePlay": "La suscripción se renueva automáticamente cada mes a través de Google Play a menos que se cancele al menos 24 horas antes del final del período actual. Puedes administrar o cancelar tu suscripción en los ajustes de tu cuenta de Google Play en cualquier momento.",
   "comprasRestauradasExito": "✅ Compras restauradas con éxito.",
   "noComprasActivas": "ℹ️ No se encontraron compras activas previas.",
@@ -719,5 +719,116 @@
   "publicidadLabel": "PUBLICIDAD",
   "quitarAnuncios": "Quitar anuncios",
   "buscaloAqui": "Búscalo aquí",
-  "buscarDirectorioHint": "Encuentra negocios, servicios y comercios..."
+  "buscarDirectorioHint": "Encuentra negocios, servicios y comercios...",
+  "mejorJugadaTitulo": "Mejor jugada",
+  "mejorJugadaSorteo": "Mejor jugada del sorteo",
+  "aciertosConPorcentaje": "{hits} / {total} aciertos — {percent}%",
+  "@aciertosConPorcentaje": {
+    "placeholders": {
+      "hits": { "type": "int" },
+      "total": { "type": "int" },
+      "percent": { "type": "int" }
+    }
+  },
+  "superoRendimientoJugadas": "⭐ Superó el rendimiento del {percent}% de tus jugadas anteriores.",
+  "@superoRendimientoJugadas": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "tuMejorJugadaSorteo": "⭐ Tu mejor resultado en este sorteo.",
+  "sinJugadasParaSorteo": "No tienes jugadas guardadas para este sorteo.",
+  "rendimientoUltimosSorteos": "Rendimiento últimos {count} sorteos",
+  "@rendimientoUltimosSorteos": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "tuRendimiento": "Tu rendimiento",
+  "coberturaPromedio": "Cobertura promedio",
+  "mejorCobertura": "Mejor cobertura",
+  "peorCobertura": "Peor cobertura",
+  "nSorteosLabel": "{count} Sorteos",
+  "@nSorteosLabel": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "numerosMayorAfinidadHistorica": "🤖 Números con mayor afinidad histórica:",
+  "disclaimerAfinidadHistorica": "Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.",
+  "generaTusPropiasCombinaciones": "Genera tus propias combinaciones",
+  "usaTusNumerosFavoritos": "Usa tus números favoritos (fechas, edades, etc.) y crea hasta 10 jugadas personalizadas.",
+  "seleccionaLaLoteria": "Selecciona la lotería",
+  "reglasDeEstaLoteria": "Reglas de esta lotería",
+  "cargandoReglas": "Cargando reglas...",
+  "tusNumeros": "Tus números",
+  "ingresaNumerosFecha": "Ingresa números, una fecha o valores que tengan significado para ti.",
+  "ejemploNumeros": "Ejemplo: 12/10/1986, 7 14 21, 100, etc.",
+  "numerosDetectados": "Números detectados",
+  "cantidadDeJugadas": "Cantidad de jugadas",
+  "seleccionaCuantasCombinaciones": "Selecciona cuántas combinaciones generar.",
+  "estrategia": "Estrategia",
+  "usaTusNumerosComoBase": "Usa tus números como base y agrega variaciones.",
+  "estrategiaEquilibrada": "Equilibrada",
+  "estrategiaAleatoria": "Aleatoria",
+  "generando": "GENERANDO...",
+  "generarCombinaciones": "GENERAR COMBINACIONES",
+  "combinacionesGeneradas": "combinaciones generadas",
+  "generarOtras": "Generar otras",
+  "guardarTodas": "Guardar todas",
+  "guardando": "Guardando...",
+  "jugadasGuardadasConExito": "Jugadas guardadas con éxito",
+  "errorAlGuardarJugadas": "Hubo un error al guardar algunas jugadas",
+  "debesIniciarSesionParaGuardar": "Debes iniciar sesión para guardar",
+  "informacionNoDisponible": "Información no disponible",
+  "datosLoteriaNoDisponibles": "Esta lotería aún no tiene resultados ni predicciones disponibles.",
+  "datosLoteriaSinConexion": "No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.",
+  "reintentar": "Reintentar",
+  "sinResultadosRegistrados": "Aún no hay resultados registrados",
+  "sinResultadosRegistradosDescripcion": "Las loterías aparecerán aquí cuando registren su primer sorteo oficial.",
+  "resultadosRecientes": "Recientes",
+  "sinHistorialResultados": "Aún no tienes resultados en el historial",
+  "sinHistorialResultadosDescripcion": "Aquí aparecerán las loterías internacionales cuando ya haya pasado el sorteo de tu última jugada.",
+  "porDefinir": "Por definir",
+  "desarrolladoCon": "Desarrollado con ",
+  "por": " por ",
+  "sitioWeb": "Sitio Web",
+  "contacto": "Contacto",
+  "perfilActualizadoExito": "Perfil actualizado correctamente",
+  "errorActualizarPerfil": "Error al actualizar perfil: {error}",
+  "@errorActualizarPerfil": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "anunciateHoy": "¡Anúnciate hoy y haz que todos te conozcan!",
+  "crearNuevaPublicidad": "Crear nueva publicidad",
+  "buscarPorTitulo": "Buscar por título",
+  "noHasPublicadoAnuncios": "No has publicado ningún anuncio todavía.\n¡Crea el primero ahora!",
+  "estrategiaSoloMisNumeros": "Solo mis números",
+  "estrategiaVariaciones": "Variaciones",
+  "estrategiaEquilibradas": "Equilibradas",
+  "descEstrategiaSoloMis": "Usa únicamente los números que seleccionaste.",
+  "descEstrategiaVariaciones": "Mantiene tus números y completa la combinación con otros válidos.",
+  "descEstrategiaBalanced": "Combina tus números con otros valores de la lotería.",
+  "descEstrategiaDefault": "Genera combinaciones según tus números.",
+  "limpiar": "Limpiar",
+  "seGeneraranHasta": "Se generarán hasta {count}\ncombinaciones únicas.",
+  "@seGeneraranHasta": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "copiar": "Copiar",
+  "combinacionCopiada": "Combinación copiada al portapapeles",
+  "favorito": "Favorito",
+  "marcadaComoFavorita": "Marcada como favorita",
+  "sinConexionDatos": "Sin conexión · mostrando los últimos datos disponibles",
+  "sinConexionAnuncios": "Sin conexión · mostrando tus últimos anuncios disponibles",
+  "errorCargarAnuncios": "No pudimos cargar tus anuncios.",
+  "continuarConGoogle": "Continuar con Google"
 }

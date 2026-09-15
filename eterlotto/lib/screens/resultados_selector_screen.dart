@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -13,6 +14,9 @@ import 'package:shimmer/shimmer.dart';
 
 
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:provider/provider.dart';
+import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import '../utils/secure_storage_helper.dart';
 
 class ResultadosSelectorScreen extends StatefulWidget {
@@ -23,12 +27,24 @@ class ResultadosSelectorScreen extends StatefulWidget {
 }
 
 class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
+  // Un sorteo permanece en 'Recientes' durante todo el día siguiente.
+  // Ej.: sorteo 13 Sep -> sigue reciente el 14 Sep -> pasa a historial el 15 Sep.
+  static const int _recentGraceDaysAfterDraw = 1;
   List<Map<String, dynamic>> _loterias = [];
   List<Map<String, dynamic>> _filteredLoterias = [];
   List<Map<String, dynamic>> _paises = [];
   final _storage = AppSecureStorage.instance;
   String? _userCountry;
+  String? _userCountryId;
+  Set<String> _activePlayedRoutes = <String>{};
+  Set<String> _pastPlayedRoutes = <String>{};
+  Set<String> _activePlayedLotteryIds = <String>{};
+  Set<String> _pastPlayedLotteryIds = <String>{};
   bool _isLoading = true;
+  bool _loadFailed = false;
+  bool _showingStaleData = false;
+  bool _catalogFetchFailed = false;
+  String _selectedFilter = 'recientes';
 
   @override
   void initState() {
@@ -55,7 +71,6 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final module = DataRefreshManager.instance.refreshNotifier.value;
     if (module == RefreshModules.resultados || module == 'all') {
       if (mounted) {
-        debugPrint("🔄 [ResultadosSelectorScreen] Auto-refrescando resultados por ciclo de vida / TTL");
         cargarLoterias(forceRefresh: false);
       }
     }
@@ -64,120 +79,164 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   Future<void> cargarLoterias({bool forceRefresh = false}) async {
     if (!mounted) return;
 
-    final uId = await _storage.read(key: 'user_id');
-    final uPaisId = await _storage.read(key: 'pais_id') ?? "5";
-    final uCountry = await _storage.read(key: 'pais_nombre') ?? "Colombia";
-    final cacheKey = 'resultados_selector_v3_${uId ?? "anon"}_$uPaisId';
+    final uCountry = await _storage.read(key: 'pais_nombre') ?? "Internacional";
+    final uCountryId = await _storage.read(key: 'pais_id');
+    final userId = await _storage.read(key: 'user_id');
 
-    if (!forceRefresh) {
-      // ⚡ 1. Cargar caché de despliegue instantáneo (0 ms)
-      final cached = await CacheService.getJson(cacheKey);
-      final cachedPaises = await CacheService.getJson('paises_list_cache');
+    // Los resultados son públicos; la información de jugadas usada para
+    // decidir Recientes/Historial sí es privada y se aísla por usuario.
+    const cacheKey = 'resultados_selector_v6';
+    final playsCacheKey = CacheService.infoMisJugadasKey(userId);
 
-      if (cached != null && (cached as List).isNotEmpty && mounted) {
-        setState(() {
-          _userCountry = uCountry;
-          _loterias = List<Map<String, dynamic>>.from(cached);
-          _filteredLoterias = List<Map<String, dynamic>>.from(_loterias);
-          if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
-            _paises = List<Map<String, dynamic>>.from(cachedPaises);
-          }
-          _isLoading = false;
-        });
-      }
+    final cached = await CacheService.getStaleJson(cacheKey);
+    final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+    final cachedPlaysRaw = await CacheService.getStaleJson(playsCacheKey);
+
+    Map<String, Map<String, dynamic>> cachedPlays =
+        <String, Map<String, dynamic>>{};
+    if (cachedPlaysRaw is Map) {
+      cachedPlays = cachedPlaysRaw.map(
+        (key, value) => MapEntry(
+          key.toString(),
+          value is Map
+              ? Map<String, dynamic>.from(value)
+              : <String, dynamic>{},
+        ),
+      );
     }
 
-    if (_loterias.isEmpty) setState(() => _isLoading = true);
+    if (cached is List && cached.isNotEmpty && mounted) {
+      final cachedWithResults = List<Map<String, dynamic>>.from(cached)
+          .where(_hasRecordedDraw)
+          .toList();
+      setState(() {
+        _userCountry = uCountry;
+        _userCountryId = uCountryId;
+        _loterias = cachedWithResults;
+        if (cachedPaises is List && cachedPaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(cachedPaises);
+        }
+        _setPlayedRoutes(cachedPlays);
+        _filteredLoterias = _filterBySelectedView(_loterias);
+        _isLoading = false;
+        _loadFailed = false;
+      });
+    }
+
+    if (_loterias.isEmpty && mounted) {
+      setState(() {
+        _isLoading = true;
+        _loadFailed = false;
+      });
+    }
+
+    var userPlaysFailed = false;
+    final userPlaysFuture = ApiService.getLoteriasInfoJugadas().catchError((_) {
+      userPlaysFailed = true;
+      return <String, Map<String, dynamic>>{};
+    });
 
     try {
-      // ⚡ 2. Obtener jugadas activas y todas las loterías en paralelo
-      final resultados = await Future.wait([
-        ApiService.getLoteriasConJugadas().catchError((e) {
-          debugPrint("⚠️ Error obteniendo jugadas activas: $e");
-          return <String>[];
-        }),
+      final results = await Future.wait([
         _obtenerTodasLasLoterias(force: forceRefresh),
+        userPlaysFuture,
       ]);
 
-      final List<String> activas = List<String>.from(resultados[0] as List);
-      final List<Map<String, dynamic>> todas = resultados[1] as List<Map<String, dynamic>>;
+      final todas = results[0] as List<Map<String, dynamic>>;
+      final networkUserPlays =
+          results[1] as Map<String, Map<String, dynamic>>;
 
-      // Identificar el ID del país del usuario
-      String targetPaisId = uPaisId;
-      if (_paises.isNotEmpty && uCountry.isNotEmpty) {
-        try {
-          final pMatch = _paises.firstWhere(
-            (p) => p["nombre"].toString().toLowerCase() == uCountry.toLowerCase(),
-          );
-          if (pMatch["id"] != null) {
-            targetPaisId = pMatch["id"].toString();
-          }
-        } catch (_) {}
+      // Algunas APIs legacy devuelven {} ante fallos temporales. Si ya existe
+      // una copia privada para esta cuenta, no hacemos desaparecer sus
+      // internacionales de Recientes/Historial.
+      final usedCachedPlays =
+          networkUserPlays.isEmpty && cachedPlays.isNotEmpty;
+      final effectiveUserPlays = networkUserPlays.isNotEmpty
+          ? networkUserPlays
+          : cachedPlays;
+
+      if (networkUserPlays.isNotEmpty) {
+        await CacheService.setJson(playsCacheKey, networkUserPlays);
       }
 
-      // Filtrado inteligente: Loterías de MI PAÍS + Loterías con JUGADAS ACTIVAS
-      List<Map<String, dynamic>> finalLoterias = todas.where((mapItem) {
-        final rawRoute = mapItem['route']?.toString().trim().toLowerCase();
-        final route = (rawRoute != null && rawRoute.isNotEmpty)
-            ? rawRoute
-            : _getRouteFromName(mapItem['nombre'] ?? "");
-        
-        final mapPaisId = mapItem['pais_id']?.toString();
-        final isFromMyCountry = (mapPaisId != null && mapPaisId == targetPaisId);
-        final hasJugadas = activas.contains(route);
+      final finalLoterias = todas.where(_hasRecordedDraw).toList()
+        ..sort((a, b) => _lastDrawDate(b).compareTo(_lastDrawDate(a)));
 
-        return isFromMyCountry || hasJugadas;
-      }).toList();
+      if (!mounted) return;
 
-      // Si por alguna razón la lista quedó vacía, intentar traer directamente las del país
-      if (finalLoterias.isEmpty) {
-        try {
-          final countryLoterias = await ApiService.getLoteriasPorPais(targetPaisId);
-          finalLoterias = countryLoterias
-              .map((e) => Map<String, dynamic>.from(e as Map))
-              .toList();
-        } catch (e) {
-          debugPrint("⚠️ Error al obtener loterías de respaldo por país: $e");
-        }
-      }
-
-      if (mounted) {
+      // Si la red falló y _obtenerTodasLasLoterias devolvió el catálogo stale,
+      // lo mantenemos visible y lo marcamos. Si no pudo devolver nada pero la
+      // pantalla ya estaba hidratada, tampoco se borra.
+      if (finalLoterias.isEmpty && _loterias.isNotEmpty) {
         setState(() {
           _userCountry = uCountry;
-          _loterias = finalLoterias;
-          _filteredLoterias = finalLoterias;
+          _userCountryId = uCountryId;
+          _setPlayedRoutes(effectiveUserPlays);
+          _filteredLoterias = _filterBySelectedView(_loterias);
           _isLoading = false;
+          _loadFailed = false;
+          _showingStaleData =
+              _catalogFetchFailed || userPlaysFailed || usedCachedPlays;
         });
-        if (finalLoterias.isNotEmpty) {
-          CacheService.setJson(cacheKey, finalLoterias);
-        }
+        return;
+      }
+
+      setState(() {
+        _userCountry = uCountry;
+        _userCountryId = uCountryId;
+        _setPlayedRoutes(effectiveUserPlays);
+        _loterias = finalLoterias;
+        _filteredLoterias = _filterBySelectedView(finalLoterias);
+        _isLoading = false;
+        _loadFailed = finalLoterias.isEmpty && _catalogFetchFailed;
+        _showingStaleData =
+            finalLoterias.isNotEmpty &&
+            (_catalogFetchFailed || userPlaysFailed || usedCachedPlays);
+      });
+
+      if (finalLoterias.isNotEmpty && !_catalogFetchFailed) {
+        await CacheService.setJson(cacheKey, finalLoterias);
+      }
+      if (!_catalogFetchFailed) {
         DataRefreshManager.instance.markUpdated(RefreshModules.resultados);
       }
-    } catch (e) {
-      debugPrint("❌ Error en cargarLoterias (Resultados): $e");
-      if (mounted) setState(() => _isLoading = false);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadFailed = _loterias.isEmpty;
+        _showingStaleData = _loterias.isNotEmpty;
+      });
     }
   }
 
+  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({
+    bool force = false,
+  }) async {
+    _catalogFetchFailed = false;
 
-
-  Future<List<Map<String, dynamic>>> _obtenerTodasLasLoterias({bool force = false}) async {
     if (!force) {
-      final cachedMapeo = await CacheService.getJson('loterias_mapeadas_all_v3');
+      final cachedMapeo = await CacheService.getJson(
+        CacheService.catalogoLoteriasKey,
+      );
       final cachedPaises = await CacheService.getJson('paises_list_cache');
-      if (cachedPaises != null && (cachedPaises as List).isNotEmpty) {
+      if (cachedPaises is List && cachedPaises.isNotEmpty) {
         _paises = List<Map<String, dynamic>>.from(cachedPaises);
       }
-      if (cachedMapeo != null && (cachedMapeo as List).isNotEmpty) {
+      if (cachedMapeo is List && cachedMapeo.isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
     }
 
+    var hadNetworkFailure = false;
     try {
       final results = await Future.wait([
-        ApiService.getPaises().catchError((_) => <Map<String, dynamic>>[]),
-        ApiService.getAllLoterias().catchError((e) {
-          debugPrint("⚠️ Error obteniendo todas las loterías: $e");
+        ApiService.getPaises().catchError((_) {
+          hadNetworkFailure = true;
+          return <Map<String, dynamic>>[];
+        }),
+        ApiService.getAllLoterias().catchError((_) {
+          hadNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -185,7 +244,14 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       final paisesRaw = results[0] as List<Map<String, dynamic>>;
       if (paisesRaw.isNotEmpty) {
         _paises = paisesRaw;
-        CacheService.setJson('paises_list_cache', _paises);
+        await CacheService.setJson('paises_list_cache', _paises);
+      } else if (_paises.isEmpty) {
+        final stalePaises = await CacheService.getStaleJson(
+          'paises_list_cache',
+        );
+        if (stalePaises is List && stalePaises.isNotEmpty) {
+          _paises = List<Map<String, dynamic>>.from(stalePaises);
+        }
       }
 
       final loteriasRaw = results[1];
@@ -193,30 +259,167 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
+      _catalogFetchFailed = hadNetworkFailure;
+
       if (todas.isNotEmpty) {
-        CacheService.setJson('loterias_mapeadas_all_v3', todas);
+        await CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
+        return todas;
+      }
+
+      if (hadNetworkFailure) {
+        final staleCatalog = await CacheService.getStaleJson(
+          CacheService.catalogoLoteriasKey,
+        );
+        if (staleCatalog is List && staleCatalog.isNotEmpty) {
+          return List<Map<String, dynamic>>.from(staleCatalog);
+        }
       }
       return todas;
-    } catch (e) {
-      debugPrint("⚠️ Error en _obtenerTodasLasLoterias: $e");
-      return [];
+    } catch (_) {
+      _catalogFetchFailed = true;
+      final staleCatalog = await CacheService.getStaleJson(
+        CacheService.catalogoLoteriasKey,
+      );
+      if (staleCatalog is List && staleCatalog.isNotEmpty) {
+        return List<Map<String, dynamic>>.from(staleCatalog);
+      }
+      return <Map<String, dynamic>>[];
     }
   }
 
-  String _getRouteFromName(String nombre) {
-    String clean = nombre.trim().toLowerCase();
-    clean = clean
+  String? _lastDrawRaw(Map<String, dynamic> loteria) {
+    final raw = loteria['ultimo_sorteo'] ?? loteria['fecha_ultimo_sorteo'];
+    final value = raw?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  /// `ultimo_sorteo` se calcula en backend sólo con filas de resultados
+  /// oficiales. Un próximo sorteo o una predicción nunca habilitan la tarjeta.
+  bool _hasRecordedDraw(Map<String, dynamic> loteria) =>
+      _lastDrawRaw(loteria) != null;
+
+  String _routeOf(Map<String, dynamic> loteria) {
+    final rawRoute = loteria['route']?.toString().trim().toLowerCase();
+    if (rawRoute != null && rawRoute.isNotEmpty) return rawRoute;
+    return loteria['nombre']
+        .toString()
+        .trim()
+        .toLowerCase()
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
         .replaceAll(RegExp(r'[íìïî]'), 'i')
         .replaceAll(RegExp(r'[óòöô]'), 'o')
         .replaceAll(RegExp(r'[úùüû]'), 'u')
-        .replaceAll(RegExp(r'[ñ]'), 'n');
+        .replaceAll(RegExp(r'[ñ]'), 'n')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
 
-    return clean
-        .replaceAll(RegExp(r'[^a-z0-9\s_]'), '')
-        .trim()
-        .replaceAll(RegExp(r'[\s_]+'), '_');
+  void _setPlayedRoutes(Map<String, Map<String, dynamic>> userPlays) {
+    _activePlayedRoutes = <String>{};
+    _pastPlayedRoutes = <String>{};
+    _activePlayedLotteryIds = <String>{};
+    _pastPlayedLotteryIds = <String>{};
+
+    for (final entry in userPlays.entries) {
+      final info = entry.value;
+      final route = (info['route']?.toString() ??
+              (entry.key.startsWith('route:')
+                  ? entry.key.substring('route:'.length)
+                  : (int.tryParse(entry.key) == null ? entry.key : '')))
+          .trim()
+          .toLowerCase();
+      final loteriaId = (info['loteria_id']?.toString() ??
+              (int.tryParse(entry.key) != null ? entry.key : ''))
+          .trim();
+      final drawDate = info['fecha']?.toString();
+      final dayDifference = _drawDayDifference(drawDate);
+      final isActive =
+          dayDifference != null &&
+          dayDifference >= -_recentGraceDaysAfterDraw;
+
+      if (loteriaId.isNotEmpty) {
+        (isActive ? _activePlayedLotteryIds : _pastPlayedLotteryIds)
+            .add(loteriaId);
+      } else if (route.isNotEmpty) {
+        (isActive ? _activePlayedRoutes : _pastPlayedRoutes).add(route);
+      }
+    }
+  }
+
+  bool _isFromUserCountry(Map<String, dynamic> loteria) {
+    final countryId = loteria['pais_id']?.toString();
+    if (_userCountryId != null && _userCountryId!.isNotEmpty) {
+      return countryId == _userCountryId;
+    }
+    return _getPaisNombre(loteria['pais_id']).trim().toLowerCase() ==
+        (_userCountry ?? '').trim().toLowerCase();
+  }
+
+  int? _drawDayDifference(String? fecha) {
+    if (fecha == null || fecha.trim().isEmpty) return null;
+    final clean = fecha.trim();
+    final parsed = DateTime.tryParse(clean) ??
+        (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+    if (parsed == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final drawDay = DateTime(parsed.year, parsed.month, parsed.day);
+    return drawDay.difference(today).inDays;
+  }
+
+  List<Map<String, dynamic>> _filterBySelectedView(
+    List<Map<String, dynamic>> source,
+  ) {
+    final routeCounts = <String, int>{};
+    for (final lot in source) {
+      final route = _routeOf(lot);
+      routeCounts[route] = (routeCounts[route] ?? 0) + 1;
+    }
+
+    bool matchesPlay(
+      Map<String, dynamic> lot,
+      Set<String> ids,
+      Set<String> legacyRoutes,
+    ) {
+      final id = lot['id']?.toString();
+      if (id != null && ids.contains(id)) return true;
+      final route = _routeOf(lot);
+      // Un route legacy compartido no identifica el país y por tanto no debe
+      // expandirse a todas las tarjetas de Euromillions/EuroDreams.
+      return (routeCounts[route] ?? 0) == 1 && legacyRoutes.contains(route);
+    }
+
+    if (_selectedFilter == 'historial') {
+      return source
+          .where((lot) =>
+              !_isFromUserCountry(lot) &&
+              matchesPlay(lot, _pastPlayedLotteryIds, _pastPlayedRoutes))
+          .toList();
+    }
+    return source
+        .where((lot) =>
+            _isFromUserCountry(lot) ||
+            matchesPlay(lot, _activePlayedLotteryIds, _activePlayedRoutes))
+        .toList();
+  }
+
+  void _selectView(String view) {
+    if (_selectedFilter == view) return;
+    setState(() {
+      _selectedFilter = view;
+      _filteredLoterias = _filterBySelectedView(_loterias);
+    });
+  }
+
+  DateTime _lastDrawDate(Map<String, dynamic> loteria) {
+    final raw = _lastDrawRaw(loteria);
+    if (raw == null) return DateTime.fromMillisecondsSinceEpoch(0);
+    return DateTime.tryParse(raw) ??
+        (raw.length >= 10
+            ? DateTime.tryParse(raw.substring(0, 10))
+            : null) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   String _getPaisNombre(dynamic id) {
@@ -247,17 +450,56 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                  child: Text(
-                    l10n?.analisisYResultados ?? "Análisis y Resultados",
-                    style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n?.analisisYResultados ??
+                              "Análisis y Resultados",
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Consumer<SubscriptionProvider>(
+                        builder: (_, sub, __) => PremiumCrownIcon(
+                          isPremium: sub.isPremium,
+                          size: 22,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               SliverToBoxAdapter(
                 child: _buildInfoBanner(l10n),
               ),
+              SliverToBoxAdapter(
+                child: _buildFilterToggleButtons(l10n),
+              ),
+              if (_showingStaleData)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(16, 2, 16, 10),
+                    child: AppStaleDataBanner(),
+                  ),
+                ),
               if (_isLoading && _loterias.isEmpty)
                 _buildSliverSkeletonList()
+              else if (_loadFailed && _loterias.isEmpty)
+                SliverToBoxAdapter(
+                  child: AppDataStateCard(
+                    isConnectionError: true,
+                    onRetry: () => cargarLoterias(forceRefresh: true),
+                    retrying: _isLoading,
+                    margin: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+                  ),
+                )
               else if (_filteredLoterias.isEmpty)
                 SliverToBoxAdapter(
                   child: _buildEmptyState(l10n),
@@ -306,12 +548,17 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                       ),
                     ),
                     const SizedBox(width: 4),
-                    Text(
-                      l10n?.analisisYResultados ?? "Análisis y Resultados",
-                      style: GoogleFonts.montserrat(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                    Expanded(
+                      child: Text(
+                        l10n?.analisisYResultados ??
+                            "Análisis y Resultados",
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.montserrat(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
                       ),
                     ),
                   ],
@@ -334,21 +581,91 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     );
   }
 
+  Widget _buildFilterToggleButtons(AppLocalizations? l10n) {
+    final showingRecent = _selectedFilter == 'recientes';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildFilterButton(
+              isSelected: showingRecent,
+              icon: Icons.access_time_rounded,
+              label: l10n?.resultadosRecientes ?? 'Recientes',
+              onTap: () => _selectView('recientes'),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _buildFilterButton(
+              isSelected: !showingRecent,
+              icon: Icons.history_rounded,
+              label: l10n?.historicoResultadosTitulo ??
+                  'Historial de resultados',
+              onTap: () => _selectView('historial'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterButton({
+    required bool isSelected,
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final foreground = isSelected ? Colors.black : Colors.white70;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 46,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.yellow : const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.yellow : Colors.white12,
+          ),
+        ),
+        child: Center(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 17, color: foreground),
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: GoogleFonts.montserrat(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: foreground,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildEmptyState(AppLocalizations? l10n) {
-    final langCode = Localizations.localeOf(context).languageCode;
-    final countryName = PaisHelper.getNombreTraducido(_userCountry ?? "Colombia", langCode);
-
-    final String titleText = langCode == 'en'
-        ? "No lotteries registered for $countryName"
-        : langCode == 'pt'
-            ? "Não há loterias registradas para $countryName"
-            : "No hay loterías registradas para $countryName";
-
-    final String bodyText = langCode == 'en'
-        ? "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!"
-        : langCode == 'pt'
-            ? "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!"
-            : "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!";
+    final showingHistory = _selectedFilter == 'historial';
+    final String titleText = showingHistory
+        ? (l10n?.sinHistorialResultados ?? 'Aún no hay resultados históricos')
+        : (l10n?.sinResultadosRegistrados ??
+              'Aún no hay resultados registrados');
+    final String bodyText = showingHistory
+        ? (l10n?.sinHistorialResultadosDescripcion ??
+              'Los sorteos anteriores aparecerán aquí cuando cada lotería tenga más de un resultado oficial.')
+        : (l10n?.sinResultadosRegistradosDescripcion ??
+              'Las loterías aparecerán aquí cuando registren su primer sorteo oficial.');
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -367,8 +684,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               color: AppColors.yellow.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.public_outlined,
+            child: Icon(
+              showingHistory
+                  ? Icons.history_toggle_off_rounded
+                  : Icons.public_outlined,
               color: AppColors.yellow,
               size: 38,
             ),
@@ -427,12 +746,16 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             children: [
               Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
               const SizedBox(width: 8),
-              Text(
-                countryDisplay,
-                style: AppTextStyles.h2.copyWith(
-                  color: AppColors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  countryDisplay,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.h2.copyWith(
+                    color: AppColors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
@@ -463,17 +786,21 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       if (parsed == null) return fecha;
 
       final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en' 
+      final dias = langCode == 'en'
           ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt' 
+          : (langCode == 'pt'
               ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+              : (langCode == 'fr'
+                  ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
+                  : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]));
 
       final meses = langCode == 'en'
           ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
           : (langCode == 'pt'
               ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
+              : (langCode == 'fr'
+                  ? ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"]
+                  : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]));
 
       final diaSemana = dias[parsed.weekday - 1];
       final mes = meses[parsed.month - 1];
@@ -499,16 +826,31 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       final langCode = Localizations.localeOf(context).languageCode;
 
       if (diff == 0) {
-        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
+        if (langCode == 'en') return "Draws today";
+        if (langCode == 'pt') return "Sorteia hoje";
+        if (langCode == 'fr') return "Tirage aujourd’hui";
+        return "Sortea hoy";
       } else if (diff == 1) {
-        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
+        if (langCode == 'en') return "Tomorrow";
+        if (langCode == 'pt') return "Amanhã";
+        if (langCode == 'fr') return "Demain";
+        return "Mañana";
       } else if (diff > 1) {
-        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
+        if (langCode == 'en') return "In $diff days";
+        if (langCode == 'pt') return "Faltam $diff dias";
+        if (langCode == 'fr') return "Dans $diff jours";
+        return "Faltan $diff días";
       } else if (diff == -1) {
-        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
+        if (langCode == 'en') return "Drew yesterday";
+        if (langCode == 'pt') return "Sorteado ontem";
+        if (langCode == 'fr') return "Tiré hier";
+        return "Sorteó ayer";
       } else {
         final dias = diff.abs();
-        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
+        if (langCode == 'en') return "Drew $dias days ago";
+        if (langCode == 'pt') return "Sorteado há $dias dias";
+        if (langCode == 'fr') return "Tiré il y a $dias jours";
+        return "Sorteó hace $dias días";
       }
     } catch (_) {
       return "";
@@ -520,9 +862,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final String nombreFormateado = nombre.isNotEmpty
         ? nombre[0].toUpperCase() + nombre.substring(1).toLowerCase()
         : "";
-    final rawFecha = loteria["ultimo_sorteo"] ?? loteria["fecha_ultimo_sorteo"] ?? loteria["fecha"] ?? loteria["proximo_sorteo"];
-    final fechaDisplay = _formatearFechaSimple(rawFecha?.toString());
-    final estadoDisplay = _calcularEstadoSorteo(rawFecha?.toString());
+    final rawFecha = _lastDrawRaw(loteria);
+    final fechaDisplay = _formatearFechaSimple(rawFecha);
+    final estadoDisplay = _calcularEstadoSorteo(rawFecha);
+    final openingHistory = _selectedFilter == 'historial';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
@@ -533,11 +876,15 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       child: ListTile(
         dense: true,
         visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
+        // El filtro Historial sólo cambia la lista; entrar en una lotería no
+        // debe abrir ni el historial completo ni el anuncio automáticamente.
         onTap: () => _navigateToEstadisticas(loteria),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 0.0),
         leading: LotteryAvatar3D(nombre: nombre, size: 36),
         title: Text(
           nombreFormateado,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppTextStyles.h2.copyWith(
             color: Colors.white,
             fontWeight: FontWeight.w600,
@@ -562,6 +909,8 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
               const SizedBox(height: 2),
               Text(
                 estadoDisplay,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Colors.white38,
                   fontSize: 10.5,
@@ -571,7 +920,17 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
             ],
           ],
         ),
-        trailing: const Icon(Icons.analytics_outlined, color: AppColors.yellow, size: 18),
+        trailing: openingHistory
+            ? const Icon(
+                Icons.history_rounded,
+                color: AppColors.yellow,
+                size: 18,
+              )
+            : const Icon(
+                Icons.analytics_outlined,
+                color: AppColors.yellow,
+                size: 18,
+              ),
       ),
     );
   }
