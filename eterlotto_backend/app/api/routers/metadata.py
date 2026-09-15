@@ -1,3 +1,4 @@
+from app.core import config
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Optional
 from app.api import schemas, dependencies
@@ -18,7 +19,9 @@ def listar_categorias(use_cases: PublicidadUseCases = Depends(dependencies.get_p
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar categorías: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/paises")
 def listar_paises(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -32,7 +35,9 @@ def listar_paises(use_cases: PublicidadUseCases = Depends(dependencies.get_publi
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar países: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/departamentos/{pais_id}")
 def listar_departamentos_por_pais(pais_id: int, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -46,7 +51,9 @@ def listar_departamentos_por_pais(pais_id: int, use_cases: PublicidadUseCases = 
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar departamentos: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/departamentos1")
 def listar_departamentos(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -60,7 +67,9 @@ def listar_departamentos(use_cases: PublicidadUseCases = Depends(dependencies.ge
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar departamentos: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/ciudades")
 def listar_ciudades(departamento_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
@@ -74,18 +83,66 @@ def listar_ciudades(departamento_id: Optional[int] = None, use_cases: Publicidad
             memory_cache.set(cache_key, res, ttl=300)
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al listar ciudades: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/loterias", response_model=List[schemas.LoteriaOut])
-def listar_loterias(pais_id: Optional[int] = None, use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
+def listar_loterias(
+    pais_id: Optional[int] = None,
+    force_refresh: bool = False,
+    use_cases: PublicidadUseCases = Depends(
+        dependencies.get_publicidad_use_cases
+        ),
+    ):
     cache_key = f"metadata:loterias:{pais_id or 'all'}"
-    cached = memory_cache.get(cache_key)
-    if cached is not None:
-        return cached
+
+    # Navegación normal:
+    # usar caché backend si todavía está disponible.
+    #
+    # Pull-to-refresh:
+    # force_refresh=True ignora la caché y consulta nuevamente la BD.
+    if not force_refresh:
+        cached = memory_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
     try:
         res = use_cases.listar_loterias(pais_id)
+
+        # Tanto una consulta normal como un force_refresh exitoso
+        # reemplazan la caché con los datos más recientes de la BD.
         if res is not None:
             memory_cache.set(cache_key, res, ttl=300)
+
         return res
+
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+
+        logging.error(
+            f"Error listando loterías "
+            f"(pais_id={pais_id}, force_refresh={force_refresh}): {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Error interno del servidor",
+        )
+
+
+
+import os
+
+@router.get("/metadata/app-config")
+def get_app_config():
+    try:
+        min_build = int(os.getenv("MIN_BUILD_NUMBER", "22"))
+    except (ValueError, TypeError):
+        min_build = 22
+
+    return {
+        "success": True,
+        "min_build_number": min_build,
+        "store_url_android": f"https://play.google.com/store/apps/details?id={config.PACKAGE_NAME}",
+        "store_url_ios": "https://apps.apple.com/app/id_aqui_si_tienes"
+    }

@@ -304,9 +304,13 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 "is_destacado": promedio >= 4.5 and total_votos >= 3
             }
 
-    async def aprobar_publicidad(self, publicidad_id: int) -> bool:
+    async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            is_admin = await conn.fetchval("SELECT is_super_admin FROM users WHERE id = $1", admin_user_id)
+            if not is_admin:
+                raise PermissionError("Permisos insuficientes para aprobar publicidad")
+                
             result = await conn.execute("""
                 UPDATE publicidad
                 SET aprobado = TRUE, pago_confirmado = TRUE
@@ -427,7 +431,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 except Exception as et:
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception as e:
+                        logging.getLogger(__name__).error(f'Error capturado: {e}')
                         pass
                     logger.debug(f"Error precargando tablas de resultados: {et}")
 
@@ -450,7 +455,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 except Exception as ej:
                     try:
                         conn.rollback()
-                    except Exception:
+                    except Exception as e:
+                        logging.getLogger(__name__).error(f'Error capturado: {e}')
                         pass
                     logger.debug(f"Error precargando jackpots: {ej}")
 
@@ -481,6 +487,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
+
                             else:
                                 cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0")
                                 res = cur.fetchone()
@@ -495,10 +502,13 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                     ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
                                     if ult_fecha:
                                         lot['ultimo_sorteo'] = str(ult_fecha)
-                        except Exception:
+
+                        except Exception as e:
+                            logging.getLogger(__name__).error(f'Error capturado: {e}')
                             try:
                                 conn.rollback()
-                            except Exception:
+                            except Exception as e:
+                                logging.getLogger(__name__).error(f'Error capturado: {e}')
                                 pass
 
                     # Fallback a tabla predicciones si proximo_sorteo no se encontró en la tabla de resultados
@@ -510,10 +520,12 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                                 p_fecha = p_res['p_fecha'] if isinstance(p_res, dict) and 'p_fecha' in p_res else p_res[0]
                                 if p_fecha:
                                     lot['proximo_sorteo'] = str(p_fecha)
-                        except Exception:
+                        except Exception as e:
+                            logging.getLogger(__name__).error(f'Error capturado: {e}')
                             try:
                                 conn.rollback()
-                            except Exception:
+                            except Exception as e:
+                                logging.getLogger(__name__).error(f'Error capturado: {e}')
                                 pass
 
                     # Búsqueda instantánea en mapa de jackpots en memoria (0 ms)

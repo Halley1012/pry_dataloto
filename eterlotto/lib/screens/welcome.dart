@@ -101,18 +101,33 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              // Logo adaptativo
-              Image.asset(
-                "assets/images/logo_letras_.png",
-                fit: BoxFit.contain,
-                height: MediaQuery.of(context).size.height * 0.28,
-              ),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // Logo principal Eterlotto
+                Center(
+                  child: Container(
+                    width: 190,
+                    height: 190,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(36),
+                      boxShadow: [
+
+                      ],
+                    ),
+                    child: Image.asset(
+                      "assets/images/logo_icon_black.png",
+                      width: 175,
+                      height: 175,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
               const SizedBox(height: 16),
 
               Text(l10n?.bienvenido ?? "¡Bienvenido a Eterlotto!", style: AppTextStyles.h2),
@@ -178,7 +193,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             size: 20,
                           ),
                           label: Text(
-                            "Continuar con Google",
+                            l10n?.continuarConGoogle ?? "Continuar con Google",
                             style: AppTextStyles.button.copyWith(
                               color: AppColors.yellow,
                             ),
@@ -200,6 +215,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

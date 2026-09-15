@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:eterlotto/screens/welcome.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,12 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final LocaleProvider localeProvider = LocaleProvider();
 
 void main() {
+  // Las trazas detalladas se conservan durante el desarrollo, pero ninguna
+  // información de diagnóstico se escribe en la consola de una app publicada.
+  if (kReleaseMode) {
+    debugPrint = (String? message, {int? wrapWidth}) {};
+  }
+
   runZonedGuarded(
     () async {
       // Inicializar bindings y configuraciones dentro de la misma zona
@@ -54,8 +61,7 @@ void main() {
       unawaited(AdService.instance.initialize());
     },
 
-    (error, stack) {
-      debugPrint("❌ Error capturado en runZonedGuarded: $error");
+    (error, _) {
       if (error.toString().contains("401") ||
           error.toString().contains("Token inválido")) {
         // Si el token está inválido → limpiar stack y mandar a Login
@@ -63,8 +69,6 @@ void main() {
           '/login',
           (route) => false,
         );
-      } else {
-        debugPrint("🔥 Error no controlado: $error");
       }
     },
   );
@@ -89,6 +93,20 @@ class EterlottoApp extends StatelessWidget {
           debugShowCheckedModeBanner: false,
           initialRoute: '/splash',
           title: 'Eterlotto',
+          // Mantiene la interfaz legible con la escala de accesibilidad del
+          // dispositivo, sin permitir que una escala extrema rompa filas o
+          // tarjetas que ya se adaptan a cualquier idioma/país.
+          builder: (context, child) {
+            final mediaQuery = MediaQuery.of(context);
+            return MediaQuery(
+              data: mediaQuery.copyWith(
+                textScaler: mediaQuery.textScaler.clamp(
+                  maxScaleFactor: 1.15,
+                ),
+              ),
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
           locale: localeProvider.locale,
           localizationsDelegates: [
             AppLocalizations.delegate,
@@ -96,11 +114,7 @@ class EterlottoApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          supportedLocales: const [
-            Locale('es', ''), // Español
-            Locale('en', ''), // Inglés
-            Locale('pt', ''), // Portugués
-          ],
+          supportedLocales: AppLocalizations.supportedLocales,
           localeResolutionCallback: (deviceLocale, supportedLocales) {
             if (localeProvider.locale != null) {
               return localeProvider.locale;
@@ -112,7 +126,7 @@ class EterlottoApp extends StatelessWidget {
                 }
               }
             }
-            return supportedLocales.first; // Default fallback: Español
+            return const Locale('es'); // Default fallback: Español
           },
           theme: ThemeData.dark().copyWith(
             textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),

@@ -97,7 +97,7 @@ with DAG(
     'eterlotto_ejecucion_lotto_america',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Lotto America usando main_lotto_america.py',
-    schedule='0 3 * * 2,4,7', # Martes, Jueves y Domingos
+    schedule='0 3 * * *', # Martes, Jueves y Domingos
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'lotto_america'],

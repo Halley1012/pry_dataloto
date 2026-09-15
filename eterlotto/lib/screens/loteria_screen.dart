@@ -1,11 +1,12 @@
 import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:intl/intl.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/models/loteria_config.dart';
 import 'package:eterlotto/screens/estadisticas_dashboard_screen.dart';
 import 'package:eterlotto/screens/jugadas/mis_jugadas_screen.dart';
 import 'package:eterlotto/screens/resultados/historico_resultados_screen.dart';
@@ -19,6 +20,7 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
+import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:provider/provider.dart';
 import '../utils/secure_storage_helper.dart';
@@ -26,155 +28,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
 
 /// Configuración de reglas y límites de cada lotería
-class LoteriaConfig {
-  final String nombre;
-  final String route;
-  final int maxSeleccion;
-  final int maxBalotasBlancas;
-  final int maxBalotasRojas;
-  final String superbalotaNombre;
-  final bool hasRevancha;
-  final int totalBalotasSorteo;
-  final bool tieneComplementario;
-  final bool tieneReintegro;
-
-  const LoteriaConfig({
-    required this.nombre,
-    required this.route,
-    this.maxSeleccion = 5,
-    this.maxBalotasBlancas = 45,
-    this.maxBalotasRojas = 0,
-    this.superbalotaNombre = "Superbalota",
-    this.hasRevancha = false,
-    this.totalBalotasSorteo = 5,
-    this.tieneComplementario = false,
-    this.tieneReintegro = false,
-  });
-
-  bool get tieneBalotaRoja => maxBalotasRojas > 0;
-
-  LoteriaConfig copyWith({
-    String? nombre,
-    String? route,
-    int? maxSeleccion,
-    int? maxBalotasBlancas,
-    int? maxBalotasRojas,
-    String? superbalotaNombre,
-    bool? hasRevancha,
-    int? totalBalotasSorteo,
-    bool? tieneComplementario,
-    bool? tieneReintegro,
-  }) {
-    return LoteriaConfig(
-      nombre: nombre ?? this.nombre,
-      route: route ?? this.route,
-      maxSeleccion: maxSeleccion ?? this.maxSeleccion,
-      maxBalotasBlancas: maxBalotasBlancas ?? this.maxBalotasBlancas,
-      maxBalotasRojas: maxBalotasRojas ?? this.maxBalotasRojas,
-      superbalotaNombre: superbalotaNombre ?? this.superbalotaNombre,
-      hasRevancha: hasRevancha ?? this.hasRevancha,
-      totalBalotasSorteo: totalBalotasSorteo ?? this.totalBalotasSorteo,
-      tieneComplementario: tieneComplementario ?? this.tieneComplementario,
-      tieneReintegro: tieneReintegro ?? this.tieneReintegro,
-    );
-  }
-
-  /// Construye la configuración dinámicamente desde el mapa devuelto por el API / Base de Datos
-  static LoteriaConfig fromJson(Map<String, dynamic> json, {String? fallbackNombre}) {
-    final rawNombre = json["nombre"]?.toString() ?? fallbackNombre ?? "Lotería";
-    final rawRoute = (json["route"] != null && json["route"].toString().isNotEmpty)
-        ? json["route"].toString().trim().toLowerCase()
-        : _inferRouteFromName(rawNombre);
-
-    final maxSel = json["max_seleccion"] != null
-        ? int.tryParse(json["max_seleccion"].toString())
-        : (json["maxSeleccion"] != null ? int.tryParse(json["maxSeleccion"].toString()) : null);
-
-    final maxBlancas = json["max_balotas_blancas"] != null
-        ? int.tryParse(json["max_balotas_blancas"].toString())
-        : (json["max_balotas"] != null
-            ? int.tryParse(json["max_balotas"].toString())
-            : (json["maxBalotasBlancas"] != null
-                ? int.tryParse(json["maxBalotasBlancas"].toString())
-                : null));
-
-    final maxRojas = json["max_balotas_rojas"] != null
-        ? int.tryParse(json["max_balotas_rojas"].toString())
-        : (json["maxBalotasRojas"] != null
-            ? int.tryParse(json["maxBalotasRojas"].toString())
-            : null);
-
-    final superNombre =
-        json["superbalota_nombre"]?.toString() ?? json["superbalotaNombre"]?.toString();
-
-    final revancha = json["has_revancha"] == true || json["hasRevancha"] == true;
-
-    final tieneComp = json["tiene_complementario"] == true ||
-        json["tieneComplementario"] == true;
-
-    final tieneReintegro = json["tiene_reintegro"] == true ||
-        json["tieneReintegro"] == true;
-
-    final int totalSorteoFallback = (maxSel ?? 5) + ((maxRojas ?? 0) > 0 ? 1 : 0) + (tieneComp ? 1 : 0);
-    final totalSorteo = json["total_balotas_sorteo"] != null
-        ? int.tryParse(json["total_balotas_sorteo"].toString())
-        : (json["totalBalotasSorteo"] != null
-            ? int.tryParse(json["totalBalotasSorteo"].toString())
-            : null);
-
-    return LoteriaConfig(
-      nombre: rawNombre,
-      route: rawRoute,
-      maxSeleccion: maxSel ?? 5,
-      maxBalotasBlancas: maxBlancas ?? 45,
-      maxBalotasRojas: maxRojas ?? 0,
-      superbalotaNombre: superNombre ?? "Superbalota",
-      hasRevancha: revancha,
-      totalBalotasSorteo: totalSorteo ?? totalSorteoFallback,
-      tieneComplementario: tieneComp,
-      tieneReintegro: tieneReintegro,
-    );
-  }
-
-  /// Constructor fallback cuando solo se conoce el nombre o la ruta
-  static LoteriaConfig fromNombre(String? nombreInput, {String? routeOverride}) {
-    final t = (nombreInput ?? "Lotería").trim();
-    final cleanRoute = (routeOverride != null && routeOverride.isNotEmpty)
-        ? routeOverride.trim().toLowerCase()
-        : _inferRouteFromName(t);
-
-    final formattedName = t.isNotEmpty
-        ? t[0].toUpperCase() + t.substring(1)
-        : "Lotería";
-
-    final tieneComp = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
-    final tieneReintegro = cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("el_gordo");
-    final int maxSel = (cleanRoute.contains("kabala") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") || cleanRoute.contains("duplasena") || cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva") || cleanRoute.contains("cloto") || cleanRoute.contains("eurodreams") || cleanRoute.contains("megasena") || cleanRoute.contains("maismilionaria") || cleanRoute.contains("melate")) ? 6 : 5;
-    final int maxRojas = (cleanRoute.contains("lotto_cr") || cleanRoute.contains("ganadiario") || cleanRoute.contains("kabala") || cleanRoute.contains("duplasena") || cleanRoute.contains("quina") || cleanRoute.contains("chispazo") || cleanRoute.contains("mloto") || cleanRoute.contains("cloto") || cleanRoute.contains("megasena")) ? 0 : (cleanRoute.contains("maismilionaria") ? 6 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : 10)))));
-    final int maxBlancas = cleanRoute.contains("quina") ? 80 : (cleanRoute.contains("megasena") ? 60 : (cleanRoute.contains("duplasena") || cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? 50 : (cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? 48 : (cleanRoute.contains("kabala") || cleanRoute.contains("lotto_cr") ? 40 : (cleanRoute.contains("ganadiario") ? 35 : (cleanRoute.contains("chispazo") ? 28 : (cleanRoute.contains("melateretro") || cleanRoute.contains("retro") ? 39 : (cleanRoute.contains("melate") ? 56 : (cleanRoute.contains("maismilionaria") ? 50 : 45)))))))));
-    final String sbNombre = cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") ? "Bolilla Extra" : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka") ? "Boliyapa" : (cleanRoute.contains("maismilionaria") ? "Tréboles" : (cleanRoute.contains("melate") ? "Adicional" : "Superbalota")));
-    final bool hasRev = cleanRoute.contains("lotto_cr") || cleanRoute.contains("kabala") || cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro") || cleanRoute.contains("duplasena") || (!cleanRoute.contains("retro") && cleanRoute.contains("melate")) || cleanRoute.contains("baloto") || cleanRoute.contains("bloto");
-    final int totalSorteo = maxSel + (maxRojas > 0 ? (cleanRoute.contains("maismilionaria") ? 2 : 1) : 0) + (tieneComp ? 1 : 0);
-
-    return LoteriaConfig(
-      nombre: formattedName,
-      route: cleanRoute,
-      maxSeleccion: maxSel,
-      maxBalotasBlancas: maxBlancas,
-      maxBalotasRojas: maxRojas,
-      superbalotaNombre: sbNombre,
-      hasRevancha: hasRev,
-      totalBalotasSorteo: totalSorteo,
-      tieneComplementario: tieneComp,
-      tieneReintegro: tieneReintegro,
-    );
-  }
-
-  static String _inferRouteFromName(String t) {
-    return t.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '_');
-  }
-}
-
 class LoteriaScreen extends StatefulWidget {
   final String loteriaNombre;
   final String? loteriaRoute;
@@ -191,11 +44,12 @@ class LoteriaScreen extends StatefulWidget {
   State<LoteriaScreen> createState() => _LoteriaScreenState();
 }
 
-class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateMixin {
+class _LoteriaScreenState extends State<LoteriaScreen>
+    with TickerProviderStateMixin {
   final _storage = AppSecureStorage.instance;
   late LoteriaConfig config;
 
-  int? balotaRojaSeleccionada;
+  List<int> balotasEspecialesSeleccionadas = [];
   List<int> seleccionados = [];
   List<int> listaProbables = [];
   List<int> listaBalotaRoja = [];
@@ -207,10 +61,41 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   bool cargando = false;
   bool isSaving = false;
+  bool _dataRequestFailed = false;
+  bool _showingStaleData = false;
+
+  // Personalización local del orden de los 4 accesos rápidos.
+  // Se guarda una sola vez para todas las loterías, igual que el orden del Home.
+  static const String _actionOrderStorageKey =
+      'eterlotto_lottery_action_order_v1';
+  static const List<String> _defaultActionOrder = <String>[
+    'generate',
+    'save',
+    'plays',
+    'stats',
+  ];
+  List<String> _actionOrder = List<String>.from(_defaultActionOrder);
+
+  /// Compara números del mismo rol sin alterar la representación almacenada.
+  /// Al ordenar copias se conservan las repeticiones: no se usa Set porque un
+  /// número principal y uno especial pueden tener el mismo valor.
+  bool _sameNumbersIgnoringOrder(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+
+    final sortedA = List<int>.from(a)..sort();
+    final sortedB = List<int>.from(b)..sort();
+
+    for (var index = 0; index < sortedA.length; index++) {
+      if (sortedA[index] != sortedB[index]) return false;
+    }
+
+    return true;
+  }
   int _generacionesCount = 0;
   String? fechaPrediccion;
   String? userId;
   String? _jackpot;
+  String? _paisNombre;
   String _selectedResultadosTab = "";
 
   late AnimationController _bounceController;
@@ -222,14 +107,25 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   void initState() {
     super.initState();
     ScreenSecurityHelper.enableSecureScreen();
+    _restoreActionOrder();
     if (widget.loteriaData != null) {
-      config = LoteriaConfig.fromJson(widget.loteriaData!, fallbackNombre: widget.loteriaNombre);
-      if (widget.loteriaData!['jackpot'] != null && widget.loteriaData!['jackpot'].toString().isNotEmpty) {
+      config = LoteriaConfig.fromJson(
+        widget.loteriaData!,
+        fallbackNombre: widget.loteriaNombre,
+      );
+      if (widget.loteriaData!['jackpot'] != null &&
+          widget.loteriaData!['jackpot'].toString().isNotEmpty) {
         _jackpot = widget.loteriaData!['jackpot'].toString();
       }
     } else {
-      config = LoteriaConfig.fromNombre(widget.loteriaNombre, routeOverride: widget.loteriaRoute);
+      config = LoteriaConfig.fromNombre(
+        widget.loteriaNombre,
+        routeOverride: widget.loteriaRoute,
+      );
     }
+
+    _paisNombre = config.paisNombre;
+    _resolverPaisLoteria();
     _cargarDataOptimizado();
 
     _bounceController = AnimationController(
@@ -252,13 +148,77 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       duration: const Duration(milliseconds: 600),
     );
 
-    DataRefreshManager.instance.refreshNotifier.addListener(_onDataRefreshNotification);
+    DataRefreshManager.instance.refreshNotifier.addListener(
+      _onDataRefreshNotification,
+    );
+  }
+
+  /// Resuelve el país real de la lotería por `pais_id`. Esto es obligatorio
+  /// para juegos compartidos (Euromillions/EuroDreams), porque `route` identifica
+  /// el motor y no el país desde el que el usuario abrió la lotería.
+  Future<void> _resolverPaisLoteria() async {
+    if ((_paisNombre ?? '').trim().isNotEmpty) return;
+
+    final paisId = config.paisId;
+    if (paisId == null) return;
+
+    String? resolvedName;
+
+    try {
+      final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+      if (cachedPaises is List) {
+        for (final item in cachedPaises) {
+          if (item is Map && item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+
+      if ((resolvedName ?? '').isEmpty) {
+        final paises = await ApiService.getPaises();
+        for (final item in paises) {
+          if (item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+    } catch (_) {
+      // Si falla la resolución, se conserva el fallback para loterías exclusivas.
+    }
+
+    if (!mounted || (resolvedName ?? '').isEmpty) return;
+
+    setState(() {
+      _paisNombre = resolvedName;
+      config = config.copyWith(paisNombre: resolvedName);
+    });
+  }
+
+  String get _paisJackpotNombre {
+    final explicit = (_paisNombre ?? config.paisNombre ?? '').trim();
+    if (explicit.isNotEmpty) return explicit;
+
+    // Para una lotería compartida es preferible no mostrar una bandera incorrecta
+    // mientras resolvemos `pais_id`, en vez de inferir "Europa" desde la route.
+    if (PaisHelper.isSharedEuropeanLottery(config.route)) return '';
+
+    return PaisHelper.getPaisNameByRoute(config.route);
+  }
+
+  String get _paisJackpotIso {
+    final pais = _paisJackpotNombre;
+    if (pais.isEmpty) return '';
+    return PaisHelper.getIsoCode(pais).trim().toLowerCase();
   }
 
   @override
   void dispose() {
     ScreenSecurityHelper.disableSecureScreen();
-    DataRefreshManager.instance.refreshNotifier.removeListener(_onDataRefreshNotification);
+    DataRefreshManager.instance.refreshNotifier.removeListener(
+      _onDataRefreshNotification,
+    );
     _bounceController.dispose();
     _shineController.dispose();
     _jugadasController.dispose();
@@ -272,7 +232,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         module == RefreshModules.jugadas ||
         module == 'all') {
       if (mounted) {
-        debugPrint("🔄 [LoteriaScreen] Auto-refrescando ${config.nombre} por ciclo de vida / TTL");
         _cargarDataOptimizado(force: false);
       }
     }
@@ -281,9 +240,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Future<void> _cargarDataOptimizado({bool force = false}) async {
     if (!mounted) return;
 
-    if (!force) {
-      final cacheKeyPred = '${config.route}_prediccion';
-      final cached = await CacheService.getJson(cacheKeyPred);
+    if (_dataRequestFailed) {
+      setState(() => _dataRequestFailed = false);
+    }
+
+    // Siempre hidratamos con el último dato conocido, incluso en refresh
+    // manual. Así una falla de red jamás borra información útil ya vista.
+    final cacheKeyPred = '${config.route}_prediccion';
+    final cached = await CacheService.getStaleJson(cacheKeyPred);
       if (cached != null && cached["numeros"] != null) {
         final nums = (cached["numeros"] as List)
             .map((e) => int.tryParse(e.toString()) ?? -1)
@@ -291,10 +255,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             .toList();
         final redNums = cached["balotaroja"] != null
             ? (cached["balotaroja"] as List)
-                .map((e) => int.tryParse(e.toString()))
-                .where((e) => e != null && e >= 0)
-                .cast<int>()
-                .toList()
+                  .map((e) => int.tryParse(e.toString()))
+                  .where((e) => e != null && e >= 0)
+                  .cast<int>()
+                  .toList()
             : <int>[];
 
         setState(() {
@@ -305,12 +269,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             _jackpot = cached["jackpot"].toString();
           }
         });
-      }
+    }
 
-      final cacheKeyUltimos = '${config.route}_ultimos5';
-      final cachedUltimos = await CacheService.getJson(cacheKeyUltimos);
-      if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
-        final list = List<Map<String, dynamic>>.from(cachedUltimos["resultados"]);
+    final cacheKeyUltimos = '${config.route}_ultimos5';
+    final cachedUltimos = await CacheService.getStaleJson(cacheKeyUltimos);
+    if (cachedUltimos != null && cachedUltimos["resultados"] is List) {
+        final list = List<Map<String, dynamic>>.from(
+          cachedUltimos["resultados"],
+        );
         final sorteosUnicos = list
             .map((r) => r["sorteo"]?.toString().trim())
             .where((s) => s != null && s.isNotEmpty)
@@ -318,12 +284,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             .toSet()
             .toList();
 
-        final cleanLoteria = config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        final cleanLoteria = config.nombre.toLowerCase().replaceAll(
+          RegExp(r'[\s_]+'),
+          '',
+        );
         sorteosUnicos.sort((a, b) {
           final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
           final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-          final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
-          final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+          final aIsMain =
+              cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+          final bIsMain =
+              cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
           if (aIsMain && !bIsMain) return -1;
           if (!aIsMain && bIsMain) return 1;
           return 0;
@@ -337,7 +308,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             _selectedResultadosTab = _sorteosDisponibles.first;
           }
         });
-      }
     }
 
     if (listaProbables.isEmpty || force) setState(() => cargando = true);
@@ -346,26 +316,38 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       final uId = await _storage.read(key: 'user_id');
       if (mounted) setState(() => userId = uId);
 
-      await Future.wait([
+      final coreDataRequests = Future.wait<bool>([
         _fetchNumeros(),
         _fetchUltimosResultados(),
         _fetchHistoricoCompleto(),
-        _loadJugadas(),
-        _loadAnuncios(),
       ]);
+      final secondaryRequests = Future.wait([_loadJugadas(), _loadAnuncios()]);
+      final coreDataResponses = await coreDataRequests;
+      await secondaryRequests;
 
       if (mounted) {
+        final allCoreRequestsFailed = coreDataResponses.every(
+          (wasSuccessful) => !wasSuccessful,
+        );
+        final hasCachedLotteryData = _hasAvailableLotteryData;
+        setState(() {
+          // El bloque grande de error sólo se justifica si no hay ningún
+          // respaldo. Con stale se conserva el contenido y se avisa de forma
+          // discreta que no pudo actualizarse.
+          _dataRequestFailed = allCoreRequestsFailed && !hasCachedLotteryData;
+          _showingStaleData = allCoreRequestsFailed && hasCachedLotteryData;
+        });
         _jugadasController.reset();
         _jugadasController.forward();
       }
-    } catch (e) {
-      debugPrint("❌ Error cargando datos de ${config.nombre}: $e");
+    } catch (_) {
+      // Los errores individuales ya son aislados en cada carga.
     } finally {
       if (mounted) setState(() => cargando = false);
     }
   }
 
-  Future<void> _fetchNumeros() async {
+  Future<bool> _fetchNumeros() async {
     try {
       final data = await ApiService.getPrediccionLoteria(config.route);
       if (data["numeros"] != null && mounted) {
@@ -376,10 +358,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
         final redNums = data["balotaroja"] != null
             ? (data["balotaroja"] as List)
-                .map((e) => int.tryParse(e.toString()))
-                .where((e) => e != null && e >= 0)
-                .cast<int>()
-                .toList()
+                  .map((e) => int.tryParse(e.toString()))
+                  .where((e) => e != null && e >= 0)
+                  .cast<int>()
+                  .toList()
             : <int>[];
 
         int dynamicMaxBlancas = config.maxBalotasBlancas;
@@ -407,12 +389,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson('${config.route}_prediccion', data);
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo predicción (${config.route}): $e");
+      return true;
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
+      return false;
     }
   }
 
-  Future<void> _fetchUltimosResultados() async {
+  Future<bool> _fetchUltimosResultados() async {
     try {
       final list = await ApiService.getUltimosResultados(config.route);
       if (mounted && list.isNotEmpty) {
@@ -423,12 +407,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             .toSet()
             .toList();
 
-        final cleanLoteria = config.nombre.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
+        final cleanLoteria = config.nombre.toLowerCase().replaceAll(
+          RegExp(r'[\s_]+'),
+          '',
+        );
         sorteosUnicos.sort((a, b) {
           final cleanA = a.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
           final cleanB = b.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-          final aIsMain = cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
-          final bIsMain = cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
+          final aIsMain =
+              cleanLoteria.contains(cleanA) || cleanA.contains(cleanLoteria);
+          final bIsMain =
+              cleanLoteria.contains(cleanB) || cleanB.contains(cleanLoteria);
           if (aIsMain && !bIsMain) return -1;
           if (!aIsMain && bIsMain) return 1;
           return 0;
@@ -444,17 +433,21 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson('${config.route}_ultimos5', {"resultados": list});
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo últimos resultados (${config.route}): $e");
+      return true;
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
+      return false;
     }
   }
 
-  Future<void> _fetchHistoricoCompleto() async {
+  Future<bool> _fetchHistoricoCompleto() async {
     final cacheKey = '${config.route}_historico_completo';
-    final cached = await CacheService.getJson(cacheKey);
+    final cached = await CacheService.getStaleJson(cacheKey);
     if (cached != null && cached["resultados"] != null && mounted) {
       setState(() {
-        todosResultadosHistorico = List<Map<String, dynamic>>.from(cached["resultados"]);
+        todosResultadosHistorico = List<Map<String, dynamic>>.from(
+          cached["resultados"],
+        );
       });
     }
 
@@ -466,29 +459,39 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         });
         CacheService.setJson(cacheKey, {"resultados": list});
       }
-    } catch (e) {
-      debugPrint("⚠️ Error obteniendo histórico (${config.route}): $e");
+      return true;
+    } catch (_) {
+      // Se conserva el contenido de caché si el backend no responde.
+      return false;
     }
   }
 
   Future<void> _loadJugadas() async {
-    final uId = userId ?? (await ApiService.getUserId())?.toString() ?? "anon";
-    final cacheKeyUser = 'user_jugadas_${config.route}_$uId';
-    final cacheKeyGeneral = 'mis_jugadas_${config.route}';
+    // La sesión actual prevalece sobre el valor con el que se construyó la
+    // pantalla; así una respuesta antigua no puede escribirse bajo otra cuenta.
+    final sessionUserId = (await ApiService.getUserId())?.toString();
+    final uId = sessionUserId ?? userId;
+    if (uId != null && userId != uId && mounted) {
+      setState(() => userId = uId);
+    }
+    final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId, loteriaId: config.loteriaId);
 
-    final cached = await CacheService.getJson(cacheKeyUser) ??
-        await CacheService.getJson(cacheKeyGeneral);
+    final cached = await CacheService.getStaleJson(cacheKeyUser);
     if (cached is List && mounted) {
       setState(() => _jugadasList = List<Map<String, dynamic>>.from(cached));
     }
 
     try {
-      final response = await ApiService.listarJugadasGenerica(config.route);
+      final response = await ApiService.listarJugadasGenerica(
+        config.route,
+        loteriaId: config.loteriaId,
+      );
+      final currentUserId = (await ApiService.getUserId())?.toString();
+      if (currentUserId != uId) return;
       if (mounted) {
         final list = List<Map<String, dynamic>>.from(response);
         setState(() => _jugadasList = list);
         await CacheService.setJson(cacheKeyUser, list);
-        await CacheService.setJson(cacheKeyGeneral, list);
       }
     } catch (_) {}
   }
@@ -515,8 +518,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         if (!seleccionados.contains(n)) seleccionados.add(n);
       }
 
-      if (config.tieneBalotaRoja) {
-        final bool includesZero = listaBalotaRoja.contains(0) ||
+      if (config.cantidadEspeciales > 0) {
+        final bool includesZero =
+            listaBalotaRoja.contains(0) ||
             config.superbalotaNombre.toLowerCase().contains("reintegro") ||
             config.superbalotaNombre.toLowerCase().contains("clave") ||
             config.route.contains("bonoloto") ||
@@ -526,9 +530,15 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         final redPool = listaBalotaRoja.isNotEmpty
             ? listaBalotaRoja
             : (includesZero
-                ? List.generate(config.maxBalotasRojas, (i) => i)
-                : List.generate(config.maxBalotasRojas, (i) => i + 1));
-        balotaRojaSeleccionada = redPool[random.nextInt(redPool.length)];
+                  ? List.generate(config.maxBalotasRojas, (i) => i)
+                  : List.generate(config.maxBalotasRojas, (i) => i + 1));
+        balotasEspecialesSeleccionadas = [];
+        final available = List<int>.from(redPool);
+        while (balotasEspecialesSeleccionadas.length < config.cantidadEspeciales &&
+            available.isNotEmpty) {
+          balotasEspecialesSeleccionadas
+              .add(available.removeAt(random.nextInt(available.length)));
+        }
       }
 
       _bounceController.reset();
@@ -548,21 +558,19 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
     if (isSaving) return;
 
-    String? currentUid = userId;
-    if (currentUid == null || currentUid.isEmpty) {
-      final uidInt = await ApiService.getUserId();
-      if (uidInt != null) {
-        currentUid = uidInt.toString();
-        if (mounted) setState(() => userId = currentUid);
-      }
+    String? currentUid = (await ApiService.getUserId())?.toString();
+    if (currentUid != null && currentUid.isNotEmpty && userId != currentUid) {
+      if (mounted) setState(() => userId = currentUid);
     }
+    currentUid ??= userId;
 
     if (currentUid == null || currentUid.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              l10n?.iniciaSesionParaContinuar ?? "Inicia sesión para guardar tu jugada",
+              l10n?.iniciaSesionParaContinuar ??
+                  "Inicia sesión para guardar tu jugada",
             ),
           ),
         );
@@ -571,37 +579,36 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     }
 
     List<int> whitesToSave = [];
-    int? redToSave;
+    List<int> specialsToSave = [];
 
     if (seleccionados.isEmpty) {
       if (listaProbables.length < config.maxSeleccion) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                "Cargando predicción, espera un momento...",
-              ),
+              content: Text("Cargando predicción, espera un momento..."),
             ),
           );
         }
         return;
       }
       whitesToSave = listaProbables.take(config.maxSeleccion).toList();
-      if (config.tieneBalotaRoja && listaBalotaRoja.isNotEmpty) {
-        redToSave = listaBalotaRoja.first;
+      if (config.cantidadEspeciales > 0 && listaBalotaRoja.isNotEmpty) {
+        specialsToSave = listaBalotaRoja.take(config.cantidadEspeciales).toList();
       }
     } else {
       if (seleccionados.length != config.maxSeleccion ||
-          (config.tieneBalotaRoja && balotaRojaSeleccionada == null)) {
+          (config.cantidadEspeciales > 0 &&
+              balotasEspecialesSeleccionadas.length != config.cantidadEspeciales)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                config.tieneBalotaRoja
+                config.cantidadEspeciales > 0
                     ? (l10n?.debesSeleccionarBalotas ??
-                        "Debes seleccionar ${config.maxSeleccion} balotas y 1 ${config.superbalotaNombre}")
+                          "Debes seleccionar ${config.maxSeleccion} balotas y ${config.cantidadEspeciales} ${config.superbalotaNombre}")
                     : (l10n?.debesSeleccionarBalotas ??
-                        "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
+                          "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
               ),
             ),
           );
@@ -609,21 +616,36 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         return;
       }
       whitesToSave = List<int>.from(seleccionados);
-      redToSave = balotaRojaSeleccionada;
+      specialsToSave = List<int>.from(balotasEspecialesSeleccionadas);
+    }
+
+    if (specialsToSave.length != config.cantidadEspeciales) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Debes seleccionar ${config.cantidadEspeciales} ${config.superbalotaNombre}',
+            ),
+          ),
+        );
+      }
+      return;
     }
 
     final whites = List<int>.from(whitesToSave)..sort();
-    final jugadaCompleta = redToSave != null ? [...whites, redToSave] : whites;
-    final Set<int> whitesSet = whites.toSet();
+    final jugadaCompleta = [...whites, ...specialsToSave];
 
     if (_jugadasList.isEmpty) {
-      final cacheKey = 'mis_jugadas_${config.route}';
-      final cached = await CacheService.getJson(cacheKey);
+      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid, loteriaId: config.loteriaId);
+      final cached = await CacheService.getStaleJson(cacheKey);
       if (cached is List && cached.isNotEmpty) {
         _jugadasList = List<Map<String, dynamic>>.from(cached);
       } else {
         try {
-          final res = await ApiService.listarJugadasGenerica(config.route);
+          final res = await ApiService.listarJugadasGenerica(
+            config.route,
+            loteriaId: config.loteriaId,
+          );
           if (res.isNotEmpty) {
             _jugadasList = List<Map<String, dynamic>>.from(res);
           }
@@ -631,45 +653,52 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       }
     }
 
+    final layout = config.numberLayout;
+    final newGroups = layout.split(jugadaCompleta);
+    final principalesNuevos = newGroups.main;
+    final especialesNuevos = newGroups.specials;
+    final complementariaNueva = newGroups.complementary;
+
     final bool isDuplicate = _jugadasList.any((j) {
-      final rawNums = (j["numeros"] as List<dynamic>?)
+      final rawNums =
+          (j["numeros"] as List<dynamic>?)
               ?.map((n) => int.tryParse(n.toString()) ?? -1)
               .where((n) => n >= 0)
               .toList() ??
           [];
       if (rawNums.isEmpty) return false;
 
-      final rawRed = j["balota_roja"] ?? j["balotaroja"];
-      final int? existingRed = rawRed != null
-          ? int.tryParse(rawRed.toString())
-          : (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion
-              ? rawNums.last
-              : null);
-
-      final List<int> existingWhites =
-          (config.tieneBalotaRoja && rawNums.length > config.maxSeleccion)
-              ? (rawNums.sublist(0, config.maxSeleccion)..sort())
-              : (rawNums.take(config.maxSeleccion).toList()..sort());
-      final Set<int> existingWhitesSet = existingWhites.toSet();
-
-      final bool whiteMatch = whitesSet.length == existingWhitesSet.length &&
-          whitesSet.difference(existingWhitesSet).isEmpty;
-
-      if (whiteMatch) {
-        if (config.tieneBalotaRoja) {
-          if (redToSave == null || existingRed == null || redToSave == existingRed) {
-            return true;
-          }
-        } else {
-          return true;
-        }
+      // Los roles se obtienen por posición: principales, especiales y
+      // complementaria. Nunca por igualdad de valores.
+      final existingGroups = layout.split(rawNums);
+      final principalesExistentes = existingGroups.main;
+      final especialesExistentes = List<int>.from(existingGroups.specials);
+      final complementariaExistente = existingGroups.complementary;
+      if (especialesExistentes.isEmpty && config.cantidadEspeciales > 0) {
+        final legacy = int.tryParse(
+          (j['balota_roja'] ?? j['balotaroja'] ?? j['superbalota'])
+                  ?.toString() ??
+              '',
+        );
+        if (legacy != null) especialesExistentes.add(legacy);
       }
 
-      if (const ListEquality().equals(rawNums, jugadaCompleta)) {
-        return true;
-      }
+      final mismosPrincipales = _sameNumbersIgnoringOrder(
+        principalesExistentes,
+        principalesNuevos,
+      );
+      final mismasEspeciales = _sameNumbersIgnoringOrder(
+        especialesExistentes,
+        especialesNuevos,
+      );
+      final mismaComplementaria = _sameNumbersIgnoringOrder(
+        complementariaExistente,
+        complementariaNueva,
+      );
 
-      return false;
+      return mismosPrincipales &&
+          mismasEspeciales &&
+          mismaComplementaria;
     });
 
     if (isDuplicate) {
@@ -702,29 +731,34 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         config.route,
         whites,
         currentUid,
-        balotaRoja: redToSave,
+        loteriaId: config.loteriaId,
+        specialNumbers: specialsToSave,
         fechaSorteo: targetFechaSorteo,
       );
 
       final nuevaJugada = {
-        "numeros": (redToSave != null && whites.length == config.maxSeleccion)
-            ? [...whites, redToSave]
-            : whites,
-        if (redToSave != null) "balota_roja": redToSave,
-        if (redToSave != null) "balotaroja": redToSave,
+        if (config.loteriaId != null) "loteria_id": config.loteriaId,
+        "loteria_route": config.route,
+        "numeros": jugadaCompleta,
+        if (specialsToSave.isNotEmpty) "balota_roja": specialsToSave.first,
+        if (specialsToSave.isNotEmpty) "balotaroja": specialsToSave.first,
         "fecha_sorteo": targetFechaSorteo,
       };
       _jugadasList.insert(0, nuevaJugada);
       final uIdStr = currentUid;
-      await CacheService.setJson('user_jugadas_${config.route}_$uIdStr', _jugadasList);
-      await CacheService.setJson('mis_jugadas_${config.route}', _jugadasList);
+      await CacheService.setJson(
+        CacheService.jugadasUsuarioKey(config.route, uIdStr, loteriaId: config.loteriaId),
+        _jugadasList,
+      );
 
       await _loadJugadas();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉"),
+            content: Text(
+              l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉",
+            ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -737,12 +771,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           ignoreThreshold: true,
         );
       }
-    } catch (e) {
-      debugPrint("❌ Error al guardar jugada: $e");
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n?.errorGuardarJugada ?? "Error al guardar la jugada"),
+            content: Text(
+              l10n?.errorGuardarJugada ?? "Error al guardar la jugada",
+            ),
             backgroundColor: Colors.redAccent,
             duration: const Duration(seconds: 2),
           ),
@@ -754,8 +789,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   }
 
   Map<String, String> _calcularStats() {
-    var listaUsar =
-        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    var listaUsar = todosResultadosHistorico.isNotEmpty
+        ? todosResultadosHistorico
+        : ultimosResultados;
 
     if (_sorteosDisponibles.isNotEmpty) {
       final mainSorteo = _sorteosDisponibles.first.toLowerCase();
@@ -803,8 +839,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
     String pairsRatio = "--";
     if (listaUsar.isNotEmpty) {
-      final lastNums =
-          List<int>.from(listaUsar.first["numeros"] ?? []).take(config.maxSeleccion);
+      final lastNums = List<int>.from(
+        listaUsar.first["numeros"] ?? [],
+      ).take(config.maxSeleccion);
       int evens = lastNums.where((n) => n % 2 == 0).length;
       int odds = lastNums.length - evens;
       pairsRatio = "$evens-$odds";
@@ -821,45 +858,114 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   }
 
   String _formatearFecha(String fecha) {
+    if (fecha.isEmpty) return fecha;
     try {
-      final langCode = mounted ? Localizations.localeOf(context).languageCode : 'es';
-      if (fecha.contains('T')) {
-        DateTime parsed = DateTime.parse(fecha);
-        return DateFormat('dd MMM yyyy', langCode).format(parsed);
-      }
-      if (fecha.length >= 10 && fecha.contains('-')) {
-        DateTime parsed = DateTime.parse(fecha.substring(0, 10));
-        return DateFormat('dd MMM yyyy', langCode).format(parsed);
-      }
-      if (fecha.contains('/')) {
-        final parts = fecha.split('/');
-        if (parts.length == 3) {
-          final day = int.parse(parts[0]);
-          final month = int.parse(parts[1]);
-          final year = int.parse(parts[2]);
-          final parsed = DateTime(year, month, day);
-          return DateFormat('dd MMM yyyy', langCode).format(parsed);
+      final clean = fecha.trim();
+      final parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10
+              ? DateTime.tryParse(clean.substring(0, 10))
+              : null);
+      if (parsed == null) {
+        if (clean.contains('/')) {
+          final parts = clean.split('/');
+          if (parts.length == 3) {
+            final day = int.parse(parts[0]);
+            final month = int.parse(parts[1]);
+            final year = int.parse(parts[2]);
+            final dt = DateTime(year, month, day);
+            return _formatDateTime(dt);
+          }
         }
+        return fecha;
       }
-      return fecha;
+      return _formatDateTime(parsed);
     } catch (_) {
       return fecha;
     }
+  }
+
+  String _formatDateTime(DateTime parsed) {
+    final langCode = mounted
+        ? Localizations.localeOf(context).languageCode
+        : 'es';
+    final dias = langCode == 'en'
+        ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        : (langCode == 'pt'
+              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
+              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
+
+    final meses = langCode == 'en'
+        ? [
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "May",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Oct",
+            "Nov",
+            "Dec",
+          ]
+        : (langCode == 'pt'
+              ? [
+                  "Jan",
+                  "Fev",
+                  "Mar",
+                  "Abr",
+                  "Mai",
+                  "Jun",
+                  "Jul",
+                  "Ago",
+                  "Set",
+                  "Out",
+                  "Nov",
+                  "Dez",
+                ]
+              : [
+                  "Ene",
+                  "Feb",
+                  "Mar",
+                  "Abr",
+                  "May",
+                  "Jun",
+                  "Jul",
+                  "Ago",
+                  "Sep",
+                  "Oct",
+                  "Nov",
+                  "Dic",
+                ]);
+
+    final diaSemana = dias[parsed.weekday - 1];
+    final mes = meses[parsed.month - 1];
+
+    return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
   }
 
   String _getFechaProximoSorteo(AppLocalizations? l10n) {
     if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
       return _formatearFecha(fechaPrediccion!);
     }
-    if (ultimosResultados.isNotEmpty && ultimosResultados.first["fecha"] != null) {
+    if (ultimosResultados.isNotEmpty &&
+        ultimosResultados.first["fecha"] != null) {
       return _formatearFecha(ultimosResultados.first["fecha"].toString());
     }
-    return l10n?.proximoSorteo ?? "Por definir";
+    return l10n?.porDefinir ?? "Por definir";
   }
 
+  bool get _hasAvailableLotteryData =>
+      listaProbables.isNotEmpty ||
+      ultimosResultados.isNotEmpty ||
+      todosResultadosHistorico.isNotEmpty;
+
   int _calcularAfinidadScore(List<int> nums, int maxBall) {
-    var listaUsar =
-        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+    var listaUsar = todosResultadosHistorico.isNotEmpty
+        ? todosResultadosHistorico
+        : ultimosResultados;
 
     if (_sorteosDisponibles.isNotEmpty) {
       final mainSorteo = _sorteosDisponibles.first.toLowerCase();
@@ -889,7 +995,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
     final freqs = f.values.toList()..sort();
     final int minSum = freqs.take(config.maxSeleccion).fold(0, (a, b) => a + b);
-    final int maxSum = freqs.reversed.take(config.maxSeleccion).fold(0, (a, b) => a + b);
+    final int maxSum = freqs.reversed
+        .take(config.maxSeleccion)
+        .fold(0, (a, b) => a + b);
 
     int sumUser = 0;
     for (var n in nums.take(config.maxSeleccion)) {
@@ -906,7 +1014,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final s = _calcularStats();
-    final bool isDataLoading = cargando && listaProbables.isEmpty && ultimosResultados.isEmpty;
+    final bool isDataLoading =
+        cargando && listaProbables.isEmpty && ultimosResultados.isEmpty;
+    final bool hasLotteryData = _hasAvailableLotteryData;
+    final bool showDataUnavailable = !isDataLoading && !hasLotteryData;
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
@@ -922,7 +1033,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0),
+                  padding: const EdgeInsets.only(
+                    left: 16.0,
+                    right: 16.0,
+                    top: 16.0,
+                  ),
                   child: isDataLoading
                       ? _buildSkeletonLoading()
                       : Column(
@@ -931,23 +1046,31 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                             const SizedBox(height: 3),
                             _buildHeader(l10n),
                             const SizedBox(height: 18),
-                            _buildQuickSummary(s, l10n),
-                            const SizedBox(height: 24),
-                            _buildIAPrediction(l10n),
-                            const SizedBox(height: 16),
-                            _buildDisclaimerNote(l10n),
-                            const SizedBox(height: 20),
-                            _buildActionGrid(l10n),
-                            const SizedBox(height: 24),
-                            _buildManualSelectorSection(l10n),
-                            if (config.tieneBalotaRoja) ...[
-                              const SizedBox(height: 24),
-                              _buildRedBallsSection(l10n),
+                            if (_showingStaleData) ...[
+                              _buildStaleDataNotice(),
+                              const SizedBox(height: 14),
                             ],
-                            const SizedBox(height: 24),
-                            _buildResultadosSection(l10n),
-                            const SizedBox(height: 24),
-                            _buildNewsSection(l10n),
+                            if (showDataUnavailable)
+                              _buildDataUnavailableState(l10n)
+                            else ...[
+                              _buildQuickSummary(s, l10n),
+                              const SizedBox(height: 24),
+                              _buildIAPrediction(l10n),
+                              const SizedBox(height: 16),
+                              _buildDisclaimerNote(l10n),
+                              const SizedBox(height: 20),
+                              _buildActionGrid(l10n),
+                              const SizedBox(height: 24),
+                              _buildManualSelectorSection(l10n),
+                              if (config.tieneBalotaRoja) ...[
+                                const SizedBox(height: 24),
+                                _buildRedBallsSection(l10n),
+                              ],
+                              const SizedBox(height: 24),
+                              _buildResultadosSection(l10n),
+                              const SizedBox(height: 24),
+                              _buildNewsSection(l10n),
+                            ],
                             const SizedBox(height: 40),
                           ],
                         ),
@@ -1093,7 +1216,29 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     );
   }
 
+  Widget _buildDataUnavailableState(AppLocalizations? l10n) {
+    return AppDataStateCard(
+      isConnectionError: _dataRequestFailed,
+      onRetry: _dataRequestFailed
+          ? () => _cargarDataOptimizado(force: true)
+          : null,
+      retrying: cargando,
+      emptyTitle:
+          l10n?.informacionNoDisponible ?? 'Información no disponible',
+      emptyMessage:
+          l10n?.datosLoteriaNoDisponibles ??
+          'Esta lotería aún no tiene resultados ni predicciones disponibles.',
+      emptyIcon: Icons.insights_outlined,
+    );
+  }
+
+  Widget _buildStaleDataNotice() {
+    return const AppStaleDataBanner();
+  }
+
   Widget _buildHeader(AppLocalizations? l10n) {
+    final jackpotIso = _paisJackpotIso;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -1107,11 +1252,27 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   LotteryAvatar3D(nombre: config.nombre, size: 32),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      config.hasRevancha ? "${config.nombre} / Revancha" : config.nombre,
-                      style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 18),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            config.nombre,
+                            style: AppTextStyles.tituloPrincipal.copyWith(
+                              fontSize: 18,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Consumer<SubscriptionProvider>(
+                          builder: (_, sub, __) => PremiumCrownIcon(
+                            isPremium: sub.isPremium,
+                            size: 16,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -1132,15 +1293,29 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             color: const Color(0xFF1E1E1E),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+            image: jackpotIso.isNotEmpty
+                ? DecorationImage(
+                    image: NetworkImage(
+                      'https://flagcdn.com/w320/$jackpotIso.png',
+                    ),
+                    fit: BoxFit.cover,
+                    opacity: 0.40,
+                    onError: (_, __) {},
+                  )
+                : null,
           ),
           child: Builder(
             builder: (context) {
               final parts = PaisHelper.getJackpotParts(
                 _jackpot,
                 loteriaRoute: config.route,
-                fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty) ? _jackpot! : "--",
+                fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty)
+                    ? _jackpot!
+                    : "--",
               );
-              final displayVal = parts["value"]!.isNotEmpty ? parts["value"]! : "--";
+              final displayVal = parts["value"]!.isNotEmpty
+                  ? parts["value"]!
+                  : "--";
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -1148,7 +1323,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 children: [
                   Text(
                     l10n?.jackpotEstimado ?? "Jackpot estimado",
-                    style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9.5),
+                    style: AppTextStyles.caption.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9.5,
+                    ),
                     maxLines: 1,
                   ),
                   const SizedBox(height: 2),
@@ -1169,7 +1348,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     const SizedBox(height: 1),
                     Text(
                       parts["label"]!,
-                      style: AppTextStyles.caption.copyWith(color: Colors.white38, fontSize: 9.5),
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 9.5,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -1195,7 +1378,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.lightbulb_outline, color: AppColors.yellow, size: 16),
+          const Icon(
+            Icons.lightbulb_outline,
+            color: AppColors.yellow,
+            size: 16,
+          ),
           const SizedBox(width: 8),
           Flexible(
             child: Text(
@@ -1211,7 +1398,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   void _navigateToEstadisticas() {
     final isPremium = context.read<SubscriptionProvider>().isSubscribed;
-    
+
     void goToScreen() {
       if (!mounted) return;
       Navigator.push(
@@ -1220,6 +1407,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           builder: (_) => EstadisticasDashboardScreen(
             loteriaNombreInicial: config.nombre,
             loteriaRoute: config.route,
+            loteriaData: config.toJson(),
           ),
         ),
       );
@@ -1234,7 +1422,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget _buildQuickSummary(Map<String, String> stats, AppLocalizations? l10n) {
     final int affinityScore = listaProbables.isNotEmpty
         ? _calcularAfinidadScore(
-            listaProbables.take(config.maxSeleccion).toList(), config.maxBalotasBlancas)
+            listaProbables.take(config.maxSeleccion).toList(),
+            config.maxBalotasBlancas,
+          )
         : 0;
 
     return Column(
@@ -1265,8 +1455,12 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               ),
               onPressed: _navigateToEstadisticas,
               child: Text(
-                l10n?.verEstadisticasCompletas ?? "Ver estadísticas completas ›",
-                style: AppTextStyles.caption.copyWith(fontSize: 12, color: Colors.amber),
+                l10n?.verEstadisticasCompletas ??
+                    "Ver estadísticas completas ›",
+                style: AppTextStyles.caption.copyWith(
+                  fontSize: 12,
+                  color: Colors.amber,
+                ),
               ),
             ),
           ],
@@ -1348,7 +1542,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
         ),
         child: Column(
           children: [
-            if (icon != null) Icon(icon, color: iconColor ?? AppColors.yellow, size: 22),
+            if (icon != null)
+              Icon(icon, color: iconColor ?? AppColors.yellow, size: 22),
             const SizedBox(height: 6),
             Text(
               value,
@@ -1404,11 +1599,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 width: size,
                 height: size,
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => _build3DBall(
-                  numero,
-                  baseColor: baseColor,
-                  size: size,
-                ),
+                errorBuilder: (_, __, ___) =>
+                    _build3DBall(numero, baseColor: baseColor, size: size),
               ),
             ),
           ),
@@ -1419,7 +1611,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               fontWeight: FontWeight.bold,
               color: Colors.white,
               shadows: const [
-                Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
+                Shadow(
+                  blurRadius: 4,
+                  color: Colors.black,
+                  offset: Offset(1, 1),
+                ),
               ],
             ),
           ),
@@ -1480,9 +1676,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   Widget _buildIAPrediction(AppLocalizations? l10n) {
     final bool isCustomSelection =
-        seleccionados.isNotEmpty || (config.tieneBalotaRoja && balotaRojaSeleccionada != null);
-    var listaUsar =
-        todosResultadosHistorico.isNotEmpty ? todosResultadosHistorico : ultimosResultados;
+        seleccionados.isNotEmpty ||
+        balotasEspecialesSeleccionadas.isNotEmpty;
+    var listaUsar = todosResultadosHistorico.isNotEmpty
+        ? todosResultadosHistorico
+        : ultimosResultados;
     if (_sorteosDisponibles.isNotEmpty) {
       final mainSorteo = _sorteosDisponibles.first.toLowerCase();
       final filtrados = listaUsar.where((r) {
@@ -1498,8 +1696,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     final numsEvaluados = isCustomSelection
         ? seleccionados
         : (listaProbables.isNotEmpty
-            ? listaProbables.take(config.maxSeleccion).toList()
-            : <int>[]);
+              ? listaProbables.take(config.maxSeleccion).toList()
+              : <int>[]);
 
     final int scoreAfinidad = numsEvaluados.isNotEmpty
         ? _calcularAfinidadScore(numsEvaluados, config.maxBalotasBlancas)
@@ -1517,23 +1715,28 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 children: [
                   Text(
                     isCustomSelection
-                        ? (l10n?.tuJugadaSeleccionada ?? "Tu Jugada Seleccionada")
+                        ? (l10n?.tuJugadaSeleccionada ??
+                              "Tu Jugada Seleccionada")
                         : (l10n?.prediccionIAHoy ?? "Predicción IA para hoy"),
-                    style: AppTextStyles.mensajeImportante.copyWith(color: Colors.amber),
+                    style: AppTextStyles.mensajeImportante.copyWith(
+                      color: Colors.amber,
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     isCustomSelection
                         ? (l10n?.balotasPrincipales(seleccionados.length) ??
-                            "${seleccionados.length}/${config.maxSeleccion} balotas")
+                              "${seleccionados.length}/${config.maxSeleccion} balotas")
                         : (l10n?.basadaEnAnalisisDe(totalSorteosAnalizados) ??
-                            "Basada en análisis de $totalSorteosAnalizados sorteos"),
+                              "Basada en análisis de $totalSorteosAnalizados sorteos"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 12),
                   ),
                   Text(
                     isCustomSelection
-                        ? (l10n?.tocaNumerosModificar ?? "Toca los números abajo para modificar")
-                        : (l10n?.indiceAfinidadHistorica ?? "Índice de afinidad histórica"),
+                        ? (l10n?.tocaNumerosModificar ??
+                              "Toca los números abajo para modificar")
+                        : (l10n?.indiceAfinidadHistorica ??
+                              "Índice de afinidad histórica"),
                     style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
                   ),
                 ],
@@ -1573,9 +1776,13 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 ...List.generate(config.maxSeleccion, (index) {
                   int? val;
                   if (isCustomSelection) {
-                    val = index < seleccionados.length ? seleccionados[index] : null;
+                    val = index < seleccionados.length
+                        ? seleccionados[index]
+                        : null;
                   } else {
-                    val = index < listaProbables.length ? listaProbables[index] : null;
+                    val = index < listaProbables.length
+                        ? listaProbables[index]
+                        : null;
                   }
                   return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
@@ -1586,17 +1793,20 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     ),
                   );
                 }),
-                if (config.tieneBalotaRoja)
-                  Padding(
+                ...List.generate(config.cantidadEspeciales, (index) {
+                  final values = isCustomSelection
+                      ? balotasEspecialesSeleccionadas
+                      : listaBalotaRoja;
+                  final value = index < values.length ? values[index] : null;
+                  return Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2.0),
                     child: _build3DBallPrediction(
-                      isCustomSelection
-                          ? balotaRojaSeleccionada
-                          : (listaBalotaRoja.isNotEmpty ? listaBalotaRoja.first : null),
+                      value,
                       baseColor: const Color(0xFFD32F2F),
                       size: config.maxSeleccion > 5 ? 38 : 45,
                     ),
-                  ),
+                  );
+                }),
               ],
             ),
           ),
@@ -1604,12 +1814,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.wifi_tethering, color: AppColors.yellow, size: 12),
+              const Icon(
+                Icons.wifi_tethering,
+                color: AppColors.yellow,
+                size: 12,
+              ),
               const SizedBox(width: 4),
               Text(
                 isCustomSelection
                     ? (l10n?.jugada ?? "Jugada")
-                    : (l10n?.numeroSuerteSugerido ?? "Número de la suerte sugerido por IA"),
+                    : (l10n?.numeroSuerteSugerido ??
+                          "Número de la suerte sugerido por IA"),
                 style: AppTextStyles.bodySmall.copyWith(fontSize: 11),
               ),
             ],
@@ -1619,25 +1834,120 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     );
   }
 
+  Future<void> _restoreActionOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedOrder = prefs.getStringList(_actionOrderStorageKey);
+      if (savedOrder == null || savedOrder.isEmpty) return;
+
+      final isValid =
+          savedOrder.length == _defaultActionOrder.length &&
+          savedOrder.toSet().length == _defaultActionOrder.length &&
+          savedOrder.every(_defaultActionOrder.contains);
+
+      if (!isValid || !mounted) return;
+      setState(() => _actionOrder = List<String>.from(savedOrder));
+    } catch (_) {
+      // Es una preferencia visual: si falla, mantenemos el orden por defecto.
+    }
+  }
+
+  Future<void> _persistActionOrder() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_actionOrderStorageKey, _actionOrder);
+    } catch (_) {
+      // El menú sigue funcionando aunque no pueda persistirse localmente.
+    }
+  }
+
+  void _reorderAction(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) return;
+
+    setState(() {
+      final moved = _actionOrder.removeAt(oldIndex);
+      _actionOrder.insert(newIndex, moved);
+    });
+    _persistActionOrder();
+  }
+
   Widget _buildActionGrid(AppLocalizations? l10n) {
-    return Row(
-      children: [
-        _buildActionTile(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const gap = 8.0;
+        final itemWidth = (constraints.maxWidth - (gap * 3)) / 4;
+
+        return SizedBox(
+          height: 76,
+          child: ReorderableListView.builder(
+            scrollDirection: Axis.horizontal,
+            buildDefaultDragHandles: false,
+            padding: EdgeInsets.zero,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _actionOrder.length,
+            onReorder: _reorderAction,
+            proxyDecorator: (child, index, animation) {
+              return AnimatedBuilder(
+                animation: animation,
+                builder: (context, _) {
+                  final scale = 1.0 + (0.04 * animation.value);
+                  return Transform.scale(
+                    scale: scale,
+                    child: Material(
+                      color: Colors.transparent,
+                      elevation: 0,
+                      child: child,
+                    ),
+                  );
+                },
+              );
+            },
+            itemBuilder: (context, index) {
+              final actionId = _actionOrder[index];
+              final isLast = index == _actionOrder.length - 1;
+
+              return SizedBox(
+                key: ValueKey<String>('lottery_action_$actionId'),
+                width: itemWidth + (isLast ? 0 : gap),
+                child: Padding(
+                  padding: EdgeInsets.only(right: isLast ? 0 : gap),
+                  child: ReorderableDelayedDragStartListener(
+                    index: index,
+                    child: _buildActionById(actionId, l10n),
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActionById(String actionId, AppLocalizations? l10n) {
+    switch (actionId) {
+      case 'generate':
+        return _buildActionTile(
           icon: Icons.auto_awesome_outlined,
-          label: l10n?.generarJugada.replaceAll(" ", "\n") ?? "Generar\nJugada",
+          label: l10n?.generarJugada.replaceAll(" ", "\n") ??
+              "Generar\nJugada",
           onTap: _generarAleatorios,
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'save':
+        return _buildActionTile(
           icon: Icons.bookmark_add_outlined,
           label: isSaving
               ? (l10n?.guardando ?? "Guardando...")
-              : (l10n?.guardarJugada.replaceAll(" ", "\n") ?? "Guardar\nJugada"),
+              : (l10n?.guardarJugada.replaceAll(" ", "\n") ??
+                  "Guardar\nJugada"),
           onTap: isSaving ? null : () => _guardarJugada(l10n),
           isLoading: isSaving,
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'plays':
+        return _buildActionTile(
           icon: Icons.bookmarks_outlined,
           label: l10n?.misJugadas.replaceAll(" ", "\n") ?? "Mis\nJugadas",
           onTap: () async {
@@ -1647,6 +1957,7 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 builder: (_) => MisJugadasScreen(
                   loteriaNombre: config.nombre,
                   loteriaRoute: config.route,
+                  loteriaId: config.loteriaId,
                 ),
               ),
             );
@@ -1654,15 +1965,16 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               await _loadJugadas();
             }
           },
-        ),
-        const SizedBox(width: 8),
-        _buildActionTile(
+        );
+
+      case 'stats':
+      default:
+        return _buildActionTile(
           icon: Icons.bar_chart,
           label: l10n?.estadisticas ?? "Estadísticas",
           onTap: _navigateToEstadisticas,
-        ),
-      ],
-    );
+        );
+    }
   }
 
   Widget _buildActionTile({
@@ -1672,51 +1984,50 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     bool isLoading = false,
   }) {
     final bool disabled = onTap == null || isLoading;
-    return Expanded(
-      child: GestureDetector(
-        onTap: disabled ? null : onTap,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 200),
-          opacity: disabled ? 0.5 : 1.0,
-          child: Container(
-            height: 76,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05),
-              ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: disabled ? null : onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: disabled ? 0.5 : 1.0,
+        child: Container(
+          height: 76,
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: disabled ? 0.02 : 0.05),
             ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (isLoading)
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.yellow,
-                    ),
-                  )
-                else
-                  Icon(icon, color: AppColors.yellow, size: 22),
-                const SizedBox(height: 4),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    height: 1.1,
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.yellow,
                   ),
+                )
+              else
+                Icon(icon, color: AppColors.yellow, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  height: 1.1,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1742,12 +2053,16 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               InkWell(
                 onTap: () => setState(() {
                   seleccionados.clear();
-                  balotaRojaSeleccionada = null;
+                  balotasEspecialesSeleccionadas.clear();
                 }),
                 borderRadius: BorderRadius.circular(20),
                 child: const Padding(
                   padding: EdgeInsets.all(4.0),
-                  child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: Colors.white38,
+                    size: 20,
+                  ),
                 ),
               ),
             ],
@@ -1764,7 +2079,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Text(
                       l10n?.sinNumeros ?? "No hay números disponibles",
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 )
@@ -1788,8 +2106,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                         Color baseColor = isSelected
                             ? Colors.amber
                             : (index < (config.maxBalotasBlancas / 2).ceil()
-                                ? Colors.redAccent
-                                : const Color(0xFF607D8B));
+                                  ? Colors.redAccent
+                                  : const Color(0xFF607D8B));
 
                         return GestureDetector(
                           onTap: () {
@@ -1797,14 +2115,19 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                             setState(() {
                               if (seleccionados.contains(numero)) {
                                 seleccionados.remove(numero);
-                              } else if (seleccionados.length < config.maxSeleccion) {
+                              } else if (seleccionados.length <
+                                  config.maxSeleccion) {
                                 seleccionados.add(numero);
                                 _bounceController.reset();
                                 _bounceController.forward();
                               }
                             });
                           },
-                          child: _build3DBall(numero, baseColor: baseColor, size: 38),
+                          child: _build3DBall(
+                            numero,
+                            baseColor: baseColor,
+                            size: 38,
+                          ),
                         );
                       }).toList(),
                     );
@@ -1836,13 +2159,19 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                   fontSize: 16,
                 ),
               ),
-              if (balotaRojaSeleccionada != null)
+              if (balotasEspecialesSeleccionadas.isNotEmpty)
                 InkWell(
-                  onTap: () => setState(() => balotaRojaSeleccionada = null),
+                  onTap: () => setState(
+                    () => balotasEspecialesSeleccionadas.clear(),
+                  ),
                   borderRadius: BorderRadius.circular(20),
                   child: const Padding(
                     padding: EdgeInsets.all(4.0),
-                    child: Icon(Icons.delete_outline, color: Colors.white38, size: 20),
+                    child: Icon(
+                      Icons.delete_outline,
+                      color: Colors.white38,
+                      size: 20,
+                    ),
                   ),
                 ),
             ],
@@ -1860,7 +2189,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     padding: const EdgeInsets.symmetric(vertical: 24),
                     child: Text(
                       l10n?.sinNumeros ?? "No hay balotas disponibles",
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 )
@@ -1878,15 +2210,17 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                       crossAxisSpacing: spacing,
                       mainAxisSpacing: spacing,
                       children: listaBalotaRoja.map((numero) {
-                        bool isSelected = balotaRojaSeleccionada == numero;
+                        bool isSelected =
+                            balotasEspecialesSeleccionadas.contains(numero);
                         return GestureDetector(
                           onTap: () {
                             if (!mounted) return;
                             setState(() {
-                              if (balotaRojaSeleccionada == numero) {
-                                balotaRojaSeleccionada = null;
-                              } else {
-                                balotaRojaSeleccionada = numero;
+                              if (balotasEspecialesSeleccionadas.contains(numero)) {
+                                balotasEspecialesSeleccionadas.remove(numero);
+                              } else if (balotasEspecialesSeleccionadas.length <
+                                  config.cantidadEspeciales) {
+                                balotasEspecialesSeleccionadas.add(numero);
                                 _bounceController.reset();
                                 _bounceController.forward();
                               }
@@ -1894,7 +2228,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                           },
                           child: _build3DBall(
                             numero,
-                            baseColor: isSelected ? Colors.amber : Colors.redAccent,
+                            baseColor: isSelected
+                                ? Colors.amber
+                                : Colors.redAccent,
                             size: 38,
                           ),
                         );
@@ -1910,9 +2246,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget _buildResultadosSection(AppLocalizations? l10n) {
     if (_sorteosDisponibles.length > 1) {
       final listToShow = ultimosResultados
-          .where((r) =>
-              (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
-              _selectedResultadosTab.trim().toLowerCase())
+          .where(
+            (r) =>
+                (r["sorteo"]?.toString().trim().toLowerCase() ?? "") ==
+                _selectedResultadosTab.trim().toLowerCase(),
+          )
           .take(5)
           .toList();
 
@@ -1934,16 +2272,20 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             Row(
               children: _sorteosDisponibles.map((sorteo) {
                 final isSelected =
-                    _selectedResultadosTab.toLowerCase() == sorteo.toLowerCase();
+                    _selectedResultadosTab.toLowerCase() ==
+                    sorteo.toLowerCase();
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4.0),
                     child: GestureDetector(
-                      onTap: () => setState(() => _selectedResultadosTab = sorteo),
+                      onTap: () =>
+                          setState(() => _selectedResultadosTab = sorteo),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         decoration: BoxDecoration(
-                          color: isSelected ? AppColors.yellow : const Color(0xFF2A2A2A),
+                          color: isSelected
+                              ? AppColors.yellow
+                              : const Color(0xFF2A2A2A),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: FittedBox(
@@ -1968,7 +2310,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             _buildResultadosContent(
               _selectedResultadosTab,
               l10n,
-              listaResultados: listToShow.isNotEmpty ? listToShow : ultimosResultados,
+              listaResultados: listToShow.isNotEmpty
+                  ? listToShow
+                  : ultimosResultados,
             ),
             _buildVerMasButton(l10n),
           ],
@@ -2008,8 +2352,11 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
             context: context,
             isPremium: isPremium,
             featureKey: "historico_resultados",
-            featureTitle: l10n?.historicoResultadosTitulo ?? "Histórico de Resultados",
-            featureActionDescription: l10n?.descripcionVideoHistorico ?? "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
+            featureTitle:
+                l10n?.historicoResultadosTitulo ?? "Histórico de Resultados",
+            featureActionDescription:
+                l10n?.descripcionVideoHistorico ??
+                "Mira un breve video publicitario para acceder y consultar el historial completo de resultados.",
             onRewardGranted: () {
               if (!mounted) return;
               Navigator.push(
@@ -2072,17 +2419,21 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
     final resultadosUsar = rawResultados.where((r) {
       final rawNums = (r["numeros"] as List<dynamic>? ?? []);
       if (rawNums.isEmpty) return false;
-      final parsed = rawNums.map((e) => int.tryParse(e.toString()) ?? 0).toList();
+      final parsed = rawNums
+          .map((e) => int.tryParse(e.toString()) ?? 0)
+          .toList();
       return parsed.any((n) => n > 0);
     }).toList();
 
     final int maxBallsInResults = resultadosUsar.isNotEmpty
         ? resultadosUsar
-            .map((r) => (r["numeros"] as List<dynamic>? ?? [])
-                .map((e) => int.tryParse(e.toString()) ?? -1)
-                .where((n) => n >= 0)
-                .length)
-            .fold(0, (max, len) => len > max ? len : max)
+              .map(
+                (r) => (r["numeros"] as List<dynamic>? ?? [])
+                    .map((e) => int.tryParse(e.toString()) ?? -1)
+                    .where((n) => n >= 0)
+                    .length,
+              )
+              .fold(0, (max, len) => len > max ? len : max)
         : config.totalBalotasSorteo;
 
     // Configuración adaptativa según la cantidad de balotas de la lotería
@@ -2141,7 +2492,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     child: Text(
                       l10n?.sorteoLabel ?? "Sorteo",
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.fechasResultado.copyWith(fontSize: dateFontSize),
+                      style: AppTextStyles.fechasResultado.copyWith(
+                        fontSize: dateFontSize,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -2150,7 +2503,9 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                       child: Text(
                         l10n?.resultados ?? "Resultados",
                         textAlign: TextAlign.center,
-                        style: AppTextStyles.fechasResultado.copyWith(fontSize: dateFontSize),
+                        style: AppTextStyles.fechasResultado.copyWith(
+                          fontSize: dateFontSize,
+                        ),
                       ),
                     ),
                   ),
@@ -2160,19 +2515,43 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               ...resultadosUsar.take(5).map((resultado) {
                 final fecha = resultado["fecha"] ?? "S/F";
                 final rawNumeros = resultado["numeros"] as List<dynamic>? ?? [];
-                final int limiteBalotas = config.totalBalotasSorteo > 0 ? config.totalBalotasSorteo : 20;
+                final int limiteBalotas = config.totalBalotasSorteo > 0
+                    ? config.totalBalotasSorteo
+                    : 20;
                 final bool isReintegro = config.tieneReintegro;
-                final numeros = rawNumeros
+                final rawNumbers = rawNumeros
                     .map((e) => int.tryParse(e.toString()) ?? -1)
                     .whereIndexed((index, n) {
                       if (n < 0) return false;
-                      if (n == 0 && index >= config.maxSeleccion && !isReintegro) {
+                      if (n == 0 &&
+                          index >= config.maxSeleccion &&
+                          !isReintegro) {
                         return false;
                       }
                       return true;
                     })
                     .take(limiteBalotas)
                     .toList();
+                final groups = config.numberLayout.split(rawNumbers);
+                final specials = List<int>.from(groups.specials);
+                if (specials.isEmpty && config.cantidadEspeciales > 0) {
+                  final rawLegacy =
+                      resultado['balotaroja2'] ??
+                      resultado['reintegro'] ??
+                      resultado['balotaroja'] ??
+                      resultado['balota_roja'] ??
+                      resultado['superbalota'] ??
+                      resultado['red'];
+                  final legacy = int.tryParse(rawLegacy?.toString() ?? '');
+                  if (legacy != null) specials.add(legacy);
+                }
+                final numeros = [
+                  ...groups.main,
+                  ...specials,
+                  ...groups.complementary,
+                ];
+                final mainCount = groups.main.length;
+                final specialEnd = mainCount + specials.length;
 
                 return Padding(
                   padding: EdgeInsets.symmetric(vertical: rowPaddingVertical),
@@ -2196,9 +2575,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                           builder: (context, constraints) {
                             final totalBalls = numeros.length;
                             final double calculatedSize = totalBalls > 0
-                                ? ((constraints.maxWidth - (totalBalls * ballSpacing * 2)) / totalBalls)
+                                ? ((constraints.maxWidth -
+                                          (totalBalls * ballSpacing * 2)) /
+                                      totalBalls)
                                 : defaultBallSize;
-                            final double ballSize = calculatedSize.clamp(16.0, defaultBallSize);
+                            final double ballSize = calculatedSize.clamp(
+                              16.0,
+                              defaultBallSize,
+                            );
 
                             return Center(
                               child: FittedBox(
@@ -2211,24 +2595,27 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                                       ? [
                                           Text(
                                             l10n?.sinNumeros ?? "Sin números",
-                                            style: AppTextStyles.mensajeSecundario,
+                                            style:
+                                                AppTextStyles.mensajeSecundario,
                                           ),
                                         ]
                                       : List.generate(numeros.length, (index) {
                                           final n = numeros[index];
-                                          final bool isLastBall = index == numeros.length - 1;
-                                          final bool isComp = config.tieneComplementario &&
-                                              numeros.length > config.maxSeleccion &&
-                                              index == config.maxSeleccion;
-                                          final bool isSpecial = config.tieneBalotaRoja &&
-                                              numeros.length > config.maxSeleccion &&
-                                              (index >= config.maxSeleccion + (config.tieneComplementario ? 1 : 0) || isLastBall);
+                                          final bool isSpecial =
+                                              index >= mainCount &&
+                                              index < specialEnd;
+                                          final bool isComp =
+                                              index >= specialEnd;
                                           final Color ballColor = isSpecial
                                               ? const Color(0xFFB91C1C)
-                                              : (isComp ? const Color(0xFF0D9488) : Colors.amber);
+                                              : (isComp
+                                                    ? const Color(0xFF0D9488)
+                                                    : Colors.amber);
 
                                           return Padding(
-                                            padding: EdgeInsets.symmetric(horizontal: ballSpacing),
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: ballSpacing,
+                                            ),
                                             child: SizedBox(
                                               width: ballSize,
                                               height: ballSize,
@@ -2258,7 +2645,8 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
 
   bool get _esHoySorteo {
     final now = DateTime.now();
-    final todayStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final todayStr =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
     if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
       if (fechaPrediccion!.startsWith(todayStr)) return true;
@@ -2273,11 +2661,14 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
   Widget _buildNewsSection(AppLocalizations? l10n) {
     final bool esHoy = _esHoySorteo;
     final String tituloAlerta = esHoy
-        ? (l10n?.hoyEsSorteo(config.nombre) ?? "Hoy es el sorteo de ${config.nombre}")
+        ? (l10n?.hoyEsSorteo(config.nombre) ??
+              "Hoy es el sorteo de ${config.nombre}")
         : "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}";
     final String subtituloAlerta = esHoy
-        ? (l10n?.noOlvidesRevisar ?? "No olvides revisar tus números y mucha suerte.")
-        : (l10n?.preparaTusJugadasIA ?? "Prepara tus jugadas con las predicciones de IA.");
+        ? (l10n?.noOlvidesRevisar ??
+              "No olvides revisar tus números y mucha suerte.")
+        : (l10n?.preparaTusJugadasIA ??
+              "Prepara tus jugadas con las predicciones de IA.");
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2293,7 +2684,6 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                 fontSize: 16,
               ),
             ),
-
           ],
         ),
         const SizedBox(height: 16),
@@ -2308,11 +2698,15 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: (esHoy ? AppColors.yellow : Colors.white24).withValues(alpha: 0.1),
+                  color: (esHoy ? AppColors.yellow : Colors.white24).withValues(
+                    alpha: 0.1,
+                  ),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  esHoy ? Icons.notifications_active_outlined : Icons.calendar_today_outlined,
+                  esHoy
+                      ? Icons.notifications_active_outlined
+                      : Icons.calendar_today_outlined,
                   color: esHoy ? AppColors.yellow : Colors.white70,
                   size: 20,
                 ),
@@ -2332,7 +2726,10 @@ class _LoteriaScreenState extends State<LoteriaScreen> with TickerProviderStateM
                     ),
                     Text(
                       subtituloAlerta,
-                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),

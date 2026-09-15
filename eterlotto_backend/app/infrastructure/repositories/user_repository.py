@@ -1,3 +1,4 @@
+import logging
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
 from app.domain.ports import UserRepositoryPort
@@ -59,13 +60,15 @@ class PostgresUserRepository(UserRepositoryPort):
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
                     product_id VARCHAR(100) NOT NULL,
-                    purchase_token TEXT,
+                    purchase_token TEXT UNIQUE,
                     order_id VARCHAR(255),
                     status VARCHAR(50) DEFAULT 'active',
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     expires_at TIMESTAMP WITH TIME ZONE
                 );
                 CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions (user_id);
+                ALTER TABLE user_subscriptions DROP CONSTRAINT IF EXISTS user_subscriptions_purchase_token_key;
+                ALTER TABLE user_subscriptions ADD CONSTRAINT user_subscriptions_purchase_token_key UNIQUE (purchase_token);
             """)
 
             # 3. Crear tabla de tokens / códigos de recuperación de contraseña
@@ -95,7 +98,10 @@ class PostgresUserRepository(UserRepositoryPort):
             """)
             cls._schema_ensured = True
         except Exception as e:
-            print(f"⚠️ Error en ensure_schema de PostgresUserRepository: {e}")
+            logging.getLogger(__name__).error(
+                "Error en ensure_schema de PostgresUserRepository: %s",
+                type(e).__name__,
+            )
 
     async def _ensure_table(self, conn):
         if not PostgresUserRepository._schema_ensured:
@@ -237,7 +243,8 @@ class PostgresUserRepository(UserRepositoryPort):
         expires_at: Optional[datetime] = None,
         order_id: Optional[str] = None,
         purchase_token: Optional[str] = None,
-        product_id: Optional[str] = None
+        product_id: Optional[str] = None,
+        status: Optional[str] = None
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -250,12 +257,63 @@ class PostgresUserRepository(UserRepositoryPort):
                     WHERE id = $4
                 """, is_premium, expires_at, order_id, user_id)
 
-                # 2. Registrar en historial de suscripciones si aplica
+                # 2. Registrar/actualizar el historial de suscripciones.
+                #    Si Google/Flutter reenvía el mismo purchase_token, no duplicamos filas.
                 if product_id:
-                    await conn.execute("""
-                        INSERT INTO user_subscriptions (user_id, product_id, purchase_token, order_id, status, expires_at)
-                        VALUES ($1, $2, $3, $4, $5, $6)
-                    """, user_id, product_id, purchase_token, order_id, 'active' if is_premium else 'expired', expires_at)
+                    existing = None
+                    if purchase_token:
+                        existing = await conn.fetchrow(
+                            """
+                            SELECT id, user_id
+                            FROM user_subscriptions
+                            WHERE purchase_token = $1
+                            ORDER BY created_at DESC
+                            LIMIT 1
+                            """,
+                            purchase_token
+                        )
+
+                    final_status = status if status else ('active' if is_premium else 'expired')
+
+                    if existing:
+                        if existing["user_id"] != user_id:
+                            raise ValueError("Esta compra ya está asociada a otra cuenta de Eterlotto.")
+                        
+                        await conn.execute(
+                            """
+                            UPDATE user_subscriptions
+                            SET product_id = $1,
+                                order_id = COALESCE($2, order_id),
+                                status = $3,
+                                expires_at = COALESCE($4, expires_at)
+                            WHERE id = $5
+                            """,
+                            product_id,
+                            order_id,
+                            final_status,
+                            expires_at,
+                            existing["id"]
+                        )
+                    else:
+                        await conn.execute(
+                            """
+                            INSERT INTO user_subscriptions (
+                                user_id,
+                                product_id,
+                                purchase_token,
+                                order_id,
+                                status,
+                                expires_at
+                            )
+                            VALUES ($1, $2, $3, $4, $5, $6)
+                            """,
+                            user_id,
+                            product_id,
+                            purchase_token,
+                            order_id,
+                            final_status,
+                            expires_at
+                        )
 
             return {
                 "success": True,
@@ -263,6 +321,180 @@ class PostgresUserRepository(UserRepositoryPort):
                 "is_premium": is_premium,
                 "expires_at": expires_at.isoformat() if expires_at else None
             }
+
+    async def find_user_id_by_purchase_token(self, purchase_token: str) -> Optional[int]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            row = await conn.fetchrow(
+                """
+                SELECT user_id
+                FROM user_subscriptions
+                WHERE purchase_token = $1
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                purchase_token
+            )
+            return int(row["user_id"]) if row else None
+
+    async def find_current_subscription(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Devuelve la suscripción vigente que determina el acceso VIP."""
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            row = await conn.fetchrow(
+                """
+                SELECT status, expires_at
+                FROM user_subscriptions
+                WHERE user_id = $1
+                  AND status IN ('active', 'canceled', 'grace_period')
+                  AND expires_at > CURRENT_TIMESTAMP
+                ORDER BY expires_at DESC, created_at DESC
+                LIMIT 1
+                """,
+                user_id,
+            )
+            return dict(row) if row else None
+
+    async def update_subscription_state(
+        self,
+        user_id: int,
+        is_premium: bool,
+        expires_at: Optional[datetime] = None,
+        purchase_token: Optional[str] = None,
+        product_id: Optional[str] = None,
+        order_id: Optional[str] = None,
+        status: Optional[str] = None
+    ) -> Dict[str, Any]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            async with conn.transaction():
+                # 1. Actualizar usuario respetando si existe otra suscripción válida
+                await conn.execute(
+                    """
+                    UPDATE users
+                    SET is_premium = (
+                            CASE 
+                                WHEN $1 = TRUE THEN TRUE
+                                ELSE (
+                                    SELECT EXISTS (
+                                        SELECT 1 FROM user_subscriptions 
+                                        WHERE user_id = $3 
+                                          AND purchase_token != $4 
+                                          AND status IN ('active', 'canceled', 'grace_period') 
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    )
+                                )
+                            END
+                        ),
+                        premium_expires_at = (
+                            CASE
+                                WHEN $1 = TRUE THEN $2
+                                ELSE COALESCE(
+                                    (
+                                        SELECT MAX(expires_at) FROM user_subscriptions
+                                        WHERE user_id = $3
+                                          AND purchase_token != $4
+                                          AND status IN ('active', 'canceled', 'grace_period')
+                                          AND expires_at > CURRENT_TIMESTAMP
+                                    ),
+                                    $2
+                                )
+                            END
+                        ),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $3
+                    """,
+                    is_premium, expires_at, user_id, purchase_token or ''
+                )
+
+                # 2. Actualizar la suscripción histórica
+                if purchase_token:
+                    await conn.execute(
+                        """
+                        UPDATE user_subscriptions
+                        SET status = COALESCE($1, status),
+                            expires_at = COALESCE($2, expires_at),
+                            product_id = COALESCE($3, product_id),
+                            order_id = COALESCE($4, order_id)
+                        WHERE purchase_token = $5
+                        """,
+                        status, expires_at, product_id, order_id, purchase_token
+                    )
+
+            return {
+                "success": True,
+                "user_id": user_id,
+                "is_premium": is_premium,
+                "expires_at": expires_at.isoformat() if expires_at else None,
+                "status": status
+            }
+
+    async def mark_expired_subscriptions(self, user_id: int) -> bool:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+
+            # Optimización 3.1: Verificar si realmente hay algo que expirar antes de adquirir locks de escritura
+            needs_update = await conn.fetchval(
+                """
+                SELECT EXISTS (
+                    SELECT 1 FROM users
+                    WHERE id = $1
+                      AND is_premium = TRUE
+                      AND premium_expires_at IS NOT NULL
+                      AND premium_expires_at <= CURRENT_TIMESTAMP
+                ) OR EXISTS (
+                    SELECT 1 FROM user_subscriptions
+                    WHERE user_id = $1
+                      AND status IN ('active', 'canceled', 'grace_period')
+                      AND expires_at IS NOT NULL
+                      AND expires_at <= CURRENT_TIMESTAMP
+                )
+                """,
+                user_id
+            )
+
+            if not needs_update:
+                return False
+
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    UPDATE users
+                    SET is_premium = FALSE,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                      AND is_premium = TRUE
+                      AND premium_expires_at IS NOT NULL
+                      AND premium_expires_at <= CURRENT_TIMESTAMP
+                    """,
+                    user_id
+                )
+
+                # Marcar como expiradas solo las suscripciones que ya superaron
+                # su expiry real. Esto es una reconciliación defensiva y no crea filas.
+                result = await conn.execute(
+                    """
+                    UPDATE user_subscriptions
+                    SET status = 'expired'
+                    WHERE user_id = $1
+                      AND status IN ('active', 'canceled', 'grace_period')
+                      AND expires_at IS NOT NULL
+                      AND expires_at <= CURRENT_TIMESTAMP
+                    """,
+                    user_id
+                )
+
+                # asyncpg devuelve "UPDATE <n>"
+                try:
+                    updated_count = int(result.split()[-1])
+                except (ValueError, IndexError):
+                    updated_count = 0
+
+                return updated_count > 0
 
     async def delete(self, user_id: int) -> Dict[str, Any]:
         pool = db_connection.get_pool()

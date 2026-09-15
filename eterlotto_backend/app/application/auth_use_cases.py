@@ -1,8 +1,11 @@
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from app.domain.ports import UserRepositoryPort, EmailSenderPort
-from app.core import security, config
+from app.core import security
+
+logger = logging.getLogger(__name__)
 
 class AuthUseCases:
     def __init__(self, user_repo: UserRepositoryPort, email_sender: Optional[EmailSenderPort] = None):
@@ -45,7 +48,7 @@ class AuthUseCases:
             try:
                 await self.email_sender.send_verification_code(email, code)
             except Exception as e:
-                print(f"❌ Error al enviar correo de verificación: {e}")
+                logger.error("Error al enviar correo de verificación: %s", type(e).__name__)
 
         return {
             "success": True,
@@ -287,7 +290,7 @@ class AuthUseCases:
         try:
             await self.email_sender.send_reset_password_code(email, code)
         except Exception as e:
-            print(f"❌ Error en Background Task (email de recuperación): {e}")
+            logger.error("Error enviando correo de recuperación: %s", type(e).__name__)
 
     async def verify_reset_code(self, email: str, code: str) -> Dict[str, Any]:
         user = await self.user_repo.find_by_email(email)
@@ -346,6 +349,10 @@ class AuthUseCases:
         # Call Google tokeninfo to verify the ID token
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={token}")
+            
+            import logging
+            logging.info(f"Google ID token verification → {resp.status_code}")
+            
             if resp.status_code != 200:
                 raise ValueError("Token de Google inválido o expirado")
             payload = resp.json()

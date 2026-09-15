@@ -61,17 +61,12 @@ class UltimoSorteoCard extends StatelessWidget {
             final int index = entry.key;
             final SubSorteoData sub = entry.value;
 
-            final bool tieneComp = tieneComplementario || (sub.winningNums.length > maxSeleccion);
-            final List<int> mainBalls = sub.winningNums.length > maxSeleccion
-                ? sub.winningNums.sublist(0, maxSeleccion)
-                : sub.winningNums;
-            final int? compBall = (tieneComp && sub.winningNums.length > maxSeleccion)
-                ? sub.winningNums.last
-                : null;
+            final List<int> mainBalls = sub.winningNums;
+            final int? compBall = sub.compBall;
 
             final int totalBalls = mainBalls.length +
                 (compBall != null ? 1 : 0) +
-                (sub.winningRed != null ? 1 : 0);
+                sub.winningSpecials.length;
 
             final double ballSize = totalBalls <= 5
                 ? 42.0
@@ -121,13 +116,10 @@ class UltimoSorteoCard extends StatelessWidget {
                             child: build3DBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
                           ),
                         ],
-                        if (sub.winningRed != null) ...[
-                          SizedBox(width: ballPadding * 1.5),
-                          Padding(
-                            padding: EdgeInsets.symmetric(horizontal: ballPadding),
-                            child: build3DBall(sub.winningRed!, baseColor: const Color(0xFFB91C1C), isSpecial: true, size: ballSize),
-                          ),
-                        ],
+                        ...sub.winningSpecials.map((special) => Padding(
+                          padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                          child: build3DBall(special, baseColor: const Color(0xFFB91C1C), isSpecial: true, size: ballSize),
+                        )),
                       ],
                     ),
                   ),

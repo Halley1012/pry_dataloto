@@ -7,6 +7,7 @@ import 'package:intl/intl.dart' as intl;
 
 import 'app_localizations_en.dart';
 import 'app_localizations_es.dart';
+import 'app_localizations_fr.dart';
 import 'app_localizations_pt.dart';
 
 // ignore_for_file: type=lint
@@ -97,6 +98,7 @@ abstract class AppLocalizations {
   static const List<Locale> supportedLocales = <Locale>[
     Locale('en'),
     Locale('es'),
+    Locale('fr'),
     Locale('pt'),
   ];
 
@@ -2082,7 +2084,7 @@ abstract class AppLocalizations {
   /// No description provided for @descripcionHistoricoResultados.
   ///
   /// In es, this message translates to:
-  /// **'Consulta los 50 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.'**
+  /// **'Consulta los 25 sorteos más recientes o descarga el histórico completo para analizar los datos por tu cuenta.'**
   String get descripcionHistoricoResultados;
 
   /// No description provided for @cargarMasSorteos.
@@ -2268,7 +2270,7 @@ abstract class AppLocalizations {
   /// No description provided for @restaurarCompras.
   ///
   /// In es, this message translates to:
-  /// **'Restaurar compras'**
+  /// **'Restaurar suscripción'**
   String get restaurarCompras;
 
   /// No description provided for @terminosSuscripcionGooglePlay.
@@ -2462,6 +2464,426 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Encuentra negocios, servicios y comercios...'**
   String get buscarDirectorioHint;
+
+  /// No description provided for @mejorJugadaTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor jugada'**
+  String get mejorJugadaTitulo;
+
+  /// No description provided for @mejorJugadaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor jugada del sorteo'**
+  String get mejorJugadaSorteo;
+
+  /// No description provided for @aciertosConPorcentaje.
+  ///
+  /// In es, this message translates to:
+  /// **'{hits} / {total} aciertos — {percent}%'**
+  String aciertosConPorcentaje(int hits, int total, int percent);
+
+  /// No description provided for @superoRendimientoJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'⭐ Superó el rendimiento del {percent}% de tus jugadas anteriores.'**
+  String superoRendimientoJugadas(int percent);
+
+  /// No description provided for @tuMejorJugadaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'⭐ Tu mejor resultado en este sorteo.'**
+  String get tuMejorJugadaSorteo;
+
+  /// No description provided for @sinJugadasParaSorteo.
+  ///
+  /// In es, this message translates to:
+  /// **'No tienes jugadas guardadas para este sorteo.'**
+  String get sinJugadasParaSorteo;
+
+  /// No description provided for @rendimientoUltimosSorteos.
+  ///
+  /// In es, this message translates to:
+  /// **'Rendimiento últimos {count} sorteos'**
+  String rendimientoUltimosSorteos(int count);
+
+  /// No description provided for @tuRendimiento.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu rendimiento'**
+  String get tuRendimiento;
+
+  /// No description provided for @coberturaPromedio.
+  ///
+  /// In es, this message translates to:
+  /// **'Cobertura promedio'**
+  String get coberturaPromedio;
+
+  /// No description provided for @mejorCobertura.
+  ///
+  /// In es, this message translates to:
+  /// **'Mejor cobertura'**
+  String get mejorCobertura;
+
+  /// No description provided for @peorCobertura.
+  ///
+  /// In es, this message translates to:
+  /// **'Peor cobertura'**
+  String get peorCobertura;
+
+  /// No description provided for @nSorteosLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'{count} Sorteos'**
+  String nSorteosLabel(int count);
+
+  /// No description provided for @numerosMayorAfinidadHistorica.
+  ///
+  /// In es, this message translates to:
+  /// **'🤖 Números con mayor afinidad histórica:'**
+  String get numerosMayorAfinidadHistorica;
+
+  /// No description provided for @disclaimerAfinidadHistorica.
+  ///
+  /// In es, this message translates to:
+  /// **'Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.'**
+  String get disclaimerAfinidadHistorica;
+
+  /// No description provided for @generaTusPropiasCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Genera tus propias combinaciones'**
+  String get generaTusPropiasCombinaciones;
+
+  /// No description provided for @usaTusNumerosFavoritos.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa tus números favoritos (fechas, edades, etc.) y crea hasta 10 jugadas personalizadas.'**
+  String get usaTusNumerosFavoritos;
+
+  /// No description provided for @seleccionaLaLoteria.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona la lotería'**
+  String get seleccionaLaLoteria;
+
+  /// No description provided for @reglasDeEstaLoteria.
+  ///
+  /// In es, this message translates to:
+  /// **'Reglas de esta lotería'**
+  String get reglasDeEstaLoteria;
+
+  /// No description provided for @cargandoReglas.
+  ///
+  /// In es, this message translates to:
+  /// **'Cargando reglas...'**
+  String get cargandoReglas;
+
+  /// No description provided for @tusNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Tus números'**
+  String get tusNumeros;
+
+  /// No description provided for @ingresaNumerosFecha.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa números, una fecha o valores que tengan significado para ti.'**
+  String get ingresaNumerosFecha;
+
+  /// No description provided for @ejemploNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Ejemplo: 12/10/1986, 7 14 21, 100, etc.'**
+  String get ejemploNumeros;
+
+  /// No description provided for @numerosDetectados.
+  ///
+  /// In es, this message translates to:
+  /// **'Números detectados'**
+  String get numerosDetectados;
+
+  /// No description provided for @cantidadDeJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Cantidad de jugadas'**
+  String get cantidadDeJugadas;
+
+  /// No description provided for @seleccionaCuantasCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona cuántas combinaciones generar.'**
+  String get seleccionaCuantasCombinaciones;
+
+  /// No description provided for @estrategia.
+  ///
+  /// In es, this message translates to:
+  /// **'Estrategia'**
+  String get estrategia;
+
+  /// No description provided for @usaTusNumerosComoBase.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa tus números como base y agrega variaciones.'**
+  String get usaTusNumerosComoBase;
+
+  /// No description provided for @estrategiaEquilibrada.
+  ///
+  /// In es, this message translates to:
+  /// **'Equilibrada'**
+  String get estrategiaEquilibrada;
+
+  /// No description provided for @estrategiaAleatoria.
+  ///
+  /// In es, this message translates to:
+  /// **'Aleatoria'**
+  String get estrategiaAleatoria;
+
+  /// No description provided for @generando.
+  ///
+  /// In es, this message translates to:
+  /// **'GENERANDO...'**
+  String get generando;
+
+  /// No description provided for @generarCombinaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'GENERAR COMBINACIONES'**
+  String get generarCombinaciones;
+
+  /// No description provided for @combinacionesGeneradas.
+  ///
+  /// In es, this message translates to:
+  /// **'combinaciones generadas'**
+  String get combinacionesGeneradas;
+
+  /// No description provided for @generarOtras.
+  ///
+  /// In es, this message translates to:
+  /// **'Generar otras'**
+  String get generarOtras;
+
+  /// No description provided for @guardarTodas.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar todas'**
+  String get guardarTodas;
+
+  /// No description provided for @jugadasGuardadasConExito.
+  ///
+  /// In es, this message translates to:
+  /// **'Jugadas guardadas con éxito'**
+  String get jugadasGuardadasConExito;
+
+  /// No description provided for @errorAlGuardarJugadas.
+  ///
+  /// In es, this message translates to:
+  /// **'Hubo un error al guardar algunas jugadas'**
+  String get errorAlGuardarJugadas;
+
+  /// No description provided for @debesIniciarSesionParaGuardar.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes iniciar sesión para guardar'**
+  String get debesIniciarSesionParaGuardar;
+
+  /// No description provided for @informacionNoDisponible.
+  ///
+  /// In es, this message translates to:
+  /// **'Información no disponible'**
+  String get informacionNoDisponible;
+
+  /// No description provided for @datosLoteriaNoDisponibles.
+  ///
+  /// In es, this message translates to:
+  /// **'Esta lotería aún no tiene resultados ni predicciones disponibles.'**
+  String get datosLoteriaNoDisponibles;
+
+  /// No description provided for @datosLoteriaSinConexion.
+  ///
+  /// In es, this message translates to:
+  /// **'No pudimos actualizar los datos. Revisa tu conexión e inténtalo de nuevo.'**
+  String get datosLoteriaSinConexion;
+
+  /// No description provided for @reintentar.
+  ///
+  /// In es, this message translates to:
+  /// **'Reintentar'**
+  String get reintentar;
+
+  /// No description provided for @sinResultadosRegistrados.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no hay resultados registrados'**
+  String get sinResultadosRegistrados;
+
+  /// No description provided for @sinResultadosRegistradosDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Las loterías aparecerán aquí cuando registren su primer sorteo oficial.'**
+  String get sinResultadosRegistradosDescripcion;
+
+  /// No description provided for @resultadosRecientes.
+  ///
+  /// In es, this message translates to:
+  /// **'Recientes'**
+  String get resultadosRecientes;
+
+  /// No description provided for @sinHistorialResultados.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no tienes resultados en el historial'**
+  String get sinHistorialResultados;
+
+  /// No description provided for @sinHistorialResultadosDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Aquí aparecerán las loterías internacionales cuando ya haya pasado el sorteo de tu última jugada.'**
+  String get sinHistorialResultadosDescripcion;
+
+  /// No description provided for @porDefinir.
+  ///
+  /// In es, this message translates to:
+  /// **'Por definir'**
+  String get porDefinir;
+
+  /// No description provided for @desarrolladoCon.
+  ///
+  /// In es, this message translates to:
+  /// **'Desarrollado con '**
+  String get desarrolladoCon;
+
+  /// No description provided for @por.
+  ///
+  /// In es, this message translates to:
+  /// **' por '**
+  String get por;
+
+  /// No description provided for @sitioWeb.
+  ///
+  /// In es, this message translates to:
+  /// **'Sitio Web'**
+  String get sitioWeb;
+
+  /// No description provided for @contacto.
+  ///
+  /// In es, this message translates to:
+  /// **'Contacto'**
+  String get contacto;
+
+  /// No description provided for @perfilActualizadoExito.
+  ///
+  /// In es, this message translates to:
+  /// **'Perfil actualizado correctamente'**
+  String get perfilActualizadoExito;
+
+  /// No description provided for @errorActualizarPerfil.
+  ///
+  /// In es, this message translates to:
+  /// **'Error al actualizar perfil: {error}'**
+  String errorActualizarPerfil(String error);
+
+  /// No description provided for @estrategiaSoloMisNumeros.
+  ///
+  /// In es, this message translates to:
+  /// **'Solo mis números'**
+  String get estrategiaSoloMisNumeros;
+
+  /// No description provided for @estrategiaVariaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Variaciones'**
+  String get estrategiaVariaciones;
+
+  /// No description provided for @estrategiaEquilibradas.
+  ///
+  /// In es, this message translates to:
+  /// **'Equilibradas'**
+  String get estrategiaEquilibradas;
+
+  /// No description provided for @descEstrategiaSoloMis.
+  ///
+  /// In es, this message translates to:
+  /// **'Usa únicamente los números que seleccionaste.'**
+  String get descEstrategiaSoloMis;
+
+  /// No description provided for @descEstrategiaVariaciones.
+  ///
+  /// In es, this message translates to:
+  /// **'Mantiene tus números y completa la combinación con otros válidos.'**
+  String get descEstrategiaVariaciones;
+
+  /// No description provided for @descEstrategiaBalanced.
+  ///
+  /// In es, this message translates to:
+  /// **'Combina tus números con otros valores de la lotería.'**
+  String get descEstrategiaBalanced;
+
+  /// No description provided for @descEstrategiaDefault.
+  ///
+  /// In es, this message translates to:
+  /// **'Genera combinaciones según tus números.'**
+  String get descEstrategiaDefault;
+
+  /// No description provided for @limpiar.
+  ///
+  /// In es, this message translates to:
+  /// **'Limpiar'**
+  String get limpiar;
+
+  /// No description provided for @seGeneraranHasta.
+  ///
+  /// In es, this message translates to:
+  /// **'Se generarán hasta {count}\ncombinaciones únicas.'**
+  String seGeneraranHasta(int count);
+
+  /// No description provided for @copiar.
+  ///
+  /// In es, this message translates to:
+  /// **'Copiar'**
+  String get copiar;
+
+  /// No description provided for @combinacionCopiada.
+  ///
+  /// In es, this message translates to:
+  /// **'Combinación copiada al portapapeles'**
+  String get combinacionCopiada;
+
+  /// No description provided for @favorito.
+  ///
+  /// In es, this message translates to:
+  /// **'Favorito'**
+  String get favorito;
+
+  /// No description provided for @marcadaComoFavorita.
+  ///
+  /// In es, this message translates to:
+  /// **'Marcada como favorita'**
+  String get marcadaComoFavorita;
+
+  /// No description provided for @sinConexionDatos.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin conexión · mostrando los últimos datos disponibles'**
+  String get sinConexionDatos;
+
+  /// No description provided for @sinConexionAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin conexión · mostrando tus últimos anuncios disponibles'**
+  String get sinConexionAnuncios;
+
+  /// No description provided for @errorCargarAnuncios.
+  ///
+  /// In es, this message translates to:
+  /// **'No pudimos cargar tus anuncios.'**
+  String get errorCargarAnuncios;
+
+  /// No description provided for @continuarConGoogle.
+  ///
+  /// In es, this message translates to:
+  /// **'Continuar con Google'**
+  String get continuarConGoogle;
 }
 
 class _AppLocalizationsDelegate
@@ -2475,7 +2897,7 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) =>
-      <String>['en', 'es', 'pt'].contains(locale.languageCode);
+      <String>['en', 'es', 'fr', 'pt'].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -2488,6 +2910,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsEn();
     case 'es':
       return AppLocalizationsEs();
+    case 'fr':
+      return AppLocalizationsFr();
     case 'pt':
       return AppLocalizationsPt();
   }

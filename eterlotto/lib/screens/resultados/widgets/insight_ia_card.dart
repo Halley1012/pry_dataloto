@@ -29,35 +29,16 @@ class InsightIaCard extends StatelessWidget {
   });
 
   int _getTopLimit() {
-    if (probablesCount > 0) return probablesCount;
-    final lower = selectedLoteria.toLowerCase().replaceAll(RegExp(r'[\s_]+'), '');
-    if (lower.contains("megamillions") || lower.contains("megamillion")) return 35;
-    if (lower.contains("powerball")) return 34;
-    if (lower.contains("doubleplay")) return 34;
-    if (lower.contains("millionaire") || lower.contains("millionairelife")) return 29;
-    if (lower.contains("lottoamerica")) return 26;
-    if (lower.contains("bonoloto") || lower.contains("primitiva")) return 25;
-    if (lower.contains("euromillones")) return 25;
-    if (lower.contains("eurodreams")) return 20;
-    if (lower.contains("miloto") || lower.contains("mloto")) return 20;
-    if (lower.contains("colorloto") || lower.contains("cloto")) return 10;
-    if (lower.contains("megasena") || lower.contains("megasena")) return 30;
-    if (lower.contains("maismilionaria") || lower.contains("milionaria")) return 25;
-    if (lower.contains("melateretro") || lower.contains("retro")) return 20;
-    if (lower.contains("melate")) return 28;
-    if (lower.contains("chispazo")) return 14;
-    if (lower.contains("quina")) return 40;
-    if (lower.contains("duplasena") || lower.contains("dupla_sena")) return 25;
-    if (lower.contains("latinka") || lower.contains("tinka")) return 25;
-    if (lower.contains("kabala")) return 20;
-    if (lower.contains("ganadiario") || lower.contains("gana_diario")) return 18;
-    if (lower.contains("5deoro") || lower.contains("cincodeoro") || lower.contains("oro")) return 24;
-    if (lower.contains("baloto") || lower.contains("bloto")) return 21;
+    final available = predictionNumeros?.length ?? 0;
+    if (available <= 0) return 0;
 
-    if (predictionNumeros != null && predictionNumeros!.isNotEmpty) {
-      return (predictionNumeros!.length ~/ 2);
+    if (probablesCount > 0) {
+      return probablesCount < available ? probablesCount : available;
     }
-    return 21;
+
+    // Si el padre no indicó un límite, usamos exactamente la lista recibida.
+    // El widget ya no conoce nombres ni reglas particulares de loterías.
+    return available;
   }
 
   Widget _build3DBall(int? numero, {Color baseColor = const Color(0xFFF33A21), double size = 45}) {
@@ -259,14 +240,16 @@ class InsightIaCard extends StatelessWidget {
                                       ),
                                     );
                                   }),
-                                  if (sub.winningRed != null) ...[
-                                    const SizedBox(width: 3),
-                                    _build3DBall(
-                                      sub.winningRed,
-                                      baseColor: Colors.redAccent,
-                                      size: 25,
+                                  ...sub.winningSpecials.map(
+                                    (special) => Padding(
+                                      padding: const EdgeInsets.only(left: 3),
+                                      child: _build3DBall(
+                                        special,
+                                        baseColor: Colors.redAccent,
+                                        size: 25,
+                                      ),
                                     ),
-                                  ],
+                                  ),
                                 ],
                               ),
                             ),
@@ -306,14 +289,16 @@ class InsightIaCard extends StatelessWidget {
                                 ),
                               );
                             }),
-                            if (subSorteos.first.winningRed != null) ...[
-                              const SizedBox(width: 3),
-                              _build3DBall(
-                                subSorteos.first.winningRed,
-                                baseColor: Colors.redAccent,
-                                size: 25,
+                            ...subSorteos.first.winningSpecials.map(
+                              (special) => Padding(
+                                padding: const EdgeInsets.only(left: 3),
+                                child: _build3DBall(
+                                  special,
+                                  baseColor: Colors.redAccent,
+                                  size: 25,
+                                ),
                               ),
-                            ],
+                            ),
                           ],
                         ),
                       ),
@@ -403,7 +388,7 @@ class InsightIaCard extends StatelessWidget {
                           children: predictionBalotaroja!.map((n) {
                             Color baseColor = Colors.redAccent;
                             for (var sub in subSorteos) {
-                              if (sub.winningRed == n) {
+                              if (sub.winningSpecials.contains(n)) {
                                 baseColor = sub.color;
                                 break;
                               }
@@ -431,11 +416,23 @@ class InsightIaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final text = insightIAText.isNotEmpty
-        ? insightIAText
-        : (subSorteos.isNotEmpty
-            ? l10n.insightIACayeron(probablesCount, selectedLoteria, l10n.nNumeros((coberturaPorcentaje * subSorteos.first.winningNums.length).round()))
-            : "");
+    final bool hasPrediction =
+        predictionNumeros != null && predictionNumeros!.isNotEmpty;
+    final text = !hasPrediction
+        ? l10n.prediccionesNoDisponibles
+        : (insightIAText.isNotEmpty
+              ? insightIAText
+              : (subSorteos.isNotEmpty
+                    ? l10n.insightIACayeron(
+                        probablesCount,
+                        selectedLoteria,
+                        l10n.nNumeros(
+                          (coberturaPorcentaje *
+                                  subSorteos.first.winningNums.length)
+                              .round(),
+                        ),
+                      )
+                    : ""));
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -481,26 +478,33 @@ class InsightIaCard extends StatelessWidget {
                   children: [
                     Text(fechaSorteo, style: GoogleFonts.montserrat(fontSize: 10, color: Colors.white38)),
                     GestureDetector(
-                      onTap: () {
-                        final isPremium = context.read<SubscriptionProvider>().isSubscribed;
-                        AdService.instance.showRewardedFeatureGate(
-                          context: context,
-                          isPremium: isPremium,
-                          featureKey: "tendencias_ia",
-                          featureTitle: l10n.tendenciasIA,
-                          featureActionDescription: l10n.descripcionVideoInsight,
-                          onRewardGranted: () => _showProbablesDialog(context),
-                        );
-                      },
+                      onTap: hasPrediction
+                          ? () {
+                              final isPremium = context
+                                  .read<SubscriptionProvider>()
+                                  .isSubscribed;
+                              AdService.instance.showRewardedFeatureGate(
+                                context: context,
+                                isPremium: isPremium,
+                                featureKey: "tendencias_ia",
+                                featureTitle: l10n.tendenciasIA,
+                                featureActionDescription:
+                                    l10n.descripcionVideoInsight,
+                                onRewardGranted: () =>
+                                    _showProbablesDialog(context),
+                              );
+                            }
+                          : null,
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.amber.withValues(alpha: 0.15),
+                          color: (hasPrediction ? Colors.amber : Colors.white38)
+                              .withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.info_outline,
-                          color: Colors.amber,
+                          color: hasPrediction ? Colors.amber : Colors.white38,
                           size: 16,
                         ),
                       ),

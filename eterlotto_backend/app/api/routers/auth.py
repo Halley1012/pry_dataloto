@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from app.api import schemas, dependencies
 from app.application.auth_use_cases import AuthUseCases
 from app.core import security
@@ -22,20 +22,37 @@ async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al registrar usuario: {str(e)}")
+        import logging
+        logging.error(f"Error interno: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/users/{user_id}")
-async def get_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def get_user(
+    user_id: int, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para ver este perfil")
     try:
         res = await use_cases.get_user_profile(user_id)
         return res
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener usuario: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.put("/users/{user_id}")
-async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def update_user(
+    user_id: int, 
+    user_update: schemas.UpdateUser, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para editar este perfil")
     try:
         res = await use_cases.update_user_profile(
             user_id=user_id,
@@ -57,17 +74,27 @@ async def update_user(user_id: int, user_update: schemas.UpdateUser, use_cases: 
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al actualizar usuario: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: int, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def delete_user(
+    user_id: int, 
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+    current_user: dict = Depends(dependencies.get_current_user)
+):
+    if str(user_id) != str(current_user["user_id"]):
+        raise HTTPException(status_code=403, detail="No autorizado para eliminar este perfil")
     try:
         res = await use_cases.delete_user(user_id)
         return res
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al eliminar usuario: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/login")
 async def login(req: schemas.User, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -77,7 +104,9 @@ async def login(req: schemas.User, use_cases: AuthUseCases = Depends(dependencie
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/refresh")
 async def refresh(
@@ -126,7 +155,9 @@ async def forgot_password(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al procesar solicitud: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/verify-reset-code")
 async def verify_reset_code(
@@ -142,7 +173,9 @@ async def verify_reset_code(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al verificar código: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/verify-email")
 async def verify_email(
@@ -158,7 +191,9 @@ async def verify_email(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al verificar correo: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/resend-verification-code")
 async def resend_verification_code(
@@ -171,7 +206,9 @@ async def resend_verification_code(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al reenviar código: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/reset-password")
 async def reset_password(
@@ -188,7 +225,9 @@ async def reset_password(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al restablecer contraseña: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/users/fcm_token")
 async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -199,7 +238,9 @@ async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases
         )
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/social-login")
 async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -209,4 +250,8 @@ async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCa
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error en inicio de sesión social: {str(e)}")
+        import logging
+        logging.error(f"Internal error: {e}")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+

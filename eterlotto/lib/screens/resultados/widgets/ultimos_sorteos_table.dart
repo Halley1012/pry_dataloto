@@ -9,15 +9,17 @@ class UltimosSorteosTable extends StatelessWidget {
   final List<Map<String, dynamic>> listToRender;
   final int maxSeleccion;
   final bool tieneComplementario;
+  final VoidCallback? onVerMas;
 
   const UltimosSorteosTable({
-    Key? key,
+    super.key,
     required this.subTitulo,
     required this.tabSelector,
     required this.listToRender,
     this.maxSeleccion = 5,
     this.tieneComplementario = false,
-  }) : super(key: key);
+    this.onVerMas,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -28,14 +30,9 @@ class UltimosSorteosTable extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                l10n.resultados,
-                style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-            ],
+          Text(
+            l10n.resultados,
+            style: GoogleFonts.montserrat(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
           ),
           const SizedBox(height: 10),
           tabSelector,
@@ -96,23 +93,20 @@ class UltimosSorteosTable extends StatelessWidget {
                   .map((e) => int.tryParse(e.toString()) ?? -1)
                   .where((n) => n >= 0)
                   .toList();
-              final rawRed = item["red"];
-              final red = (rawRed != null && (int.tryParse(rawRed.toString()) ?? -1) >= 0)
-                  ? int.parse(rawRed.toString())
-                  : null;
+              final specials = (item["specials"] as List<dynamic>? ?? const [])
+                  .map((value) => int.tryParse(value.toString()))
+                  .whereType<int>()
+                  .toList();
+              final rawComp = item["complementaria"];
+              final compBall = rawComp == null
+                  ? null
+                  : int.tryParse(rawComp.toString());
               final Color coverageColor = item["color"] as Color? ?? Colors.amber;
-
-              final bool tieneComp = tieneComplementario || (nums.length > maxSeleccion);
-              final List<int> mainBalls = nums.length > maxSeleccion
-                  ? nums.sublist(0, maxSeleccion)
-                  : nums;
-              final int? compBall = (tieneComp && nums.length > maxSeleccion)
-                  ? nums.last
-                  : null;
+              final List<int> mainBalls = nums;
 
               final int totalBalls = mainBalls.length +
                   (compBall != null ? 1 : 0) +
-                  (red != null ? 1 : 0);
+                  specials.length;
 
               final double ballSize = totalBalls <= 5
                   ? 27.0
@@ -156,13 +150,10 @@ class UltimosSorteosTable extends StatelessWidget {
                                   child: buildMiniBall(compBall, baseColor: const Color(0xFF0D9488), size: ballSize),
                                 ),
                               ],
-                              if (red != null) ...[
-                                SizedBox(width: ballPadding),
-                                Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: ballPadding),
-                                  child: buildMiniBall(red, baseColor: const Color(0xFFB91C1C), size: ballSize),
-                                ),
-                              ],
+                              ...specials.map((special) => Padding(
+                                    padding: EdgeInsets.symmetric(horizontal: ballPadding),
+                                    child: buildMiniBall(special, baseColor: const Color(0xFFB91C1C), size: ballSize),
+                                  )),
                             ],
                           ),
                         ),
@@ -191,6 +182,44 @@ class UltimosSorteosTable extends StatelessWidget {
               );
             }).toList(),
           ),
+          if (onVerMas != null) ...[
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: onVerMas,
+              borderRadius: BorderRadius.circular(10),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFFFFC107).withValues(alpha: 0.35),
+                    width: 0.8,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      l10n.verMasResultados,
+                      style: GoogleFonts.montserrat(
+                        color: const Color(0xFFFFC107),
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(
+                      Icons.arrow_forward_ios,
+                      size: 11,
+                      color: Color(0xFFFFC107),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
