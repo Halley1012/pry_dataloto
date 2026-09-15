@@ -1,5 +1,6 @@
 import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
@@ -41,6 +42,7 @@ class _PostScreenState extends State<PostScreen> {
   bool _showingStaleComments = false;
   bool _hasCommentsSnapshot = false;
   int _commentsRequestVersion = 0;
+  final Set<int> _reportingCommentIds = {};
 
   // 💬 Estado para la lógica de respuesta estilo YouTube
   String? replyingToUser;
@@ -247,15 +249,45 @@ class _PostScreenState extends State<PostScreen> {
   }
 
   // Denunciar comentario
-  void _denunciarComentario(Comment comment) {
+  Future<void> _denunciarComentario(Comment comment) async {
+    if (_reportingCommentIds.contains(comment.id)) return;
+
     final l10n = AppLocalizations.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(l10n?.comentarioReportado(comment.userName) ?? "Comentario de @${comment.userName} reportado."),
-        backgroundColor: Colors.amber.shade900,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    setState(() => _reportingCommentIds.add(comment.id));
+    try {
+      final created = await ApiService.reportComment(comment.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            created
+                ? (l10n?.comentarioReportado(comment.userName) ??
+                    "Comentario de @${comment.userName} reportado.")
+                : 'Ya habías reportado este comentario.',
+          ),
+          backgroundColor: Colors.amber.shade900,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      final message = error.toString().replaceFirst('Exception: ', '').trim();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            message.isEmpty
+                ? 'No pudimos reportar el comentario. Inténtalo de nuevo.'
+                : message,
+          ),
+          backgroundColor: Colors.redAccent.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _reportingCommentIds.remove(comment.id));
+      }
+    }
   }
 
   // Activar modo respuesta estilo YouTube
@@ -366,39 +398,8 @@ class _PostScreenState extends State<PostScreen> {
                         ),
                         const SizedBox(height: 12),
                         if (_showingStaleComments)
-                          Container(
-                            width: double.infinity,
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.grayBlue.withOpacity(0.22),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.amber.withOpacity(0.35),
-                              ),
-                            ),
-                            child: const Row(
-                              children: [
-                                Icon(
-                                  Icons.cloud_off_outlined,
-                                  color: Colors.amber,
-                                  size: 18,
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Sin conexión · mostrando los últimos comentarios disponibles',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                          const AppStaleDataBanner(
+                            margin: EdgeInsets.only(bottom: 12),
                           ),
                         AppContainer4(
                           padding: const EdgeInsets.symmetric(
@@ -408,35 +409,12 @@ class _PostScreenState extends State<PostScreen> {
                           child: isLoading && !_hasCommentsSnapshot
                               ? const Center(child: CircularProgressIndicator(color: AppColors.yellow))
                               : _commentsError != null
-                                  ? Center(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(20),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.cloud_off_outlined,
-                                              color: Colors.white54,
-                                              size: 34,
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              _commentsError!,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 12),
-                                            OutlinedButton.icon(
-                                              onPressed:
-                                                  _cargarDatosInicialesOptimizado,
-                                              icon: const Icon(Icons.refresh),
-                                              label: const Text('Reintentar'),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                  ? AppDataStateCard(
+                                      isConnectionError: true,
+                                      onRetry: _cargarDatosInicialesOptimizado,
+                                      retrying: isLoading,
+                                      useContainer: false,
+                                      padding: const EdgeInsets.all(20),
                                     )
                                   : rootComments.isEmpty
                                   ? Center(

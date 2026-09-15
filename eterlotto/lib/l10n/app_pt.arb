@@ -854,6 +854,7 @@
   "combinacionCopiada": "Combinação copiada para a área de transferência",
   "favorito": "Favorito",
   "marcadaComoFavorita": "Marcado como favorito",
+  "sinConexionDatos": "Sem conexão · mostrando os últimos dados disponíveis",
   "sinConexionAnuncios": "Sem conexão · mostrando seus últimos anúncios disponíveis",
   "errorCargarAnuncios": "Não foi possível carregar seus anúncios.",
   "continuarConGoogle": "Continuar com o Google"
