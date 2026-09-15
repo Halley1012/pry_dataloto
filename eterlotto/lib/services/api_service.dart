@@ -10,7 +10,7 @@ import 'package:eterlotto/services/push_notification_service.dart';
 import '../utils/secure_storage_helper.dart';
 
 class ApiService {
-  static const String baseUrl = "https://eterlotto-api-dev.onrender.com";
+  static const String baseUrl = "https://pry-dataloto.onrender.com";
   static final _storage = AppSecureStorage.instance;
 
   static const Duration _requestTimeout = Duration(seconds: 10);
@@ -639,6 +639,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarJugadasMloto({
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -649,7 +650,9 @@ class ApiService {
     }
 
     final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -749,6 +752,7 @@ class ApiService {
 
   static Future<List<dynamic>> listarJugadasBloto({
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -759,7 +763,9 @@ class ApiService {
     }
 
     final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -816,6 +822,7 @@ class ApiService {
     String loteriaName,
     List<int> numeros,
     String userId, {
+    int? loteriaId,
     List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
@@ -839,6 +846,8 @@ class ApiService {
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
+      "loteria_route": route,
+      if (loteriaId != null) "loteria_id": loteriaId,
     };
     if (especiales.isNotEmpty) {
       // Los campos antiguos mantienen compatibilidad; `numeros` conserva todas
@@ -860,9 +869,14 @@ class ApiService {
         .timeout(_requestTimeout);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      await CacheService.registrarJugadaOptimista(route, userId: userId);
+      await CacheService.registrarJugadaOptimista(
+        route,
+        userId: userId,
+        loteriaId: loteriaId,
+      );
       await CacheService.invalidarCachesDeJugadas(
         specificRoute: route,
+        specificLotteryId: loteriaId,
         userId: userId,
         preserveRouteJugadas: true,
         preserveSelector: true,
@@ -879,6 +893,7 @@ class ApiService {
   static Future<List<dynamic>> listarJugadasGenerica(
     String loteriaName, {
     String? fecha,
+    int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
@@ -886,15 +901,17 @@ class ApiService {
 
     if (userId == null) return [];
 
-    // Mapeo especial para ColorLoto
     String route = loteriaName.trim().toLowerCase();
     if (route == "colorloto") {
       route = "cloto";
     }
 
     final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
+        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
+        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
 
+    Object? lastError;
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http
@@ -907,22 +924,34 @@ class ApiService {
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data is List) return data;
+          throw Exception('Formato inválido al listar jugadas de $route');
         }
-      } catch (_) {
-        if (attempt < retries) {
-          await Future.delayed(Duration(milliseconds: delayMs));
-        }
+
+        lastError = Exception(
+          'Error al listar jugadas $route: ${response.statusCode}',
+        );
+      } catch (e) {
+        lastError = e;
+      }
+
+      if (attempt < retries) {
+        await Future.delayed(Duration(milliseconds: delayMs));
       }
     }
-    return [];
+
+    // Un fallo de red no equivale a "el usuario no tiene jugadas". Lanzar la
+    // excepción permite que las pantallas conserven su caché stale y muestren
+    // el estado offline correcto en lugar de sobrescribirla con una lista vacía.
+    throw lastError ?? Exception('No se pudieron cargar las jugadas de $route');
   }
 
   /// 🗑️ Borrar jugada genérica
   static Future<bool> borrarJugadaGenerica(
     String loteriaName,
     int jugadaId,
-    String userId,
-  ) async {
+    String userId, {
+    int? loteriaId,
+  }) async {
     String route = loteriaName.trim().toLowerCase();
     if (route == "colorloto") {
       route = "cloto";
@@ -930,13 +959,17 @@ class ApiService {
     try {
       final response = await http
           .delete(
-            Uri.parse("$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"),
+            Uri.parse(
+              "$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"
+              "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}",
+            ),
             headers: {"Content-Type": "application/json"},
           )
           .timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: route,
+          specificLotteryId: loteriaId,
           userId: userId,
         );
         return true;
@@ -953,6 +986,7 @@ class ApiService {
     int jugadaId,
     List<int> numeros,
     String userId, {
+    int? loteriaId,
     List<int>? specialNumbers,
     int? balotaRoja,
     String? fechaSorteo,
@@ -973,6 +1007,7 @@ class ApiService {
       "numeros": numerosParaGuardar,
       "user_id": userId,
       "loteria_route": route,
+      if (loteriaId != null) "loteria_id": loteriaId,
     };
     if (especiales.isNotEmpty) {
       payload["balota_roja"] = especiales.first;
@@ -1000,6 +1035,7 @@ class ApiService {
       if (putResponse.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: route,
+          specificLotteryId: loteriaId,
           userId: userId,
         );
         return true;
@@ -1017,6 +1053,7 @@ class ApiService {
       if (putResponse.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
           specificRoute: route,
+          specificLotteryId: loteriaId,
           userId: userId,
         );
         return true;
@@ -1024,12 +1061,16 @@ class ApiService {
 
       // 3. Si el backend en Render aún no ha desplegado el PUT (404 o 405), fallback: borrar y crear
       if (putResponse.statusCode == 404 || putResponse.statusCode == 405) {
-        final deleted = await borrarJugadaGenerica(route, jugadaId, userId);
+        final deleted = await borrarJugadaGenerica(
+          route, jugadaId, userId,
+          loteriaId: loteriaId,
+        );
         if (deleted) {
           await crearJugadaGenerica(
             route,
             numeros,
             userId,
+            loteriaId: loteriaId,
             specialNumbers: especiales,
             fechaSorteo: fechaSorteo,
           );
@@ -1044,12 +1085,16 @@ class ApiService {
       return false;
     } catch (_) {
       try {
-        final deleted = await borrarJugadaGenerica(route, jugadaId, userId);
+        final deleted = await borrarJugadaGenerica(
+          route, jugadaId, userId,
+          loteriaId: loteriaId,
+        );
         if (deleted) {
           await crearJugadaGenerica(
             route,
             numeros,
             userId,
+            loteriaId: loteriaId,
             specialNumbers: especiales,
             fechaSorteo: fechaSorteo,
           );
@@ -1069,18 +1114,24 @@ class ApiService {
     final userId = await getUserId();
     if (userId == null) return [];
 
-    try {
-      final response = await http.get(
-        Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
-        headers: {"Content-Type": "application/json"},
-      );
+    final response = await http
+        .get(
+          Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
+          headers: {"Content-Type": "application/json"},
+        )
+        .timeout(_requestTimeout);
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.cast<String>();
-      }
-    } catch (_) {}
-    return [];
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      if (decoded is List) return decoded.cast<String>();
+      throw Exception('Formato inválido en mis_loterias_activas');
+    }
+
+    // Una petición fallida no equivale a "el usuario no tiene jugadas". Los
+    // callers cache-first pueden así conservar su último estado privado.
+    throw Exception(
+      'Error al obtener loterías con jugadas: ${response.statusCode}',
+    );
   }
 
   /// 🔍 Obtener mapa de loterías con conteo de jugadas {route: count}
@@ -1130,12 +1181,13 @@ class ApiService {
     return {};
   }
 
-  /// 🔍 Obtener mapa de loterías con información de jugadas {route: {count: int, fecha: String?}}
+  /// 🔍 Obtener mapa de loterías con información de jugadas, indexado por loteria_id cuando está disponible.
   static Future<Map<String, Map<String, dynamic>>>
   getLoteriasInfoJugadas() async {
     final userId = await getUserId();
     if (userId == null) return {};
 
+    Object? primaryError;
     try {
       final response = await http
           .get(
@@ -1154,53 +1206,85 @@ class ApiService {
             ),
           );
         }
+        primaryError = Exception('Formato inválido en mis_loterias_info');
+      } else {
+        primaryError = Exception(
+          'Error en mis_loterias_info: ${response.statusCode}',
+        );
       }
-    } catch (_) {}
+    } catch (e) {
+      primaryError = e;
+    }
 
-    // Fallback garantizado para Render
+    // Fallback para despliegues donde /mis_loterias_info aún no esté disponible.
+    // Si las jugadas ya traen loteria_id, reconstruimos la identidad exacta
+    // aunque varias filas del catálogo compartan la misma route.
     try {
       final activas = await getLoteriasConJugadas();
       if (activas.isEmpty) return {};
 
       final Map<String, Map<String, dynamic>> infoMap = {};
+      var routeFailure = false;
+
       await Future.wait(
         activas.map((r) async {
           try {
+            final route = r.toLowerCase();
             final list = await listarJugadasGenerica(r, retries: 1);
-            if (list.isNotEmpty) {
-              final fechas = list
-                  .map(
-                    (j) =>
-                        (j['fecha_sorteo'] ??
-                                (j['fecha_guardado'] != null
-                                    ? j['fecha_guardado'].toString().substring(
-                                        0,
-                                        10,
-                                      )
-                                    : null))
-                            ?.toString(),
-                  )
-                  .where((f) => f != null && f.isNotEmpty)
-                  .cast<String>()
-                  .toList();
+            if (list.isEmpty) return;
 
-              fechas.sort();
-              final latestFecha = fechas.isNotEmpty ? fechas.last : null;
-              infoMap[r.toLowerCase()] = {
-                "count": list.length,
-                "fecha": latestFecha,
-              };
-            } else {
-              infoMap[r.toLowerCase()] = {"count": 1, "fecha": null};
+            for (final raw in list) {
+              if (raw is! Map) continue;
+              final jugada = Map<String, dynamic>.from(raw);
+              final id = int.tryParse(jugada['loteria_id']?.toString() ?? '');
+              final itemRoute =
+                  jugada['loteria_route']?.toString().trim().toLowerCase() ??
+                  route;
+              final fecha =
+                  (jugada['fecha_sorteo'] ??
+                          (jugada['fecha_guardado'] != null
+                              ? jugada['fecha_guardado']
+                                  .toString()
+                                  .substring(0, 10)
+                              : null))
+                      ?.toString();
+              final key = id != null ? id.toString() : 'route:$itemRoute';
+              final current = infoMap[key];
+              if (current == null) {
+                infoMap[key] = {
+                  "loteria_id": id,
+                  "route": itemRoute,
+                  "count": 1,
+                  "fecha": fecha,
+                };
+              } else {
+                current['count'] =
+                    (int.tryParse(current['count']?.toString() ?? '') ?? 0) + 1;
+                final currentFecha = current['fecha']?.toString();
+                if (fecha != null &&
+                    fecha.isNotEmpty &&
+                    (currentFecha == null ||
+                        currentFecha.isEmpty ||
+                        fecha.compareTo(currentFecha) > 0)) {
+                  current['fecha'] = fecha;
+                }
+              }
             }
           } catch (_) {
-            infoMap[r.toLowerCase()] = {"count": 1, "fecha": null};
+            routeFailure = true;
           }
         }),
       );
+
+      // No devolvemos un mapa parcial como si fuera una respuesta completa:
+      // podría borrar del selector jugadas que sólo faltaron por un timeout.
+      if (routeFailure) {
+        throw Exception('No se pudo reconstruir completamente mis_loterias_info');
+      }
       return infoMap;
-    } catch (_) {}
-    return {};
+    } catch (fallbackError) {
+      throw primaryError ?? fallbackError;
+    }
   }
 
   /// GET genérico con timeout, auto-retry y soporte para forceRefresh
@@ -1496,11 +1580,46 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getCiudades() async {
-    final response = await http.get(
-      Uri.parse('$baseUrl/ciudades'),
-      headers: {"Content-Type": "application/json"},
+  /// Registra una denuncia. Devuelve `false` si este usuario ya la había
+  /// enviado antes; así el botón no confirma una operación inexistente.
+  static Future<bool> reportComment(int commentId) async {
+    await ensureValidSession();
+
+    final response = await post(
+      '/comments/$commentId/reports',
+      const <String, dynamic>{},
+      withAuth: true,
     );
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      if (data is Map<String, dynamic>) {
+        return data['created'] == true;
+      }
+      if (data is Map) {
+        return data['created'] == true;
+      }
+      throw Exception('Respuesta inválida al reportar el comentario');
+    }
+
+    String? detail;
+    try {
+      final data = jsonDecode(response.body);
+      if (data is Map && data['detail'] != null) {
+        detail = data['detail'].toString();
+      }
+    } catch (_) {
+      // Se usa el estado HTTP si el backend no incluyó detalle JSON.
+    }
+    throw Exception(detail ?? 'Error al reportar comentario (${response.statusCode})');
+  }
+
+  static Future<List<Map<String, dynamic>>> getCiudades() async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/ciudades'),
+          headers: {"Content-Type": "application/json"},
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> jsonData = json.decode(response.body);
@@ -2139,10 +2258,12 @@ class ApiService {
         ? Uri.parse("$baseUrl/loterias?pais_id=$paisId")
         : Uri.parse("$baseUrl/loterias");
 
-    final response = await http.get(
-      uri,
-      headers: await _getHeaders(withAuth: false),
-    );
+    final response = await http
+        .get(
+          uri,
+          headers: await _getHeaders(withAuth: false),
+        )
+        .timeout(_requestTimeout);
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
@@ -2230,26 +2351,36 @@ class ApiService {
   /// 📜 Obtener los 50 sorteos más recientes para visualización rápida en pantalla
   static Future<List<Map<String, dynamic>>> getHistorico50(String route) async {
     final cleanRoute = route.trim().toLowerCase();
+    Object? primaryError;
+
     try {
       final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos50");
       final response = await http
           .get(uri, headers: await _getHeaders(withAuth: false))
-          .timeout(const Duration(seconds: 10));
+          .timeout(_requestTimeout);
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         if (decoded is Map<String, dynamic> && decoded["resultados"] is List) {
           return List<Map<String, dynamic>>.from(decoded["resultados"]);
         }
+        return <Map<String, dynamic>>[];
       }
-    } catch (_) {}
+      primaryError = Exception(
+        "Error al obtener últimos 50 ($cleanRoute): ${response.statusCode}",
+      );
+    } catch (e) {
+      primaryError = e;
+    }
 
-    // Fallback garantizado: consultar getHistoricoCompleto y tomar los primeros 50
+    // Fallback: algunos backends sólo exponen el histórico completo.
     try {
       final fullList = await getHistoricoCompleto(cleanRoute);
       return fullList.take(50).toList();
-    } catch (_) {
-      return <Map<String, dynamic>>[];
+    } catch (fallbackError) {
+      // Si ambos endpoints fallaron, el caller debe poder distinguir un fallo
+      // de conexión de un 200 legítimo sin resultados.
+      throw primaryError ?? fallbackError;
     }
   }
 

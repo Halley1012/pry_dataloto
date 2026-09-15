@@ -2,6 +2,8 @@ import 'package:intl/intl.dart' as intl;
 
 class LotteryRules {
   final String lotteryId;
+  final int? catalogLotteryId;
+  final String route;
   final String name;
   final String country;
   final int mainNumbersCount;
@@ -14,6 +16,8 @@ class LotteryRules {
 
   LotteryRules({
     required this.lotteryId,
+    this.catalogLotteryId,
+    required this.route,
     required this.name,
     required this.country,
     required this.mainNumbersCount,
@@ -27,8 +31,13 @@ class LotteryRules {
 
   factory LotteryRules.fromJson(Map<String, dynamic> json) {
     return LotteryRules(
-      lotteryId: json['lottery_id'] as String,
-      name: json['name'] as String? ?? json['lottery_id'] as String,
+      lotteryId: json['lottery_id'].toString(),
+      catalogLotteryId: int.tryParse(
+        (json['catalog_lottery_id'] ?? json['lottery_id'])?.toString() ?? '',
+      ),
+      route: json['route']?.toString().trim().toLowerCase() ??
+          json['lottery_id'].toString().trim().toLowerCase(),
+      name: json['name']?.toString() ?? json['lottery_id'].toString(),
       country: json['country'] as String? ?? '',
       mainNumbersCount: json['main_numbers_count'] as int,
       mainNumbersMin: json['main_numbers_min'] as int,

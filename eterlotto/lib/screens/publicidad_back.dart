@@ -760,7 +760,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                             ),
                             TextButton(
                               onPressed: _cargarDatosOptimizado,
-                              child: const Text("Reintentar"),
+                              child: Text(l10n.reintentar),
                             ),
                           ],
                         ),

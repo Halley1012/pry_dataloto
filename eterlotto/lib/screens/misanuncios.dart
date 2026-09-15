@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/screens/publicidad.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -490,49 +491,19 @@ class _MisAnunciosScreenState extends State<MisAnunciosScreen> {
   }
 
   Widget _buildOfflineNotice(AppLocalizations l10n) {
-    return Container(
+    return AppStaleDataBanner(
+      message: l10n.sinConexionAnuncios,
       margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.yellow.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.yellow.withValues(alpha: 0.28)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.cloud_off_outlined, color: AppColors.yellow, size: 17),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              l10n.sinConexionAnuncios,
-              style: const TextStyle(color: Colors.white70, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
   Widget _buildConnectionError(AppLocalizations l10n) {
-    return Padding(
-      padding: const EdgeInsets.all(40),
-      child: Column(
-        children: [
-          const Icon(Icons.cloud_off_outlined, size: 60, color: Colors.white38),
-          const SizedBox(height: 14),
-          Text(
-            l10n.errorCargarAnuncios,
-            style: AppTextStyles.mensajeSecundario,
-          ),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: cargarMisAnuncios,
-            icon: const Icon(Icons.refresh),
-            label: Text(l10n.reintentar),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.yellow),
-          ),
-        ],
-      ),
+    return AppDataStateCard(
+      isConnectionError: true,
+      onRetry: cargarMisAnuncios,
+      useContainer: false,
+      margin: const EdgeInsets.all(20),
     );
   }
+
 }
