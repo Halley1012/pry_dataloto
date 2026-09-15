@@ -131,57 +131,32 @@ class JugadaRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def get_prediccion_reciente_mloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int]]]:
+    def get_jackpot_reciente(self, route: str) -> Optional[str]:
         pass
 
     @abstractmethod
-    def get_prediccion_reciente_bloto(self, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
+    def get_predicciones_historico(self, route: str, limit: int) -> List[Tuple[datetime, List[int]]]:
         pass
 
     @abstractmethod
-    def get_jackpot_reciente(self, loteria: str) -> Optional[str]:
+    def get_predicciones_historico_completas(self, route: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
+    def get_prediccion_generico(self, route: str, fecha: Optional[str] = None) -> Optional[Tuple[datetime, List[int], List[int]]]:
         pass
 
     @abstractmethod
-    def get_ultimos_resultados_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+    def get_ultimos_resultados_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 
     @abstractmethod
-    def get_historico_completo_bloto(self, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
+    def get_ultimos50_resultados_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
 
     @abstractmethod
-    def get_historico_completo_mloto(self) -> List[Tuple[datetime, List[int], Optional[str]]]:
+    def get_historico_completo_generico(self, route: str, sorteo: Optional[str] = None) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
         pass
-
-    @abstractmethod
-    def get_predicciones_historico(self, tipo: str, limit: int) -> List[Tuple[datetime, List[int]]]:
-        pass
-
-    @abstractmethod
-    def get_predicciones_historico_completas(self, tipo: str, limit: int = 50) -> List[Tuple[datetime, List[int], List[int]]]:
-        pass
-
-    @abstractmethod
-    def get_prediccion_generico(self, tabla: str) -> Optional[Tuple[datetime, List[int], List[int]]]:
-        pass
-
-    @abstractmethod
-    def get_ultimos_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        pass
-
-    @abstractmethod
-    def get_ultimos50_resultados_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        pass
-
-    @abstractmethod
-    def get_historico_completo_generico(self, tabla: str, sorteo_nombre: str) -> List[Tuple[datetime, List[int], List[int], str, Optional[str]]]:
-        pass
-
 
 
 class PostRepositoryPort(ABC):
