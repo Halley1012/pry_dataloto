@@ -1,4 +1,5 @@
 import logging
+import re
 import psycopg2
 import psycopg2.extras
 from typing import List, Optional, Tuple, Dict, Any
@@ -8,6 +9,110 @@ from app.infrastructure import db_connection
 logger = logging.getLogger(__name__)
 
 class PostgresPublicidadRepository(PublicidadRepositoryPort):
+    @staticmethod
+    def _normalize_identity(value: Optional[str]) -> str:
+        return re.sub(
+            r"_+",
+            "_",
+            re.sub(r"[^a-z0-9]+", "_", (value or "").strip().lower()),
+        ).strip("_")
+
+    def _resolve_result_table(
+        self,
+        cur,
+        existing_tables: set[str],
+        route: str,
+        nombre: str,
+    ) -> Optional[str]:
+        aliases = {
+            self._normalize_identity(route),
+            self._normalize_identity(nombre),
+        }
+        aliases.discard("")
+        if not aliases:
+            return None
+
+        bases = [f"resultados_{alias}" for alias in aliases]
+        candidates = [
+            table
+            for table in existing_tables
+            if any(
+                table == base or re.fullmatch(re.escape(base) + r"\d+", table)
+                for base in bases
+            )
+        ]
+        if not candidates:
+            return None
+
+        ranked = []
+        for table in candidates:
+            latest = None
+            try:
+                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {table}")
+                row = cur.fetchone()
+                if row:
+                    latest = row.get("max_fecha") if isinstance(row, dict) else row[0]
+            except Exception:
+                try:
+                    cur.connection.rollback()
+                except Exception:
+                    pass
+            exact = table == f"resultados_{self._normalize_identity(route)}"
+            ranked.append((latest is not None, latest, exact, table))
+
+        ranked.sort(reverse=True)
+        return ranked[0][3] if ranked else None
+
+    def _get_result_dates(self, cur, table: str) -> tuple[Optional[str], Optional[str]]:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = %s
+            ORDER BY ordinal_position
+            """,
+            (table,),
+        )
+        cols = [
+            (row.get("column_name") if isinstance(row, dict) else row[0]).lower()
+            for row in cur.fetchall()
+        ]
+        if "fecha" not in cols:
+            return None, None
+
+        marker_col = None
+        if "numero" in cols:
+            marker_col = "numero"
+        else:
+            main_cols = [
+                c
+                for c in cols
+                if re.fullmatch(r"balota\d+", c)
+            ]
+            main_cols.sort(
+                key=lambda c: int(c.replace("balota", ""))
+            )
+            if main_cols:
+                marker_col = main_cols[0]
+
+        if marker_col is None:
+            return None, None
+
+        cur.execute(
+            f"""
+            SELECT
+                MAX(fecha) FILTER (WHERE {marker_col} = 0) AS proximo_sorteo,
+                MAX(fecha) FILTER (WHERE {marker_col} > 0) AS ultimo_sorteo
+            FROM {table}
+            """
+        )
+        row = cur.fetchone()
+        if not row:
+            return None, None
+        proximo = row.get("proximo_sorteo") if isinstance(row, dict) else row[0]
+        ultimo = row.get("ultimo_sorteo") if isinstance(row, dict) else row[1]
+        return (str(proximo) if proximo else None, str(ultimo) if ultimo else None)
+
     async def create_publicidad(self, user_id: int, imagen_url: str, link: str, categoria_id: int, ciudad_id: int, departamento_id: int) -> Dict[str, Any]:
         # En la implementación original se recibe un dict complejo con múltiples campos.
         # Pasaremos esos datos directamente en el caso de uso, pero este método general
@@ -360,61 +465,21 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     def list_loterias_by_pais(self, pais_id: Optional[int] = None) -> List[Dict[str, Any]]:
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                try:
-                    if pais_id:
-                        cur.execute("""
-                            SELECT id, nombre, tipo, pais_id,
-                                   COALESCE(route, '') AS route,
-                                   COALESCE(max_seleccion, 5) AS max_seleccion,
-                                   COALESCE(max_balotas_blancas, 45) AS max_balotas_blancas,
-                                   COALESCE(max_balotas_rojas, 0) AS max_balotas_rojas,
-                                   superbalota_nombre,
-                                   COALESCE(has_revancha, false) AS has_revancha,
-                                   COALESCE(total_balotas_sorteo, 5) AS total_balotas_sorteo,
-                                   COALESCE(tiene_complementario, false) AS tiene_complementario,
-                                   COALESCE(tiene_reintegro, false) AS tiene_reintegro
-                            FROM loterias
-                            WHERE pais_id = %s
-                              AND activa = true
-                            ORDER BY nombre
-                        """, (pais_id,))
-                    else:
-                        cur.execute("""
-                            SELECT id, nombre, tipo, pais_id,
-                                   COALESCE(route, '') AS route,
-                                   COALESCE(max_seleccion, 5) AS max_seleccion,
-                                   COALESCE(max_balotas_blancas, 45) AS max_balotas_blancas,
-                                   COALESCE(max_balotas_rojas, 0) AS max_balotas_rojas,
-                                   superbalota_nombre,
-                                   COALESCE(has_revancha, false) AS has_revancha,
-                                   COALESCE(total_balotas_sorteo, 5) AS total_balotas_sorteo,
-                                   COALESCE(tiene_complementario, false) AS tiene_complementario,
-                                   COALESCE(tiene_reintegro, false) AS tiene_reintegro
-                            FROM loterias
-                            WHERE activa = true
-                            ORDER BY nombre
-                        """)
-                    loterias = cur.fetchall()
-                except Exception as e:
-                    # Fallback si las nuevas columnas aún no se han creado en la BD
-                    logger.warning(f"Columnas nuevas de loterias no encontradas (ejecute la migración SQL): {e}")
-                    conn.rollback()
-                    if pais_id:
-                        cur.execute("""
-                            SELECT id, nombre, tipo, pais_id
-                            FROM loterias
-                            WHERE pais_id = %s
-                              AND activa = true
-                            ORDER BY nombre
-                        """, (pais_id,))
-                    else:
-                        cur.execute("""
-                            SELECT id, nombre, tipo, pais_id
-                            FROM loterias
-                            WHERE activa = true
-                            ORDER BY nombre
-                        """)
-                    loterias = cur.fetchall()
+                sql = """
+                    SELECT id, nombre, tipo, pais_id, route,
+                           max_seleccion, max_balotas_blancas, max_balotas_rojas,
+                           superbalota_nombre, has_revancha, total_balotas_sorteo,
+                           tiene_complementario, tiene_reintegro
+                    FROM loterias
+                    WHERE activa = true
+                """
+                params = []
+                if pais_id is not None:
+                    sql += " AND pais_id = %s"
+                    params.append(pais_id)
+                sql += " ORDER BY nombre"
+                cur.execute(sql, tuple(params))
+                loterias = cur.fetchall()
 
                 # ⚡ 1. Precargar todas las tablas de resultados existentes en 1 sola consulta
                 existing_tables = set()
@@ -460,83 +525,80 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         pass
                     logger.debug(f"Error precargando jackpots: {ej}")
 
-                # ⚡ 3. Asignar próximo sorteo y jackpot sin consultas redundantes
+                # ⚡ 3. Enriquecer cada lotería desde el catálogo y el esquema real,
+                # sin condiciones por nombre de juego.
                 for lot in loterias:
-                    r = (lot.get('route') or '').strip().lower()
-                    if not r:
-                        r = lot['nombre'].lower().strip().replace(' ', '_')
-                        lot['route'] = r
+                    route = self._normalize_identity(lot.get("route"))
+                    nombre = str(lot.get("nombre") or "").strip()
 
-                    tabla = f"resultados_{r}"
-                    if r in ['colorloto', 'cloto']:
-                        tabla = 'resultados_colorloto2' if 'resultados_colorloto2' in existing_tables else 'resultados_colorloto'
-
-                    if tabla in existing_tables:
-                        try:
-                            if 'colorloto' in tabla:
-                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE numero = 0")
-                                res = cur.fetchone()
-                                if res:
-                                    max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
-                                    if max_fecha:
-                                        lot['proximo_sorteo'] = str(max_fecha)
-
-                                cur.execute(f"SELECT MAX(fecha) AS ult_fecha FROM {tabla} WHERE numero > 0")
-                                res_u = cur.fetchone()
-                                if res_u:
-                                    ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
-                                    if ult_fecha:
-                                        lot['ultimo_sorteo'] = str(ult_fecha)
-
-                            else:
-                                cur.execute(f"SELECT MAX(fecha) AS max_fecha FROM {tabla} WHERE balota1 = 0")
-                                res = cur.fetchone()
-                                if res:
-                                    max_fecha = res['max_fecha'] if isinstance(res, dict) and 'max_fecha' in res else res[0]
-                                    if max_fecha:
-                                        lot['proximo_sorteo'] = str(max_fecha)
-
-                                cur.execute(f"SELECT MAX(fecha) AS ult_fecha FROM {tabla} WHERE balota1 > 0")
-                                res_u = cur.fetchone()
-                                if res_u:
-                                    ult_fecha = res_u['ult_fecha'] if isinstance(res_u, dict) and 'ult_fecha' in res_u else res_u[0]
-                                    if ult_fecha:
-                                        lot['ultimo_sorteo'] = str(ult_fecha)
-
-                        except Exception as e:
-                            logging.getLogger(__name__).error(f'Error capturado: {e}')
+                    if route:
+                        tabla = self._resolve_result_table(
+                            cur, existing_tables, route, nombre
+                        )
+                        if tabla:
                             try:
-                                conn.rollback()
-                            except Exception as e:
-                                logging.getLogger(__name__).error(f'Error capturado: {e}')
-                                pass
+                                proximo, ultimo = self._get_result_dates(cur, tabla)
+                                if proximo:
+                                    lot["proximo_sorteo"] = proximo
+                                if ultimo:
+                                    lot["ultimo_sorteo"] = ultimo
+                            except Exception as exc:
+                                logger.debug(
+                                    "No se pudieron resolver fechas para %s (%s): %s",
+                                    route,
+                                    tabla,
+                                    exc,
+                                )
+                                try:
+                                    conn.rollback()
+                                except Exception:
+                                    pass
 
-                    # Fallback a tabla predicciones si proximo_sorteo no se encontró en la tabla de resultados
-                    if not lot.get('proximo_sorteo'):
-                        try:
-                            cur.execute("SELECT MAX(fecha) AS p_fecha FROM predicciones WHERE LOWER(loteria_route) = %s", (r,))
-                            p_res = cur.fetchone()
-                            if p_res:
-                                p_fecha = p_res['p_fecha'] if isinstance(p_res, dict) and 'p_fecha' in p_res else p_res[0]
-                                if p_fecha:
-                                    lot['proximo_sorteo'] = str(p_fecha)
-                        except Exception as e:
-                            logging.getLogger(__name__).error(f'Error capturado: {e}')
+                    # Fallback genérico a la tabla global de predicciones.
+                    if not lot.get("proximo_sorteo") and route:
+                        aliases = {
+                            route,
+                            self._normalize_identity(nombre),
+                        }
+                        aliases.discard("")
+                        if aliases:
                             try:
-                                conn.rollback()
-                            except Exception as e:
-                                logging.getLogger(__name__).error(f'Error capturado: {e}')
-                                pass
+                                cur.execute(
+                                    """
+                                    SELECT MAX(fecha) AS p_fecha
+                                    FROM predicciones
+                                    WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
+                                    """,
+                                    (sorted(aliases),),
+                                )
+                                p_res = cur.fetchone()
+                                if p_res:
+                                    p_fecha = (
+                                        p_res.get("p_fecha")
+                                        if isinstance(p_res, dict)
+                                        else p_res[0]
+                                    )
+                                    if p_fecha:
+                                        lot["proximo_sorteo"] = str(p_fecha)
+                            except Exception as exc:
+                                logger.debug(
+                                    "No se pudo resolver próximo sorteo desde predicciones para %s: %s",
+                                    route,
+                                    exc,
+                                )
+                                try:
+                                    conn.rollback()
+                                except Exception:
+                                    pass
 
-                    # Búsqueda instantánea en mapa de jackpots en memoria (0 ms)
-                    nombre_lower = lot['nombre'].lower().strip()
-                    j_val = (
-                        jackpot_map.get(r) or 
-                        jackpot_map.get(nombre_lower) or 
-                        jackpot_map.get(r.replace('_', ' ')) or
-                        jackpot_map.get(nombre_lower.replace(' ', '_'))
+                    # Jackpot por route o nombre normalizados; el catálogo decide la identidad.
+                    nombre_norm = self._normalize_identity(nombre)
+                    jackpot_keys = [route, nombre_norm]
+                    j_val = next(
+                        (jackpot_map.get(key) for key in jackpot_keys if key and jackpot_map.get(key)),
+                        None,
                     )
                     if j_val:
-                        lot['jackpot'] = j_val
+                        lot["jackpot"] = j_val
 
                 return loterias
