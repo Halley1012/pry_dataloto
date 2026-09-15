@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 # Asegurar import de módulos del proyecto
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -33,6 +34,7 @@ class LottoFrScraper:
         self.game_name = "Loto Francia"
         self.revancha_name = "2nd Tirage"
         self.route = "lotto_fr"
+        self.loteria_id = None
         # Sorteos de Loto Francia: Lunes (0), Miércoles (2), Sábado (5)
         self.draw_days = (0, 2, 5)
 
@@ -44,6 +46,92 @@ class LottoFrScraper:
             'mai': '05', 'juin': '06', 'juillet': '07', 'août': '08', 'aout': '08',
             'septembre': '09', 'octobre': '10', 'novembre': '11', 'décembre': '12', 'decembre': '12'
         }
+
+    def _obtener_loteria_id(self) -> int:
+        """Obtiene el id canónico de la lotería desde el catálogo."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT id FROM loterias WHERE LOWER(route) = :route LIMIT 1;
+            """), {"route": self.route}).fetchone()
+        if not row:
+            raise RuntimeError(f"No existe loteria con route='{self.route}' en la tabla loterias.")
+        return int(row[0])
+
+    def _preparar_para_guardar(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Agrega identidad canónica y un concurso estable para cada modalidad."""
+        resultado = df.copy()
+        resultado['fecha'] = pd.to_datetime(resultado['fecha'], errors='coerce').dt.date
+        resultado = resultado.dropna(subset=['fecha', 'sorteo']).copy()
+        codigo_fecha = pd.to_datetime(resultado['fecha']).dt.strftime('%Y%m%d').astype(int)
+        # La fuente no publica un número de concurso. Se usa un identificador
+        # estable: YYYYMMDD1 para Loto Francia y YYYYMMDD2 para 2nd Tirage.
+        sufijo = resultado['sorteo'].eq(self.revancha_name).map({True: 2, False: 1})
+        resultado['concurso'] = codigo_fecha * 10 + sufijo.astype(int)
+        resultado['loteria_id'] = self._obtener_loteria_id()
+        return resultado
+
+    def _guardar_resultados(self, df: pd.DataFrame) -> None:
+        """Crea la tabla y guarda resultados sin borrar el histórico."""
+        df = self._preparar_para_guardar(df)
+        if df.empty:
+            raise RuntimeError("No hay filas válidas de Loto Francia para guardar.")
+
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_lotto_fr (
+                    concurso INTEGER CONSTRAINT pk_resultados_lotto_fr PRIMARY KEY,
+                    loteria_id INTEGER NOT NULL REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL, balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL, balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL, balotaroja INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            # Migración de la versión anterior, que usaba PK(fecha, sorteo).
+            conn.execute(text("""
+                ALTER TABLE resultados_lotto_fr ADD COLUMN IF NOT EXISTS concurso INTEGER;
+                ALTER TABLE resultados_lotto_fr ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
+                ALTER TABLE resultados_lotto_fr ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_lotto_fr ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                UPDATE resultados_lotto_fr
+                SET concurso = (TO_CHAR(fecha, 'YYYYMMDD')::INTEGER * 10) +
+                    CASE WHEN sorteo = '2nd Tirage' THEN 2 ELSE 1 END
+                WHERE concurso IS NULL;
+                UPDATE resultados_lotto_fr SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
+                ALTER TABLE resultados_lotto_fr DROP CONSTRAINT IF EXISTS pk_resultados_lotto_fr;
+                ALTER TABLE resultados_lotto_fr ALTER COLUMN concurso SET NOT NULL;
+                ALTER TABLE resultados_lotto_fr ALTER COLUMN loteria_id SET NOT NULL;
+                ALTER TABLE resultados_lotto_fr ADD CONSTRAINT pk_resultados_lotto_fr PRIMARY KEY (concurso);
+                CREATE INDEX IF NOT EXISTS idx_lotto_fr_fecha ON resultados_lotto_fr(fecha DESC);
+                CREATE INDEX IF NOT EXISTS idx_lotto_fr_loteria_id ON resultados_lotto_fr(loteria_id);
+            """), {"loteria_id": int(df['loteria_id'].iloc[0])})
+
+        insert_sql = """
+            INSERT INTO resultados_lotto_fr (
+                concurso, loteria_id, sorteo, fecha, balota1, balota2,
+                balota3, balota4, balota5, balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (concurso) DO UPDATE SET
+                loteria_id = EXCLUDED.loteria_id, sorteo = EXCLUDED.sorteo,
+                fecha = EXCLUDED.fecha, balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2, balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4, balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja, updated_at = CURRENT_TIMESTAMP;
+        """
+        columnas = ['concurso', 'loteria_id', 'sorteo', 'fecha', 'balota1', 'balota2',
+                   'balota3', 'balota4', 'balota5', 'balotaroja']
+        valores = [tuple(r[c] for c in columnas) for r in df.to_dict(orient='records')]
+        raw_conn = self.engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, valores,
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+            raw_conn.commit()
+        finally:
+            raw_conn.close()
 
     def _parse_date_spanish(self, text_str: str) -> date | None:
         """Extrae la fecha a partir de cadenas como 'Miércoles, 09 septiembre 2026'."""
@@ -349,24 +437,8 @@ class LottoFrScraper:
         ]
         df_final = pd.concat([pd.DataFrame(filas_proximo), df_combined], ignore_index=True)
 
-        # 5. Guardar en PostgreSQL
-        dtypes = {
-            'sorteo': String(50),
-            'fecha': Date(),
-            'balota1': Integer(),
-            'balota2': Integer(),
-            'balota3': Integer(),
-            'balota4': Integer(),
-            'balota5': Integer(),
-            'balotaroja': Integer(),
-        }
-
-        with self.engine.connect() as conn:
-            df_final.to_sql('resultados_lotto_fr', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.execute(text("""
-                ALTER TABLE resultados_lotto_fr ADD CONSTRAINT pk_resultados_lotto_fr PRIMARY KEY (fecha, sorteo);
-            """))
-            conn.commit()
+        # 5. Guardar en PostgreSQL sin reemplazar ni perder el histórico.
+        self._guardar_resultados(df_final)
 
         total_loto = len(df_combined[df_combined['sorteo'] == self.game_name])
         total_2nd = len(df_combined[df_combined['sorteo'] == self.revancha_name])

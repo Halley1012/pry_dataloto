@@ -16,6 +16,11 @@ class ApiService {
   static const Duration _requestTimeout = Duration(seconds: 10);
   static const Duration _refreshTimeout = Duration(seconds: 6);
   static Future<bool>? _refreshFuture;
+  static final Map<String, Future<List<dynamic>>> _loteriasInFlight = {};
+  static final Map<String, Future<Map<String, Map<String, dynamic>>>>
+      _jugadasInfoInFlight = {};
+  static final Map<int, Future<Map<String, dynamic>>>
+      _subscriptionStatusInFlight = {};
 
   static const List<String> _profileStorageKeys = [
     'name',
@@ -1109,11 +1114,31 @@ class ApiService {
     }
   }
 
-  /// 🔍 Obtener lista de loterías donde el usuario tiene jugadas
-  static Future<List<String>> getLoteriasConJugadas() async {
-    final userId = await getUserId();
-    if (userId == null) return [];
+  /// 🔍 Obtener lista de loterías donde el usuario tiene jugadas.
+  ///
+  /// La fuente canónica es `/mis_loterias_info`. Así evitamos pedir además
+  /// `/mis_loterias_activas` cuando varias pantallas necesitan la misma
+  /// información privada. El endpoint legacy sólo se usa como fallback si el
+  /// backend no puede entregar el mapa canónico.
+  static Future<List<String>> getLoteriasConJugadas({
+    bool forceRefresh = false,
+  }) async {
+    try {
+      final info = await getLoteriasInfoJugadas(forceRefresh: forceRefresh);
+      final routes = <String>{};
+      for (final item in info.values) {
+        final route = item['route']?.toString().trim().toLowerCase();
+        if (route != null && route.isNotEmpty) routes.add(route);
+      }
+      return routes.toList()..sort();
+    } catch (_) {
+      final userId = await getUserId();
+      if (userId == null) return [];
+      return _getLoteriasConJugadasLegacy(userId);
+    }
+  }
 
+  static Future<List<String>> _getLoteriasConJugadasLegacy(int userId) async {
     final response = await http
         .get(
           Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
@@ -1123,12 +1148,12 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
-      if (decoded is List) return decoded.cast<String>();
+      if (decoded is List) {
+        return decoded.map((e) => e.toString().toLowerCase()).toList();
+      }
       throw Exception('Formato inválido en mis_loterias_activas');
     }
 
-    // Una petición fallida no equivale a "el usuario no tiene jugadas". Los
-    // callers cache-first pueden así conservar su último estado privado.
     throw Exception(
       'Error al obtener loterías con jugadas: ${response.statusCode}',
     );
@@ -1160,7 +1185,8 @@ class ApiService {
       }
     } catch (_) {}
 
-    // Fallback garantizado para Render
+    // Fallback compatible: la lista de rutas se obtiene desde el mapa
+    // canónico y, sólo si éste falla, desde el endpoint legacy.
     try {
       final activas = await getLoteriasConJugadas();
       if (activas.isEmpty) return {};
@@ -1181,12 +1207,58 @@ class ApiService {
     return {};
   }
 
-  /// 🔍 Obtener mapa de loterías con información de jugadas, indexado por loteria_id cuando está disponible.
-  static Future<Map<String, Map<String, dynamic>>>
-  getLoteriasInfoJugadas() async {
+  static Map<String, Map<String, dynamic>> _normalizeLoteriasInfo(dynamic raw) {
+    if (raw is! Map) return <String, Map<String, dynamic>>{};
+    final normalized = <String, Map<String, dynamic>>{};
+    for (final entry in raw.entries) {
+      final value = entry.value;
+      if (value is Map) {
+        normalized[entry.key.toString()] = Map<String, dynamic>.from(value);
+      }
+    }
+    return normalized;
+  }
+
+  /// 🔍 Obtener mapa de loterías con información de jugadas, indexado por
+  /// loteria_id cuando está disponible.
+  ///
+  /// Usa cache-first privada por usuario y single-flight. Varias pantallas
+  /// concurrentes comparten una única consulta al backend. Las mutaciones de
+  /// jugadas ya invalidan esta clave mediante CacheService, por lo que no se
+  /// sirve información obsoleta después de crear/editar/borrar una jugada.
+  static Future<Map<String, Map<String, dynamic>>> getLoteriasInfoJugadas({
+    bool forceRefresh = false,
+  }) async {
     final userId = await getUserId();
     if (userId == null) return {};
 
+    final userKey = userId.toString();
+    final cacheKey = CacheService.infoMisJugadasKey(userKey);
+
+    if (!forceRefresh) {
+      final cached = await CacheService.getJson(cacheKey);
+      final normalizedCached = _normalizeLoteriasInfo(cached);
+      if (cached is Map) return normalizedCached;
+    }
+
+    final inFlight = _jugadasInfoInFlight[userKey];
+    if (inFlight != null) return inFlight;
+
+    final future = _fetchLoteriasInfoJugadas(userId, cacheKey);
+    _jugadasInfoInFlight[userKey] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_jugadasInfoInFlight[userKey], future)) {
+        _jugadasInfoInFlight.remove(userKey);
+      }
+    }
+  }
+
+  static Future<Map<String, Map<String, dynamic>>> _fetchLoteriasInfoJugadas(
+    int userId,
+    String cacheKey,
+  ) async {
     Object? primaryError;
     try {
       final response = await http
@@ -1194,17 +1266,14 @@ class ApiService {
             Uri.parse("$baseUrl/mis_loterias_info?user_id=$userId"),
             headers: {"Content-Type": "application/json"},
           )
-          .timeout(const Duration(seconds: 3));
+          .timeout(_requestTimeout);
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
-        if (decoded is Map<String, dynamic> && !decoded.containsKey("error")) {
-          return decoded.map(
-            (key, value) => MapEntry(
-              key.toString().toLowerCase(),
-              Map<String, dynamic>.from(value as Map),
-            ),
-          );
+        if (decoded is Map && !decoded.containsKey("error")) {
+          final info = _normalizeLoteriasInfo(decoded);
+          await CacheService.setJson(cacheKey, info);
+          return info;
         }
         primaryError = Exception('Formato inválido en mis_loterias_info');
       } else {
@@ -1216,12 +1285,14 @@ class ApiService {
       primaryError = e;
     }
 
-    // Fallback para despliegues donde /mis_loterias_info aún no esté disponible.
-    // Si las jugadas ya traen loteria_id, reconstruimos la identidad exacta
-    // aunque varias filas del catálogo compartan la misma route.
+    // Compatibilidad temporal para despliegues antiguos. Sólo entra aquí si
+    // el endpoint canónico no pudo consultarse.
     try {
-      final activas = await getLoteriasConJugadas();
-      if (activas.isEmpty) return {};
+      final activas = await _getLoteriasConJugadasLegacy(userId);
+      if (activas.isEmpty) {
+        await CacheService.setJson(cacheKey, <String, Map<String, dynamic>>{});
+        return {};
+      }
 
       final Map<String, Map<String, dynamic>> infoMap = {};
       var routeFailure = false;
@@ -1276,11 +1347,10 @@ class ApiService {
         }),
       );
 
-      // No devolvemos un mapa parcial como si fuera una respuesta completa:
-      // podría borrar del selector jugadas que sólo faltaron por un timeout.
       if (routeFailure) {
         throw Exception('No se pudo reconstruir completamente mis_loterias_info');
       }
+      await CacheService.setJson(cacheKey, infoMap);
       return infoMap;
     } catch (fallbackError) {
       throw primaryError ?? fallbackError;
@@ -2252,40 +2322,150 @@ class ApiService {
 
   /////////////////////////// Loterias ////////////////////////////
 
-  /// 📋 Listar loterías disponibles (por país o todas)
-  static Future<List<dynamic>> getLoteriasPorPais([String? paisId]) async {
-    final uri = (paisId != null && paisId.isNotEmpty)
-        ? Uri.parse("$baseUrl/loterias?pais_id=$paisId")
-        : Uri.parse("$baseUrl/loterias");
+  /// 📋 Consulta interna de loterías.
+  ///
+  /// [forceRefresh] = false:
+  /// navegación normal; el backend puede responder desde su caché.
+  ///
+  /// [forceRefresh] = true:
+  /// envía `force_refresh=true` para que el backend ignore su caché de
+  /// `/loterias`, consulte nuevamente la BD y renueve su caché.
+  static Future<List<dynamic>> _getLoterias({
+    String? paisId,
+    bool forceRefresh = false,
+  }) async {
+    final cleanPaisId = paisId?.trim();
+    final cacheKey =
+        cleanPaisId != null && cleanPaisId.isNotEmpty
+            ? 'loterias_mapeadas_$cleanPaisId'
+            : CacheService.catalogoLoteriasKey;
 
-    final response = await http
-        .get(
-          uri,
-          headers: await _getHeaders(withAuth: false),
-        )
-        .timeout(_requestTimeout);
+    // Navegación normal: reutiliza el catálogo fresco compartido por todas las
+    // pantallas. El TTL central de CacheService controla su vigencia.
+    // Un refresh manual siempre omite esta lectura mediante forceRefresh=true.
+    if (!forceRefresh) {
+      final cached = await CacheService.getJson(cacheKey);
+      if (cached is List && cached.isNotEmpty) {
+        return List<dynamic>.from(cached);
+      }
+    }
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      if (data is List) return data;
-      throw Exception("Formato inválido de loterías");
-    } else {
+    final requestKey =
+        '${forceRefresh ? 'force' : 'normal'}:${cleanPaisId?.isNotEmpty == true ? cleanPaisId : 'all'}';
+
+    // Si no había caché fresca y varias pantallas solicitan el mismo catálogo
+    // simultáneamente, todas comparten una única petición HTTP.
+    final inFlight = _loteriasInFlight[requestKey];
+    if (inFlight != null) return inFlight;
+
+    final future = (() async {
+      final queryParameters = <String, String>{};
+
+      if (cleanPaisId != null && cleanPaisId.isNotEmpty) {
+        queryParameters["pais_id"] = cleanPaisId;
+      }
+
+      if (forceRefresh) {
+        queryParameters["force_refresh"] = "true";
+      }
+
+      final uri = Uri.parse("$baseUrl/loterias").replace(
+        queryParameters: queryParameters.isEmpty ? null : queryParameters,
+      );
+
+      // Render puede tardar más durante un cold start.
+      final timeout = forceRefresh
+          ? const Duration(seconds: 30)
+          : const Duration(seconds: 25);
+
+      Future<http.Response> request() async {
+        return http
+            .get(
+              uri,
+              headers: await _getHeaders(withAuth: false),
+            )
+            .timeout(timeout);
+      }
+
+      http.Response response;
+
+      try {
+        response = await request();
+      } on TimeoutException {
+        await Future<void>.delayed(const Duration(milliseconds: 700));
+        response = await request();
+      }
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          // Catálogo común para que otras pantallas puedan hidratarse sin
+          // esperar a una segunda petición. La red sigue refrescándose según
+          // la política de cada pantalla.
+          await CacheService.setJson(cacheKey, data);
+          return List<dynamic>.from(data);
+        }
+        throw Exception("Formato inválido de loterías");
+      }
+
       throw Exception("Error al obtener loterías: ${response.statusCode}");
+    })();
+
+    _loteriasInFlight[requestKey] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_loteriasInFlight[requestKey], future)) {
+        _loteriasInFlight.remove(requestKey);
+      }
     }
   }
 
-  /// 🌐 Obtener todas las loterías de una sola petición
-  static Future<List<dynamic>> getAllLoterias() async {
-    return getLoteriasPorPais(null);
+  /// 📋 Listar loterías disponibles por país.
+  ///
+  /// Se conserva la firma existente para no romper las pantallas que llaman
+  /// `getLoteriasPorPais(paisId)`.
+  static Future<List<dynamic>> getLoteriasPorPais(
+    String? paisId, {
+    bool forceRefresh = false,
+  }) async {
+    return _getLoterias(
+      paisId: paisId,
+      forceRefresh: forceRefresh,
+    );
+  }
+
+  /// 🌐 Obtener todas las loterías.
+  static Future<List<dynamic>> getAllLoterias({
+    bool forceRefresh = false,
+  }) async {
+    return _getLoterias(forceRefresh: forceRefresh);
   }
 
   /// 🔮 Obtener predicción de IA, números probables y jackpot de una lotería
-  static Future<Map<String, dynamic>> getPrediccionLoteria(String route) async {
+  static Future<Map<String, dynamic>> getPrediccionLoteria(
+    String route, {
+    String? fecha,
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute");
+    final queryParameters = <String, String>{};
+    if (fecha != null && fecha.trim().isNotEmpty) {
+      queryParameters["fecha"] = fecha.trim();
+    }
+    if (forceRefresh) {
+      queryParameters["force_refresh"] = "true";
+    }
+    final uri = Uri.parse("$baseUrl/$cleanRoute").replace(
+      queryParameters: queryParameters.isEmpty ? null : queryParameters,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 25)
+        : const Duration(seconds: 12);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 12));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -2304,15 +2484,24 @@ class ApiService {
   static Future<List<Map<String, dynamic>>> getPrediccionesHistorico(
     String route, {
     int limit = 50,
+    bool forceRefresh = false,
   }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse(
-      "$baseUrl/$cleanRoute/predicciones_historico?limit=$limit",
+    final queryParameters = <String, String>{
+      "limit": limit.toString(),
+      if (forceRefresh) "force_refresh": "true",
+    };
+    final uri = Uri.parse("$baseUrl/$cleanRoute/predicciones_historico").replace(
+      queryParameters: queryParameters,
     );
     try {
       final response = await http
           .get(uri, headers: await _getHeaders(withAuth: false))
-          .timeout(const Duration(seconds: 12));
+          .timeout(
+            forceRefresh
+                ? const Duration(seconds: 25)
+                : const Duration(seconds: 12),
+          );
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -2327,13 +2516,20 @@ class ApiService {
 
   /// 📊 Obtener últimos sorteos de una lotería
   static Future<List<Map<String, dynamic>>> getUltimosResultados(
-    String route,
-  ) async {
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5");
+    final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos5").replace(
+      queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 25)
+        : const Duration(seconds: 12);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 12));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -2349,15 +2545,24 @@ class ApiService {
   }
 
   /// 📜 Obtener los 50 sorteos más recientes para visualización rápida en pantalla
-  static Future<List<Map<String, dynamic>>> getHistorico50(String route) async {
+  static Future<List<Map<String, dynamic>>> getHistorico50(
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
     Object? primaryError;
 
     try {
-      final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos50");
+      final uri = Uri.parse("$baseUrl/$cleanRoute/ultimos50").replace(
+        queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+      );
       final response = await http
           .get(uri, headers: await _getHeaders(withAuth: false))
-          .timeout(_requestTimeout);
+          .timeout(
+            forceRefresh
+                ? const Duration(seconds: 25)
+                : _requestTimeout,
+          );
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -2375,7 +2580,10 @@ class ApiService {
 
     // Fallback: algunos backends sólo exponen el histórico completo.
     try {
-      final fullList = await getHistoricoCompleto(cleanRoute);
+      final fullList = await getHistoricoCompleto(
+        cleanRoute,
+        forceRefresh: forceRefresh,
+      );
       return fullList.take(50).toList();
     } catch (fallbackError) {
       // Si ambos endpoints fallaron, el caller debe poder distinguir un fallo
@@ -2386,13 +2594,20 @@ class ApiService {
 
   /// 📜 Obtener histórico completo de resultados de una lotería (para exportación)
   static Future<List<Map<String, dynamic>>> getHistoricoCompleto(
-    String route,
-  ) async {
+    String route, {
+    bool forceRefresh = false,
+  }) async {
     final cleanRoute = route.trim().toLowerCase();
-    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo");
+    final uri = Uri.parse("$baseUrl/$cleanRoute/historico_completo").replace(
+      queryParameters: forceRefresh ? {"force_refresh": "true"} : null,
+    );
+    final timeout = forceRefresh
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 20);
+
     final response = await http
         .get(uri, headers: await _getHeaders(withAuth: false))
-        .timeout(const Duration(seconds: 20));
+        .timeout(timeout);
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -2447,23 +2662,38 @@ class ApiService {
 
   /// 💎 Consulta el estado VIP confirmado por el backend.
   ///
-  /// Un fallo de red, timeout, 5xx o payload inválido devuelve
-  /// `success: false, unknown: true`. Nunca se traduce un fallo transitorio a
-  /// `is_premium: false`, porque eso revocaría visualmente una suscripción que
-  /// todavía puede estar vigente.
+  /// Las consultas concurrentes de la misma cuenta comparten una única
+  /// petición HTTP. Un fallo transitorio nunca se convierte en Basic.
   static Future<Map<String, dynamic>> getSubscriptionStatus({
     int? userId,
   }) async {
-    try {
-      final resolvedUserId = userId ?? await getUserId();
-      if (resolvedUserId == null) {
-        return const {
-          'success': false,
-          'unknown': true,
-          'error': 'Usuario no autenticado',
-        };
-      }
+    final resolvedUserId = userId ?? await getUserId();
+    if (resolvedUserId == null) {
+      return const {
+        'success': false,
+        'unknown': true,
+        'error': 'Usuario no autenticado',
+      };
+    }
 
+    final inFlight = _subscriptionStatusInFlight[resolvedUserId];
+    if (inFlight != null) return inFlight;
+
+    final future = _fetchSubscriptionStatus(resolvedUserId);
+    _subscriptionStatusInFlight[resolvedUserId] = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_subscriptionStatusInFlight[resolvedUserId], future)) {
+        _subscriptionStatusInFlight.remove(resolvedUserId);
+      }
+    }
+  }
+
+  static Future<Map<String, dynamic>> _fetchSubscriptionStatus(
+    int resolvedUserId,
+  ) async {
+    try {
       final response = await get(
         "/subscriptions/status/$resolvedUserId",
         withAuth: true,
@@ -2480,8 +2710,6 @@ class ApiService {
       final payload = data is Map<String, dynamic>
           ? data
           : (data is Map ? Map<String, dynamic>.from(data) : null);
-      // El contrato válido siempre declara explícitamente este booleano. Un
-      // payload parcial tampoco debe degradar la cuenta a Basic.
       if (payload == null || payload['is_premium'] is! bool) {
         return const {
           'success': false,

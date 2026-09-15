@@ -58,9 +58,12 @@ class _LoteriasPaisState extends State<LoteriasPais> {
 
     final fresh = forceRefresh
         ? null
-        : await CacheService.getJson('explorar_loterias_mundial');
+        : (await CacheService.getJson('explorar_loterias_mundial') ??
+              await CacheService.getJson(CacheService.catalogoLoteriasKey));
     final cached =
-        fresh ?? await CacheService.getStaleJson('explorar_loterias_mundial');
+        fresh ??
+        await CacheService.getStaleJson('explorar_loterias_mundial') ??
+        await CacheService.getStaleJson(CacheService.catalogoLoteriasKey);
     final freshPaises = forceRefresh
         ? null
         : await CacheService.getJson('paises_list_cache');
@@ -87,15 +90,18 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       });
     }
 
-    var hadNetworkFailure = false;
+    var loteriasNetworkFailure = false;
     try {
       final results = await Future.wait([
+        // Países es un catálogo auxiliar. Si falla, no debemos mostrar
+        // "Sin conexión" mientras /loterias sí haya refrescado correctamente.
         ApiService.getPaises().catchError((_) {
-          hadNetworkFailure = true;
           return <Map<String, dynamic>>[];
         }),
-        ApiService.getAllLoterias().catchError((_) {
-          hadNetworkFailure = true;
+        ApiService.getAllLoterias(
+          forceRefresh: forceRefresh,
+        ).catchError((_) {
+          loteriasNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -131,7 +137,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           _showingStaleData = false;
         });
         await CacheService.setJson('explorar_loterias_mundial', todas);
-      } else if (_loterias.isNotEmpty && hadNetworkFailure) {
+      } else if (_loterias.isNotEmpty && loteriasNetworkFailure) {
         setState(() {
           _isLoading = false;
           _loadFailed = false;
@@ -141,7 +147,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
         setState(() {
           _userCountry = uCountry;
           _isLoading = false;
-          _loadFailed = hadNetworkFailure;
+          _loadFailed = loteriasNetworkFailure;
           _showingStaleData = false;
         });
       }
@@ -453,8 +459,28 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   }
 
   Widget _buildSliverSkeletonList() {
-    return SliverToBoxAdapter(
-      child: _buildSkeletonList(),
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            return Shimmer.fromColors(
+              baseColor: const Color(0xFF1A1A1A),
+              highlightColor: const Color(0xFF2C2C2C),
+              period: const Duration(milliseconds: 1400),
+              child: Container(
+                height: 72,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            );
+          },
+          childCount: 6,
+        ),
+      ),
     );
   }
 
@@ -729,25 +755,4 @@ class _LoteriasPaisState extends State<LoteriasPais> {
     return LoteriaScreen(loteriaNombre: loteria?.toString() ?? "Lotería");
   }
 
-  Widget _buildSkeletonList() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1A1A1A),
-      highlightColor: const Color(0xFF2C2C2C),
-      period: const Duration(milliseconds: 1400),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-          );
-        },
-      ),
-    );
-  }
 }

@@ -63,6 +63,10 @@ from src.cincodeoro.scraper import CincoDeOroScraper
 from src.cincodeoro.predictor import CincoDeOroPredictor
 from src.lotto_cr.scraper import LottoCostaRicaScraper
 from src.lotto_cr.predictor import LottoCostaRicaPredictor
+from src.eurojackpot.scraper import EurojackpotScraper
+from src.eurojackpot.predictor import EurojackpotPredictor
+from src.lotto_6aus49.scraper import Lotto6aus49Scraper
+from src.lotto_6aus49.predictor import Lotto6aus49Predictor
 
 from src.notification_generator import NotificationGenerator
 
@@ -78,7 +82,8 @@ def main():
             "megasena", "maismilionaria", "duplasena", "quina",
             "melate", "melateretro", "chispazo",
             "latinka", "kabala", "ganadiario",
-            "5deoro", "lotto_cr", "all"
+            "5deoro", "lotto_cr",
+            "eurojackpot", "lotto_6aus49", "all"
         ],
         help="El nombre de la lotería a procesar (default: all)"
     )
@@ -126,6 +131,8 @@ def main():
         "ganadiario": GanadiarioScraper,
         "5deoro": CincoDeOroScraper,
         "lotto_cr": LottoCostaRicaScraper,
+        "eurojackpot": EurojackpotScraper,
+        "lotto_6aus49": Lotto6aus49Scraper,
     }
     predictors = {
         "miloto": MilotoPredictor,
@@ -152,6 +159,8 @@ def main():
         "ganadiario": GanadiarioPredictor,
         "5deoro": CincoDeOroPredictor,
         "lotto_cr": LottoCostaRicaPredictor,
+        "eurojackpot": EurojackpotPredictor,
+        "lotto_6aus49": Lotto6aus49Predictor,
     }
     
     # Determine which lotteries to process (default "all" runs every configured lottery)

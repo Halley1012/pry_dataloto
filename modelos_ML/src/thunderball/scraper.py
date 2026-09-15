@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text, Integer, Date, String
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from psycopg2.extras import execute_values
 
 # Asegurar import de módulos del proyecto
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,7 @@ class ThunderballScraper:
         self.resultados_url = "https://www.combinacionganadora.com/uk/thunderball/resultados/"
         self.game_name = "Thunderball"
         self.route = "thunderball"
+        self.loteria_id = None
         # Sorteos de Thunderball: Martes (1), Miércoles (2), Viernes (4) y Sábados (5)
         self.draw_days = (1, 2, 4, 5)
 
@@ -45,6 +47,84 @@ class ThunderballScraper:
             'may': '05', 'june': '06', 'july': '07', 'august': '08',
             'september': '09', 'october': '10', 'november': '11', 'december': '12'
         }
+
+    def _obtener_loteria_id(self) -> int:
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT id FROM loterias WHERE LOWER(route) = :route LIMIT 1;
+            """), {"route": self.route}).fetchone()
+        if not row:
+            raise RuntimeError(f"No existe loteria con route='{self.route}' en la tabla loterias.")
+        return int(row[0])
+
+    def _guardar_resultados(self, df: pd.DataFrame) -> None:
+        """Guarda por UPSERT; no reemplaza ni elimina el histórico existente."""
+        df = df.copy()
+        df['fecha'] = pd.to_datetime(df['fecha'], errors='coerce').dt.date
+        df = df.dropna(subset=['fecha', 'sorteo']).copy()
+        if df.empty:
+            raise RuntimeError("No hay filas válidas de Thunderball para guardar.")
+
+        # La fuente consultada no expone el número oficial de concurso. La fecha
+        # YYYYMMDD es un identificador estable porque Thunderball tiene un sorteo por día.
+        df['concurso'] = pd.to_datetime(df['fecha']).dt.strftime('%Y%m%d').astype(int)
+        df['loteria_id'] = self._obtener_loteria_id()
+
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_thunderball (
+                    concurso INTEGER CONSTRAINT pk_resultados_thunderball PRIMARY KEY,
+                    loteria_id INTEGER NOT NULL REFERENCES loterias(id),
+                    sorteo VARCHAR(100) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL, balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL, balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL, balotaroja INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            # Migración de la versión anterior, que usaba PK(fecha, sorteo).
+            conn.execute(text("""
+                ALTER TABLE resultados_thunderball ADD COLUMN IF NOT EXISTS concurso INTEGER;
+                ALTER TABLE resultados_thunderball ADD COLUMN IF NOT EXISTS loteria_id INTEGER;
+                ALTER TABLE resultados_thunderball ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_thunderball ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                UPDATE resultados_thunderball
+                SET concurso = TO_CHAR(fecha, 'YYYYMMDD')::INTEGER
+                WHERE concurso IS NULL;
+                UPDATE resultados_thunderball SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
+                ALTER TABLE resultados_thunderball DROP CONSTRAINT IF EXISTS pk_resultados_thunderball;
+                ALTER TABLE resultados_thunderball ALTER COLUMN concurso SET NOT NULL;
+                ALTER TABLE resultados_thunderball ALTER COLUMN loteria_id SET NOT NULL;
+                ALTER TABLE resultados_thunderball ADD CONSTRAINT pk_resultados_thunderball PRIMARY KEY (concurso);
+                CREATE INDEX IF NOT EXISTS idx_thunderball_fecha ON resultados_thunderball(fecha DESC);
+                CREATE INDEX IF NOT EXISTS idx_thunderball_loteria_id ON resultados_thunderball(loteria_id);
+            """), {"loteria_id": int(df['loteria_id'].iloc[0])})
+
+        insert_sql = """
+            INSERT INTO resultados_thunderball (
+                concurso, loteria_id, sorteo, fecha, balota1, balota2,
+                balota3, balota4, balota5, balotaroja, created_at, updated_at
+            ) VALUES %s
+            ON CONFLICT (concurso) DO UPDATE SET
+                loteria_id = EXCLUDED.loteria_id, sorteo = EXCLUDED.sorteo,
+                fecha = EXCLUDED.fecha, balota1 = EXCLUDED.balota1,
+                balota2 = EXCLUDED.balota2, balota3 = EXCLUDED.balota3,
+                balota4 = EXCLUDED.balota4, balota5 = EXCLUDED.balota5,
+                balotaroja = EXCLUDED.balotaroja, updated_at = CURRENT_TIMESTAMP;
+        """
+        columnas = ['concurso', 'loteria_id', 'sorteo', 'fecha', 'balota1', 'balota2',
+                   'balota3', 'balota4', 'balota5', 'balotaroja']
+        valores = [tuple(r[c] for c in columnas) for r in df.to_dict(orient='records')]
+        raw_conn = self.engine.raw_connection()
+        try:
+            with raw_conn.cursor() as cur:
+                execute_values(cur, insert_sql, valores,
+                    template="(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)")
+            raw_conn.commit()
+        finally:
+            raw_conn.close()
 
     def _parse_date(self, text_str: str) -> date | None:
         """Extrae la fecha a partir de cadenas como 'Viernes, 11 septiembre 2026' o '11 September 2026'."""
@@ -353,24 +433,9 @@ class ThunderballScraper:
         df_final = df_final.sort_values(by='fecha', ascending=True).reset_index(drop=True)
 
         # -------------------------------------------------------------
-        # Guardar en Base de Datos
+        # Guardar en Base de Datos sin reemplazar ni borrar el histórico
         # -------------------------------------------------------------
-        dtypes = {
-            'sorteo': String(100),
-            'fecha': Date,
-            'balota1': Integer,
-            'balota2': Integer,
-            'balota3': Integer,
-            'balota4': Integer,
-            'balota5': Integer,
-            'balotaroja': Integer
-        }
-
-        with self.engine.begin() as conn:
-            df_final.to_sql('resultados_thunderball', conn, if_exists='replace', index=False, dtype=dtypes)
-            conn.execute(text("""
-                ALTER TABLE resultados_thunderball ADD CONSTRAINT pk_resultados_thunderball PRIMARY KEY (fecha, sorteo);
-            """))
+        self._guardar_resultados(df_final)
 
         print(f"✅ ¡Resultados guardados exitosamente! Total filas: {len(df_final)}")
 

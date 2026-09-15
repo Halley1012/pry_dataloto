@@ -162,7 +162,19 @@ class MillionaireLifeScraper:
                     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
                 );
+            """))
+            conn.execute(text("""
+                ALTER TABLE resultados_millionaire_life ADD COLUMN IF NOT EXISTS concurso INT;
+                ALTER TABLE resultados_millionaire_life ADD COLUMN IF NOT EXISTS loteria_id INT REFERENCES loterias(id);
+                ALTER TABLE resultados_millionaire_life ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                ALTER TABLE resultados_millionaire_life ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                WITH duplicados AS (
+                    SELECT ctid, ROW_NUMBER() OVER (PARTITION BY fecha, sorteo ORDER BY (balota1 > 0) DESC, updated_at DESC NULLS LAST, ctid DESC) AS posicion
+                    FROM resultados_millionaire_life
+                ) DELETE FROM resultados_millionaire_life r USING duplicados d WHERE r.ctid = d.ctid AND d.posicion > 1;
                 CREATE UNIQUE INDEX IF NOT EXISTS uq_millionaire_life_fecha_sorteo ON resultados_millionaire_life (fecha, sorteo);
+                CREATE INDEX IF NOT EXISTS idx_millionaire_life_concurso ON resultados_millionaire_life (concurso);
+                CREATE INDEX IF NOT EXISTS idx_millionaire_life_loteria_id ON resultados_millionaire_life (loteria_id);
             """))
 
         # 2. Detección temprana
