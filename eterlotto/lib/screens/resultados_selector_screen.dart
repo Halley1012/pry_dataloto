@@ -131,7 +131,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     }
 
     var userPlaysFailed = false;
-    final userPlaysFuture = ApiService.getLoteriasInfoJugadas().catchError((_) {
+    final userPlaysFuture = ApiService.getLoteriasInfoJugadas(
+      forceRefresh: forceRefresh,
+    ).catchError((_) {
       userPlaysFailed = true;
       return <String, Map<String, dynamic>>{};
     });
@@ -228,15 +230,16 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       }
     }
 
-    var hadNetworkFailure = false;
+    var loteriasNetworkFailure = false;
     try {
       final results = await Future.wait([
         ApiService.getPaises().catchError((_) {
-          hadNetworkFailure = true;
           return <Map<String, dynamic>>[];
         }),
-        ApiService.getAllLoterias().catchError((_) {
-          hadNetworkFailure = true;
+        ApiService.getAllLoterias(
+          forceRefresh: force,
+        ).catchError((_) {
+          loteriasNetworkFailure = true;
           return <dynamic>[];
         }),
       ]);
@@ -259,14 +262,14 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
 
-      _catalogFetchFailed = hadNetworkFailure;
+      _catalogFetchFailed = loteriasNetworkFailure;
 
       if (todas.isNotEmpty) {
         await CacheService.setJson(CacheService.catalogoLoteriasKey, todas);
         return todas;
       }
 
-      if (hadNetworkFailure) {
+      if (loteriasNetworkFailure) {
         final staleCatalog = await CacheService.getStaleJson(
           CacheService.catalogoLoteriasKey,
         );
@@ -867,13 +870,13 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final estadoDisplay = _calcularEstadoSorteo(rawFecha);
     final openingHistory = _selectedFilter == 'historial';
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
-      decoration: BoxDecoration(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 3.5),
+      child: Material(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(10),
-      ),
-      child: ListTile(
+        clipBehavior: Clip.antiAlias,
+        child: ListTile(
         dense: true,
         visualDensity: const VisualDensity(horizontal: 0, vertical: -2),
         // El filtro Historial sólo cambia la lista; entrar en una lotería no
@@ -931,6 +934,7 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
                 color: AppColors.yellow,
                 size: 18,
               ),
+        ),
       ),
     );
   }

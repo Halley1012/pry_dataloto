@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
-import 'package:http/http.dart' as http;
 import 'dart:math' as math;
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
@@ -495,7 +494,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
     try {
       // Phase 1: Fetch ultimos5 to determine target draw date
-      final rawSorteosList = await ApiService.getUltimosResultados(route);
+      final rawSorteosList = await ApiService.getUltimosResultados(
+        route,
+        forceRefresh: forceRefresh,
+      );
 
       final now = DateTime.now();
       final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59);
@@ -540,7 +542,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       // exactamente su fecha, sin nombres ni reglas particulares por lotería.
       if (necesitaHistorico || requestedDrawDate.isNotEmpty) {
         try {
-          final extraSorteos = await ApiService.getHistorico50(route);
+          final extraSorteos = await ApiService.getHistorico50(
+            route,
+            forceRefresh: forceRefresh,
+          );
           if (extraSorteos.isNotEmpty) {
             for (var s in extraSorteos) {
               if (esSorteoValido(s) && seenSorteos.add(makeKey(s))) {
@@ -591,7 +596,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       final responses = await Future.wait([
         _obtenerJugadasUsuario(_selectedLoteria, fecha: targetDrawDate),
         CacheService.getStaleJson('${route}_prediccion'),
-        ApiService.getPrediccionesHistorico(route),
+        ApiService.getPrediccionesHistorico(
+          route,
+          forceRefresh: forceRefresh,
+        ),
       ]);
 
       var userJugadas = responses[0] as List<Map<String, dynamic>>;
@@ -634,7 +642,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       }
 
       // 1. Usar caché sólo cuando pertenece exactamente al sorteo evaluado.
-      if (cachedPred is Map) {
+      if (!forceRefresh && cachedPred is Map) {
         final String predFecha = _normalizarFechaISO(
           cachedPred["fecha"]?.toString() ?? "",
         );
@@ -681,16 +689,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
       // 3. Último intento: pedir al backend la predicción para esa fecha exacta.
       if (top20.isEmpty) {
-        final String endpoint = targetDrawDate.isNotEmpty
-            ? "/$route?fecha=$targetDrawDate"
-            : "/$route";
-
-        final resPrediccion = await ApiService.get(
-          endpoint,
-          withAuth: false,
-        ).catchError((_) => http.Response('{}', 500));
-        if (resPrediccion.statusCode == 200) {
-          final body = jsonDecode(resPrediccion.body);
+        try {
+          final body = await ApiService.getPrediccionLoteria(
+            route,
+            fecha: targetDrawDate.isNotEmpty ? targetDrawDate : null,
+            forceRefresh: forceRefresh,
+          );
           if (body["jackpot"] != null) {
             jackpotVal = body["jackpot"].toString();
           }
@@ -704,15 +708,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               body["balota_roja"] ??
               body["balotas_rojas"];
 
-          // Verificar si el backend nos devolvió la predicción del sorteo que pedimos
           final String resFecha = _normalizarFechaISO(
             body["fecha"]?.toString() ?? "",
           );
           if (resFecha.isNotEmpty &&
               targetDrawDate.isNotEmpty &&
               resFecha != targetDrawDate) {
-            // El API ignoró la fecha y devolvió la predicción de un sorteo futuro.
-            // No tenemos la predicción histórica para este sorteo.
             top20 = [];
             predictionNumeros = [];
             predictionBalotaroja = [];
@@ -727,7 +728,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
               top20 = predictionNumeros.take(limit).toList();
             }
           }
-        }
+        } catch (_) {}
       }
 
       final payload = {
