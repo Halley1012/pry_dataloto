@@ -59,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen>
   List<dynamic> _loterias = [];
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
+  final Map<String, String> _paisNombrePorId = <String, String>{};
   int _selectedIndex = 0;
   final Set<int> _loadedBottomTabs = <int>{0};
   DateTime? _lastBackPressTime;
@@ -250,13 +251,44 @@ class _HomeScreenState extends State<HomeScreen>
           (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
           ? rawPaisId
           : null;
-      if (paisNombreStr != null &&
-          paisNombreStr.toLowerCase().contains("estados")) {
-        paisIdStr ??= "21";
-      } else if (paisNombreStr != null &&
-          paisNombreStr.toLowerCase().contains("colombia")) {
-        paisIdStr ??= "5";
+
+      // Si una sesión antigua sólo conservó el nombre del país, resolvemos su
+      // ID desde el catálogo. Nunca asumimos IDs concretos por nombre.
+      if ((paisIdStr == null || paisIdStr.isEmpty) &&
+          paisNombreStr != null &&
+          paisNombreStr.trim().isNotEmpty) {
+        try {
+          final paisesCatalogo = await ApiService.getPaises();
+          _paisNombrePorId
+            ..clear()
+            ..addEntries(
+              paisesCatalogo
+                  .where((p) => p['id'] != null && p['nombre'] != null)
+                  .map(
+                    (p) => MapEntry(
+                      p['id'].toString(),
+                      p['nombre'].toString(),
+                    ),
+                  ),
+            );
+          final target = paisNombreStr.trim().toLowerCase();
+          for (final p in paisesCatalogo) {
+            final nombre = p['nombre']?.toString().trim().toLowerCase() ?? '';
+            if (nombre == target) {
+              final resolvedId = int.tryParse(p['id']?.toString() ?? '');
+              if (resolvedId != null) {
+                paisIdStr = resolvedId.toString();
+                await storage.write(key: 'pais_id', value: paisIdStr);
+              }
+              break;
+            }
+          }
+        } catch (_) {
+          // El país queda sin filtrar hasta que el catálogo vuelva a estar
+          // disponible; es preferible a asignar un país incorrecto.
+        }
       }
+
       final paisIdInt = paisIdStr != null ? int.tryParse(paisIdStr) : null;
       final cacheKeySuffix = paisIdStr ?? "global";
       final profileKey = CacheService.perfilUsuarioKey(userIdStr);
@@ -369,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen>
               ApiService.getAllLoterias(forceRefresh: forceRefresh),
             );
       final profileFuture = _fetchProfile(userIdStr);
+      final paisesFuture = _keepCachedValueOnFailure(ApiService.getPaises());
 
       final resultados = await Future.wait([
         postsFuture,
@@ -376,6 +409,7 @@ class _HomeScreenState extends State<HomeScreen>
         loteriasFuture,
         globalFuture,
         profileFuture,
+        paisesFuture,
       ]);
 
       final networkPosts = resultados[0] as List<Post>?;
@@ -383,6 +417,21 @@ class _HomeScreenState extends State<HomeScreen>
       final networkLoterias = resultados[2] as List<dynamic>?;
       final networkGlobal = resultados[3] as List<dynamic>?;
       final networkProfile = resultados[4] as Map<String, dynamic>?;
+      final networkPaises = resultados[5] as List<Map<String, dynamic>>?;
+      if (networkPaises != null) {
+        _paisNombrePorId
+          ..clear()
+          ..addEntries(
+            networkPaises
+                .where((p) => p['id'] != null && p['nombre'] != null)
+                .map(
+                  (p) => MapEntry(
+                    p['id'].toString(),
+                    p['nombre'].toString(),
+                  ),
+                ),
+          );
+      }
       final refreshedFromNetwork =
           networkPosts != null ||
           networkAnuncios != null ||
@@ -1040,13 +1089,9 @@ class _HomeScreenState extends State<HomeScreen>
       rawPais = loteria["pais_nombre"].toString();
     } else {
       final pId = loteria["pais_id"]?.toString();
-      if (pId == "5") {
-        rawPais = "Colombia";
-      } else if (pId == "21") {
-        rawPais = "Estados Unidos";
-      } else {
-        rawPais = pais ?? "Internacional";
-      }
+      rawPais = pId != null
+          ? (_paisNombrePorId[pId] ?? "Internacional")
+          : (pais ?? "Internacional");
     }
     final langCode = Localizations.localeOf(context).languageCode;
     return PaisHelper.getNombreTraducido(rawPais, langCode);

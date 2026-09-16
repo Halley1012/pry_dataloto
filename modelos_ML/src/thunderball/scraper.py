@@ -94,10 +94,35 @@ class ThunderballScraper:
                 SET concurso = TO_CHAR(fecha, 'YYYYMMDD')::INTEGER
                 WHERE concurso IS NULL;
                 UPDATE resultados_thunderball SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
-                ALTER TABLE resultados_thunderball DROP CONSTRAINT IF EXISTS pk_resultados_thunderball;
                 ALTER TABLE resultados_thunderball ALTER COLUMN concurso SET NOT NULL;
                 ALTER TABLE resultados_thunderball ALTER COLUMN loteria_id SET NOT NULL;
-                ALTER TABLE resultados_thunderball ADD CONSTRAINT pk_resultados_thunderball PRIMARY KEY (concurso);
+                DO $$
+                DECLARE
+                    primary_key_name TEXT;
+                BEGIN
+                    SELECT conname INTO primary_key_name
+                    FROM pg_constraint
+                    WHERE conrelid = 'resultados_thunderball'::regclass
+                      AND contype = 'p'
+                    LIMIT 1;
+
+                    IF primary_key_name IS NOT NULL
+                       AND primary_key_name <> 'pk_resultados_thunderball' THEN
+                        EXECUTE format(
+                            'ALTER TABLE resultados_thunderball DROP CONSTRAINT %I',
+                            primary_key_name
+                        );
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'resultados_thunderball'::regclass
+                          AND conname = 'pk_resultados_thunderball'
+                    ) THEN
+                        ALTER TABLE resultados_thunderball
+                        ADD CONSTRAINT pk_resultados_thunderball PRIMARY KEY (concurso);
+                    END IF;
+                END $$;
                 CREATE INDEX IF NOT EXISTS idx_thunderball_fecha ON resultados_thunderball(fecha DESC);
                 CREATE INDEX IF NOT EXISTS idx_thunderball_loteria_id ON resultados_thunderball(loteria_id);
             """), {"loteria_id": int(df['loteria_id'].iloc[0])})

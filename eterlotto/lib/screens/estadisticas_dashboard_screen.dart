@@ -199,21 +199,18 @@ class _EstadisticasDashboardScreenState
   }
 
   String _getRouteForLoteria(String name) {
-    if (widget.loteriaRoute != null && widget.loteriaRoute!.isNotEmpty) {
+    if (widget.loteriaRoute != null && widget.loteriaRoute!.trim().isNotEmpty) {
       return widget.loteriaRoute!.trim().toLowerCase();
     }
-    if (widget.loteriaData != null && widget.loteriaData!['route'] != null) {
-      return widget.loteriaData!['route'].toString().trim().toLowerCase();
+
+    final dataRoute = widget.loteriaData?['route']?.toString().trim();
+    if (dataRoute != null && dataRoute.isNotEmpty) {
+      return dataRoute.toLowerCase();
     }
 
-    String clean = name.trim().toLowerCase();
-    if (clean.contains("baloto") || clean == "bloto") return "bloto";
-    if (clean.contains("miloto") || clean == "mloto") return "mloto";
-    if (clean.contains("colorloto") ||
-        clean.contains("color_loto") ||
-        clean == "cloto")
-      return "cloto";
-
+    // Último recurso para navegación antigua: slug genérico del nombre.
+    // No se traducen nombres concretos ni aliases en el frontend.
+    var clean = name.trim().toLowerCase();
     clean = clean
         .replaceAll(RegExp(r'[áàäâ]'), 'a')
         .replaceAll(RegExp(r'[éèëê]'), 'e')
@@ -307,7 +304,7 @@ class _EstadisticasDashboardScreenState
       }
     }
 
-    // 4. Detección automática de sorteos múltiples (ej: Baloto y Revancha, Powerball y Double Play, Melate/Revancha/Revanchita)
+    // 4. Detección automática de variantes o sub-sorteos por los datos recibidos
     final Set<String> sorteosUnicos = {};
     for (var r in todosResultados) {
       final s = r["sorteo"]?.toString().trim();
@@ -1506,27 +1503,29 @@ class _EstadisticasDashboardScreenState
     final String label3 = l10n?.numerosLabel ?? "Números";
     final String value3;
 
-    if (routeName == "colorloto" || routeName == "cloto") {
-      value3 = "6 + Color";
-    } else {
-      int totalBallsInResults = 0;
-      if (resultados.isNotEmpty) {
-        final firstNums = resultados.first["numeros"];
-        if (firstNums is List && firstNums.isNotEmpty) {
-          totalBallsInResults = firstNums.length;
-        }
-      }
-
-      final int extraCount = totalBallsInResults > maxSeleccion
-          ? (totalBallsInResults - maxSeleccion)
-          : (maxRoja > 0 ? 1 : 0);
-
-      if (extraCount > 0) {
-        value3 = "$maxSeleccion + $extraCount";
-      } else {
-        value3 = "$maxSeleccion";
+    int totalBallsInResults = 0;
+    if (resultados.isNotEmpty) {
+      final firstNums = resultados.first["numeros"];
+      if (firstNums is List && firstNums.isNotEmpty) {
+        totalBallsInResults = firstNums.length;
       }
     }
+
+    final bool hasComplementary =
+        widget.loteriaData?['tiene_complementario'] == true ||
+        widget.loteriaData?['tieneComplementario'] == true;
+    final int configuredExtraCount =
+        cantidadEspeciales + (hasComplementary ? 1 : 0);
+    final int observedExtraCount = totalBallsInResults > maxSeleccion
+        ? (totalBallsInResults - maxSeleccion)
+        : 0;
+    final int extraCount = observedExtraCount > 0
+        ? observedExtraCount
+        : configuredExtraCount;
+
+    value3 = extraCount > 0
+        ? "$maxSeleccion + $extraCount"
+        : "$maxSeleccion";
 
     return AppContainer3(
       child: Row(

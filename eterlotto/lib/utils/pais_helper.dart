@@ -132,49 +132,14 @@ class PaisHelper {
     if (n.contains("honduras")) return "HN";
     if (n.contains("el salvador")) return "SV";
     if (n.contains("nicaragua")) return "NI";
-    if (n.contains("europa") || n.contains("europe") || n.contains("euromillones") || n.contains("euromillions") || n.contains("eurodreams")) return "EU";
-    return "CO";
-  }
-
-  static String getPaisNameByRoute(String? routeOrName) {
-    final r = (routeOrName ?? "").toLowerCase().trim();
-    if (r.contains("5deoro") || r.contains("cincodeoro") || r.contains("uruguay")) return "Uruguay";
-    if (r.contains("bloto") || r.contains("baloto") || r.contains("mloto") || r.contains("miloto") || r.contains("cloto") || r.contains("colorloto") || r.contains("colombia")) return "Colombia";
-    if (r.contains("melate") || r.contains("chispazo") || r.contains("mexico") || r.contains("méxico") || r.contains("tris")) return "México";
-    if (r.contains("latinka") || r.contains("tinka") || r.contains("kabala") || r.contains("ganadiario") || r.contains("peru") || r.contains("perú")) return "Perú";
-    if (r.contains("megasena") || r.contains("quina") || r.contains("duplasena") || r.contains("maismilionaria") || r.contains("brasil") || r.contains("brazil") || r.contains("lotofacil")) return "Brasil";
-    // Estas loterías son compartidas entre varios países. La ruta identifica
-    // el juego/motor, no el país concreto. "Europa" queda solo como fallback.
-    if (r.contains("euromillones") || r.contains("euromillions") || r.contains("eurodreams") || r.contains("eurojackpot")) return "Europa";
-    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("espana") || r.contains("españa") || r.contains("spain")) return "España";
-    if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("cash4life")) return "Estados Unidos";
-    if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus") || r.contains("brinco")) return "Argentina";
-    if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "Chile";
-    if (r.contains("lotto_cr") || r.contains("costa_rica") || r.contains("costa rica") || r.contains("nuevos_tiempos") || r.contains("3monazos")) return "Costa Rica";
-    if (r.contains("dominicana") || r.contains("leidsa")) return "Dominicana";
-    if (r.contains("paraguay")) return "Paraguay";
-    if (r.contains("bolivia")) return "Bolivia";
-    if (r.contains("reino_unido") || r.contains("uk") || r.contains("national_lottery") || r.contains("thunderball")) return "Reino Unido";
-    if (r.contains("francia") || r.contains("loto_fr")) return "Francia";
-    if (r.contains("italia") || r.contains("superenalotto")) return "Italia";
-    if (r.contains("alemania")) return "Alemania";
-    if (r.contains("irlanda") || r.contains("ireland")) return "Irlanda";
-    if (r.contains("luxemburgo") || r.contains("luxembourg")) return "Luxemburgo";
-    if (r.contains("belgica") || r.contains("bélgica") || r.contains("belgium")) return "Bélgica";
-    if (r.contains("austria") || r.contains("áustria")) return "Austria";
-    if (r.contains("portugal")) return "Portugal";
-    if (r.contains("suiza") || r.contains("suíça") || r.contains("switzerland")) return "Suiza";
-    if (r.contains("ecuador") || r.contains("pozo_millonario") || r.contains("lotto_ecuador")) return "Ecuador";
-    
+    if (n.contains("europa") || n.contains("europe")) return "EU";
     return "";
   }
 
-  static bool isSharedEuropeanLottery(String? routeOrName) {
-    final r = (routeOrName ?? "").toLowerCase().trim();
-    return r.contains("euromillones") ||
-        r.contains("euromillions") ||
-        r.contains("eurodreams");
-  }
+  /// El país debe venir de `pais_id`/`pais_nombre` del catálogo.
+  /// Se conserva el método sólo para compatibilidad mientras terminan de
+  /// migrarse callers antiguos; nunca infiere país desde la route.
+  static String getPaisNameByRoute(String? routeOrName) => "";
 
   static String getDialCode(String nombre) {
     final n = nombre.toLowerCase().trim();
@@ -212,7 +177,7 @@ class PaisHelper {
     if (n.contains("honduras")) return "+504";
     if (n.contains("el salvador")) return "+503";
     if (n.contains("nicaragua")) return "+505";
-    return "+57";
+    return "";
   }
 
   static String getNombreTraducido(String nombre, String langCode) {
@@ -293,11 +258,11 @@ class PaisHelper {
     );
   }
 
+  /// Detecta moneda únicamente cuando el propio dato la declara.
+  /// La route de una lotería no identifica de forma fiable un país/moneda.
   static String getMonedaByRoute(String? routeOrName, {String? rawText}) {
-    final r = (routeOrName ?? "").toLowerCase().trim();
     final raw = (rawText ?? "").trim().toUpperCase();
 
-    // 1. Detección por símbolo o código explícito en el texto
     if (raw.contains("MXN")) return "MXN";
     if (raw.contains("COP")) return "COP";
     if (raw.contains("UYU")) return "UYU";
@@ -310,23 +275,9 @@ class PaisHelper {
     if (raw.contains("PYG")) return "PYG";
     if (raw.contains("CRC") || raw.contains("₡")) return "CRC";
     if (raw.contains("DOP")) return "DOP";
+    if (raw.contains("GBP") || raw.contains("£")) return "GBP";
+    if (raw.contains("BOB")) return "BOB";
     if (raw.contains("S/")) return "PEN";
-
-    // 2. Detección por país o ruta de la lotería
-    if (r.contains("5deoro") || r.contains("cincodeoro") || r.contains("uruguay")) return "UYU";
-    if (r.contains("bloto") || r.contains("baloto") || r.contains("mloto") || r.contains("miloto") || r.contains("cloto") || r.contains("colorloto") || r.contains("colombia")) return "COP";
-    if (r.contains("melate") || r.contains("chispazo") || r.contains("mexico") || r.contains("méxico")) return "MXN";
-    if (r.contains("latinka") || r.contains("tinka") || r.contains("kabala") || r.contains("ganadiario") || r.contains("peru") || r.contains("perú")) return "PEN";
-    if (r.contains("megasena") || r.contains("quina") || r.contains("duplasena") || r.contains("maismilionaria") || r.contains("brasil") || r.contains("brazil")) return "BRL";
-    if (r.contains("primitiva") || r.contains("bonoloto") || r.contains("el_gordo") || r.contains("gordo") || r.contains("euromillones") || r.contains("euromillions") || r.contains("eurodreams") || r.contains("espana") || r.contains("españa") || r.contains("spain") || r.contains("francia") || r.contains("italia") || r.contains("alemania") || r.contains("irlanda") || r.contains("ireland") || r.contains("luxemburgo") || r.contains("luxembourg") || r.contains("belgica") || r.contains("bélgica") || r.contains("belgium") || r.contains("austria") || r.contains("áustria") || r.contains("portugal") || r.contains("suiza") || r.contains("suíça") || r.contains("switzerland")) return "EUR";
-    if (r.contains("powerball") || r.contains("megamillions") || r.contains("lotto_america") || r.contains("double_play") || r.contains("millionaire_life") || r.contains("usa") || r.contains("eeuu") || r.contains("united_states") || r.contains("panama") || r.contains("panamá") || r.contains("ecuador")) return "USD";
-    if (r.contains("argentina") || r.contains("quini6") || r.contains("loto_plus")) return "ARS";
-    if (r.contains("chile") || r.contains("kino") || r.contains("loto_chile")) return "CLP";
-    if (r.contains("lotto_cr") || r.contains("costa_rica") || r.contains("costa rica")) return "CRC";
-    if (r.contains("dominicana") || r.contains("leidsa")) return "DOP";
-    if (r.contains("paraguay")) return "PYG";
-    if (r.contains("bolivia")) return "BOB";
-    if (r.contains("reino_unido") || r.contains("uk") || r.contains("national_lottery")) return "GBP";
 
     return "";
   }
