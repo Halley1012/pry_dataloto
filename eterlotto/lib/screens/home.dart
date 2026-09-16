@@ -65,29 +65,12 @@ class _HomeScreenState extends State<HomeScreen>
   DateTime? _lastBackPressTime;
   static const String _bottomNavOrderStorageKey =
       'eterlotto_bottom_nav_order_v4';
-  static const String _bottomNavFloatingStorageKey =
-      'eterlotto_bottom_nav_floating_v4';
-  static const double _bottomNavItemWidth = 76.0;
-  static const double _bottomNavItemHeight = 74.0;
   static const double _bottomNavDockHeight = 82.0;
   static const List<int> _defaultBottomNavOrder = [1, 3, 0, 2];
 
   // Cada valor representa el índice del botón que ocupa ese slot del dock.
   // El orden base conserva Inicio en el centro de la barra.
   List<int> _bottomNavDockOrder = List<int>.from(_defaultBottomNavOrder);
-  final Map<int, ValueNotifier<Offset?>> _bottomNavPositions = {
-    0: ValueNotifier<Offset?>(null),
-    1: ValueNotifier<Offset?>(null),
-    2: ValueNotifier<Offset?>(null),
-    3: ValueNotifier<Offset?>(null),
-  };
-  final GlobalKey _bottomNavStackKey = GlobalKey();
-  int? _activeBottomNavIndex;
-  int? _activeBottomNavPointer;
-  Offset? _activeBottomNavPointerStart;
-  bool _bottomNavItemWasDragged = false;
-  DateTime? _lastBottomNavFreeTapAt;
-  Offset? _lastBottomNavFreeTapPosition;
   final ValueNotifier<Offset?> _flagPositionNotifier = ValueNotifier<Offset?>(
     null,
   );
@@ -166,9 +149,6 @@ class _HomeScreenState extends State<HomeScreen>
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );
-    for (final position in _bottomNavPositions.values) {
-      position.dispose();
-    }
     _flagPositionNotifier.dispose();
     _profilePositionNotifier.dispose();
     _welcomeWaveController.dispose();
@@ -1280,6 +1260,17 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _reorderBottomNav(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) newIndex--;
+    if (oldIndex == newIndex) return;
+
+    setState(() {
+      final moved = _bottomNavDockOrder.removeAt(oldIndex);
+      _bottomNavDockOrder.insert(newIndex, moved);
+    });
+    _persistBottomNavLayout();
+  }
+
   Widget _buildBottomNavBar() {
     final l10n = AppLocalizations.of(context);
     final labels = <String>[
@@ -1306,35 +1297,50 @@ class _HomeScreenState extends State<HomeScreen>
       child: Container(
         height: _bottomNavDockHeight,
         decoration: const BoxDecoration(color: Colors.transparent),
-        child: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerMove: _onBottomNavPointerMove,
-          onPointerUp: _handleBottomNavScreenPointerUp,
-          onPointerCancel: _finishBottomNavPointer,
-          child: Stack(
-            children: [
-              Row(
-                children: List.generate(4, (slot) {
-                  final index = _bottomNavDockOrder[slot];
-                  return Expanded(
-                    child: ValueListenableBuilder<Offset?>(
-                      valueListenable: _bottomNavPositions[index]!,
-                      builder: (context, position, _) {
-                        return position == null
-                            ? _buildBottomNavItem(
-                                index: index,
-                                label: labels[index],
-                                icon: icons[index],
-                                activeIcon: activeIcons[index],
-                              )
-                            : const SizedBox.shrink();
-                      },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final itemWidth = constraints.maxWidth / 4;
+            return ReorderableListView.builder(
+              scrollDirection: Axis.horizontal,
+              buildDefaultDragHandles: false,
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 4,
+              onReorder: _reorderBottomNav,
+              proxyDecorator: (child, index, animation) {
+                return AnimatedBuilder(
+                  animation: animation,
+                  builder: (context, _) {
+                    final scale = 1.0 + (0.04 * animation.value);
+                    return Transform.scale(
+                      scale: scale,
+                      child: Material(
+                        color: Colors.transparent,
+                        elevation: 0,
+                        child: child,
+                      ),
+                    );
+                  },
+                );
+              },
+              itemBuilder: (context, slot) {
+                final index = _bottomNavDockOrder[slot];
+                return SizedBox(
+                  key: ValueKey<int>(index),
+                  width: itemWidth,
+                  child: ReorderableDelayedDragStartListener(
+                    index: slot,
+                    child: _buildBottomNavItem(
+                      index: index,
+                      label: labels[index],
+                      icon: icons[index],
+                      activeIcon: activeIcons[index],
                     ),
-                  );
-                }),
-              ),
-            ],
-          ),
+                  ),
+                );
+              },
+            );
+          }
         ),
       ),
     );
@@ -1347,9 +1353,9 @@ class _HomeScreenState extends State<HomeScreen>
     required IconData activeIcon,
   }) {
     final isSelected = _selectedIndex == index;
-    return Listener(
+    return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPointerDown: (event) => _startBottomNavPointer(index, event),
+      onTap: () => _selectBottomTab(index),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -1406,169 +1412,6 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  void _startBottomNavPointer(int index, PointerDownEvent event) {
-    _activeBottomNavIndex = index;
-    _activeBottomNavPointer = event.pointer;
-    _activeBottomNavPointerStart = event.position;
-    _bottomNavItemWasDragged = false;
-  }
-
-  void _onBottomNavPointerMove(PointerMoveEvent event) {
-    final index = _activeBottomNavIndex;
-    final start = _activeBottomNavPointerStart;
-    if (index == null ||
-        start == null ||
-        event.pointer != _activeBottomNavPointer) {
-      return;
-    }
-
-    if (!_bottomNavItemWasDragged && (event.position - start).distance < 6) {
-      return;
-    }
-    _bottomNavItemWasDragged = true;
-
-    final renderBox =
-        _bottomNavStackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    final local = renderBox.globalToLocal(event.position);
-    final maxX = (renderBox.size.width - _bottomNavItemWidth).clamp(
-      0.0,
-      double.infinity,
-    );
-    final maxY = (renderBox.size.height - _bottomNavItemHeight).clamp(
-      0.0,
-      double.infinity,
-    );
-    final bounded = Offset(
-      (local.dx - _bottomNavItemWidth / 2).clamp(0.0, maxX),
-      (local.dy - _bottomNavItemHeight / 2).clamp(0.0, maxY),
-    );
-    _bottomNavPositions[index]!.value = Offset(
-      maxX == 0 ? 0 : bounded.dx / maxX,
-      maxY == 0 ? 0 : bounded.dy / maxY,
-    );
-  }
-
-  void _finishBottomNavPointer(PointerEvent event) {
-    final isActivePointer = event.pointer == _activeBottomNavPointer;
-    if (!isActivePointer) return;
-    final itemIndex = _activeBottomNavIndex;
-    final dragged = _bottomNavItemWasDragged;
-    _activeBottomNavIndex = null;
-    _activeBottomNavPointer = null;
-    _activeBottomNavPointerStart = null;
-    _bottomNavItemWasDragged = false;
-    if (event is PointerCancelEvent) return;
-    if (!dragged) {
-      if (itemIndex != null) _handleBottomNavItemTap(itemIndex);
-      return;
-    }
-
-    if (itemIndex == null) return;
-    final renderBox =
-        _bottomNavStackKey.currentContext?.findRenderObject() as RenderBox?;
-    final normalizedPosition = _bottomNavPositions[itemIndex]!.value;
-    if (renderBox == null || normalizedPosition == null) return;
-
-    final position = _bottomNavPositionFromNormalized(
-      normalizedPosition,
-      BoxConstraints.tight(renderBox.size),
-    );
-    final dockAttractionTop = renderBox.size.height - _bottomNavDockHeight - 30;
-
-    // Al soltar en la zona inferior, el botón vuelve a una ranura exacta e
-    // intercambia su puesto con el botón que ya ocupaba esa ranura.
-    if (position.dy >= dockAttractionTop) {
-      final targetSlot = _bottomNavSlotForX(
-        position.dx + (_bottomNavItemWidth / 2),
-        renderBox.size.width,
-      );
-      final currentSlot = _bottomNavDockOrder.indexOf(itemIndex);
-      if (currentSlot != -1 && currentSlot != targetSlot) {
-        setState(() {
-          final displacedItem = _bottomNavDockOrder[targetSlot];
-          _bottomNavDockOrder[targetSlot] = itemIndex;
-          _bottomNavDockOrder[currentSlot] = displacedItem;
-        });
-      }
-      _bottomNavPositions[itemIndex]!.value = null;
-    }
-
-    _persistBottomNavLayout();
-  }
-
-  int _bottomNavSlotForX(double x, double totalWidth) {
-    final slotWidth = totalWidth / _bottomNavDockOrder.length;
-    return (x / slotWidth)
-        .floor()
-        .clamp(0, _bottomNavDockOrder.length - 1)
-        .toInt();
-  }
-
-  void _handleBottomNavScreenPointerUp(PointerUpEvent event) {
-    final startedOnBottomNavItem = event.pointer == _activeBottomNavPointer;
-    _finishBottomNavPointer(event);
-    if (!startedOnBottomNavItem) {
-      _handleBottomNavFreeDoubleTap(event.position);
-    }
-  }
-
-  void _handleBottomNavItemTap(int index) {
-    // Las bolitas siempre navegan al tocarlas. La restauración queda reservada
-    // para el doble toque sobre un área libre de la pantalla.
-    _selectBottomTab(index);
-  }
-
-  void _handleBottomNavFreeDoubleTap(Offset position) {
-    if (!_isBottomNavCustomized) return;
-    final now = DateTime.now();
-    final previousTime = _lastBottomNavFreeTapAt;
-    final previousPosition = _lastBottomNavFreeTapPosition;
-    final isDoubleTap =
-        previousTime != null &&
-        previousPosition != null &&
-        now.difference(previousTime) <= const Duration(milliseconds: 300) &&
-        (position - previousPosition).distance <= 32;
-    if (isDoubleTap) {
-      _resetAllBottomNavItems();
-      _lastBottomNavFreeTapAt = null;
-      _lastBottomNavFreeTapPosition = null;
-      return;
-    }
-    _lastBottomNavFreeTapAt = now;
-    _lastBottomNavFreeTapPosition = position;
-  }
-
-  bool get _isBottomNavCustomized =>
-      _bottomNavPositions.values.any((item) => item.value != null) ||
-      !_sameBottomNavOrder(_bottomNavDockOrder, _defaultBottomNavOrder);
-
-  bool _sameBottomNavOrder(List<int> first, List<int> second) {
-    if (first.length != second.length) return false;
-    for (var index = 0; index < first.length; index++) {
-      if (first[index] != second[index]) return false;
-    }
-    return true;
-  }
-
-  Offset _bottomNavPositionFromNormalized(
-    Offset normalizedPosition,
-    BoxConstraints constraints,
-  ) {
-    final maxX = (constraints.maxWidth - _bottomNavItemWidth).clamp(
-      0.0,
-      double.infinity,
-    );
-    final maxY = (constraints.maxHeight - _bottomNavItemHeight).clamp(
-      0.0,
-      double.infinity,
-    );
-    return Offset(
-      normalizedPosition.dx.clamp(0.0, 1.0) * maxX,
-      normalizedPosition.dy.clamp(0.0, 1.0) * maxY,
-    );
-  }
-
   Future<void> _restoreBottomNavLayout() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1590,25 +1433,6 @@ class _HomeScreenState extends State<HomeScreen>
           }
         }
       }
-
-      final rawFloating = prefs.getString(_bottomNavFloatingStorageKey);
-      if (rawFloating == null || rawFloating.isEmpty) return;
-      final decoded = jsonDecode(rawFloating);
-      if (decoded is! Map) return;
-      if (!mounted) return;
-      for (var index = 0; index < 4; index++) {
-        final value = decoded[index.toString()];
-        if (value is Map) {
-          final x = double.tryParse(value['x']?.toString() ?? '');
-          final y = double.tryParse(value['y']?.toString() ?? '');
-          if (x != null && y != null) {
-            _bottomNavPositions[index]!.value = Offset(
-              x.clamp(0.0, 1.0),
-              y.clamp(0.0, 1.0),
-            );
-          }
-        }
-      }
     } catch (_) {
       // Preferencias visuales: si fallan, se usa el dock base.
     }
@@ -1616,39 +1440,14 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _persistBottomNavLayout() async {
     try {
-      final values = <String, Map<String, double>>{};
-      for (var index = 0; index < 4; index++) {
-        final position = _bottomNavPositions[index]!.value;
-        if (position != null) {
-          values[index.toString()] = {'x': position.dx, 'y': position.dy};
-        }
-      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         _bottomNavOrderStorageKey,
         jsonEncode(_bottomNavDockOrder),
       );
-      await prefs.setString(_bottomNavFloatingStorageKey, jsonEncode(values));
     } catch (_) {
       // El menú continúa funcionando aunque no se pueda persistir el ajuste.
     }
-  }
-
-  void _resetBottomNavItem(int index) {
-    _bottomNavPositions[index]!.value = null;
-    _persistBottomNavLayout();
-  }
-
-  void _resetAllBottomNavItems() {
-    setState(() {
-      _bottomNavDockOrder = List<int>.from(_defaultBottomNavOrder);
-      for (final position in _bottomNavPositions.values) {
-        position.value = null;
-      }
-    });
-    _lastBottomNavFreeTapAt = null;
-    _lastBottomNavFreeTapPosition = null;
-    _persistBottomNavLayout();
   }
 
   @override
@@ -2026,92 +1825,21 @@ class _HomeScreenState extends State<HomeScreen>
           mainAxisSize: MainAxisSize.min,
           children: [const BannerAdWidget(), _buildBottomNavBar()],
         ),
-        body: Listener(
-          behavior: HitTestBehavior.translucent,
-          onPointerMove: _onBottomNavPointerMove,
-          onPointerUp: _handleBottomNavScreenPointerUp,
-          onPointerCancel: _finishBottomNavPointer,
-          child: Stack(
-            key: _bottomNavStackKey,
-            children: [
-              IndexedStack(
-                index: _selectedIndex,
-                children: [
-                  _buildHomeTab(),
-                  _loadedBottomTabs.contains(1)
-                      ? const LoteriasPais()
-                      : const SizedBox.shrink(),
-                  _loadedBottomTabs.contains(2)
-                      ? const MisJugadasSelectorScreen()
-                      : const SizedBox.shrink(),
-                  _loadedBottomTabs.contains(3)
-                      ? const ResultadosSelectorScreen()
-                      : const SizedBox.shrink(),
-                ],
-              ),
-              _buildFloatingBottomNavOverlay(),
-            ],
-          ),
+        body: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            _buildHomeTab(),
+            _loadedBottomTabs.contains(1)
+                ? const LoteriasPais()
+                : const SizedBox.shrink(),
+            _loadedBottomTabs.contains(2)
+                ? const MisJugadasSelectorScreen()
+                : const SizedBox.shrink(),
+            _loadedBottomTabs.contains(3)
+                ? const ResultadosSelectorScreen()
+                : const SizedBox.shrink(),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildFloatingBottomNavOverlay() {
-    final l10n = AppLocalizations.of(context);
-    final labels = <String>[
-      l10n?.inicio ?? 'Inicio',
-      l10n?.explorar ?? 'Explorar',
-      l10n?.misJugadas ?? 'Mis Jugadas',
-      l10n?.resultados ?? 'Resultados',
-    ];
-    const icons = <IconData>[
-      Icons.home_outlined,
-      Icons.explore_outlined,
-      Icons.bookmark_outline,
-      Icons.analytics_outlined,
-    ];
-    const activeIcons = <IconData>[
-      Icons.home,
-      Icons.explore,
-      Icons.bookmark,
-      Icons.analytics,
-    ];
-
-    return Positioned.fill(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Stack(
-            children: List.generate(4, (index) {
-              return ValueListenableBuilder<Offset?>(
-                valueListenable: _bottomNavPositions[index]!,
-                builder: (context, normalizedPosition, _) {
-                  if (normalizedPosition == null) {
-                    return const SizedBox.shrink();
-                  }
-                  final position = _bottomNavPositionFromNormalized(
-                    normalizedPosition,
-                    constraints,
-                  );
-                  return Positioned(
-                    left: position.dx,
-                    top: position.dy,
-                    child: SizedBox(
-                      width: _bottomNavItemWidth,
-                      height: _bottomNavItemHeight,
-                      child: _buildBottomNavItem(
-                        index: index,
-                        label: labels[index],
-                        icon: icons[index],
-                        activeIcon: activeIcons[index],
-                      ),
-                    ),
-                  );
-                },
-              );
-            }),
-          );
-        },
       ),
     );
   }
