@@ -73,14 +73,24 @@ class SubscriptionUseCases:
 
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
         if not user_id:
-            # 3.3 - Solución a la carrera RTDN vs /confirm
-            # Al lanzar una excepción, el webhook devuelve HTTP 500 a Google Pub/Sub.
-            # Pub/Sub aplicará backoff exponencial y reintentará la entrega.
-            # Para cuando reintente, es casi seguro que Flutter ya habrá llamado a /confirm.
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning("[SUBSCRIPTION] event=RTDN_WARNING metric=rtdn_retries_requested message=Token not found. Deferring processing for Pub/Sub retry.")
-            raise RuntimeError("purchase_token_not_found: deferred processing")
+            # Este era el comportamiento de la última versión estable de RTDN:
+            # un token aún no asociado a un usuario no debe provocar reintentos
+            # infinitos de Pub/Sub. /confirm se encargará de verificar y persistir
+            # una compra nueva cuando Flutter complete el flujo.
+            logger.warning(
+                "[SUBSCRIPTION] event=RTDN_IGNORED metric=rtdn_unknown_token "
+                "notification_type=%s product_id=%s "
+                "message=Purchase token is not registered; acknowledging without entitlement change.",
+                notification_type,
+                product_id,
+            )
+            return {
+                "success": True,
+                "ignored": True,
+                "reason": "purchase_token_not_registered",
+                "notification_type": notification_type,
+                "product_id": product_id,
+            }
 
         resolved_product_id = product_id or list(config.ALLOWED_PRODUCTS)[0]
         if resolved_product_id not in config.ALLOWED_PRODUCTS:
