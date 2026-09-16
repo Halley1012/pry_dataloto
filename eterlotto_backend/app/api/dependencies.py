@@ -14,6 +14,7 @@ from app.application.jugada_use_cases import JugadaUseCases
 from app.application.post_use_cases import PostUseCases
 from app.application.publicidad_use_cases import PublicidadUseCases
 from app.application.notification_use_cases import NotificationUseCases
+from app.infrastructure.firebase_push_service import FirebasePushService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/login", auto_error=False)
@@ -70,8 +71,11 @@ def get_publicidad_use_cases() -> PublicidadUseCases:
 
 
 def get_notification_use_cases() -> NotificationUseCases:
-    notif_repo = PostgresNotificationRepository()
-    return NotificationUseCases(notif_repo)
+    return NotificationUseCases(
+        notification_repo=PostgresNotificationRepository(),
+        user_repo=PostgresUserRepository(),
+        push_service=FirebasePushService(),
+    )
 
 
 from app.infrastructure.google_play_service import GooglePlayService

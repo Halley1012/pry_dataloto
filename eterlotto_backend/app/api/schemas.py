@@ -176,8 +176,16 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 class FCMTokenUpdate(BaseModel):
-    user_id: int
-    fcm_token: str
+    user_id: Optional[int] = None
+    fcm_token: str = Field(..., min_length=20, max_length=4096)
+
+
+class NotificationPublishRequest(BaseModel):
+    loteria_id: Optional[int] = None
+    fecha_sorteo: Optional[datetime] = None
+    mensaje: str = Field(..., min_length=1, max_length=500)
+    tipo: str = Field(default="general", min_length=1, max_length=80)
+    user_id: Optional[int] = None
 
 class SocialLoginRequest(BaseModel):
     provider: str

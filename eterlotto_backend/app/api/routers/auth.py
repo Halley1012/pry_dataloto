@@ -230,16 +230,46 @@ async def reset_password(
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/users/fcm_token")
-async def update_fcm_token(data: schemas.FCMTokenUpdate, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
+async def update_fcm_token(
+    data: schemas.FCMTokenUpdate,
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+):
+    current_user_id = int(current_user["user_id"])
+    if data.user_id is not None and int(data.user_id) != current_user_id:
+        raise HTTPException(status_code=403, detail="No autorizado para registrar este dispositivo")
+
     try:
-        res = await use_cases.update_user_profile(
-            user_id=data.user_id,
-            fcm_token=data.fcm_token
+        return await use_cases.update_fcm_token(
+            user_id=current_user_id,
+            fcm_token=data.fcm_token,
         )
-        return res
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         import logging
-        logging.error(f"Internal error: {e}")
+        logging.getLogger(__name__).error(
+            "[NOTIFICATIONS] event=FCM_TOKEN_SAVE_ERROR error=%s",
+            type(e).__name__,
+        )
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+
+@router.delete("/users/fcm_token")
+async def delete_fcm_token(
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+):
+    try:
+        return await use_cases.clear_fcm_token(int(current_user["user_id"]))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            "[NOTIFICATIONS] event=FCM_TOKEN_CLEAR_ERROR error=%s",
+            type(e).__name__,
+        )
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/social-login")
