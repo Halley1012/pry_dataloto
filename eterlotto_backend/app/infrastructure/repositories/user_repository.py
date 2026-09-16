@@ -496,6 +496,66 @@ class PostgresUserRepository(UserRepositoryPort):
 
                 return updated_count > 0
 
+    async def set_fcm_token(self, user_id: int, fcm_token: str) -> bool:
+        token = (fcm_token or "").strip()
+        if not token:
+            raise ValueError("FCM token vacío")
+
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            async with conn.transaction():
+                # Un mismo dispositivo/token no debe quedar asociado a dos
+                # cuentas distintas después de un logout/login.
+                await conn.execute(
+                    """
+                    UPDATE users
+                    SET fcm_token = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id <> $1 AND fcm_token = $2
+                    """,
+                    user_id,
+                    token,
+                )
+                result = await conn.execute(
+                    """
+                    UPDATE users
+                    SET fcm_token = $2, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                    """,
+                    user_id,
+                    token,
+                )
+                return result == "UPDATE 1"
+
+    async def clear_fcm_token(
+        self,
+        user_id: int,
+        expected_token: Optional[str] = None
+    ) -> bool:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            await self._ensure_table(conn)
+            if expected_token:
+                result = await conn.execute(
+                    """
+                    UPDATE users
+                    SET fcm_token = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1 AND fcm_token = $2
+                    """,
+                    user_id,
+                    expected_token,
+                )
+            else:
+                result = await conn.execute(
+                    """
+                    UPDATE users
+                    SET fcm_token = NULL, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = $1
+                    """,
+                    user_id,
+                )
+            return result == "UPDATE 1"
+
     async def delete(self, user_id: int) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:

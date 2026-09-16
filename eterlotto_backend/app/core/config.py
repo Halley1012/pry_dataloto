@@ -29,3 +29,23 @@ if os.getenv("CORS_ORIGINS"):
 PACKAGE_NAME = os.getenv("PACKAGE_NAME", "com.lumieter.eterlotto")
 _products = os.getenv("ALLOWED_PRODUCTS", "eterlotto_monthly_sub")
 ALLOWED_PRODUCTS = set(_products.split(",")) if _products else {"eterlotto_monthly_sub"}
+
+# Firebase Cloud Messaging (HTTP v1)
+# Se recomienda una cuenta de servicio del mismo proyecto Firebase que usa
+# android/app/google-services.json. Si no se define, el servicio push queda
+# deshabilitado sin afectar el buzón interno.
+FIREBASE_CREDENTIALS_B64 = os.getenv("FIREBASE_CREDENTIALS_B64")
+FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
+PUSH_NOTIFICATION_TITLE = os.getenv("PUSH_NOTIFICATION_TITLE", "Eterlotto")
+
+# Endpoint interno para que Airflow/predictores publiquen una notificación y
+# disparen el push. Debe ser un secreto distinto a SECRET_KEY.
+NOTIFICATION_INTERNAL_KEY = os.getenv("NOTIFICATION_INTERNAL_KEY")
+
+# Mantener desactivado en PRD. Activarlo sólo temporalmente en DEV permite
+# probar un push privado con POST /notifications/test-push.
+ENABLE_NOTIFICATION_TEST_ENDPOINT = (
+    os.getenv("ENABLE_NOTIFICATION_TEST_ENDPOINT", "false").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
+
