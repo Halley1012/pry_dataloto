@@ -1,64 +1,25 @@
-﻿import sys
-import glob
-import site
-import smtplib
+import sys
 import traceback
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-
-# Cargar las librerías del entorno virtual .venv_airflow si existe
-venv_sites = glob.glob("/opt/airflow/pry_dataloto/modelos_ML/.venv_airflow/lib/python*/site-packages")
-for venv_site in venv_sites:
-    site.addsitedir(venv_site)
 
 # Aseguramos que la carpeta modelos_ML esté en el sys.path
 MODELOS_ML_DIR = str(Path(__file__).resolve().parent)
 if MODELOS_ML_DIR not in sys.path:
     sys.path.insert(0, MODELOS_ML_DIR)
 
-if "/opt/airflow/pry_dataloto/modelos_ML" not in sys.path:
-    sys.path.insert(0, "/opt/airflow/pry_dataloto/modelos_ML")
+from config.airflow_runtime import configure_airflow_runtime
+from config.airflow_notifications import (
+    send_airflow_failure_notification,
+    send_email_notification,
+)
+
+configure_airflow_runtime(MODELOS_ML_DIR)
 
 def enviar_notificacion_error(context):
-    sender = "michaelhalleydelgado@gmail.com"
-    password = "gukpxpfvpjutysmv"
-    receiver = "michaelhalleydelgado@gmail.com"
-
-    task_instance = context.get('task_instance')
-    task_id = task_instance.task_id if task_instance else 'Desconocida'
-    dag_id = context.get('dag').dag_id if context.get('dag') else 'Desconocido'
-    exception = context.get('exception', 'Error desconocido o Timeout (> 20 min)')
-    execution_date = context.get('execution_date', datetime.now())
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f"⚠️ ALERTA: Fallo o Timeout en DAG {dag_id} (Tarea: {task_id})"
-    msg["From"] = sender
-    msg["To"] = receiver
-
-    html = f"""
-    <h3>⚠️ Alerta de Ejecución en Airflow</h3>
-    <p>Se ha detectado un fallo o sobrepaso del tiempo límite (20 minutos) en la tarea <b>{task_id}</b> del DAG <b>{dag_id}</b>.</p>
-    <ul>
-        <li><b>Fecha de Ejecución:</b> {execution_date}</li>
-        <li><b>Tarea:</b> {task_id}</li>
-        <li><b>Detalle / Excepción:</b> {exception}</li>
-    </ul>
-    <p>Por favor, revisa los logs de Airflow para más información.</p>
-    """
-    msg.attach(MIMEText(html, "html"))
-
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(sender, password)
-            server.sendmail(sender, receiver, msg.as_string())
-        print(f"📧 Correo de alerta de error enviado a {receiver}")
-    except Exception as e:
-        print(f"❌ Error enviando correo de alerta: {e}")
+    return send_airflow_failure_notification(context)
 
 def ejecutar_bloto():
     from main_bloto import main as main_bloto
@@ -77,27 +38,10 @@ def ejecutar_powerball():
     main_powerball()
 
 def enviar_notificacion_exito():
-    sender = "michaelhalleydelgado@gmail.com"
-    password = "gukpxpfvpjutysmv"
-    receiver = "michaelhalleydelgado@gmail.com"
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = "DAG Secuencial (Dom, Mar, Jue) ejecutado exitosamente"
-    msg["From"] = sender
-    msg["To"] = receiver
-
-    html = """
-    <h3>Ejecución Secuencial Finalizada con Éxito</h3>
-    <p>Las loterías <b>Baloto, Double Play, Lotto America y Powerball</b> concluyeron su procesamiento secuencial correctamente.</p>
-    """
-    msg.attach(MIMEText(html, "html"))
-
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()
-        server.login(sender, password)
-        server.sendmail(sender, receiver, msg.as_string())
-    
-    print("📧 Correo de notificación de éxito enviado exitosamente a", receiver)
+    return send_email_notification(
+        subject='DAG Secuencial (Dom, Mar, Jue) ejecutado exitosamente',
+        html_body='\n    <h3>Ejecución Secuencial Finalizada con Éxito</h3>\n    <p>Las loterías <b>Baloto, Double Play, Lotto America y Powerball</b> concluyeron su procesamiento secuencial correctamente.</p>\n    ',
+    )
 
 # Configuración por defecto para las tareas del DAG
 default_args = {

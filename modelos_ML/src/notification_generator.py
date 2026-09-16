@@ -1,3 +1,4 @@
+import os
 import sys
 import pandas as pd
 from pathlib import Path
@@ -458,17 +459,22 @@ class NotificationGenerator:
             from firebase_admin import credentials, messaging
 
             if not firebase_admin._apps:
-                rutas_credenciales = [
+                raw_credential_path = os.getenv("FIREBASE_CREDENTIALS_FILE", "").strip()
+                rutas_credenciales = []
+                if raw_credential_path:
+                    configured_path = Path(raw_credential_path).expanduser()
+                    if not configured_path.is_absolute():
+                        configured_path = PROJECT_ROOT / configured_path
+                    rutas_credenciales.append(configured_path)
+
+                # Compatibilidad local: si existe un archivo no versionado en
+                # .secrets, puede usarse sin acoplarse a una ruta de Docker.
+                rutas_credenciales.extend([
+                    PROJECT_ROOT / ".secrets" / "firebase_credentials.json",
                     PROJECT_ROOT / "config" / "firebase_credentials.json",
-                    Path("/opt/airflow/pry_dataloto/modelos_ML/config/firebase_credentials.json"),
-                    Path("firebase_credentials.json")
-                ]
-                
-                cred_path = None
-                for ruta in rutas_credenciales:
-                    if ruta.exists():
-                        cred_path = ruta
-                        break
+                ])
+
+                cred_path = next((ruta for ruta in rutas_credenciales if ruta.is_file()), None)
                 
                 if cred_path:
                     try:

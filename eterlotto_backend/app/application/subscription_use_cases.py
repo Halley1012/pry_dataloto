@@ -1,5 +1,6 @@
 from datetime import datetime
 import hashlib
+import logging
 from typing import Dict, Any, Optional
 from app.core import config
 from app.domain.ports import UserRepositoryPort, GooglePlayPort
@@ -63,7 +64,6 @@ class SubscriptionUseCases:
         product_id: Optional[str] = None,
         notification_type: Optional[int] = None
     ) -> Dict[str, Any]:
-        import logging
         logger = logging.getLogger(__name__)
 
         token_hash = hashlib.sha256(
