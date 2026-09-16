@@ -25,9 +25,9 @@ import 'screens/subscription_screen.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:eterlotto/config/navigation.dart';
 
-// 🔑 Navigator key global y Provider de Idioma global
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+// Provider de Idioma global. navigatorKey vive en config/navigation.dart
 final LocaleProvider localeProvider = LocaleProvider();
 
 void main() {

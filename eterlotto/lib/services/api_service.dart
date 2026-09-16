@@ -471,17 +471,32 @@ class ApiService {
   /// 🔥 Actualizar el token de notificaciones FCM (ID del celular)
   static Future<bool> updateFCMToken(String fcmToken) async {
     final userId = await getUserId();
-    if (userId == null) return false;
+    if (userId == null || fcmToken.trim().isEmpty) return false;
 
     try {
       final response = await post("/users/fcm_token", {
         "user_id": userId,
-        "fcm_token": fcmToken,
+        "fcm_token": fcmToken.trim(),
       });
       return response.statusCode == 200;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[FCM] token sync failed: ${e.runtimeType}');
       return false;
     }
+  }
+
+  static Future<bool> clearFCMToken() async {
+    try {
+      final response = await delete("/users/fcm_token");
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('[FCM] token clear failed: ${e.runtimeType}');
+      return false;
+    }
+  }
+
+  static Future<http.Response> testPushNotification() {
+    return post("/notifications/test-push", const {});
   }
 
   static Future<Map<String, dynamic>> updateUser(

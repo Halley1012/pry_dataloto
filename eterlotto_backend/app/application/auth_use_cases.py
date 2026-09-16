@@ -253,6 +253,36 @@ class AuthUseCases:
             "user": updated_user
         }
 
+    async def update_fcm_token(
+        self,
+        user_id: int,
+        fcm_token: str
+    ) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_id(user_id)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+
+        token = (fcm_token or "").strip()
+        if not token:
+            raise ValueError("FCM token vacío")
+
+        updated = await self.user_repo.set_fcm_token(user_id, token)
+        return {
+            "success": updated,
+            "message": "Token FCM actualizado" if updated else "No fue posible actualizar el token FCM",
+        }
+
+    async def clear_fcm_token(self, user_id: int) -> Dict[str, Any]:
+        user = await self.user_repo.find_by_id(user_id)
+        if not user:
+            raise ValueError("Usuario no encontrado")
+
+        await self.user_repo.clear_fcm_token(user_id)
+        return {
+            "success": True,
+            "message": "Token FCM eliminado",
+        }
+
     async def get_user_profile(self, user_id: int) -> Dict[str, Any]:
         user = await self.user_repo.find_by_id(user_id)
         if not user:

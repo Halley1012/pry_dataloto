@@ -1,7 +1,9 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+
 from app.domain.ports import NotificationRepositoryPort
 from app.infrastructure import db_connection
+
 
 class PostgresNotificationRepository(NotificationRepositoryPort):
     async def _ensure_user_state_table(self, conn) -> None:
@@ -19,21 +21,105 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 ON notification_user_state (user_id, eliminado, notification_id);
         """)
 
-    async def create_notification(self, loteria_id: Optional[int], fecha_sorteo: Optional[datetime], mensaje: str, tipo: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+    async def create_notification(
+        self,
+        loteria_id: Optional[int],
+        fecha_sorteo: Optional[datetime],
+        mensaje: str,
+        tipo: str,
+        user_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO notificaciones (usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, leido, created_at)
+            row = await conn.fetchrow(
+                """
+                INSERT INTO notificaciones
+                    (usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, leido, created_at)
                 VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP)
-            """, user_id, loteria_id, fecha_sorteo, mensaje, tipo)
-            return {"success": True, "message": "Notificación creada"}
+                RETURNING id, usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, created_at
+                """,
+                user_id,
+                loteria_id,
+                fecha_sorteo,
+                mensaje,
+                tipo,
+            )
+            return {
+                "success": True,
+                "message": "Notificación creada",
+                "notification": dict(row),
+            }
 
-    async def list_notifications(self, user_id: Optional[int] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    async def list_push_targets(
+        self,
+        loteria_id: Optional[int],
+        user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        pool = db_connection.get_pool()
+        async with pool.acquire() as conn:
+            if user_id is not None:
+                rows = await conn.fetch(
+                    """
+                    SELECT id AS user_id, fcm_token
+                    FROM users
+                    WHERE id = $1
+                      AND COALESCE(activo, TRUE) = TRUE
+                      AND COALESCE(notificaciones_activas, TRUE) = TRUE
+                      AND NULLIF(TRIM(fcm_token), '') IS NOT NULL
+                    """,
+                    user_id,
+                )
+            elif loteria_id is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT id AS user_id, fcm_token
+                    FROM users
+                    WHERE COALESCE(activo, TRUE) = TRUE
+                      AND COALESCE(notificaciones_activas, TRUE) = TRUE
+                      AND NULLIF(TRIM(fcm_token), '') IS NOT NULL
+                    """
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT DISTINCT u.id AS user_id, u.fcm_token
+                    FROM users u
+                    JOIN loterias l ON l.id = $1
+                    WHERE COALESCE(u.activo, TRUE) = TRUE
+                      AND COALESCE(u.notificaciones_activas, TRUE) = TRUE
+                      AND NULLIF(TRIM(u.fcm_token), '') IS NOT NULL
+                      AND (
+                        u.pais_id = l.pais_id
+                        OR EXISTS (
+                          SELECT 1
+                          FROM jugadas j
+                          WHERE j.user_id = u.id
+                            AND j.loteria_id = $1
+                            AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                        )
+                      )
+                    """,
+                    loteria_id,
+                )
+
+            # Un token físico recibe una sola vez el mismo evento aunque una
+            # instalación antigua haya quedado temporalmente duplicada.
+            unique: Dict[str, Dict[str, Any]] = {}
+            for row in rows:
+                item = dict(row)
+                token = (item.get("fcm_token") or "").strip()
+                if token and token not in unique:
+                    unique[token] = item
+            return list(unique.values())
+
+    async def list_notifications(
+        self,
+        user_id: Optional[int] = None,
+        limit: int = 50,
+    ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_user_state_table(conn)
-            # Una global se entrega al país del usuario, a sus loterías jugadas
-            # o a todos si no está asociada a una lotería. El estado es privado.
             base_query = """
                 SELECT n.id, n.usuario_id, n.loteria_id, n.fecha_sorteo, n.mensaje,
                        n.tipo, n.created_at, l.pais_id, l.nombre AS loteria_nombre,
@@ -68,17 +154,16 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                   )
                 ORDER BY n.created_at DESC LIMIT $2
             """
-            
+
             if user_id is not None:
                 rows = await conn.fetch(base_query, user_id, limit)
             else:
-                # Sin sesión no se puede resolver país ni loterías jugadas.
                 query_no_user = """
-                    SELECT n.*, l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route 
+                    SELECT n.*, l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route
                     FROM notificaciones n
                     LEFT JOIN loterias l ON l.id = n.loteria_id
-                    WHERE n.usuario_id IS NULL 
-                    AND n.created_at >= NOW() - INTERVAL '3 days' 
+                    WHERE n.usuario_id IS NULL
+                      AND n.created_at >= NOW() - INTERVAL '3 days'
                     ORDER BY n.created_at DESC LIMIT $1
                 """
                 rows = await conn.fetch(query_no_user, limit)
@@ -88,7 +173,8 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_user_state_table(conn)
-            result = await conn.execute("""
+            result = await conn.execute(
+                """
                 INSERT INTO notification_user_state
                     (notification_id, user_id, leido, eliminado, updated_at)
                 SELECT id, $2, TRUE, FALSE, CURRENT_TIMESTAMP
@@ -96,15 +182,18 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 WHERE id = $1 AND (usuario_id = $2 OR usuario_id IS NULL)
                 ON CONFLICT (notification_id, user_id)
                 DO UPDATE SET leido = TRUE, updated_at = CURRENT_TIMESTAMP
-            """, notification_id, user_id)
+                """,
+                notification_id,
+                user_id,
+            )
             return result in ("INSERT 0 1", "UPDATE 1")
 
     async def delete_notification(self, notification_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_user_state_table(conn)
-            # Eliminar significa ocultar para este usuario; nunca borra el aviso global.
-            result = await conn.execute("""
+            result = await conn.execute(
+                """
                 INSERT INTO notification_user_state
                     (notification_id, user_id, leido, eliminado, updated_at)
                 SELECT id, $2, TRUE, TRUE, CURRENT_TIMESTAMP
@@ -112,5 +201,8 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 WHERE id = $1 AND (usuario_id = $2 OR usuario_id IS NULL)
                 ON CONFLICT (notification_id, user_id)
                 DO UPDATE SET leido = TRUE, eliminado = TRUE, updated_at = CURRENT_TIMESTAMP
-            """, notification_id, user_id)
+                """,
+                notification_id,
+                user_id,
+            )
             return result in ("INSERT 0 1", "UPDATE 1")
