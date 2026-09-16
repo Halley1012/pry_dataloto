@@ -32,6 +32,8 @@ build/
 # Environment files
 .env
 .env.*
+!.env.dev.example
+!.env.prd.example
 venv/
 ENV/
 env/

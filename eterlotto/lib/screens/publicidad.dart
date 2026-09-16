@@ -71,9 +71,9 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   int _departamentosRequestId = 0;
   int _ciudadesRequestId = 0;
 
-  String _selectedCountryCode = '+57';
-  String _selectedWhatsAppCode = '+57';
-  String _initialCountryCode = 'CO';
+  String _selectedCountryCode = '';
+  String _selectedWhatsAppCode = '';
+  String? _initialCountryCode;
 
   // Cache global para countries.json
   static Map<String, String>? _cachedIsoMap;
@@ -258,8 +258,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       int? cityIdDefault =
           _esEdicion ? _toInt(widget.publicidad?['ciudad_id']) : null;
 
-      final mostrarCiudad = countryNorm.contains('colombia');
-      if (mostrarCiudad && dptoIdDefault != null) {
+      if (dptoIdDefault != null) {
         cities = await ApiService.getCiudadesPorDepartamento(
           departamentoId: dptoIdDefault,
         );
@@ -673,9 +672,9 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       categoriaSeleccionada = null;
       _departamentos = [];
       _ciudades = [];
-      _selectedCountryCode = '+57';
-      _selectedWhatsAppCode = '+57';
-      _initialCountryCode = 'CO';
+      _selectedCountryCode = '';
+      _selectedWhatsAppCode = '';
+      _initialCountryCode = null;
       descripcionLength = 0;
       _esAtencion24Horas = true;
       _horaApertura = const TimeOfDay(hour: 8, minute: 0);
@@ -685,12 +684,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   }
 
   bool _mostrarCampoCiudad() {
-    if (paisSeleccionado == null) return false;
-    final nombre = _paises.firstWhere(
-      (p) => p['id'] == paisSeleccionado,
-      orElse: () => {"nombre": ""},
-    )["nombre"];
-    return nombre.toString().toLowerCase().contains("colombia");
+    // La disponibilidad de ciudades viene del catálogo, no del nombre del país.
+    return paisSeleccionado != null && _ciudades.isNotEmpty;
   }
 
   @override
@@ -837,7 +832,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         final nombre = _paises
                             .firstWhere(
                               (p) => p['id'] == val,
-                              orElse: () => {"nombre": "colombia"},
+                              orElse: () => {"nombre": ""},
                             )["nombre"]
                             .toString()
                             .toLowerCase();
