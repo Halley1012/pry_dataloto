@@ -154,7 +154,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   /// Resuelve el país real de la lotería por `pais_id`. Esto es obligatorio
-  /// para juegos compartidos (Euromillions/EuroDreams), porque `route` identifica
+  /// para juegos compartidos, porque `route` identifica
   /// el motor y no el país desde el que el usuario abrió la lotería.
   Future<void> _resolverPaisLoteria() async {
     if ((_paisNombre ?? '').trim().isNotEmpty) return;
@@ -197,14 +197,9 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   String get _paisJackpotNombre {
-    final explicit = (_paisNombre ?? config.paisNombre ?? '').trim();
-    if (explicit.isNotEmpty) return explicit;
-
-    // Para una lotería compartida es preferible no mostrar una bandera incorrecta
-    // mientras resolvemos `pais_id`, en vez de inferir "Europa" desde la route.
-    if (PaisHelper.isSharedEuropeanLottery(config.route)) return '';
-
-    return PaisHelper.getPaisNameByRoute(config.route);
+    // `loteria_id`/`pais_id` son la identidad real. Si el catálogo todavía no
+    // resolvió el país, no inventamos uno a partir de la route.
+    return (_paisNombre ?? config.paisNombre ?? '').trim();
   }
 
   String get _paisJackpotIso {
@@ -529,12 +524,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
 
       if (config.cantidadEspeciales > 0) {
         final bool includesZero =
-            listaBalotaRoja.contains(0) ||
-            config.superbalotaNombre.toLowerCase().contains("reintegro") ||
-            config.superbalotaNombre.toLowerCase().contains("clave") ||
-            config.route.contains("bonoloto") ||
-            config.route.contains("primitiva") ||
-            config.route.contains("gordo");
+            listaBalotaRoja.contains(0) || config.tieneReintegro;
 
         final redPool = listaBalotaRoja.isNotEmpty
             ? listaBalotaRoja
@@ -1317,7 +1307,6 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             builder: (context) {
               final parts = PaisHelper.getJackpotParts(
                 _jackpot,
-                loteriaRoute: config.route,
                 fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty)
                     ? _jackpot!
                     : "--",
@@ -2471,7 +2460,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       ballSpacing = 2.0;
       rowPaddingVertical = 2.5;
     } else {
-      // 8 o más balotas (La Primitiva, Bonoloto, +Milionária, etc.)
+      // 8 o más balotas
       dateWidth = 80.0;
       dateFontSize = 12.5;
       defaultBallSize = 27.0;

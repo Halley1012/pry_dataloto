@@ -192,132 +192,25 @@ class LoteriaConfig {
     );
   }
 
-  /// Constructor fallback cuando solo se conoce el nombre o la ruta
+  /// Fallback estructural cuando la navegación todavía no tiene el catálogo.
+  ///
+  /// No intenta reconocer juegos concretos por nombre. Las reglas reales
+  /// (`max_seleccion`, rangos, especiales, revancha, etc.) deben venir de
+  /// `/loterias` mediante [fromJson].
   static LoteriaConfig fromNombre(
     String? nombreInput, {
     String? routeOverride,
   }) {
-    final t = (nombreInput ?? "Lotería").trim();
-    final cleanRoute = (routeOverride != null && routeOverride.isNotEmpty)
-        ? routeOverride.trim().toLowerCase()
-        : _inferRouteFromName(t);
-
-    final formattedName = t.isNotEmpty
-        ? t[0].toUpperCase() + t.substring(1)
-        : "Lotería";
-
-    final tieneComp =
-        cleanRoute.contains("bonoloto") || cleanRoute.contains("primitiva");
-    final tieneReintegro =
-        cleanRoute.contains("bonoloto") ||
-        cleanRoute.contains("primitiva") ||
-        cleanRoute.contains("el_gordo");
-    final int maxSel =
-        (cleanRoute.contains("kabala") ||
-            cleanRoute.contains("latinka") ||
-            cleanRoute.contains("tinka") ||
-            cleanRoute.contains("duplasena") ||
-            cleanRoute.contains("bonoloto") ||
-            cleanRoute.contains("primitiva") ||
-            cleanRoute.contains("cloto") ||
-            cleanRoute.contains("eurodreams") ||
-            cleanRoute.contains("megasena") ||
-            cleanRoute.contains("maismilionaria") ||
-            cleanRoute.contains("melate"))
-        ? 6
-        : 5;
-    final int maxRojas =
-        (cleanRoute.contains("lotto_cr") ||
-            cleanRoute.contains("ganadiario") ||
-            cleanRoute.contains("kabala") ||
-            cleanRoute.contains("duplasena") ||
-            cleanRoute.contains("quina") ||
-            cleanRoute.contains("chispazo") ||
-            cleanRoute.contains("mloto") ||
-            cleanRoute.contains("cloto") ||
-            cleanRoute.contains("megasena"))
-        ? 0
-        : (cleanRoute.contains("maismilionaria")
-              ? 6
-              : (cleanRoute.contains("5deoro") ||
-                        cleanRoute.contains("cincodeoro")
-                    ? 48
-                    : (cleanRoute.contains("latinka") ||
-                              cleanRoute.contains("tinka")
-                          ? 50
-                          : (cleanRoute.contains("melateretro") ||
-                                    cleanRoute.contains("retro")
-                                ? 39
-                                : (cleanRoute.contains("melate") ? 56 : 10)))));
-    final int maxBlancas = cleanRoute.contains("quina")
-        ? 80
-        : (cleanRoute.contains("megasena")
-              ? 60
-              : (cleanRoute.contains("duplasena") ||
-                        cleanRoute.contains("latinka") ||
-                        cleanRoute.contains("tinka")
-                    ? 50
-                    : (cleanRoute.contains("5deoro") ||
-                              cleanRoute.contains("cincodeoro")
-                          ? 48
-                          : (cleanRoute.contains("kabala") ||
-                                    cleanRoute.contains("lotto_cr")
-                                ? 40
-                                : (cleanRoute.contains("ganadiario")
-                                      ? 35
-                                      : (cleanRoute.contains("chispazo")
-                                            ? 28
-                                            : (cleanRoute.contains(
-                                                        "melateretro",
-                                                      ) ||
-                                                      cleanRoute.contains(
-                                                        "retro",
-                                                      )
-                                                  ? 39
-                                                  : (cleanRoute.contains(
-                                                          "melate",
-                                                        )
-                                                        ? 56
-                                                        : (cleanRoute.contains(
-                                                                "maismilionaria",
-                                                              )
-                                                              ? 50
-                                                              : 45)))))))));
-    final String sbNombre =
-        cleanRoute.contains("5deoro") || cleanRoute.contains("cincodeoro")
-        ? "Bolilla Extra"
-        : (cleanRoute.contains("latinka") || cleanRoute.contains("tinka")
-              ? "Boliyapa"
-              : (cleanRoute.contains("maismilionaria")
-                    ? "Tréboles"
-                    : (cleanRoute.contains("melate")
-                          ? "Adicional"
-                          : "Superbalota")));
-    final bool hasRev =
-        cleanRoute.contains("lotto_cr") ||
-        cleanRoute.contains("kabala") ||
-        cleanRoute.contains("5deoro") ||
-        cleanRoute.contains("cincodeoro") ||
-        cleanRoute.contains("duplasena") ||
-        (!cleanRoute.contains("retro") && cleanRoute.contains("melate")) ||
-        cleanRoute.contains("baloto") ||
-        cleanRoute.contains("bloto");
-    final int totalSorteo =
-        maxSel +
-        (maxRojas > 0 ? (cleanRoute.contains("maismilionaria") ? 2 : 1) : 0) +
-        (tieneComp ? 1 : 0);
+    final rawName = (nombreInput ?? "Lotería").trim();
+    final formattedName = rawName.isNotEmpty ? rawName : "Lotería";
+    final cleanRoute =
+        (routeOverride != null && routeOverride.trim().isNotEmpty)
+            ? routeOverride.trim().toLowerCase()
+            : _inferRouteFromName(formattedName);
 
     return LoteriaConfig(
       nombre: formattedName,
       route: cleanRoute,
-      maxSeleccion: maxSel,
-      maxBalotasBlancas: maxBlancas,
-      maxBalotasRojas: maxRojas,
-      superbalotaNombre: sbNombre,
-      hasRevancha: hasRev,
-      totalBalotasSorteo: totalSorteo,
-      tieneComplementario: tieneComp,
-      tieneReintegro: tieneReintegro,
     );
   }
 

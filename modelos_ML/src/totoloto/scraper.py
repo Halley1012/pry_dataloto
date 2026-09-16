@@ -94,10 +94,35 @@ class TotolotoScraper:
                 SET concurso = TO_CHAR(fecha, 'YYYYMMDD')::INTEGER
                 WHERE concurso IS NULL;
                 UPDATE resultados_totoloto SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
-                ALTER TABLE resultados_totoloto DROP CONSTRAINT IF EXISTS pk_resultados_totoloto;
                 ALTER TABLE resultados_totoloto ALTER COLUMN concurso SET NOT NULL;
                 ALTER TABLE resultados_totoloto ALTER COLUMN loteria_id SET NOT NULL;
-                ALTER TABLE resultados_totoloto ADD CONSTRAINT pk_resultados_totoloto PRIMARY KEY (concurso);
+                DO $$
+                DECLARE
+                    primary_key_name TEXT;
+                BEGIN
+                    SELECT conname INTO primary_key_name
+                    FROM pg_constraint
+                    WHERE conrelid = 'resultados_totoloto'::regclass
+                      AND contype = 'p'
+                    LIMIT 1;
+
+                    IF primary_key_name IS NOT NULL
+                       AND primary_key_name <> 'pk_resultados_totoloto' THEN
+                        EXECUTE format(
+                            'ALTER TABLE resultados_totoloto DROP CONSTRAINT %I',
+                            primary_key_name
+                        );
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'resultados_totoloto'::regclass
+                          AND conname = 'pk_resultados_totoloto'
+                    ) THEN
+                        ALTER TABLE resultados_totoloto
+                        ADD CONSTRAINT pk_resultados_totoloto PRIMARY KEY (concurso);
+                    END IF;
+                END $$;
                 CREATE INDEX IF NOT EXISTS idx_totoloto_fecha ON resultados_totoloto(fecha DESC);
                 CREATE INDEX IF NOT EXISTS idx_totoloto_loteria_id ON resultados_totoloto(loteria_id);
             """), {"loteria_id": int(df['loteria_id'].iloc[0])})

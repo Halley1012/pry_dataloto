@@ -20,7 +20,8 @@ from config.database import get_engine
 class LottoCostaRicaScraper:
     def __init__(self):
         self.engine = get_engine()
-        self.loteria_id = 35
+        self.route = "lotto_cr"
+        self.loteria_id = None
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -28,14 +29,33 @@ class LottoCostaRicaScraper:
         }
         self.base_url = "https://www.combinacionganadora.com/cr/lotto-costa-rica/resultados"
 
+        self.meses = {
+            "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+            "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
+            "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12",
+        }
+
+    def _obtener_loteria_id(self) -> int:
+        """Resuelve el ID desde el catálogo para no depender de IDs por ambiente."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT id FROM loterias WHERE LOWER(route) = :route LIMIT 1;
+            """), {"route": self.route}).fetchone()
+        if not row:
+            raise RuntimeError(
+                f"No existe loteria con route='{self.route}' en la tabla loterias."
+            )
+        return int(row[0])
+
     def _fetch_with_retries(self, url, method="get", max_retries=3, base_delay=1.5, **kwargs):
         """HTTP request con backoff exponencial. Retorna Response o None si todos los intentos fallan."""
+        timeout = kwargs.pop("timeout", 15)
         for attempt in range(1, max_retries + 1):
             try:
                 if method == "post":
-                    r = requests.post(url, timeout=kwargs.pop("timeout", 15), verify=False, **kwargs)
+                    r = requests.post(url, timeout=timeout, verify=False, **kwargs)
                 else:
-                    r = requests.get(url, timeout=kwargs.pop("timeout", 15), verify=False, **kwargs)
+                    r = requests.get(url, timeout=timeout, verify=False, **kwargs)
                 if r.status_code < 500:
                     return r
                 print(f"⚠️ HTTP {r.status_code} en intento {attempt}/{max_retries} para {url}")
@@ -103,6 +123,17 @@ class LottoCostaRicaScraper:
             return None
         if r.status_code == 200:
             soup = BeautifulSoup(r.text, "html.parser")
+
+            # La fuente dejó de publicar enlaces fechados. Los resultados se
+            # listan ahora en bloques gameSummaryBlock, ordenados del más nuevo
+            # al más antiguo.
+            for block in soup.find_all("div", class_="gameSummaryBlock"):
+                texto = block.get_text(" ", strip=True)
+                fecha = self._parsear_fecha_fuente(texto)
+                if fecha:
+                    return {"fecha": fecha, "sorteo": "Lotto"}
+
+            # Compatibilidad con el formato anterior del sitio.
             link = soup.find("a", href=re.compile(r"/cr/lotto-costa-rica/resultados/\d{4}-\d{2}-\d{2}"))
             if link:
                 href = link.get("href", "")
@@ -110,6 +141,29 @@ class LottoCostaRicaScraper:
                 if m:
                     return {"fecha": m.group(1), "sorteo": "Lotto"}
         return {}
+
+    def _parsear_fecha_fuente(self, texto: str) -> str | None:
+        """Convierte la fecha española publicada por Combinación Ganadora a ISO."""
+        iso = re.search(r"(\d{4}-\d{2}-\d{2})", texto or "")
+        if iso:
+            return iso.group(1)
+
+        match = re.search(
+            r"(\d{1,2})\s+([a-záéíóú]+)\s+(\d{4})",
+            (texto or "").lower(),
+        )
+        if not match:
+            return None
+        dia, mes, anio = match.groups()
+        numero_mes = self.meses.get(mes)
+        if not numero_mes:
+            return None
+        try:
+            return datetime.strptime(
+                f"{anio}-{numero_mes}-{int(dia):02d}", "%Y-%m-%d"
+            ).strftime("%Y-%m-%d")
+        except ValueError:
+            return None
 
     def _parsear_sorteo_fecha(self, fecha_str: str) -> list:
         """Descarga y parsea el sorteo de una fecha retornando filas para Lotto y Revancha sin sorted()."""
@@ -217,6 +271,8 @@ class LottoCostaRicaScraper:
 
     def run(self, backfill: bool = False):
         print("🚀 Iniciando Scraping de Lotto y Revancha (Costa Rica)...")
+
+        self.loteria_id = self._obtener_loteria_id()
 
         pozo_oficial = self.extraer_pozo_estimado()
 

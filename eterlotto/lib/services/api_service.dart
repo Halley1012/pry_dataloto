@@ -8,9 +8,10 @@ import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
 
 import '../utils/secure_storage_helper.dart';
+import '../config/app_config.dart';
 
 class ApiService {
-  static const String baseUrl = "https://pry-dataloto.onrender.com";
+  static String get baseUrl => AppConfig.baseUrl;
   static final _storage = AppSecureStorage.instance;
 
   static const Duration _requestTimeout = Duration(seconds: 10);
@@ -600,231 +601,12 @@ class ApiService {
     return "${next.year}-${next.month.toString().padLeft(2, '0')}-${next.day.toString().padLeft(2, '0')}";
   }
 
-  /// 🎲 Crear jugada SIN TOKEN (MiLoto)
-  static Future<Map<String, dynamic>> crearJugada(
-    List<int> numeros,
-    String userId, {
-    String? fechaSorteo,
-  }) async {
-    final Map<String, dynamic> payload = {
-      "numeros": numeros,
-      "user_id": userId,
-    };
-    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
-      payload["fecha_sorteo"] = fechaSorteo;
-      payload["fecha"] = fechaSorteo;
-    }
-
-    final response = await http.post(
-      Uri.parse("$baseUrl/jugadas_mloto"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(payload),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      await CacheService.registrarJugadaOptimista("mloto", userId: userId);
-      await CacheService.invalidarCachesDeJugadas(
-        specificRoute: "mloto",
-        userId: userId,
-        preserveRouteJugadas: true,
-        preserveSelector: true,
-      );
-      final data = jsonDecode(response.body);
-      if (data is Map<String, dynamic>) {
-        return data;
-      } else {
-        return {"status": "ok"};
-      }
-    } else {
-      throw Exception(
-        "Error al crear jugada: ${response.statusCode} ${response.body}, $userId",
-      );
-    }
-  }
-
-  static Future<List<dynamic>> listarJugadasMloto({
-    String? fecha,
-    int? loteriaId,
-    int retries = 3,
-    int delayMs = 500,
-  }) async {
-    final userId = await getUserId();
-
-    if (userId == null) {
-      return [];
-    }
-
-    final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
-        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
-        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
-
-    for (int attempt = 1; attempt <= retries; attempt++) {
-      try {
-        final response = await http.get(
-          Uri.parse("$baseUrl/jugadas_mloto?$queryParams"),
-          headers: {"Content-Type": "application/json"},
-        );
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data is List) {
-            return data;
-          } else {
-            throw Exception("Formato de respuesta inválido: no es una lista");
-          }
-        } else {
-          throw Exception(
-            "Error al listar jugadas: ${response.statusCode} ${response.body}",
-          );
-        }
-      } catch (e) {
-        if (attempt == retries) {
-          throw Exception("Error al listar jugadas: $e");
-        }
-        await Future.delayed(Duration(milliseconds: delayMs));
-      }
-    }
-
-    return [];
-  }
-
-  static Future<bool> borrarJugadaMloto(int jugadaId, String userId) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/jugadas_mloto/$jugadaId?user_id=$userId"),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      await CacheService.invalidarCachesDeJugadas(
-        specificRoute: "mloto",
-        userId: userId,
-      );
-      return true;
-    } else {
-      throw Exception(
-        "Error al borrar jugada: ${response.statusCode} ${response.body}",
-      );
-    }
-  }
-
-  ////////////////////// seccion crear, lista y borrar jugadas bloto  //////////////////////////
-  /// 🎲 Crear jugada BLOTO SIN TOKEN
-  static Future<Map<String, dynamic>> crearJugadaBloto(
-    List<int> numeros,
-    String userId, {
-    String? fechaSorteo,
-  }) async {
-    if (userId.isEmpty) {
-      throw Exception("El userId enviado desde el front está vacío");
-    }
-
-    final Map<String, dynamic> payload = {
-      "numeros": numeros,
-      "user_id": userId,
-    };
-    if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
-      payload["fecha_sorteo"] = fechaSorteo;
-      payload["fecha"] = fechaSorteo;
-    }
-
-    final response = await http.post(
-      Uri.parse("$baseUrl/jugadas_bloto"),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(payload),
-    );
-
-    if (response.statusCode == 200 || response.statusCode == 201) {
-      await CacheService.registrarJugadaOptimista("bloto", userId: userId);
-      await CacheService.invalidarCachesDeJugadas(
-        specificRoute: "bloto",
-        userId: userId,
-        preserveRouteJugadas: true,
-        preserveSelector: true,
-      );
-      final data = jsonDecode(response.body);
-      if (data is Map<String, dynamic>) {
-        return data;
-      } else {
-        return {"status": "ok"};
-      }
-    }
-
-    throw Exception(
-      "Error al crear jugada: ${response.statusCode} ${response.body}",
-    );
-  }
-
-  static Future<List<dynamic>> listarJugadasBloto({
-    String? fecha,
-    int? loteriaId,
-    int retries = 3,
-    int delayMs = 500,
-  }) async {
-    final userId = await getUserId();
-
-    if (userId == null) {
-      return [];
-    }
-
-    final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
-        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
-        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
-
-    for (int attempt = 1; attempt <= retries; attempt++) {
-      try {
-        final response = await http.get(
-          Uri.parse("$baseUrl/jugadas_bloto?$queryParams"),
-          headers: {"Content-Type": "application/json"},
-        );
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          if (data is List) {
-            return data;
-          } else {
-            throw Exception("Formato de respuesta inválido: no es una lista");
-          }
-        } else {
-          throw Exception(
-            "Error al listar jugadas: ${response.statusCode} ${response.body}",
-          );
-        }
-      } catch (e) {
-        if (attempt == retries) {
-          throw Exception("Error al listar jugadas: $e");
-        }
-        await Future.delayed(Duration(milliseconds: delayMs));
-      }
-    }
-
-    return [];
-  }
-
-  /// 🗑️ Borrar jugada BLOTO SIN TOKEN
-  static Future<bool> borrarJugadaBloto(int jugadaId, String userId) async {
-    final response = await http.delete(
-      Uri.parse("$baseUrl/jugadas_bloto/$jugadaId?user_id=$userId"),
-      headers: {"Content-Type": "application/json"},
-    );
-
-    if (response.statusCode == 200) {
-      await CacheService.invalidarCachesDeJugadas(
-        specificRoute: "bloto",
-        userId: userId,
-      );
-      return true;
-    } else {
-      throw Exception(
-        "Error al borrar jugada: ${response.statusCode} ${response.body}",
-      );
-    }
-  }
-
-  /// 🎲 Crear jugada genérica
+  /// 🎲 Crear una jugada usando el endpoint unificado.
+  ///
+  /// `loteriaRoute` identifica el motor/dataset y `loteriaId` la lotería
+  /// concreta. No se traducen aliases ni nombres de loterías en el cliente.
   static Future<Map<String, dynamic>> crearJugadaGenerica(
-    String loteriaName,
+    String loteriaRoute,
     List<int> numeros,
     String userId, {
     int? loteriaId,
@@ -836,13 +618,14 @@ class ApiService {
       throw Exception("El userId enviado está vacío");
     }
 
-    String route = loteriaName.trim().toLowerCase();
-    if (route == "colorloto") {
-      route = "cloto";
+    final route = loteriaRoute.trim().toLowerCase();
+    if (route.isEmpty && loteriaId == null) {
+      throw Exception("La jugada requiere loteriaRoute o loteriaId");
     }
 
     // `numeros` es posicional: principales primero y especiales después.
-    // Nunca se deduplica por valor; 9 principal + 9 especial son dos balotas.
+    // Nunca se deduplica por valor; un mismo valor puede existir en universos
+    // distintos y debe conservar su posición.
     final especiales =
         specialNumbers ??
         (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
@@ -851,15 +634,9 @@ class ApiService {
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
-      "loteria_route": route,
+      if (route.isNotEmpty) "loteria_route": route,
       if (loteriaId != null) "loteria_id": loteriaId,
     };
-    if (especiales.isNotEmpty) {
-      // Los campos antiguos mantienen compatibilidad; `numeros` conserva todas
-      // las especiales en orden para loterías 5+2, 6+2 y similares.
-      payload["balota_roja"] = especiales.first;
-      payload["balotaroja"] = especiales.first;
-    }
     if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
       payload["fecha_sorteo"] = fechaSorteo;
       payload["fecha"] = fechaSorteo;
@@ -867,20 +644,22 @@ class ApiService {
 
     final response = await http
         .post(
-          Uri.parse("$baseUrl/jugadas_$route"),
+          Uri.parse("$baseUrl/jugadas"),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode(payload),
         )
         .timeout(_requestTimeout);
 
     if (response.statusCode == 200 || response.statusCode == 201) {
-      await CacheService.registrarJugadaOptimista(
-        route,
-        userId: userId,
-        loteriaId: loteriaId,
-      );
+      if (route.isNotEmpty) {
+        await CacheService.registrarJugadaOptimista(
+          route,
+          userId: userId,
+          loteriaId: loteriaId,
+        );
+      }
       await CacheService.invalidarCachesDeJugadas(
-        specificRoute: route,
+        specificRoute: route.isNotEmpty ? route : null,
         specificLotteryId: loteriaId,
         userId: userId,
         preserveRouteJugadas: true,
@@ -892,48 +671,54 @@ class ApiService {
       }
       return {"status": "ok"};
     }
-    throw Exception("Error al crear jugada $route: ${response.statusCode}");
+
+    throw Exception(
+      "Error al crear jugada: ${response.statusCode} ${response.body}",
+    );
   }
 
   static Future<List<dynamic>> listarJugadasGenerica(
-    String loteriaName, {
+    String loteriaRoute, {
     String? fecha,
     int? loteriaId,
     int retries = 3,
     int delayMs = 500,
   }) async {
     final userId = await getUserId();
-
     if (userId == null) return [];
 
-    String route = loteriaName.trim().toLowerCase();
-    if (route == "colorloto") {
-      route = "cloto";
+    final route = loteriaRoute.trim().toLowerCase();
+    if (route.isEmpty && loteriaId == null) {
+      throw Exception("La consulta requiere loteriaRoute o loteriaId");
     }
 
-    final queryParams =
-        "user_id=$userId&t=${DateTime.now().millisecondsSinceEpoch}"
-        "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}"
-        "${fecha != null && fecha.isNotEmpty ? "&fecha=$fecha" : ""}";
+    final queryParameters = <String, String>{
+      "user_id": userId.toString(),
+      "t": DateTime.now().millisecondsSinceEpoch.toString(),
+      if (route.isNotEmpty) "loteria": route,
+      if (loteriaId != null) "loteria_id": loteriaId.toString(),
+      if (fecha != null && fecha.isNotEmpty) "fecha": fecha,
+    };
+
+    final uri = Uri.parse("$baseUrl/jugadas").replace(
+      queryParameters: queryParameters,
+    );
 
     Object? lastError;
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
         final response = await http
-            .get(
-              Uri.parse("$baseUrl/jugadas_$route?$queryParams"),
-              headers: {"Content-Type": "application/json"},
-            )
+            .get(uri, headers: {"Content-Type": "application/json"})
             .timeout(const Duration(seconds: 12));
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (data is List) return data;
-          throw Exception('Formato inválido al listar jugadas de $route');
+          throw Exception("Formato inválido al listar jugadas");
         }
 
         lastError = Exception(
-          'Error al listar jugadas $route: ${response.statusCode}',
+          "Error al listar jugadas: ${response.statusCode} ${response.body}",
         );
       } catch (e) {
         lastError = e;
@@ -944,36 +729,37 @@ class ApiService {
       }
     }
 
-    // Un fallo de red no equivale a "el usuario no tiene jugadas". Lanzar la
-    // excepción permite que las pantallas conserven su caché stale y muestren
-    // el estado offline correcto en lugar de sobrescribirla con una lista vacía.
-    throw lastError ?? Exception('No se pudieron cargar las jugadas de $route');
+    // Un fallo de red no equivale a "el usuario no tiene jugadas".
+    throw lastError ?? Exception("No se pudieron cargar las jugadas");
   }
 
-  /// 🗑️ Borrar jugada genérica
+  /// 🗑️ Borrar una jugada usando el endpoint unificado.
   static Future<bool> borrarJugadaGenerica(
-    String loteriaName,
+    String loteriaRoute,
     int jugadaId,
     String userId, {
     int? loteriaId,
   }) async {
-    String route = loteriaName.trim().toLowerCase();
-    if (route == "colorloto") {
-      route = "cloto";
-    }
+    final route = loteriaRoute.trim().toLowerCase();
+    if (route.isEmpty && loteriaId == null) return false;
+
+    final queryParameters = <String, String>{
+      "user_id": userId,
+      if (route.isNotEmpty) "loteria": route,
+      if (loteriaId != null) "loteria_id": loteriaId.toString(),
+    };
+    final uri = Uri.parse("$baseUrl/jugadas/$jugadaId").replace(
+      queryParameters: queryParameters,
+    );
+
     try {
       final response = await http
-          .delete(
-            Uri.parse(
-              "$baseUrl/jugadas_$route/$jugadaId?user_id=$userId"
-              "${loteriaId != null ? "&loteria_id=$loteriaId" : ""}",
-            ),
-            headers: {"Content-Type": "application/json"},
-          )
+          .delete(uri, headers: {"Content-Type": "application/json"})
           .timeout(const Duration(seconds: 10));
+
       if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
-          specificRoute: route,
+          specificRoute: route.isNotEmpty ? route : null,
           specificLotteryId: loteriaId,
           userId: userId,
         );
@@ -985,9 +771,9 @@ class ApiService {
     }
   }
 
-  /// ✏️ Actualizar jugada genérica (con soporte directo PUT y fallback inteligente)
+  /// ✏️ Actualizar una jugada usando el endpoint unificado.
   static Future<bool> actualizarJugadaGenerica(
-    String loteriaName,
+    String loteriaRoute,
     int jugadaId,
     List<int> numeros,
     String userId, {
@@ -997,12 +783,10 @@ class ApiService {
     String? fechaSorteo,
   }) async {
     if (userId.isEmpty) return false;
-    String route = loteriaName.trim().toLowerCase();
-    if (route == "colorloto") {
-      route = "cloto";
-    }
 
-    // Mantiene la misma semántica posicional del alta de jugadas.
+    final route = loteriaRoute.trim().toLowerCase();
+    if (route.isEmpty && loteriaId == null) return false;
+
     final especiales =
         specialNumbers ??
         (balotaRoja != null ? <int>[balotaRoja] : const <int>[]);
@@ -1011,12 +795,9 @@ class ApiService {
     final Map<String, dynamic> payload = {
       "numeros": numerosParaGuardar,
       "user_id": userId,
-      "loteria_route": route,
+      if (route.isNotEmpty) "loteria_route": route,
       if (loteriaId != null) "loteria_id": loteriaId,
     };
-    if (especiales.isNotEmpty) {
-      payload["balota_roja"] = especiales.first;
-    }
     if (fechaSorteo != null && fechaSorteo.isNotEmpty) {
       payload["fecha_sorteo"] = fechaSorteo;
     }
@@ -1028,26 +809,7 @@ class ApiService {
         if (token != null && token.isNotEmpty) "Authorization": "Bearer $token",
       };
 
-      // 1. Intentar endpoint dinámico PUT en el backend
-      var putResponse = await http
-          .put(
-            Uri.parse("$baseUrl/jugadas_$route/$jugadaId"),
-            headers: headers,
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 10));
-
-      if (putResponse.statusCode == 200) {
-        await CacheService.invalidarCachesDeJugadas(
-          specificRoute: route,
-          specificLotteryId: loteriaId,
-          userId: userId,
-        );
-        return true;
-      }
-
-      // 2. Intentar endpoint unificado PUT
-      putResponse = await http
+      final response = await http
           .put(
             Uri.parse("$baseUrl/jugadas/$jugadaId"),
             headers: headers,
@@ -1055,61 +817,39 @@ class ApiService {
           )
           .timeout(const Duration(seconds: 10));
 
-      if (putResponse.statusCode == 200) {
+      if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
-          specificRoute: route,
+          specificRoute: route.isNotEmpty ? route : null,
           specificLotteryId: loteriaId,
           userId: userId,
         );
         return true;
       }
 
-      // 3. Si el backend en Render aún no ha desplegado el PUT (404 o 405), fallback: borrar y crear
-      if (putResponse.statusCode == 404 || putResponse.statusCode == 405) {
+      // Compatibilidad temporal: si un despliegue antiguo aún no expone PUT,
+      // conserva el comportamiento previo mediante borrar + crear.
+      if (response.statusCode == 404 || response.statusCode == 405) {
         final deleted = await borrarJugadaGenerica(
-          route, jugadaId, userId,
+          route,
+          jugadaId,
+          userId,
           loteriaId: loteriaId,
         );
-        if (deleted) {
-          await crearJugadaGenerica(
-            route,
-            numeros,
-            userId,
-            loteriaId: loteriaId,
-            specialNumbers: especiales,
-            fechaSorteo: fechaSorteo,
-          );
-          await CacheService.invalidarCachesDeJugadas(
-            specificRoute: route,
-            userId: userId,
-          );
-          return true;
-        }
+        if (!deleted) return false;
+
+        await crearJugadaGenerica(
+          route,
+          numeros,
+          userId,
+          loteriaId: loteriaId,
+          specialNumbers: especiales,
+          fechaSorteo: fechaSorteo,
+        );
+        return true;
       }
 
       return false;
     } catch (_) {
-      try {
-        final deleted = await borrarJugadaGenerica(
-          route, jugadaId, userId,
-          loteriaId: loteriaId,
-        );
-        if (deleted) {
-          await crearJugadaGenerica(
-            route,
-            numeros,
-            userId,
-            loteriaId: loteriaId,
-            specialNumbers: especiales,
-            fechaSorteo: fechaSorteo,
-          );
-          await CacheService.invalidarCachesDeJugadas(
-            specificRoute: route,
-            userId: userId,
-          );
-          return true;
-        }
-      } catch (_) {}
       return false;
     }
   }

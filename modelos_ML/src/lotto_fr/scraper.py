@@ -101,10 +101,35 @@ class LottoFrScraper:
                     CASE WHEN sorteo = '2nd Tirage' THEN 2 ELSE 1 END
                 WHERE concurso IS NULL;
                 UPDATE resultados_lotto_fr SET loteria_id = :loteria_id WHERE loteria_id IS NULL;
-                ALTER TABLE resultados_lotto_fr DROP CONSTRAINT IF EXISTS pk_resultados_lotto_fr;
                 ALTER TABLE resultados_lotto_fr ALTER COLUMN concurso SET NOT NULL;
                 ALTER TABLE resultados_lotto_fr ALTER COLUMN loteria_id SET NOT NULL;
-                ALTER TABLE resultados_lotto_fr ADD CONSTRAINT pk_resultados_lotto_fr PRIMARY KEY (concurso);
+                DO $$
+                DECLARE
+                    primary_key_name TEXT;
+                BEGIN
+                    SELECT conname INTO primary_key_name
+                    FROM pg_constraint
+                    WHERE conrelid = 'resultados_lotto_fr'::regclass
+                      AND contype = 'p'
+                    LIMIT 1;
+
+                    IF primary_key_name IS NOT NULL
+                       AND primary_key_name <> 'pk_resultados_lotto_fr' THEN
+                        EXECUTE format(
+                            'ALTER TABLE resultados_lotto_fr DROP CONSTRAINT %I',
+                            primary_key_name
+                        );
+                    END IF;
+
+                    IF NOT EXISTS (
+                        SELECT 1 FROM pg_constraint
+                        WHERE conrelid = 'resultados_lotto_fr'::regclass
+                          AND conname = 'pk_resultados_lotto_fr'
+                    ) THEN
+                        ALTER TABLE resultados_lotto_fr
+                        ADD CONSTRAINT pk_resultados_lotto_fr PRIMARY KEY (concurso);
+                    END IF;
+                END $$;
                 CREATE INDEX IF NOT EXISTS idx_lotto_fr_fecha ON resultados_lotto_fr(fecha DESC);
                 CREATE INDEX IF NOT EXISTS idx_lotto_fr_loteria_id ON resultados_lotto_fr(loteria_id);
             """), {"loteria_id": int(df['loteria_id'].iloc[0])})

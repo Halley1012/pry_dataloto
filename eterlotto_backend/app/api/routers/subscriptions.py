@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -21,25 +22,19 @@ async def confirm_subscription(
     try:
         user_id = int(current_user["user_id"])
         
-        logger = logging.getLogger(__name__)
-        logger.info("[SUBSCRIPTION] event=CONFIRM_STARTED product_id=%s", req.product_id)
-        
-        res = await use_cases.confirm_subscription(
+        return await use_cases.confirm_subscription(
             user_id=user_id,
             order_id=req.order_id,
             purchase_token=req.purchase_token,
             product_id=req.product_id
         )
-        
-        logger.info("[SUBSCRIPTION] event=CONFIRM_PROCESSED metric=confirm_success is_premium=%s status=%s", res.get("is_premium"), res.get("status"))
-        return res
     except ValueError as e:
-        logging.getLogger(__name__).warning("[SUBSCRIPTION] event=CONFIRM_WARNING metric=confirm_rejected")
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception:
-        logging.getLogger(__name__).error("[SUBSCRIPTION] event=CONFIRM_ERROR metric=confirm_failure")
+    except Exception as e:
+        import logging
+        logging.error(f"Internal error: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.get("/status/{user_id}")
@@ -56,8 +51,9 @@ async def get_subscription_status(
         raise HTTPException(status_code=404, detail=str(e))
     except HTTPException:
         raise
-    except Exception:
-        logging.getLogger(__name__).error("[SUBSCRIPTION] event=STATUS_ERROR")
+    except Exception as e:
+        import logging
+        logging.error(f"Internal error: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
@@ -121,6 +117,8 @@ async def receive_rtdn(
         except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise HTTPException(status_code=400, detail="Invalid Pub/Sub message data") from exc
 
+        logging.info("RTDN received")
+
         subscription_notification = notification.get("subscriptionNotification")
         if not subscription_notification:
             return {
@@ -136,23 +134,21 @@ async def receive_rtdn(
         if not purchase_token:
             raise HTTPException(status_code=400, detail="Missing purchaseToken")
 
-        logger = logging.getLogger(__name__)
-        logger.info(
-            "[SUBSCRIPTION] event=RTDN_RECEIVED notification_type=%s product_id=%s message=Validating payload",
+        logging.info(
+            "RTDN subscription event: type=%s product=%s",
             notification_type,
             product_id
         )
 
         result = await use_cases.process_rtdn_notification(
             purchase_token=purchase_token,
-            product_id=product_id,
-            notification_type=notification_type
+            product_id=product_id
         )
 
-        logger.info(
-            "[SUBSCRIPTION] event=RTDN_PROCESSED metric=rtdn_success notification_type=%s success=%s status=%s",
-            notification_type,
+        logging.info(
+            "RTDN processed: success=%s user_id=%s status=%s",
             result.get("success"),
+            result.get("user_id"),
             result.get("status"),
         )
 
@@ -161,5 +157,5 @@ async def receive_rtdn(
     except HTTPException:
         raise
     except Exception:
-        logging.getLogger(__name__).error("[SUBSCRIPTION] event=RTDN_ERROR metric=rtdn_failure")
+        logging.exception("Error processing Google Play RTDN")
         raise HTTPException(status_code=500, detail="Error procesando RTDN")
