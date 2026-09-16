@@ -137,82 +137,103 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           );
 
           return SafeArea(
-            child: Column(
-              children: [
-                _buildFilterChips(),
-                if (provider.showingStaleData ||
-                    (provider.lastFetchFailed && provider.hasCachedSnapshot))
-                  _buildOfflineNotice(),
-                Expanded(
-                  child: provider.lastFetchFailed && !provider.hasCachedSnapshot
-                      ? _buildConnectionError(provider)
-                      : provider.notifications.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.notifications_none,
-                                size: 80,
-                                color: Colors.white24,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _selectedFilterIndex == 0
-                                    ? 'No tienes notificaciones de tus loterías jugadas aún'
-                                    : AppLocalizations.of(
-                                            context,
-                                          )?.sinNotificaciones ??
-                                          "No tienes notificaciones aún",
-                                style: AppTextStyles.mensajeSecundario,
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        )
-                      : filteredList.isEmpty
-                      ? Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                Icons.filter_alt_off_outlined,
-                                size: 60,
-                                color: Colors.white24,
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                AppLocalizations.of(
-                                      context,
-                                    )?.sinNotificacionesCategoria ??
-                                    "Sin notificaciones para tu país",
-                                style: AppTextStyles.mensajeSecundario,
-                              ),
-                            ],
-                          ),
-                        )
-                      : RefreshIndicator(
-                          color: AppColors.yellow,
-                          backgroundColor: const Color(0xFF1E1E1E),
-                          displacement: 25.0,
-                          onRefresh: () =>
-                              provider.fetchNotifications(force: true),
-                          child: ListView.builder(
-                            physics: const AlwaysScrollableScrollPhysics(),
-                            padding: const EdgeInsets.all(16),
-                            itemCount: filteredList.length,
-                            itemBuilder: (context, index) {
-                              final notification = filteredList[index];
-                              return _buildNotificationCard(
-                                context,
-                                notification,
-                                provider,
-                              );
-                            },
-                          ),
+            child: RefreshIndicator(
+              color: AppColors.yellow,
+              backgroundColor: const Color(0xFF1E1E1E),
+              displacement: 25.0,
+              onRefresh: () => provider.fetchNotifications(force: true),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  // Los filtros forman parte del mismo scroll de las
+                  // notificaciones. El AppBar permanece fijo, pero esta fila
+                  // desaparece naturalmente al bajar por la lista.
+                  SliverToBoxAdapter(
+                    child: _buildFilterChips(),
+                  ),
+                  if (provider.showingStaleData ||
+                      (provider.lastFetchFailed && provider.hasCachedSnapshot))
+                    SliverToBoxAdapter(
+                      child: _buildOfflineNotice(),
+                    ),
+                  if (provider.lastFetchFailed && !provider.hasCachedSnapshot)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _buildConnectionError(provider),
+                    )
+                  else if (provider.notifications.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.notifications_none,
+                              size: 80,
+                              color: Colors.white24,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _selectedFilterIndex == 0
+                                  ? 'No tienes notificaciones de tus loterías jugadas aún'
+                                  : AppLocalizations.of(
+                                          context,
+                                        )?.sinNotificaciones ??
+                                        "No tienes notificaciones aún",
+                              style: AppTextStyles.mensajeSecundario,
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
-                ),
-              ],
+                      ),
+                    )
+                  else if (filteredList.isEmpty)
+                    SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.filter_alt_off_outlined,
+                              size: 60,
+                              color: Colors.white24,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              AppLocalizations.of(
+                                    context,
+                                  )?.sinNotificacionesCategoria ??
+                                  "Sin notificaciones para tu país",
+                              style: AppTextStyles.mensajeSecundario,
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      sliver: SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final notification = filteredList[index];
+                            return _buildNotificationCard(
+                              context,
+                              notification,
+                              provider,
+                            );
+                          },
+                          childCount: filteredList.length,
+                        ),
+                      ),
+                    ),
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 24),
+                  ),
+                ],
+              ),
             ),
           );
         },
@@ -243,9 +264,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       l10n?.miPais ?? "Mi País",
       l10n?.internacionales ?? "Internacionales",
     ];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: AppColors.black,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
@@ -271,7 +291,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(20),
                   side: BorderSide(
-                    color: isSelected ? AppColors.yellow : Colors.white12,
+                    color: isSelected ? AppColors.yellow : Colors.white24,
                   ),
                 ),
                 showCheckmark: false,

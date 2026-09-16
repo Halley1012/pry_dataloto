@@ -21,6 +21,14 @@ class NotificationProvider with ChangeNotifier {
   String? _fetchUserId;
 
   List<NotificationModel> get notifications => _notifications;
+
+  List<NotificationModel> _withoutDiagnosticNotifications(
+    List<NotificationModel> items,
+  ) {
+    return items
+        .where((notification) => notification.tipo.trim().toLowerCase() != 'test')
+        .toList();
+  }
   bool get isLoading => _isLoading;
   bool get hasCachedSnapshot => _hasCachedSnapshot;
   bool get showingStaleData => _showingStaleData;
@@ -153,9 +161,9 @@ class NotificationProvider with ChangeNotifier {
         // La clave se valida de nuevo después de parsear: la carga de la
         // cuenta anterior jamás puede reemplazar a la actual.
         if (!await _isCurrentUser(cacheUserId)) return;
-        _notifications = loaded;
+        _notifications = _withoutDiagnosticNotifications(loaded);
         _hasCachedSnapshot = true;
-        _showingStaleData = fresh == null && loaded.isNotEmpty;
+        _showingStaleData = fresh == null && _notifications.isNotEmpty;
         notifyListeners();
       } catch (_) {}
     }
@@ -203,11 +211,11 @@ class NotificationProvider with ChangeNotifier {
     try {
       final fresh = await NotificationService.getNotifications();
       if (!await _isCurrentUser(userId)) return;
-      _notifications = fresh;
+      _notifications = _withoutDiagnosticNotifications(fresh);
       _hasCachedSnapshot = true;
       _showingStaleData = false;
       _lastFetchFailed = false;
-      await _saveCache(userId, fresh);
+      await _saveCache(userId, _notifications);
       DataRefreshManager.instance.markUpdated(RefreshModules.notificaciones);
     } catch (_) {
       if (!await _isCurrentUser(userId)) return;
