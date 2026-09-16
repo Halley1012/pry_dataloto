@@ -11,6 +11,7 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/pais_helper.dart';
 
 class _CombinationGeneratorSkeleton extends StatefulWidget {
   const _CombinationGeneratorSkeleton();
@@ -1071,18 +1072,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
   }
 
   String _countryFlag(String country) {
-    final c = country.toLowerCase().trim();
-    if (c.contains('colombia')) return '🇨🇴';
-    if (c.contains('españa') || c.contains('spain')) return '🇪🇸';
-    if (c.contains('méxico') || c.contains('mexico')) return '🇲🇽';
-    if (c.contains('estados unidos') || c.contains('usa') || c.contains('united states')) return '🇺🇸';
-    if (c.contains('perú') || c.contains('peru')) return '🇵🇪';
-    if (c.contains('brasil') || c.contains('brazil')) return '🇧🇷';
-    if (c.contains('costa rica')) return '🇨🇷';
-    if (c.contains('uruguay')) return '🇺🇾';
-    if (c.contains('chile')) return '🇨🇱';
-    if (c.contains('argentina')) return '🇦🇷';
-    return '🌎';
+    return PaisHelper.getBanderaEmoji(country);
   }
 
   Widget _buildSectionContainer({

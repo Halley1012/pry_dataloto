@@ -27,26 +27,17 @@ class LotteryAvatar3D extends StatelessWidget {
 
   static Color getColorForNombre(String nombre, [Color? customColor]) {
     if (customColor != null) return customColor;
+
     final cleanName = nombre.trim().toLowerCase();
-    if (cleanName.contains("baloto") || cleanName == "bloto") return const Color(0xFF00E676);
-    if (cleanName.contains("colorloto") || cleanName == "cloto") return const Color(0xFFFF9100);
-    if (cleanName.contains("miloto") || cleanName == "mloto") return const Color(0xFF00B0FF);
-    if (cleanName.contains("bonoloto")) return const Color(0xFFFFB300);
-    if (cleanName.contains("euromillones")) return const Color(0xFF00E676);
-    if (cleanName.contains("primitiva")) return const Color(0xFF7C4DFF);
-    if (cleanName.contains("eurodreams")) return const Color(0xFF00E5FF);
-    if (cleanName.contains("megasena") || cleanName.contains("mega-sena") || cleanName.contains("sena")) return const Color(0xFF209869);
-    if (cleanName.contains("milionaria") || cleanName.contains("maismilionaria")) return const Color(0xFFFFB300);
-    if (cleanName.contains("quina")) return const Color(0xFF260085);
-    if (cleanName.contains("duplasena") || cleanName.contains("dupla_sena") || cleanName.contains("dupla")) return const Color(0xFFA51D24);
-    if (cleanName.contains("chispazo")) return const Color(0xFFFFD600);
-    if (cleanName.contains("retro") || cleanName.contains("melateretro")) return const Color(0xFFFF6D00);
-    if (cleanName.contains("melate")) return const Color(0xFFE53935);
-    if (cleanName.contains("tinka") || cleanName.contains("latinka")) return const Color(0xFFE91E63);
-    if (cleanName.contains("kabala")) return const Color(0xFFD50000);
-    if (cleanName.contains("ganadiario") || cleanName.contains("gana_diario") || cleanName.contains("gana")) return const Color(0xFF00B0FF);
-    if (cleanName.contains("5deoro") || cleanName.contains("cincodeoro") || cleanName.contains("oro")) return const Color(0xFFFFB300);
-    return _palette[cleanName.hashCode.abs() % _palette.length];
+    if (cleanName.isEmpty) return _palette.first;
+
+    // Hash determinista propio: el color no depende de una lista de nombres
+    // conocidos y una lotería nueva obtiene automáticamente un color estable.
+    var hash = 0;
+    for (final codeUnit in cleanName.codeUnits) {
+      hash = ((hash * 31) + codeUnit) & 0x7fffffff;
+    }
+    return _palette[hash % _palette.length];
   }
 
   @override
