@@ -1,4 +1,5 @@
 from datetime import datetime
+import hashlib
 from typing import Dict, Any, Optional
 from app.core import config
 from app.domain.ports import UserRepositoryPort, GooglePlayPort
@@ -65,10 +66,15 @@ class SubscriptionUseCases:
         import logging
         logger = logging.getLogger(__name__)
 
+        token_hash = hashlib.sha256(
+            purchase_token.encode("utf-8")
+        ).hexdigest()[:12]
+
         logger.info(
-            "RTDN_RECEIVED | product_id=%s | notification_type=%s",
+            "RTDN_RECEIVED | product_id=%s | notification_type=%s | token_hash=%s",
             product_id,
             notification_type,
+            token_hash,
         )
 
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
@@ -79,10 +85,11 @@ class SubscriptionUseCases:
             # una compra nueva cuando Flutter complete el flujo.
             logger.warning(
                 "[SUBSCRIPTION] event=RTDN_IGNORED metric=rtdn_unknown_token "
-                "notification_type=%s product_id=%s "
+                "notification_type=%s product_id=%s token_hash=%s "
                 "message=Purchase token is not registered; acknowledging without entitlement change.",
                 notification_type,
                 product_id,
+                token_hash,
             )
             return {
                 "success": True,
@@ -218,7 +225,17 @@ class SubscriptionUseCases:
                 is_premium = False
                 # Reconciliación defensiva delegada a mark_expired_subscriptions
                 # (usa SELECT EXISTS internamente para evitar updates innecesarios)
-                await self.user_repo.mark_expired_subscriptions(user_id)
+                reconciliation_result = await self.user_repo.mark_expired_subscriptions(
+                    user_id
+                )
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    "[SUBSCRIPTION] event=STATUS_EXPIRY_RECONCILED "
+                    "metric=status_expiry_reconciled user_id=%s expires_at=%s result=%s",
+                    user_id,
+                    expires_at,
+                    reconciliation_result,
+                )
             elif is_premium is False:
                 # No reactiva una suscripción solo por una fecha futura.
                 # La reactivación debe venir de Google Play mediante /confirm o RTDN.
