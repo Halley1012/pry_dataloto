@@ -1,5 +1,4 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from app.api import schemas, dependencies
 from app.application.auth_use_cases import AuthUseCases
 from app.core import security
@@ -110,33 +109,43 @@ async def login(req: schemas.User, use_cases: AuthUseCases = Depends(dependencie
 
 @router.post("/refresh")
 async def refresh(
-    request: Optional[schemas.RefreshTokenRequest] = None,
-    refresh_token: Optional[str] = Query(None),
+    request: schemas.RefreshTokenRequest,
     use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)
 ):
-    token = request.refresh_token if (request and request.refresh_token) else refresh_token
+    # El refresh token se acepta únicamente en el cuerpo JSON. Nunca en la URL:
+    # las URLs pueden terminar en access logs, proxies, historial o trazas.
+    token = request.refresh_token.strip()
     if not token:
         raise HTTPException(status_code=400, detail="Token de refresco no proporcionado")
+
     try:
         from jose import jwt, JWTError
         from app.core import config
+
         payload = jwt.decode(token, config.SECRET_KEY, algorithms=[config.ALGORITHM])
         user_id = payload.get("sub")
         email = payload.get("email")
-        if not user_id or not email:
+        token_type = payload.get("token_type")
+
+        if not user_id or not email or token_type != "refresh":
             raise HTTPException(status_code=401, detail="Token de refresco inválido")
-        
-        # Generar nuevo access token y refresh token
-        new_access_token = security.create_access_token(data={"sub": str(user_id), "email": email})
-        new_refresh_token = security.create_refresh_token(data={"sub": str(user_id), "email": email})
+
+        # Rotación: cada refresh devuelve un par nuevo.
+        new_access_token = security.create_access_token(
+            data={"sub": str(user_id), "email": email}
+        )
+        new_refresh_token = security.create_refresh_token(
+            data={"sub": str(user_id), "email": email}
+        )
         return {
             "success": True,
             "access_token": new_access_token,
             "refresh_token": new_refresh_token,
-            "token_type": "bearer"
+            "token_type": "bearer",
         }
-    except JWTError as e:
-        raise HTTPException(status_code=401, detail=f"Error decodificando token: {str(e)}")
+    except JWTError:
+        # No exponer detalles criptográficos del decoder al cliente.
+        raise HTTPException(status_code=401, detail="Token de refresco inválido o expirado")
 
 @router.post("/auth/forgot-password")
 async def forgot_password(
