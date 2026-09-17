@@ -1,7 +1,6 @@
 import base64
 import json
 import logging
-import os
 
 from fastapi import APIRouter, HTTPException, Depends, Request
 from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -9,6 +8,7 @@ from google.oauth2 import id_token
 
 from app.api import schemas, dependencies
 from app.application.subscription_use_cases import SubscriptionUseCases
+from app.core import config
 
 router = APIRouter(prefix="/subscriptions", tags=["Subscriptions"])
 
@@ -61,13 +61,20 @@ async def get_subscription_status(
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 
-PUBSUB_PUSH_SERVICE_ACCOUNT = "eterlotto-play-billing@dataloto.iam.gserviceaccount.com"
-PUBSUB_OIDC_AUDIENCE = os.getenv(
-    "PUBSUB_OIDC_AUDIENCE",
-    "https://pry-dataloto.onrender.com/subscriptions/rtdn",
-)
-
 def _verify_pubsub_oidc(request: Request) -> dict:
+    # Si RTDN no está configurado, fallar cerrado: nunca aceptar un token
+    # contra una audiencia/cuenta implícita de otro ambiente.
+    if not config.PUBSUB_OIDC_AUDIENCE:
+        logging.getLogger(__name__).error(
+            "[SUBSCRIPTION] event=RTDN_CONFIG_ERROR missing=PUBSUB_OIDC_AUDIENCE"
+        )
+        raise HTTPException(status_code=503, detail="RTDN no configurado")
+    if not config.PUBSUB_PUSH_SERVICE_ACCOUNT:
+        logging.getLogger(__name__).error(
+            "[SUBSCRIPTION] event=RTDN_CONFIG_ERROR missing=PUBSUB_PUSH_SERVICE_ACCOUNT"
+        )
+        raise HTTPException(status_code=503, detail="RTDN no configurado")
+
     authorization = request.headers.get("Authorization")
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Pub/Sub OIDC token")
@@ -80,7 +87,7 @@ def _verify_pubsub_oidc(request: Request) -> dict:
         claims = id_token.verify_oauth2_token(
             token,
             GoogleAuthRequest(),
-            audience=PUBSUB_OIDC_AUDIENCE,
+            audience=config.PUBSUB_OIDC_AUDIENCE,
         )
     except Exception:
         logging.exception("Invalid Pub/Sub OIDC token")
@@ -89,7 +96,7 @@ def _verify_pubsub_oidc(request: Request) -> dict:
     if claims.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
         raise HTTPException(status_code=401, detail="Invalid OIDC issuer")
 
-    if claims.get("email") != PUBSUB_PUSH_SERVICE_ACCOUNT:
+    if claims.get("email") != config.PUBSUB_PUSH_SERVICE_ACCOUNT:
         raise HTTPException(status_code=403, detail="Invalid Pub/Sub service account")
 
     if claims.get("email_verified") is not True:
