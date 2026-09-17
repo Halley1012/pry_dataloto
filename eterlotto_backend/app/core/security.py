@@ -9,12 +9,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
+def verify_password(plain_password: str, hashed_password: Optional[str]) -> bool:
+    if not hashed_password:
+        return False
+
     try:
         return pwd_context.verify(plain_password, hashed_password)
-    except Exception:
-        # Fallback si por alguna razón se guardó texto plano en BD legacy
-        return plain_password == hashed_password
+    except (ValueError, TypeError):
+        # Hash inexistente, inválido o no compatible: nunca aceptar texto plano.
+        return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
