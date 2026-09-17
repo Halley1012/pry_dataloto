@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from collections import Counter
 
-sys.path.insert(0, 'd:/pry_dataloto/modelos_ML')
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from src.latinka.scraper import LaTinkaScraper, FALLBACK_HISTORICO_500
 
 def main():

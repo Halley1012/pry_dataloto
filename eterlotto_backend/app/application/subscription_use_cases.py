@@ -1,4 +1,6 @@
 from datetime import datetime
+import hashlib
+import logging
 from typing import Dict, Any, Optional
 from app.core import config
 from app.domain.ports import UserRepositoryPort, GooglePlayPort
@@ -62,25 +64,40 @@ class SubscriptionUseCases:
         product_id: Optional[str] = None,
         notification_type: Optional[int] = None
     ) -> Dict[str, Any]:
-        import logging
         logger = logging.getLogger(__name__)
 
+        token_hash = hashlib.sha256(
+            purchase_token.encode("utf-8")
+        ).hexdigest()[:12]
+
         logger.info(
-            "RTDN_RECEIVED | product_id=%s | notification_type=%s",
+            "RTDN_RECEIVED | product_id=%s | notification_type=%s | token_hash=%s",
             product_id,
             notification_type,
+            token_hash,
         )
 
         user_id = await self.user_repo.find_user_id_by_purchase_token(purchase_token)
         if not user_id:
-            # 3.3 - Solución a la carrera RTDN vs /confirm
-            # Al lanzar una excepción, el webhook devuelve HTTP 500 a Google Pub/Sub.
-            # Pub/Sub aplicará backoff exponencial y reintentará la entrega.
-            # Para cuando reintente, es casi seguro que Flutter ya habrá llamado a /confirm.
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning("[SUBSCRIPTION] event=RTDN_WARNING metric=rtdn_retries_requested message=Token not found. Deferring processing for Pub/Sub retry.")
-            raise RuntimeError("purchase_token_not_found: deferred processing")
+            # Este era el comportamiento de la última versión estable de RTDN:
+            # un token aún no asociado a un usuario no debe provocar reintentos
+            # infinitos de Pub/Sub. /confirm se encargará de verificar y persistir
+            # una compra nueva cuando Flutter complete el flujo.
+            logger.warning(
+                "[SUBSCRIPTION] event=RTDN_IGNORED metric=rtdn_unknown_token "
+                "notification_type=%s product_id=%s token_hash=%s "
+                "message=Purchase token is not registered; acknowledging without entitlement change.",
+                notification_type,
+                product_id,
+                token_hash,
+            )
+            return {
+                "success": True,
+                "ignored": True,
+                "reason": "purchase_token_not_registered",
+                "notification_type": notification_type,
+                "product_id": product_id,
+            }
 
         resolved_product_id = product_id or list(config.ALLOWED_PRODUCTS)[0]
         if resolved_product_id not in config.ALLOWED_PRODUCTS:
@@ -208,7 +225,17 @@ class SubscriptionUseCases:
                 is_premium = False
                 # Reconciliación defensiva delegada a mark_expired_subscriptions
                 # (usa SELECT EXISTS internamente para evitar updates innecesarios)
-                await self.user_repo.mark_expired_subscriptions(user_id)
+                reconciliation_result = await self.user_repo.mark_expired_subscriptions(
+                    user_id
+                )
+                logger = logging.getLogger(__name__)
+                logger.info(
+                    "[SUBSCRIPTION] event=STATUS_EXPIRY_RECONCILED "
+                    "metric=status_expiry_reconciled user_id=%s expires_at=%s result=%s",
+                    user_id,
+                    expires_at,
+                    reconciliation_result,
+                )
             elif is_premium is False:
                 # No reactiva una suscripción solo por una fecha futura.
                 # La reactivación debe venir de Google Play mediante /confirm o RTDN.

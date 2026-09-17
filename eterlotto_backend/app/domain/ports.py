@@ -100,6 +100,18 @@ class UserRepositoryPort(ABC):
     async def find_current_subscription(self, user_id: int) -> Optional[Dict[str, Any]]:
         pass
 
+    @abstractmethod
+    async def set_fcm_token(self, user_id: int, fcm_token: str) -> bool:
+        pass
+
+    @abstractmethod
+    async def clear_fcm_token(
+        self,
+        user_id: int,
+        expected_token: Optional[str] = None
+    ) -> bool:
+        pass
+
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
@@ -289,11 +301,30 @@ class EmailSenderPort(ABC):
 
 class NotificationRepositoryPort(ABC):
     @abstractmethod
-    async def create_notification(self, loteria_id: Optional[int], fecha_sorteo: Optional[datetime], mensaje: str, tipo: str, user_id: Optional[int] = None) -> Dict[str, Any]:
+    async def create_notification(
+        self,
+        loteria_id: Optional[int],
+        fecha_sorteo: Optional[datetime],
+        mensaje: str,
+        tipo: str,
+        user_id: Optional[int] = None
+    ) -> Dict[str, Any]:
         pass
 
     @abstractmethod
-    async def list_notifications(self, user_id: Optional[int] = None, limit: int = 20) -> List[Dict[str, Any]]:
+    async def list_notifications(
+        self,
+        user_id: Optional[int] = None,
+        limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def list_push_targets(
+        self,
+        loteria_id: Optional[int],
+        user_id: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -301,7 +332,23 @@ class NotificationRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def delete_notification(self, notification_id: int, user_id: Optional[int] = None) -> bool:
+    async def delete_notification(
+        self,
+        notification_id: int,
+        user_id: Optional[int] = None
+    ) -> bool:
+        pass
+
+
+class PushNotificationPort(ABC):
+    @abstractmethod
+    async def send(
+        self,
+        token: str,
+        title: str,
+        body: str,
+        data: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         pass
 
 

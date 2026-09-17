@@ -1,33 +1,39 @@
-import os
+"""Fachada compatible para la conexión PostgreSQL de los procesos ML."""
+
 from sqlalchemy import create_engine
+from sqlalchemy.engine import URL
 from sqlalchemy.pool import NullPool
-from dotenv import load_dotenv
 
-# Cargar variables de entorno desde el archivo .env
-# Buscaremos el .env en el directorio actual o en la raíz de modelos_ML
-base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-dotenv_path = os.path.join(base_dir, ".env")
-load_dotenv(dotenv_path)
+from config.settings import settings
 
-PGHOST = os.getenv("PGHOST")
-PGDATABASE = os.getenv("PGDATABASE")
-PGUSER = os.getenv("PGUSER")
-PGPASSWORD = os.getenv("PGPASSWORD")
-PGPORT = os.getenv("PGPORT", "5432")
-PGSSLMODE = os.getenv("PGSSLMODE", "require")
 
-# Validación estricta para no dejar credenciales expuestas por defecto en el código
-if not all([PGHOST, PGDATABASE, PGUSER, PGPASSWORD]):
-    raise RuntimeError(
-        "❌ Faltan configurar variables de entorno críticas en el archivo .env (PGHOST, PGDATABASE, PGUSER, PGPASSWORD)"
+def _connection_url() -> str | URL:
+    """Construye una URL sin interpolar ni exponer la contraseña manualmente."""
+    settings.validate_database_configuration()
+
+    if settings.database_url:
+        return settings.database_url
+
+    return URL.create(
+        "postgresql+psycopg2",
+        username=settings.pg_user,
+        password=settings.pg_password,
+        host=settings.pg_host,
+        port=int(settings.pg_port),
+        database=settings.pg_database,
+        query={"sslmode": settings.pg_sslmode},
     )
 
-connection_string = f'postgresql+psycopg2://{PGUSER}:{PGPASSWORD}@{PGHOST}:{PGPORT}/{PGDATABASE}?sslmode={PGSSLMODE}'
+
+# Se conserva el nombre para compatibilidad con cualquier ejecución externa.
+connection_string = _connection_url()
 engine = create_engine(
     connection_string,
     poolclass=NullPool,
-    pool_pre_ping=True
+    pool_pre_ping=True,
 )
 
+
 def get_engine():
+    """Devuelve el motor SQLAlchemy compartido por scrapers y predictores."""
     return engine

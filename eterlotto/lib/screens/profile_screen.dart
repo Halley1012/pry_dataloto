@@ -11,6 +11,7 @@ import 'package:eterlotto/screens/login.dart';
 import 'package:eterlotto/screens/misanuncios.dart';
 import 'package:eterlotto/screens/welcome.dart';
 import 'package:eterlotto/services/api_service.dart';
+import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
@@ -307,6 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           TextButton(
             onPressed: () async {
               context.read<SubscriptionProvider>().reset();
+              await PushNotificationService.unregisterToken();
               await storage.deleteAll();
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
@@ -805,6 +807,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       );
 
+      await PushNotificationService.unregisterToken();
       await ApiService.deleteUser(int.parse(userId!));
 
       if (!mounted) return;
