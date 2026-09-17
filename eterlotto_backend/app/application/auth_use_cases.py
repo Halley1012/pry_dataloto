@@ -139,11 +139,6 @@ class AuthUseCases:
         if user.get("activo") is False:
             raise ValueError("Tu cuenta ha sido desactivada o suspendida. Por favor contacta a soporte.")
 
-        # 🔒 Auto-migrar la contraseña a Bcrypt si estaba guardada en texto plano
-        if user["password_hashed"] == password:
-            new_hash = security.hash_password(password)
-            await self.user_repo.update(user["id"], {"password_hashed": new_hash})
-
         # 🕒 Actualizar último inicio de sesión
         await self.user_repo.update_last_login(user["id"])
 
