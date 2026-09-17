@@ -143,6 +143,6 @@ def get_app_config():
     return {
         "success": True,
         "min_build_number": min_build,
-        "store_url_android": f"https://play.google.com/store/apps/details?id={config.PACKAGE_NAME}",
-        "store_url_ios": "https://apps.apple.com/app/id_aqui_si_tienes"
+        "store_url_android": config.STORE_URL_ANDROID,
+        "store_url_ios": config.STORE_URL_IOS,
     }
