@@ -440,6 +440,8 @@ class _LoginPageState extends State<LoginPage> {
     bool dialogLoading = false;
     bool obscureNewPassword = true;
     bool obscureConfirmPassword = true;
+    String? dialogNotice;
+    bool dialogNoticeIsError = false;
 
     showDialog(
       context: context,
@@ -471,6 +473,51 @@ class _LoginPageState extends State<LoginPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (dialogNotice != null) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          decoration: BoxDecoration(
+                            color: dialogNoticeIsError
+                                ? Colors.redAccent.withAlpha(18)
+                                : AppColors.yellow.withAlpha(18),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: dialogNoticeIsError
+                                  ? Colors.redAccent.withAlpha(90)
+                                  : AppColors.yellow.withAlpha(90),
+                              width: 1,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                dialogNoticeIsError
+                                    ? Icons.error_outline_rounded
+                                    : Icons.check_circle_outline_rounded,
+                                size: 18,
+                                color: dialogNoticeIsError
+                                    ? Colors.redAccent
+                                    : AppColors.yellow,
+                              ),
+                              const SizedBox(width: 9),
+                              Expanded(
+                                child: Text(
+                                  dialogNotice!,
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: dialogNoticeIsError
+                                        ? Colors.redAccent
+                                        : Colors.white70,
+                                  ),
+                                  textAlign: TextAlign.left,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                      ],
                       Text(
                         titleText,
                         style: AppTextStyles.tituloPrincipal,
@@ -690,30 +737,62 @@ class _LoginPageState extends State<LoginPage> {
                                 // ACCIÓN PASO 1: Enviar código al correo
                                 if (step == 1) {
                                   if (email.isEmpty || !email.contains('@')) {
-                                    showEterSnackBar(context, message: "Ingresa un correo electrónico válido", isError: true);
+                                    setDialogState(() {
+                                      dialogNotice = "Ingresa un correo electrónico válido";
+                                      dialogNoticeIsError = true;
+                                    });
                                     return;
                                   }
-                                  setDialogState(() => dialogLoading = true);
-                                  final success = await _requestResetCode(email);
+                                  setDialogState(() {
+                                    dialogLoading = true;
+                                    dialogNotice = null;
+                                  });
+                                  final error = await _requestResetCode(email);
+                                  if (!dialogCtx.mounted) return;
                                   setDialogState(() => dialogLoading = false);
-                                  if (success) {
+                                  if (error == null) {
                                     FocusManager.instance.primaryFocus?.unfocus();
-                                    setDialogState(() => step = 2);
+                                    setDialogState(() {
+                                      step = 2;
+                                      dialogNotice = "Código enviado correctamente a $email";
+                                      dialogNoticeIsError = false;
+                                    });
+                                  } else {
+                                    setDialogState(() {
+                                      dialogNotice = error;
+                                      dialogNoticeIsError = true;
+                                    });
                                   }
                                 }
                                 // ACCIÓN PASO 2: Validar el PIN de 6 dígitos antes de pedir contraseña
                                 else if (step == 2) {
                                   final code = dialogCodeController.text.trim();
                                   if (code.length != 6) {
-                                    showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                                    setDialogState(() {
+                                      dialogNotice = "Ingresa los 6 dígitos del código";
+                                      dialogNoticeIsError = true;
+                                    });
                                     return;
                                   }
-                                  setDialogState(() => dialogLoading = true);
-                                  final isValid = await _verifyResetCode(email, code);
+                                  setDialogState(() {
+                                    dialogLoading = true;
+                                    dialogNotice = null;
+                                  });
+                                  final error = await _verifyResetCode(email, code);
+                                  if (!dialogCtx.mounted) return;
                                   setDialogState(() => dialogLoading = false);
-                                  if (isValid) {
+                                  if (error == null) {
                                     FocusManager.instance.primaryFocus?.unfocus();
-                                    setDialogState(() => step = 3);
+                                    setDialogState(() {
+                                      step = 3;
+                                      dialogNotice = null;
+                                      dialogNoticeIsError = false;
+                                    });
+                                  } else {
+                                    setDialogState(() {
+                                      dialogNotice = error;
+                                      dialogNoticeIsError = true;
+                                    });
                                   }
                                 }
                                 // ACCIÓN PASO 3: Guardar la nueva contraseña
@@ -723,22 +802,44 @@ class _LoginPageState extends State<LoginPage> {
                                   final confirmPwd = dialogConfirmPasswordController.text.trim();
 
                                   if (newPwd.length < 6) {
-                                    showEterSnackBar(context, message: "La contraseña debe tener al menos 6 caracteres", isError: true);
+                                    setDialogState(() {
+                                      dialogNotice = "La contraseña debe tener al menos 6 caracteres";
+                                      dialogNoticeIsError = true;
+                                    });
                                     return;
                                   }
                                   if (newPwd != confirmPwd) {
-                                    showEterSnackBar(context, message: "Las contraseñas no coinciden", isError: true);
+                                    setDialogState(() {
+                                      dialogNotice = "Las contraseñas no coinciden";
+                                      dialogNoticeIsError = true;
+                                    });
                                     return;
                                   }
 
-                                  setDialogState(() => dialogLoading = true);
-                                  final success = await _submitNewPassword(email, code, newPwd);
+                                  setDialogState(() {
+                                    dialogLoading = true;
+                                    dialogNotice = null;
+                                  });
+                                  final error = await _submitNewPassword(email, code, newPwd);
+                                  if (!dialogCtx.mounted) return;
                                   setDialogState(() => dialogLoading = false);
-                                  if (success && dialogCtx.mounted) {
+                                  if (error == null) {
                                     FocusManager.instance.primaryFocus?.unfocus();
                                     Navigator.pop(dialogCtx);
                                     _emailController.text = email;
                                     _passwordController.text = newPwd;
+                                    if (mounted) {
+                                      showEterSnackBar(
+                                        this.context,
+                                        message: "¡Contraseña actualizada! Ya puedes iniciar sesión.",
+                                        isSuccess: true,
+                                      );
+                                    }
+                                  } else {
+                                    setDialogState(() {
+                                      dialogNotice = error;
+                                      dialogNoticeIsError = true;
+                                    });
                                   }
                                 }
                               },
@@ -752,9 +853,25 @@ class _LoginPageState extends State<LoginPage> {
                         TextButton(
                           onPressed: dialogLoading
                               ? null
-                              : () {
+                              : () async {
                                   FocusManager.instance.primaryFocus?.unfocus();
-                                  setDialogState(() => step = 1);
+                                  final email = dialogEmailController.text.trim();
+                                  setDialogState(() {
+                                    dialogLoading = true;
+                                    dialogNotice = null;
+                                  });
+                                  final error = await _requestResetCode(email);
+                                  if (!dialogCtx.mounted) return;
+                                  setDialogState(() {
+                                    dialogLoading = false;
+                                    if (error == null) {
+                                      dialogNotice = "Código reenviado correctamente a $email";
+                                      dialogNoticeIsError = false;
+                                    } else {
+                                      dialogNotice = error;
+                                      dialogNoticeIsError = true;
+                                    }
+                                  });
                                 },
                           child: Text(
                             "¿No recibiste el código? Volver a enviar",
@@ -773,8 +890,10 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Validar código PIN de 6 dígitos con el backend
-  Future<bool> _verifyResetCode(String email, String code) async {
+  // Validar código PIN de 6 dígitos con el backend.
+  // Retorna null si fue correcto; si falla, retorna el mensaje para mostrar
+  // dentro del mismo diálogo (evita SnackBars detrás del modal).
+  Future<String?> _verifyResetCode(String email, String code) async {
     final url = Uri.parse('${ApiService.baseUrl}/auth/verify-reset-code');
     try {
       final response = await http.post(
@@ -787,31 +906,23 @@ class _LoginPageState extends State<LoginPage> {
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        if (mounted) {
-          showEterSnackBar(
-            context,
-            message: "Código verificado correctamente ✅",
-            isSuccess: true,
-          );
-        }
-        return true;
-      } else {
-        String errorMsg = "Código incorrecto o expirado";
-        try {
-          final data = jsonDecode(response.body);
-          if (data['detail'] != null) errorMsg = data['detail'].toString();
-        } catch (_) {}
-        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
-        return false;
+        return null;
       }
+
+      String errorMsg = "Código incorrecto o expirado";
+      try {
+        final data = jsonDecode(response.body);
+        if (data['detail'] != null) errorMsg = data['detail'].toString();
+      } catch (_) {}
+      return errorMsg;
     } catch (e) {
-      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
-      return false;
+      return "Error de conexión: $e";
     }
   }
 
-  // Solicitar código PIN de recuperación
-  Future<bool> _requestResetCode(String email) async {
+  // Solicitar código PIN de recuperación.
+  // Retorna null si fue enviado; si falla, retorna el mensaje para el modal.
+  Future<String?> _requestResetCode(String email) async {
     final url = Uri.parse('${ApiService.baseUrl}/auth/forgot-password');
     try {
       final response = await http.post(
@@ -821,31 +932,23 @@ class _LoginPageState extends State<LoginPage> {
       ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
-        if (mounted) {
-          showEterSnackBar(
-            context,
-            message: "Código de 6 dígitos enviado a $email",
-            isSuccess: true,
-          );
-        }
-        return true;
-      } else {
-        String errorMsg = "Error al solicitar código";
-        try {
-          final data = jsonDecode(response.body);
-          if (data['detail'] != null) errorMsg = data['detail'].toString();
-        } catch (_) {}
-        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
-        return false;
+        return null;
       }
+
+      String errorMsg = "Error al solicitar código";
+      try {
+        final data = jsonDecode(response.body);
+        if (data['detail'] != null) errorMsg = data['detail'].toString();
+      } catch (_) {}
+      return errorMsg;
     } catch (e) {
-      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
-      return false;
+      return "Error de conexión: $e";
     }
   }
 
-  // Restablecer contraseña con código PIN
-  Future<bool> _submitNewPassword(String email, String code, String newPassword) async {
+  // Restablecer contraseña con código PIN.
+  // Retorna null si fue correcto; si falla, retorna el mensaje para el modal.
+  Future<String?> _submitNewPassword(String email, String code, String newPassword) async {
     final url = Uri.parse('${ApiService.baseUrl}/auth/reset-password');
     try {
       final response = await http.post(
@@ -859,28 +962,20 @@ class _LoginPageState extends State<LoginPage> {
       ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
-        if (mounted) {
-          showEterSnackBar(
-            context,
-            message: "¡Contraseña actualizada! Ya puedes iniciar sesión.",
-            isSuccess: true,
-          );
-        }
-        return true;
-      } else {
-        String errorMsg = "Código inválido o expirado";
-        try {
-          final data = jsonDecode(response.body);
-          if (data['detail'] != null) errorMsg = data['detail'].toString();
-        } catch (_) {}
-        if (mounted) showEterSnackBar(context, message: errorMsg, isError: true);
-        return false;
+        return null;
       }
+
+      String errorMsg = "Código inválido o expirado";
+      try {
+        final data = jsonDecode(response.body);
+        if (data['detail'] != null) errorMsg = data['detail'].toString();
+      } catch (_) {}
+      return errorMsg;
     } catch (e) {
-      if (mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
-      return false;
+      return "Error de conexión: $e";
     }
   }
+
 
   @override
   void dispose() {
