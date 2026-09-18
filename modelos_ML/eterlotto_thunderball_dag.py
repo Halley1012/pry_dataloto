@@ -20,6 +20,9 @@ configure_airflow_runtime(MODELOS_ML_DIR)
 def ejecutar_thunderball():
     from main_thunderball import main as main_thunderball
     main_thunderball()
+    # ETERLOTTO_CACHE_INVALIDATION_V1
+    from config.backend_cache_invalidation import invalidar_cache_backend
+    invalidar_cache_backend()
 
 
 def enviar_notificacion_exito():

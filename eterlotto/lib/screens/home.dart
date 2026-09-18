@@ -157,7 +157,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onDataRefreshNotification() {
     final module = DataRefreshManager.instance.refreshNotifier.value;
-    if (module == RefreshModules.home || module == 'all') {
+    if (module == RefreshModules.home ||
+        module == RefreshModules.loterias ||
+        module == 'all') {
       if (mounted) {
         _loadUserAndData(forceRefresh: false);
       }
@@ -206,6 +208,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadUserAndDataInternal({bool forceRefresh = false}) async {
     try {
+      if (forceRefresh) {
+        await CacheService.invalidateLotteryCatalogCaches();
+      }
+
       // SubscriptionProvider hidrata y valida el plan por cuenta al iniciar y
       // tras login. Home no dispara una segunda consulta redundante.
 
@@ -494,6 +500,12 @@ class _HomeScreenState extends State<HomeScreen>
       ]);
       if (refreshedFromNetwork) {
         DataRefreshManager.instance.markUpdated(RefreshModules.home);
+      }
+      if (networkLoterias != null || networkGlobal != null) {
+        DataRefreshManager.instance.markUpdated(RefreshModules.loterias);
+        if (forceRefresh) {
+          DataRefreshManager.instance.requestRefresh(RefreshModules.loterias);
+        }
       }
     } catch (_) {
       if (!mounted) return;

@@ -20,6 +20,9 @@ configure_airflow_runtime(MODELOS_ML_DIR)
 def ejecutar_lotto_fr():
     from main_lotto_fr import main as main_lotto_fr
     main_lotto_fr()
+    # ETERLOTTO_CACHE_INVALIDATION_V1
+    from config.backend_cache_invalidation import invalidar_cache_backend
+    invalidar_cache_backend()
 
 
 def enviar_notificacion_exito():

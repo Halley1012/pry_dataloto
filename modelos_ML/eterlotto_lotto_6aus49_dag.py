@@ -19,6 +19,9 @@ configure_airflow_runtime(MODELOS_ML_DIR)
 def ejecutar_lotto_6aus49():
     from main_lotto_6aus49 import main as main_lotto_6aus49
     main_lotto_6aus49()
+    # ETERLOTTO_CACHE_INVALIDATION_V1
+    from config.backend_cache_invalidation import invalidar_cache_backend
+    invalidar_cache_backend()
 
 def enviar_notificacion_exito():
     return send_email_notification(

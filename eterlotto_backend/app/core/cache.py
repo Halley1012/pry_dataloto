@@ -3,6 +3,8 @@ import functools
 import inspect
 from typing import Any, Callable, Dict, Optional, Tuple
 
+_data_version = int(time.time() * 1000)
+
 class MemoryTTLCache:
     """
     Caché en memoria RAM de alta velocidad con expiración por TTL (Time-To-Live).
@@ -59,6 +61,20 @@ def invalidate_keys(*keys: str):
     """
     for key in keys:
         memory_cache.delete(key)
+
+
+
+def get_data_version() -> int:
+    """Versión en memoria de los datos dinámicos publicados por Airflow."""
+    return _data_version
+
+
+def bump_data_version() -> int:
+    """Cambia la versión de datos de forma monótona y devuelve el nuevo valor."""
+    global _data_version
+    now_ms = int(time.time() * 1000)
+    _data_version = max(_data_version + 1, now_ms)
+    return _data_version
 
 
 def cached(ttl: int = 300, prefix: Optional[str] = None):
