@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
@@ -51,6 +52,12 @@ class DataRefreshManager with WidgetsBindingObserver {
   final ValueNotifier<String?> refreshNotifier = ValueNotifier<String?>(null);
 
   DateTime? _pausedTimestamp;
+
+  void _devLog(String message) {
+    if (kDebugMode) {
+      debugPrint(message);
+    }
+  }
 
   void initialize() {
     if (_isInitialized) return;
@@ -115,27 +122,43 @@ class DataRefreshManager with WidgetsBindingObserver {
     _checkingServerVersion = true;
 
     try {
+      _devLog('[DATA VERSION] comprobando servidor...');
+
       final remoteVersion = await ApiService.getDataVersion();
-      if (remoteVersion == null) return;
+      if (remoteVersion == null) {
+        _devLog('[DATA VERSION] remote=null -> no se refresca');
+        return;
+      }
 
       final localVersion = await CacheService.getServerDataVersion();
+
+      _devLog('[DATA VERSION] local=$localVersion');
+      _devLog('[DATA VERSION] remote=$remoteVersion');
 
       // Migración de instalaciones que todavía no conocían data-version:
       // limpiamos una sola vez para no heredar el catálogo de 12 horas.
       if (localVersion == null) {
+        _devLog('[CACHE] sin version local -> invalidando catalogos dinamicos');
         await CacheService.invalidateLotteryCatalogCaches();
         await CacheService.setServerDataVersion(remoteVersion);
+        _devLog('[CACHE] version local inicializada=$remoteVersion');
+        _devLog('[CACHE] enviando refresh global de loterias');
         requestRefresh(RefreshModules.loterias);
         return;
       }
 
       if (remoteVersion != localVersion) {
+        _devLog('[CACHE] CAMBIO DETECTADO $localVersion -> $remoteVersion');
+        _devLog('[CACHE] invalidando catalogos de loterias');
         await CacheService.invalidateLotteryCatalogCaches();
         await CacheService.setServerDataVersion(remoteVersion);
 
         // Todas las pantallas activas reciben la misma señal. Las que no estén
         // montadas encontrarán la caché invalidada cuando se abran.
+        _devLog('[CACHE] refrescando Home / Explorar / Resultados');
         requestRefresh(RefreshModules.loterias);
+      } else {
+        _devLog('[DATA VERSION] sin cambios');
       }
     } finally {
       _checkingServerVersion = false;
