@@ -163,6 +163,29 @@ class NotificationUseCases:
         )
 
         notification = created.get("notification") or {}
+
+        # Si PostgreSQL rechazó el INSERT por la restricción UNIQUE del
+        # evento, no se vuelve a enviar FCM. Así la idempotencia cubre tanto
+        # el buzón interno como la notificación física del dispositivo.
+        if not created.get("created", True) or not notification:
+            logger.info(
+                "[NOTIFICATIONS] event=NOTIFICATION_DUPLICATE_SKIPPED loteria_id=%s user_id=%s tipo=%s fecha=%s",
+                loteria_id,
+                user_id,
+                tipo,
+                fecha,
+            )
+            return {
+                **created,
+                "push": {
+                    "targets": 0,
+                    "sent": 0,
+                    "failed": 0,
+                    "invalid_tokens": 0,
+                    "skipped_duplicate": True,
+                },
+            }
+
         notification_id = int(notification["id"])
 
         logger.info(
