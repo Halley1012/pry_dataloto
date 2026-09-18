@@ -1,9 +1,10 @@
 from app.core import config
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from typing import List, Optional
+import secrets
 from app.api import schemas, dependencies
 from app.application.publicidad_use_cases import PublicidadUseCases
-from app.core.cache import memory_cache
+from app.core.cache import memory_cache, invalidate_cache, get_data_version, bump_data_version
 
 router = APIRouter()
 
@@ -129,6 +130,40 @@ def listar_loterias(
             detail="Error interno del servidor",
         )
 
+
+@router.get("/metadata/data-version")
+def get_dynamic_data_version():
+    """Marca liviana para que Flutter detecte publicaciones nuevas sin tocar BD."""
+    return {"version": get_data_version()}
+
+
+@router.post("/internal/cache/invalidate")
+def invalidate_dynamic_cache(
+    x_internal_key: Optional[str] = Header(None, alias="X-Internal-Key"),
+):
+    """Invalidación interna llamada por Airflow al terminar un modelo."""
+    expected = config.NOTIFICATION_INTERNAL_KEY
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Clave interna no configurada",
+        )
+
+    if not x_internal_key or not secrets.compare_digest(
+        x_internal_key,
+        expected,
+    ):
+        raise HTTPException(status_code=403, detail="Clave interna inválida")
+
+    # Las ejecuciones de modelos son poco frecuentes. Limpiar la caché RAM
+    # completa aquí evita inconsistencias entre catálogo, resultados,
+    # predicciones y jackpot; se vuelve a poblar de forma natural.
+    invalidate_cache()
+    version = bump_data_version()
+    return {
+        "success": True,
+        "version": version,
+    }
 
 
 import os

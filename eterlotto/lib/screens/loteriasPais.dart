@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/services/cache_service.dart';
+import 'package:eterlotto/services/data_refresh_manager.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
@@ -41,20 +42,37 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   @override
   void initState() {
     super.initState();
+    DataRefreshManager.instance.refreshNotifier.addListener(
+      _onDataRefreshNotification,
+    );
     _cargarExplorarMundial();
   }
 
   @override
   void dispose() {
+    DataRefreshManager.instance.refreshNotifier.removeListener(
+      _onDataRefreshNotification,
+    );
     _searchController.dispose();
     _fabPositionNotifier.dispose();
     super.dispose();
+  }
+
+  void _onDataRefreshNotification() {
+    final module = DataRefreshManager.instance.refreshNotifier.value;
+    if ((module == RefreshModules.loterias || module == 'all') && mounted) {
+      _cargarExplorarMundial(forceRefresh: false);
+    }
   }
 
   Future<void> _cargarExplorarMundial({bool forceRefresh = false}) async {
     if (!mounted) return;
 
     final uCountry = await _storage.read(key: 'pais_nombre');
+
+    if (forceRefresh) {
+      await CacheService.invalidateLotteryCatalogCaches();
+    }
 
     final fresh = forceRefresh
         ? null
@@ -137,6 +155,10 @@ class _LoteriasPaisState extends State<LoteriasPais> {
           _showingStaleData = false;
         });
         await CacheService.setJson('explorar_loterias_mundial', todas);
+        DataRefreshManager.instance.markUpdated(RefreshModules.loterias);
+        if (forceRefresh) {
+          DataRefreshManager.instance.requestRefresh(RefreshModules.loterias);
+        }
       } else if (_loterias.isNotEmpty && loteriasNetworkFailure) {
         setState(() {
           _isLoading = false;

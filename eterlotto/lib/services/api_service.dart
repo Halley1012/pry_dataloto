@@ -2133,6 +2133,29 @@ class ApiService {
     }
   }
 
+  /// Versión liviana de los datos dinámicos del backend.
+  /// No consulta Supabase: sirve para detectar que Airflow publicó datos
+  /// nuevos y sólo entonces invalidar las cachés locales.
+  static Future<int?> getDataVersion() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/metadata/data-version'),
+            headers: await _getHeaders(withAuth: false),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      final raw = decoded['version'];
+      if (raw is int) return raw;
+      return int.tryParse(raw?.toString() ?? '');
+    } catch (_) {
+      return null;
+    }
+  }
+
   /////////////////////////// Loterias ////////////////////////////
 
   /// 📋 Consulta interna de loterías.
