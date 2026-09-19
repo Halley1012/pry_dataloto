@@ -36,6 +36,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 INSERT INTO notificaciones
                     (usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, leido, created_at)
                 VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP)
+                ON CONFLICT DO NOTHING
                 RETURNING id, usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, created_at
                 """,
                 user_id,
@@ -44,8 +45,23 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 mensaje,
                 tipo,
             )
+
+            # Los índices UNIQUE parciales de notificaciones son la última
+            # barrera de idempotencia. Si otra ejecución publicó el mismo
+            # evento en paralelo, PostgreSQL no inserta una segunda fila.
+            if row is None:
+                return {
+                    "success": True,
+                    "created": False,
+                    "duplicate": True,
+                    "message": "Notificación ya existente",
+                    "notification": None,
+                }
+
             return {
                 "success": True,
+                "created": True,
+                "duplicate": False,
                 "message": "Notificación creada",
                 "notification": dict(row),
             }

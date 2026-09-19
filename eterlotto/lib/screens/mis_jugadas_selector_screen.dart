@@ -242,7 +242,28 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
       final cachedMapeo = await CacheService.getJson(
         CacheService.catalogoLoteriasKey,
       );
-      if (cachedMapeo is List && cachedMapeo.isNotEmpty) {
+
+      // El catálogo de loterías y el catálogo de países son cachés
+      // independientes. Antes se retornaba aquí apenas existía el catálogo
+      // de loterías, dejando _paises vacío para siempre y mostrando
+      // "Cargando..." como encabezado de país.
+      final cachedPaises = await CacheService.getStaleJson(
+        'paises_list_cache',
+      );
+      if (cachedPaises is List && cachedPaises.isNotEmpty) {
+        _paises = cachedPaises
+            .whereType<Map>()
+            .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
+
+      // Solo podemos retornar inmediatamente si también conocemos los países.
+      // Si falta ese catálogo, continuamos al Future.wait de abajo para
+      // recuperarlo desde ApiService.getPaises() sin perder la caché de
+      // loterías que ya puede estar mostrándose en pantalla.
+      if (cachedMapeo is List &&
+          cachedMapeo.isNotEmpty &&
+          _paises.isNotEmpty) {
         return List<Map<String, dynamic>>.from(cachedMapeo);
       }
     }

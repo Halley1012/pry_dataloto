@@ -351,15 +351,18 @@ class NotificationGenerator:
         max_white = catalog.get("max_balotas_blancas")
         try:
             if max_white is not None and int(max_white) > 0:
+                # Fallback de compatibilidad. La fuente canónica es
+                # loterias.top_probables_count; si aún no está configurada,
+                # usamos división entera para coincidir con ResultadosScreen.
                 return min(
-                    int(math.ceil(int(max_white) / 2)),
+                    max(1, int(max_white) // 2),
                     len(pred_nums),
                 )
         except (TypeError, ValueError):
             pass
 
-        # Último fallback técnico: usa la mitad del ranking realmente guardado.
-        return max(1, int(math.ceil(len(pred_nums) / 2)))
+        # Último fallback técnico: usa la mitad entera del ranking guardado.
+        return max(1, len(pred_nums) // 2)
 
     # ------------------------------------------------------------------
     # Jugadas de usuario
@@ -427,6 +430,13 @@ class NotificationGenerator:
                 tipo=tipo,
                 user_id=int(user_id),
             )
+            if result.get("created") is False or result.get("duplicate") is True:
+                print(
+                    "ℹ️ Resultado de jugada ya publicado; backend omitió duplicado "
+                    f"| user_id={user_id} | loteria_id={loteria_id} | fecha={fecha}"
+                )
+                return False
+
             push = result.get("push") or {}
             print(
                 "✅ Resultado de jugada notificado "
@@ -588,6 +598,13 @@ class NotificationGenerator:
                 mensaje=mensaje,
                 tipo=tipo,
             )
+
+            if result.get("created") is False or result.get("duplicate") is True:
+                print(
+                    "ℹ️ Backend omitió notificación duplicada "
+                    f"({tipo}) | loteria_id={loteria_id} | fecha={fecha}"
+                )
+                return False
 
             push = result.get("push") or {}
             print(

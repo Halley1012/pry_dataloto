@@ -61,15 +61,12 @@ void main() {
       unawaited(AdService.instance.initialize());
     },
 
-    (error, _) {
-      if (error.toString().contains("401") ||
-          error.toString().contains("Token inválido")) {
-        // Si el token está inválido → limpiar stack y mandar a Login
-        navigatorKey.currentState?.pushNamedAndRemoveUntil(
-          '/login',
-          (route) => false,
-        );
-      }
+    (error, stackTrace) {
+      // Los 401 se resuelven de forma centralizada en ApiService:
+      // refresh silencioso o, sólo si el refresh expiró, sesión vencida.
+      // No navegar por coincidencias de texto desde el manejador global, ya
+      // que un error ajeno a autenticación podría contener "401".
+      debugPrint('[APP] Unhandled error: ${error.runtimeType}');
     },
   );
 }

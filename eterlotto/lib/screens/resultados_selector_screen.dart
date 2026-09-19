@@ -69,7 +69,9 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
 
   void _onDataRefreshNotification() {
     final module = DataRefreshManager.instance.refreshNotifier.value;
-    if (module == RefreshModules.resultados || module == 'all') {
+    if (module == RefreshModules.resultados ||
+        module == RefreshModules.loterias ||
+        module == 'all') {
       if (mounted) {
         cargarLoterias(forceRefresh: false);
       }
@@ -82,6 +84,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
     final uCountry = await _storage.read(key: 'pais_nombre') ?? "Internacional";
     final uCountryId = await _storage.read(key: 'pais_id');
     final userId = await _storage.read(key: 'user_id');
+
+    if (forceRefresh) {
+      await CacheService.invalidateLotteryCatalogCaches();
+    }
 
     // Los resultados son públicos; la información de jugadas usada para
     // decidir Recientes/Historial sí es privada y se aísla por usuario.
@@ -201,6 +207,10 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
       }
       if (!_catalogFetchFailed) {
         DataRefreshManager.instance.markUpdated(RefreshModules.resultados);
+        DataRefreshManager.instance.markUpdated(RefreshModules.loterias);
+        if (forceRefresh) {
+          DataRefreshManager.instance.requestRefresh(RefreshModules.loterias);
+        }
       }
     } catch (_) {
       if (!mounted) return;

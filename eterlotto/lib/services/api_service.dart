@@ -6,9 +6,12 @@ import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
+import 'package:eterlotto/services/session_expired_handler.dart';
 
 import '../utils/secure_storage_helper.dart';
 import '../config/app_config.dart';
+
+enum _TokenRefreshResult { success, expired, temporaryFailure }
 
 class ApiService {
   static String get baseUrl => AppConfig.baseUrl;
@@ -16,7 +19,8 @@ class ApiService {
 
   static const Duration _requestTimeout = Duration(seconds: 10);
   static const Duration _refreshTimeout = Duration(seconds: 6);
-  static Future<bool>? _refreshFuture;
+  static Future<_TokenRefreshResult>? _refreshFuture;
+  static Future<void>? _sessionExpiryFuture;
   static final Map<String, Future<List<dynamic>>> _loteriasInFlight = {};
   static final Map<String, Future<Map<String, Map<String, dynamic>>>>
       _jugadasInfoInFlight = {};
@@ -330,12 +334,18 @@ class ApiService {
   static Future<void> logout() async {
     final activeUserId = (await _storage.read(key: 'user_id'))?.trim();
     if (activeUserId != null && activeUserId.isNotEmpty) {
-      await CacheService.removeJson(
+      // Eliminar sólo datos privados de la cuenta actual. Catálogos,
+      // resultados y demás cachés públicas se conservan para uso offline.
+      await CacheService.invalidarCachesDeJugadas(userId: activeUserId);
+      for (final key in [
         CacheService.perfilUsuarioKey(activeUserId),
-      );
-      await CacheService.removeJson(
         CacheService.subscriptionStatusKey(activeUserId),
-      );
+        CacheService.notificacionesUsuarioKey(activeUserId),
+        CacheService.favoritosPublicidadKey(activeUserId),
+        CacheService.misAnunciosKey(activeUserId),
+      ]) {
+        await CacheService.removeJson(key);
+      }
     }
 
     for (final key in [
@@ -354,8 +364,20 @@ class ApiService {
   }
 
   /// Intentar refrescar el access_token usando refresh_token.
-  /// Coalesces concurrent refresh requests into one HTTP call.
+  /// Las solicitudes concurrentes comparten una única llamada HTTP.
+  ///
+  /// - access vencido + refresh válido: renovación silenciosa.
+  /// - refresh vencido/revocado: limpia la sesión y muestra ingreso nuevamente.
+  /// - timeout/5xx: NO expulsa al usuario; se trata como fallo temporal.
   static Future<bool> refreshAccessToken() async {
+    final result = await _refreshAccessTokenOutcome();
+    if (result == _TokenRefreshResult.expired) {
+      await _handleExpiredSession();
+    }
+    return result == _TokenRefreshResult.success;
+  }
+
+  static Future<_TokenRefreshResult> _refreshAccessTokenOutcome() async {
     final inFlight = _refreshFuture;
     if (inFlight != null) return inFlight;
 
@@ -368,27 +390,39 @@ class ApiService {
     }
   }
 
-  static Future<bool> _refreshAccessTokenInternal() async {
+  static Future<_TokenRefreshResult> _refreshAccessTokenInternal() async {
     final refreshToken = await _storage.read(key: "refresh_token");
-    if (refreshToken == null || refreshToken.isEmpty) return false;
+    if (refreshToken == null || refreshToken.isEmpty) {
+      return _TokenRefreshResult.expired;
+    }
 
     try {
-      final encodedToken = Uri.encodeComponent(refreshToken);
       final response = await http
           .post(
-            Uri.parse("$baseUrl/refresh?refresh_token=$encodedToken"),
+            Uri.parse("$baseUrl/refresh"),
             headers: {"Content-Type": "application/json"},
             body: jsonEncode({"refresh_token": refreshToken}),
           )
           .timeout(_refreshTimeout);
 
-      if (response.statusCode != 200) return false;
+      if (response.statusCode == 400 ||
+          response.statusCode == 401 ||
+          response.statusCode == 403) {
+        return _TokenRefreshResult.expired;
+      }
+
+      // Un 5xx, 404 accidental durante deploy o cualquier respuesta temporal
+      // no debe cerrar la sesión del usuario.
+      if (response.statusCode != 200) {
+        return _TokenRefreshResult.temporaryFailure;
+      }
 
       final data = jsonDecode(response.body);
       final newAccessToken = data["access_token"];
       final newRefreshToken = data["refresh_token"];
-      if (newAccessToken == null || newAccessToken.toString().isEmpty)
-        return false;
+      if (newAccessToken == null || newAccessToken.toString().isEmpty) {
+        return _TokenRefreshResult.temporaryFailure;
+      }
 
       await _storage.write(key: "auth_token", value: newAccessToken.toString());
       if (newRefreshToken != null && newRefreshToken.toString().isNotEmpty) {
@@ -406,18 +440,44 @@ class ApiService {
           );
           final pData = jsonDecode(payload);
           final sub = pData['sub'];
-          if (sub != null)
+          if (sub != null) {
             await _storage.write(key: "user_id", value: sub.toString());
+          }
         }
-      } catch (_) {}
+      } catch (_) {
+        // El sub ya existe en el almacenamiento de la sesión; no bloquear
+        // una renovación válida sólo por un error local de decodificación.
+      }
 
-      return true;
+      return _TokenRefreshResult.success;
+    } on TimeoutException {
+      return _TokenRefreshResult.temporaryFailure;
     } catch (_) {
-      return false;
+      return _TokenRefreshResult.temporaryFailure;
     }
   }
 
-  /// ✅ Validar si el token sigue vigente
+  static Future<void> _handleExpiredSession() async {
+    final inFlight = _sessionExpiryFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _expireSessionInternal();
+    _sessionExpiryFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_sessionExpiryFuture, future)) {
+        _sessionExpiryFuture = null;
+      }
+    }
+  }
+
+  static Future<void> _expireSessionInternal() async {
+    await logout();
+    await SessionExpiredHandler.show();
+  }
+
+  /// ✅ Validar si el access token local sigue vigente.
   static Future<bool> isTokenValid() async {
     final token = await getToken();
     if (token == null || token.isEmpty) return false;
@@ -432,16 +492,19 @@ class ApiService {
       final data = jsonDecode(payload);
 
       final exp = data['exp'];
-      if (exp == null) return false;
+      final tokenType = data['token_type'];
+      if (exp == null || tokenType != 'access') return false;
 
       final expiryDate = DateTime.fromMillisecondsSinceEpoch(exp * 1000);
       return DateTime.now().isBefore(expiryDate);
-    } catch (e) {
+    } catch (_) {
       return false;
     }
   }
 
-  /// 🔁 Asegura sesión válida (valida o refresca)
+  /// 🔁 Asegura sesión válida.
+  /// El usuario sólo ve login si el refresh fue rechazado definitivamente;
+  /// una caída de red/backend no destruye la sesión local.
   static Future<bool> ensureValidSession() async {
     try {
       if (await isTokenValid()) return true;
@@ -657,13 +720,12 @@ class ApiService {
       payload["fecha"] = fechaSorteo;
     }
 
-    final response = await http
-        .post(
-          Uri.parse("$baseUrl/jugadas"),
-          headers: {"Content-Type": "application/json"},
-          body: jsonEncode(payload),
-        )
-        .timeout(_requestTimeout);
+    final response = await post(
+      "/jugadas",
+      payload,
+      withAuth: true,
+      timeout: _requestTimeout,
+    );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       if (route.isNotEmpty) {
@@ -722,9 +784,12 @@ class ApiService {
     Object? lastError;
     for (int attempt = 1; attempt <= retries; attempt++) {
       try {
-        final response = await http
-            .get(uri, headers: {"Content-Type": "application/json"})
-            .timeout(const Duration(seconds: 12));
+        final endpoint = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+        final response = await get(
+          endpoint,
+          withAuth: true,
+          timeout: const Duration(seconds: 12),
+        );
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -768,9 +833,12 @@ class ApiService {
     );
 
     try {
-      final response = await http
-          .delete(uri, headers: {"Content-Type": "application/json"})
-          .timeout(const Duration(seconds: 10));
+      final endpoint = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+      final response = await delete(
+        endpoint,
+        withAuth: true,
+        timeout: const Duration(seconds: 10),
+      );
 
       if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
@@ -818,19 +886,12 @@ class ApiService {
     }
 
     try {
-      final token = await getToken();
-      final headers = {
-        "Content-Type": "application/json",
-        if (token != null && token.isNotEmpty) "Authorization": "Bearer $token",
-      };
-
-      final response = await http
-          .put(
-            Uri.parse("$baseUrl/jugadas/$jugadaId"),
-            headers: headers,
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 10));
+      final response = await put(
+        "/jugadas/$jugadaId",
+        payload,
+        withAuth: true,
+        timeout: const Duration(seconds: 10),
+      );
 
       if (response.statusCode == 200) {
         await CacheService.invalidarCachesDeJugadas(
@@ -894,12 +955,11 @@ class ApiService {
   }
 
   static Future<List<String>> _getLoteriasConJugadasLegacy(int userId) async {
-    final response = await http
-        .get(
-          Uri.parse("$baseUrl/mis_loterias_activas?user_id=$userId"),
-          headers: {"Content-Type": "application/json"},
-        )
-        .timeout(_requestTimeout);
+    final response = await get(
+      "/mis_loterias_activas?user_id=$userId",
+      withAuth: true,
+      timeout: _requestTimeout,
+    );
 
     if (response.statusCode == 200) {
       final decoded = jsonDecode(response.body);
@@ -920,12 +980,11 @@ class ApiService {
     if (userId == null) return {};
 
     try {
-      final response = await http
-          .get(
-            Uri.parse("$baseUrl/mis_loterias_con_conteo?user_id=$userId"),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(const Duration(seconds: 3));
+      final response = await get(
+        "/mis_loterias_con_conteo?user_id=$userId",
+        withAuth: true,
+        timeout: const Duration(seconds: 3),
+      );
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -1016,12 +1075,11 @@ class ApiService {
   ) async {
     Object? primaryError;
     try {
-      final response = await http
-          .get(
-            Uri.parse("$baseUrl/mis_loterias_info?user_id=$userId"),
-            headers: {"Content-Type": "application/json"},
-          )
-          .timeout(_requestTimeout);
+      final response = await get(
+        "/mis_loterias_info?user_id=$userId",
+        withAuth: true,
+        timeout: _requestTimeout,
+      );
 
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
@@ -2072,6 +2130,29 @@ class ApiService {
       return json.decode(response.body);
     } else {
       throw Exception('Error al calificar');
+    }
+  }
+
+  /// Versión liviana de los datos dinámicos del backend.
+  /// No consulta Supabase: sirve para detectar que Airflow publicó datos
+  /// nuevos y sólo entonces invalidar las cachés locales.
+  static Future<int?> getDataVersion() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/metadata/data-version'),
+            headers: await _getHeaders(withAuth: false),
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) return null;
+      final raw = decoded['version'];
+      if (raw is int) return raw;
+      return int.tryParse(raw?.toString() ?? '');
+    } catch (_) {
+      return null;
     }
   }
 

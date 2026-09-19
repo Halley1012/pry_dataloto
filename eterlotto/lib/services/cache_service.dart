@@ -12,6 +12,10 @@ class CacheService {
   /// Reglas públicas que usa el generador de combinaciones.
   static const String reglasCombinacionesKey = 'combination_lotteries_rules_v3';
 
+  /// Versión publicada por el backend para detectar cambios de datos sin
+  /// consultar Supabase en cada ciclo de refresco.
+  static const String _serverDataVersionStorageKey = 'eterlotto_server_data_version';
+
   /// Feed público de la comunidad. No contiene estado personal (likes,
   /// favoritos, permisos, etc.), por lo que puede compartirse entre cuentas.
   static const String homePostsKey = 'home_posts_v1';
@@ -143,9 +147,9 @@ class CacheService {
 
   // Política única de caducidad. Las pantallas no deben decidir TTL por ruta
   // ni por lotería: la naturaleza del dato define cuánto tiempo es válido.
-  static const Duration catalogoTtl = Duration(hours: 12);
+  static const Duration catalogoTtl = Duration(minutes: 15);
   static const Duration reglasTtl = Duration(hours: 12);
-  static const Duration resultadosRecientesTtl = Duration(minutes: 3);
+  static const Duration resultadosRecientesTtl = Duration(minutes: 10);
   static const Duration prediccionTtl = Duration(minutes: 15);
   static const Duration historicoTtl = Duration(minutes: 45);
   static const Duration jugadasUsuarioTtl = Duration(minutes: 2);
@@ -271,6 +275,57 @@ class CacheService {
       await prefs.remove('$_prefix$key');
     } catch (_) {
       // Ignorar errores de invalidación de caché.
+    }
+  }
+
+  /// Invalida todas las copias locales derivadas de datos dinámicos de
+  /// loterías. Incluye catálogo, próximo/último sorteo, resultados,
+  /// predicciones y dashboards derivados. No elimina perfil, jugadas ni
+  /// preferencias privadas del usuario.
+  static Future<void> invalidateLotteryCatalogCaches() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((storageKey) {
+        if (!storageKey.startsWith(_prefix)) return false;
+        final key = storageKey.substring(_prefix.length).toLowerCase();
+
+        return key == catalogoLoteriasKey ||
+            key.startsWith('loterias_mapeadas_') ||
+            key.startsWith('home_loterias_') ||
+            key.startsWith('explorar_loterias_') ||
+            key.startsWith('resultados_selector') ||
+            key.startsWith('resultados_dashboard_cache_') ||
+            key.contains('_prediccion') ||
+            key.contains('_ultimos5') ||
+            key.contains('_ultimos50') ||
+            key.contains('_historico');
+      }).toList();
+
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+    } catch (_) {
+      // Si la invalidación falla, la lectura por TTL seguirá protegiendo
+      // contra datos obsoletos.
+    }
+  }
+
+  /// Última versión de datos dinámicos observada en el backend.
+  static Future<int?> getServerDataVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_serverDataVersionStorageKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> setServerDataVersion(int version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_serverDataVersionStorageKey, version);
+    } catch (_) {
+      // La ausencia de esta marca sólo provoca una renovación posterior.
     }
   }
 
