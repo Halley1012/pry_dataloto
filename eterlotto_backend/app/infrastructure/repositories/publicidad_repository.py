@@ -469,7 +469,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     SELECT id, nombre, tipo, pais_id, route,
                            max_seleccion, max_balotas_blancas, max_balotas_rojas,
                            superbalota_nombre, has_revancha, total_balotas_sorteo,
-                           tiene_complementario, tiene_reintegro
+                           tiene_complementario, tiene_reintegro, top_probables_count
                     FROM loterias
                     WHERE activa = true
                 """
