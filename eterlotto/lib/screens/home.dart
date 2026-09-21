@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/services/cache_service.dart';
+import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
@@ -59,6 +61,9 @@ class _HomeScreenState extends State<HomeScreen>
   List<dynamic> _filteredLoterias = [];
   List<dynamic> _globalLoterias = [];
   final Map<String, String> _paisNombrePorId = <String, String>{};
+  final Map<String, Map<String, dynamic>> _paisesPorId =
+      <String, Map<String, dynamic>>{};
+  String? _paisId;
   int _selectedIndex = 0;
   final Set<int> _loadedBottomTabs = <int>{0};
   DateTime? _lastBackPressTime;
@@ -895,7 +900,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildFlagAction(
     bool isPremium, {
-    GestureDoubleTapCallback? onDoubleTap,
+    GestureTapCallback? onDoubleTap,
   }) {
     const visualSize = 56.0;
     const hitSize = 64.0;
