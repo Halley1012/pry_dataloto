@@ -178,7 +178,7 @@ class PushNotificationService {
 
       // runApp ya fue ejecutado, pero damos un frame para que exista Navigator.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openNotifications();
+        _openNotifications(coldStart: true);
       });
     } catch (e) {
       _log('initial message failed: ${e.runtimeType}');
@@ -224,14 +224,27 @@ class PushNotificationService {
     }
   }
 
-  static void _openNotifications() {
+  static void _openNotifications({bool coldStart = false}) {
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
       Future<void>.delayed(const Duration(milliseconds: 350), () {
-        navigatorKey.currentState?.pushNamed('/notifications');
+        _openNotifications(coldStart: coldStart);
       });
       return;
     }
-    navigator.pushNamed('/notifications');
+
+    if (!coldStart) {
+      navigator.pushNamed('/notifications');
+      return;
+    }
+
+    // Si Eterlotto fue abierto desde una notificación con la app terminada,
+    // reconstruimos una pila estable: Home -> Notificaciones. De esta forma,
+    // el botón Atrás vuelve a Home en lugar de cerrar la aplicación y el Home
+    // queda como raíz de la tarea para las siguientes aperturas.
+    navigator.pushNamedAndRemoveUntil('/home', (route) => false);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navigatorKey.currentState?.pushNamed('/notifications');
+    });
   }
 }
