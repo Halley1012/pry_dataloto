@@ -432,7 +432,21 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     def list_paises(self) -> List[Dict[str, Any]]:
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT id, nombre FROM paises ORDER BY nombre;")
+                # `to_jsonb(p)` makes the read compatible with an instance that
+                # has not received the additive country-media migration yet.
+                # The canonical columns are still public.paises.flag_url and
+                # public.paises.background_url; no visual asset is stored on
+                # individual loterias.
+                cur.execute("""
+                    SELECT
+                        p.id,
+                        p.nombre,
+                        UPPER(NULLIF(BTRIM(p.codigo_iso), '')) AS codigo_iso,
+                        NULLIF(BTRIM(to_jsonb(p) ->> 'flag_url'), '') AS flag_url,
+                        NULLIF(BTRIM(to_jsonb(p) ->> 'background_url'), '') AS background_url
+                    FROM paises AS p
+                    ORDER BY p.nombre;
+                """)
                 return cur.fetchall()
 
     def list_departamentos(self, pais_id: int) -> List[Dict[str, Any]]:

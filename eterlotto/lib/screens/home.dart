@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
-import 'package:eterlotto/widgets/contenedor4.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/screens/loteria_screen.dart';
 import 'package:eterlotto/screens/profile_screen.dart';
@@ -87,6 +86,9 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _welcomeWaveController;
   late final Animation<double> _welcomeWaveAngle;
   bool _hasPlayedWelcomeWave = false;
+  // La comunidad se muestra como una vista previa para no alargar el inicio.
+  // El usuario puede desplegar el feed completo cuando lo necesite.
+  bool _isCommunityExpanded = false;
 
   @override
   void initState() {
@@ -174,6 +176,83 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Conserva el catálogo tal como llega del backend. Además del nombre, la
+  /// tarjeta de Inicio usa `background_url` para que el arte dependa del país
+  /// y no de cada lotería.
+  void _indexCountryCatalog(List<Map<String, dynamic>> countries) {
+    _paisNombrePorId.clear();
+    _paisesPorId.clear();
+
+    for (final country in countries) {
+      final id = country['id']?.toString().trim();
+      final name = country['nombre']?.toString().trim();
+      if (id == null || id.isEmpty) continue;
+
+      _paisesPorId[id] = Map<String, dynamic>.from(country);
+      if (name != null && name.isNotEmpty) {
+        _paisNombrePorId[id] = name;
+      }
+    }
+  }
+
+  Map<String, dynamic>? _currentCountryData() {
+    final selectedId = _paisId?.trim();
+    if (selectedId != null && selectedId.isNotEmpty) {
+      final country = _paisesPorId[selectedId];
+      if (country != null) return country;
+    }
+
+    // Compatibilidad con sesiones antiguas que sólo guardaban el nombre.
+    final selectedName = pais?.trim().toLowerCase();
+    if (selectedName == null || selectedName.isEmpty) return null;
+    for (final country in _paisesPorId.values) {
+      if (country['nombre']?.toString().trim().toLowerCase() == selectedName) {
+        return country;
+      }
+    }
+    return null;
+  }
+
+  String? _currentCountryBackgroundUrl() {
+    return _resolveCountryRemoteUrl(
+      _currentCountryData()?['background_url']?.toString(),
+    );
+  }
+
+  String? _currentCountryFlagUrl() {
+    return _resolveCountryRemoteUrl(
+      _currentCountryData()?['flag_url']?.toString(),
+    );
+  }
+
+  String _currentCountryIsoCode(String countryName) {
+    final rawCode = _currentCountryData()?['codigo_iso']?.toString().trim();
+    if (rawCode != null && RegExp(r'^[a-zA-Z]{2}$').hasMatch(rawCode)) {
+      return rawCode.toUpperCase();
+    }
+    // El catálogo es la fuente principal. Este helper sólo cubre catálogos
+    // históricos y respuestas sin código ISO.
+    return PaisHelper.getIsoCode(countryName).toUpperCase();
+  }
+
+  String? _resolveCountryRemoteUrl(String? rawValue) {
+    final rawUrl = rawValue?.trim();
+    if (rawUrl == null || rawUrl.isEmpty) return null;
+
+    final uri = Uri.tryParse(rawUrl);
+    if (uri != null &&
+        uri.hasAuthority &&
+        (uri.scheme == 'https' || uri.scheme == 'http')) {
+      return rawUrl;
+    }
+
+    // También permitimos que el backend publique rutas relativas, sin forzar
+    // una imagen dentro del APK. Las demás entradas inválidas usan el fondo
+    // universal de la tarjeta.
+    if (rawUrl.startsWith('/')) return '${ApiService.baseUrl}$rawUrl';
+    return null;
+  }
+
   List<Post> _postsFromCache(dynamic cachedPosts) {
     if (cachedPosts is! List) return <Post>[];
     final result = <Post>[];
@@ -245,18 +324,7 @@ class _HomeScreenState extends State<HomeScreen>
           paisNombreStr.trim().isNotEmpty) {
         try {
           final paisesCatalogo = await ApiService.getPaises();
-          _paisNombrePorId
-            ..clear()
-            ..addEntries(
-              paisesCatalogo
-                  .where((p) => p['id'] != null && p['nombre'] != null)
-                  .map(
-                    (p) => MapEntry(
-                      p['id'].toString(),
-                      p['nombre'].toString(),
-                    ),
-                  ),
-            );
+          _indexCountryCatalog(paisesCatalogo);
           final target = paisNombreStr.trim().toLowerCase();
           for (final p in paisesCatalogo) {
             final nombre = p['nombre']?.toString().trim().toLowerCase() ?? '';
@@ -287,6 +355,7 @@ class _HomeScreenState extends State<HomeScreen>
           userName = null;
           avatarUrl = null;
           pais = paisNombreStr ?? 'Internacional';
+          _paisId = paisIdStr;
         });
       }
 
@@ -341,6 +410,7 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() {
           currentUserId = userIdStr;
           pais = paisNombreStr ?? "Internacional";
+          _paisId = paisIdStr;
           userName = profileMap['name']?.toString();
           avatarUrl = profileMap['avatar_url']?.toString();
           if (cachedLoterias is List) {
@@ -405,18 +475,7 @@ class _HomeScreenState extends State<HomeScreen>
       final networkProfile = resultados[4] as Map<String, dynamic>?;
       final networkPaises = resultados[5] as List<Map<String, dynamic>>?;
       if (networkPaises != null) {
-        _paisNombrePorId
-          ..clear()
-          ..addEntries(
-            networkPaises
-                .where((p) => p['id'] != null && p['nombre'] != null)
-                .map(
-                  (p) => MapEntry(
-                    p['id'].toString(),
-                    p['nombre'].toString(),
-                  ),
-                ),
-          );
+        _indexCountryCatalog(networkPaises);
       }
       final refreshedFromNetwork =
           networkPosts != null ||
@@ -459,6 +518,7 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         currentUserId = userIdStr;
         pais = paisNombreStr ?? "Internacional";
+        _paisId = paisIdStr;
         userName = finalName;
         avatarUrl = finalAvatar;
         posts = rawPosts;
@@ -604,119 +664,292 @@ class _HomeScreenState extends State<HomeScreen>
               : (langCode == 'pt'
                     ? "Explore as loterias mais jogadas no país."
                     : "Explora las loterias más jugadas en el país."));
+    final backgroundUrl = _currentCountryBackgroundUrl();
+    final borderColor = isPremium
+        ? AppColors.yellow.withValues(alpha: 0.54)
+        : Colors.white.withValues(alpha: 0.30);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 25.0, 16.0, 12.0),
-      child: GestureDetector(
-        onTap: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const LoteriasPais()),
-          );
-          if (mounted) _loadUserAndData(forceRefresh: true);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
-          decoration: BoxDecoration(
-            gradient: isPremium
-                ? const LinearGradient(
-                    colors: [Color(0xFF1D1A0B), Color(0xFF151515)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  )
-                : null,
-            color: isPremium ? null : const Color(0xFF161616),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: isPremium
-                  ? AppColors.yellow.withValues(alpha: 0.28)
-                  : Colors.white12,
-              width: 1.0,
-            ),
-            boxShadow: isPremium
-                ? [
+      child: Semantics(
+        button: true,
+        label: '$nombrePaisDisplay. $subtituloPais',
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const LoteriasPais()),
+              );
+              if (mounted) _loadUserAndData(forceRefresh: true);
+            },
+            borderRadius: BorderRadius.circular(18),
+            splashColor: AppColors.yellow.withValues(alpha: 0.12),
+            highlightColor: Colors.white.withValues(alpha: 0.05),
+            child: Ink(
+              height: 148,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F1622),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: borderColor, width: 1.1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.34),
+                    blurRadius: 16,
+                    offset: const Offset(0, 7),
+                  ),
+                  if (isPremium)
                     BoxShadow(
-                      color: AppColors.yellow.withValues(alpha: 0.06),
+                      color: AppColors.yellow.withValues(alpha: 0.10),
                       blurRadius: 18,
                       spreadRadius: 1,
                     ),
-                  ]
-                : null,
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      nombrePaisDisplay,
-                      style: AppTextStyles.tituloPrincipal.copyWith(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtituloPais,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              _buildHeaderFlagWidget(isPremium),
-            ],
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  IgnorePointer(
+                    child: _buildCountryBackground(backgroundUrl),
+                  ),
+                  const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Color(0xE9091424),
+                          Color(0xA6091322),
+                          Color(0xCC02060D),
+                        ],
+                        stops: [0.0, 0.56, 1.0],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    left: 0,
+                    child: Container(
+                      height: 1,
+                      color: Colors.white.withValues(alpha: 0.16),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 18, 10, 18),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nombrePaisDisplay,
+                                style: AppTextStyles.tituloPrincipal.copyWith(
+                                  color: Colors.white,
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w800,
+                                  shadows: const [
+                                    Shadow(
+                                      color: Colors.black87,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                subtituloPais,
+                                style: GoogleFonts.montserrat(
+                                  color: Colors.white.withValues(alpha: 0.86),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.3,
+                                  shadows: const [
+                                    Shadow(
+                                      color: Colors.black87,
+                                      blurRadius: 6,
+                                      offset: Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _buildHeaderFlagWidget(isPremium),
+                        const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Colors.white,
+                          size: 32,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black87,
+                              blurRadius: 7,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
 
+  Widget _buildCountryBackground(String? backgroundUrl) {
+    if (backgroundUrl == null) return _buildGenericCountryBackground();
+
+    return CachedNetworkImage(
+      imageUrl: backgroundUrl,
+      fit: BoxFit.cover,
+      fadeInDuration: const Duration(milliseconds: 180),
+      placeholder: (_, __) => _buildGenericCountryBackground(),
+      errorWidget: (_, __, ___) => _buildGenericCountryBackground(),
+    );
+  }
+
+  /// Fondo de reserva ligero para países sin imagen o sin conexión. Evita
+  /// cargar assets por lotería y conserva legibilidad en toda la tarjeta.
+  Widget _buildGenericCountryBackground() {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF102946), Color(0xFF13223A), Color(0xFF090E18)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Align(
+            alignment: const Alignment(0.9, -0.9),
+            child: Container(
+              width: 158,
+              height: 158,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [Color(0x5555C5FF), Color(0x0011202F)],
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(-0.22, 0.8),
+            child: Container(
+              width: 270,
+              height: 110,
+              decoration: const BoxDecoration(
+                borderRadius: BorderRadius.all(Radius.elliptical(220, 95)),
+                gradient: LinearGradient(
+                  colors: [Color(0x55538BBC), Color(0x003D6D9C)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+            ),
+          ),
+          Align(
+            alignment: const Alignment(0.82, 0.64),
+            child: Icon(
+              Icons.public_rounded,
+              size: 78,
+              color: Colors.white.withValues(alpha: 0.09),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildHeaderFlagWidget(bool isPremium) {
-    // La bandera puede moverse para cualquier cuenta, pero abrir el generador
-    // desde Inicio sigue siendo un beneficio VIP.
     return ValueListenableBuilder<Offset?>(
       valueListenable: _flagPositionNotifier,
       builder: (context, pos, child) {
         if (pos != null) {
-          return Container(
-            width: 55.0,
-            height: 55.0,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.yellow.withValues(alpha: 0.25),
-                width: 1.5,
-              ),
-            ),
-            child: const Center(
-              child: Icon(Icons.open_with, size: 20, color: Colors.white24),
-            ),
-          );
+          // Conserva el espacio de la fila mientras la bandera flota.
+          return const SizedBox(width: 64, height: 64);
         }
 
-        return Listener(
+        return _buildFlagAction(isPremium);
+      },
+    );
+  }
+
+  Widget _buildFlagAction(
+    bool isPremium, {
+    GestureDoubleTapCallback? onDoubleTap,
+  }) {
+    const visualSize = 56.0;
+    const hitSize = 64.0;
+    final langCode = Localizations.localeOf(context).languageCode;
+    final semanticsLabel = langCode == 'en'
+        ? 'Open combination generator'
+        : (langCode == 'pt'
+              ? 'Abrir gerador de combinações'
+              : 'Abrir generador de combinaciones');
+
+    // El área táctil es mayor que la bandera visible, en la tarjeta y cuando
+    // flota. Así el control sigue respondiendo tras arrastrarlo.
+    return Semantics(
+      button: true,
+      label: semanticsLabel,
+      child: SizedBox(
+        width: hitSize,
+        height: hitSize,
+        child: Listener(
           behavior: HitTestBehavior.opaque,
           onPointerDown: (event) => _startHomeControlPointer('flag', event),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: isPremium
-                ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const CombinationGeneratorScreen(),
-                      ),
-                    );
-                  }
-                : null,
-            child: _buildFlagCircle(size: 55.0),
+            onTap: () => _openCombinationGenerator(isPremium),
+            onDoubleTap: onDoubleTap,
+            child: Center(child: _buildFlagCircle(size: visualSize)),
           ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openCombinationGenerator(bool isPremium) async {
+    final l10n = AppLocalizations.of(context);
+    final langCode = Localizations.localeOf(context).languageCode;
+    final featureDescription = langCode == 'en'
+        ? 'Watch a short video ad to use the combination generator for free.'
+        : (langCode == 'pt'
+              ? 'Assista a um breve vídeo publicitário para usar o gerador de combinações gratuitamente.'
+              : 'Mira un breve video publicitario para usar gratis el generador de combinaciones.');
+
+    await AdService.instance.showRewardedFeatureGate(
+      context: context,
+      isPremium: isPremium,
+      featureKey: 'home_combination_generator',
+      featureTitle:
+          l10n?.generaTusPropiasCombinaciones ??
+          'Genera tus propias combinaciones',
+      featureActionDescription: featureDescription,
+      onRewardGranted: () {
+        if (!mounted) return;
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CombinationGeneratorScreen()),
         );
       },
     );
@@ -726,7 +959,15 @@ class _HomeScreenState extends State<HomeScreen>
     final countryName = pais?.trim() ?? '';
     final isInternational =
         countryName.isEmpty || countryName.toLowerCase() == 'internacional';
-    final isoCode = PaisHelper.getIsoCode(countryName).toLowerCase();
+    final isoCode = _currentCountryIsoCode(countryName).toLowerCase();
+    final flagUrl = _currentCountryFlagUrl();
+    // `flag_url` del backend tiene prioridad. FlagCDN y el emoji sólo cubren
+    // catálogos previos que aún no declaran los medios del país.
+    final imageUrl =
+        flagUrl ??
+        (!isInternational && isoCode.isNotEmpty
+            ? 'https://flagcdn.com/w320/$isoCode.png'
+            : null);
 
     return Container(
       width: size,
@@ -749,41 +990,52 @@ class _HomeScreenState extends State<HomeScreen>
       // El recorte se aplica a la imagen, sin borde interno que reduzca
       // el área visible de ninguna bandera.
       child: ClipOval(
-        child: isInternational
-            ? Container(
-                color: const Color(0xFF1E2029),
-                alignment: Alignment.center,
-                child: Icon(
-                  Icons.public_rounded,
-                  color: Colors.white70,
-                  size: size * 0.5,
-                ),
+        child: imageUrl == null
+            ? _buildFlagFallback(
+                countryName: countryName,
+                isInternational: isInternational,
+                size: size,
               )
-            : Image.network(
-                'https://flagcdn.com/w320/$isoCode.png',
+            : CachedNetworkImage(
+                imageUrl: imageUrl,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.high,
-                loadingBuilder: (_, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: Text(
-                      PaisHelper.getBanderaEmoji(countryName),
-                      style: TextStyle(fontSize: size * 0.52),
-                    ),
-                  );
-                },
-                errorBuilder: (_, __, ___) => Container(
-                  color: const Color(0xFF1E2029),
-                  alignment: Alignment.center,
-                  child: Text(
-                    PaisHelper.getBanderaEmoji(countryName),
-                    style: TextStyle(fontSize: size * 0.52),
-                  ),
+                fadeInDuration: Duration.zero,
+                placeholder: (_, __) => _buildFlagFallback(
+                  countryName: countryName,
+                  isInternational: isInternational,
+                  size: size,
+                ),
+                errorWidget: (_, __, ___) => _buildFlagFallback(
+                  countryName: countryName,
+                  isInternational: isInternational,
+                  size: size,
                 ),
               ),
       ),
+    );
+  }
+
+  Widget _buildFlagFallback({
+    required String countryName,
+    required bool isInternational,
+    required double size,
+  }) {
+    return Container(
+      color: const Color(0xFF1E2029),
+      alignment: Alignment.center,
+      child: isInternational
+          ? Icon(
+              Icons.public_rounded,
+              color: Colors.white70,
+              size: size * 0.5,
+            )
+          : Text(
+              PaisHelper.getBanderaEmoji(countryName),
+              style: TextStyle(fontSize: size * 0.52),
+            ),
     );
   }
 
@@ -825,7 +1077,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   double _sizeForHomeControl(String controlId) {
-    return controlId == 'flag' ? 56.0 : 52.0;
+    // La bandera visible mide 56 px, pero su contenedor táctil mide 64 px.
+    return controlId == 'flag' ? 64.0 : 52.0;
   }
 
   void _startHomeControlPointer(String controlId, PointerDownEvent event) {
@@ -2089,7 +2342,7 @@ class _HomeScreenState extends State<HomeScreen>
     BoxConstraints constraints,
     bool isPremium,
   ) {
-    const double fabSize = 56.0;
+    const double flagHitSize = 64.0;
 
     final double maxW = constraints.maxWidth > 0
         ? constraints.maxWidth
@@ -2109,34 +2362,19 @@ class _HomeScreenState extends State<HomeScreen>
 
         final currentX = pos.dx.clamp(
           10.0,
-          (maxW - fabSize - 10.0).clamp(10.0, double.infinity),
+          (maxW - flagHitSize - 10.0).clamp(10.0, double.infinity),
         );
         final currentY = pos.dy.clamp(
           10.0,
-          (maxH - fabSize - 10.0).clamp(10.0, double.infinity),
+          (maxH - flagHitSize - 10.0).clamp(10.0, double.infinity),
         );
 
         return Positioned(
           left: currentX,
           top: currentY,
-          child: Listener(
-            behavior: HitTestBehavior.opaque,
-            onPointerDown: (event) => _startHomeControlPointer('flag', event),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: isPremium
-                  ? () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const CombinationGeneratorScreen(),
-                        ),
-                      );
-                    }
-                  : null,
-              onDoubleTap: () => _flagPositionNotifier.value = null,
-              child: _buildFlagCircle(size: fabSize),
-            ),
+          child: _buildFlagAction(
+            isPremium,
+            onDoubleTap: () => _flagPositionNotifier.value = null,
           ),
         );
       },
@@ -2278,90 +2516,368 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildComunidadSection() {
+    final totalMessages = posts.fold<int>(
+      0,
+      (total, post) => total + 1 + post.commentsCount,
+    );
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF1D1D20), Color(0xFF131315)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          border: Border.all(
+            color: AppColors.yellow.withValues(alpha: 0.58),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.yellow.withValues(alpha: 0.12),
+              blurRadius: 16,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Text(
-                  AppLocalizations.of(context)?.comentarios ?? "Comentarios",
-                  style: AppTextStyles.h2.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline),
-                color: AppColors.yellow,
-                iconSize: 28,
-                onPressed: () async {
-                  final newPost = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CreatePostScreen()),
-                  );
-                  if (newPost != null && mounted) {
-                    setState(() {
-                      posts.insert(0, newPost);
-                      _postsVersion++;
-                    });
-                    await _persistPostsCache();
-                  }
-                },
+              _buildCommunityHeader(totalMessages),
+              const SizedBox(height: 10),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                child: _buildCommunityBody(),
               ),
             ],
           ),
-          const SizedBox(height: 25),
-          AppContainer4(
-            child: isLoading && posts.isEmpty
-                ? Shimmer.fromColors(
-                    baseColor: const Color(0xFF1A1A1A),
-                    highlightColor: const Color(0xFF2C2C2C),
-                    child: Column(
-                      children: List.generate(
-                        3,
-                        (index) => Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                      ),
-                    ),
-                  )
-                : posts.isEmpty
-                ? Center(
-                    child: Text(
-                      AppLocalizations.of(context)?.sinPosts ?? "No hay posts",
-                      style: const TextStyle(color: AppColors.yellow),
-                    ),
-                  )
-                : SizedBox(
-                    height: 450,
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: posts.length,
-                      itemBuilder: (context, index) {
-                        final post = posts[index];
-                        final bool isOwner =
-                            currentUserId != null &&
-                            post.userId == int.tryParse(currentUserId!);
-                        return _buildPostItem(post, isOwner);
-                      },
-                    ),
-                  ),
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  Widget _buildCommunityHeader(int totalMessages) {
+    final commentsLabel =
+        AppLocalizations.of(context)?.comentarios ?? 'Comentarios';
+
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.yellow.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Icon(
+            Icons.forum_outlined,
+            color: AppColors.yellow,
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(
+              () => _isCommunityExpanded = !_isCommunityExpanded,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      commentsLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.h2.copyWith(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildCommunityCountBadge(totalMessages),
+                ],
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: _isCommunityExpanded
+              ? 'Contraer comentarios'
+              : 'Ver todos los comentarios',
+          visualDensity: VisualDensity.compact,
+          onPressed: () => setState(
+            () => _isCommunityExpanded = !_isCommunityExpanded,
+          ),
+          icon: AnimatedRotation(
+            turns: _isCommunityExpanded ? 0.5 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: const Icon(Icons.keyboard_arrow_down_rounded),
+          ),
+          color: Colors.white70,
+        ),
+        IconButton(
+          tooltip: 'Crear comentario',
+          visualDensity: VisualDensity.compact,
+          onPressed: _createCommunityPost,
+          icon: const Icon(Icons.add_circle_outline_rounded),
+          color: AppColors.yellow,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCommunityCountBadge(int totalMessages) {
+    final countLabel = totalMessages > 99 ? '99+' : '$totalMessages';
+    return Container(
+      constraints: const BoxConstraints(minWidth: 28),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF3B58),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        countLabel,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunityBody() {
+    if (_isCommunityExpanded) return _buildExpandedCommunityFeed();
+    if (isLoading && posts.isEmpty) return _buildCommunityLoadingPreview();
+    if (posts.isEmpty) return _buildCommunityEmptyPreview();
+    return _buildCommunityPreview(posts.first);
+  }
+
+  Widget _buildCommunityLoadingPreview() {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFF222225),
+      highlightColor: const Color(0xFF343438),
+      child: Container(
+        height: 74,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunityEmptyPreview() {
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _createCommunityPost,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.chat_bubble_outline, color: AppColors.yellow),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                AppLocalizations.of(context)?.sinPosts ?? 'No hay posts',
+                style: AppTextStyles.mensajeSecundario.copyWith(
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              color: Colors.white54,
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommunityPreview(Post post) {
+    final displayName = post.userName.trim().isEmpty
+        ? 'Comunidad'
+        : post.userName.trim();
+    final repliesLabel = post.commentsCount == 1
+        ? (AppLocalizations.of(context)?.respuesta ?? 'respuesta')
+        : (AppLocalizations.of(context)?.respuestas ?? 'respuestas');
+
+    return Semantics(
+      button: true,
+      label: 'Abrir comentarios de $displayName',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _abrirPostScreen(post),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.white12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                UserBalotaAvatar(
+                  userName: displayName,
+                  userId: post.userId,
+                  radius: 18,
+                  animateGradient: false,
+                  showGlow: false,
+                  showBorder: false,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '@$displayName',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            post.relativeTime,
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (post.title.trim().isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          post.title.trim(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 3),
+                      Text(
+                        post.content.trim().isEmpty
+                            ? post.title.trim()
+                            : post.content.trim(),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          color: Colors.white70,
+                          fontSize: 13,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.chat_bubble_outline_rounded,
+                            color: AppColors.yellow,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${post.commentsCount} $repliesLabel',
+                            style: AppTextStyles.caption.copyWith(
+                              color: Colors.white60,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Padding(
+                  padding: EdgeInsets.only(top: 24),
+                  child: Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: Colors.white54,
+                    size: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExpandedCommunityFeed() {
+    if (isLoading && posts.isEmpty) return _buildCommunityLoadingPreview();
+    if (posts.isEmpty) return _buildCommunityEmptyPreview();
+
+    return SizedBox(
+      height: 360,
+      child: ListView.builder(
+        padding: EdgeInsets.zero,
+        physics: const BouncingScrollPhysics(),
+        itemCount: posts.length,
+        itemBuilder: (context, index) {
+          final post = posts[index];
+          final isOwner =
+              currentUserId != null && post.userId == int.tryParse(currentUserId!);
+          return _buildPostItem(post, isOwner);
+        },
+      ),
+    );
+  }
+
+  Future<void> _createCommunityPost() async {
+    final newPost = await Navigator.of(context).push<Post>(
+      MaterialPageRoute(builder: (_) => const CreatePostScreen()),
+    );
+    if (newPost == null || !mounted) return;
+
+    setState(() {
+      posts.insert(0, newPost);
+      _postsVersion++;
+    });
+    await _persistPostsCache();
   }
 
   Widget _buildPostItem(Post post, bool isOwner) {

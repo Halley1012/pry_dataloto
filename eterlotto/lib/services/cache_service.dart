@@ -279,9 +279,10 @@ class CacheService {
   }
 
   /// Invalida todas las copias locales derivadas de datos dinámicos de
-  /// loterías. Incluye catálogo, próximo/último sorteo, resultados,
-  /// predicciones y dashboards derivados. No elimina perfil, jugadas ni
-  /// preferencias privadas del usuario.
+  /// loterías y de su catálogo de países. Incluye catálogo,
+  /// próximo/último sorteo, resultados, predicciones, dashboards y los URLs
+  /// remotos de bandera/fondo. No elimina perfil, jugadas ni preferencias
+  /// privadas del usuario.
   static Future<void> invalidateLotteryCatalogCaches() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -290,6 +291,7 @@ class CacheService {
         final key = storageKey.substring(_prefix.length).toLowerCase();
 
         return key == catalogoLoteriasKey ||
+            key == 'paises_list_cache' ||
             key.startsWith('loterias_mapeadas_') ||
             key.startsWith('home_loterias_') ||
             key.startsWith('explorar_loterias_') ||

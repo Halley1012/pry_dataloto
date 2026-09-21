@@ -1664,28 +1664,90 @@ class ApiService {
     }
   }
 
-  // ✅ Obtener lista de países
+  // ✅ Obtener lista de países. Es catálogo público: no se mezcla con estado
+  // de suscripción, por lo que VIP y usuarios normales reciben lo mismo.
   static Future<List<Map<String, dynamic>>> getPaises() async {
     const cacheKey = 'paises_list_cache';
 
     final fresh = await CacheService.getJson(cacheKey);
     if (fresh is List && fresh.isNotEmpty) {
-      return fresh
-          .whereType<Map>()
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
+      // Las instalaciones previas al catálogo de medios sólo guardaron id y
+      // nombre. En ese caso consultamos una vez de inmediato, en vez de
+      // esperar el TTL, para que el nuevo fondo remoto esté disponible tras
+      // actualizar la app. Si la red falla, conservamos el catálogo anterior.
+      if (_hasCountryMediaFields(fresh)) {
+        return _normalizePaises(fresh);
+      }
+      final refreshed = await _refreshPaisesCatalog();
+      return refreshed.isNotEmpty ? refreshed : _normalizePaises(fresh);
     }
 
     final stale = await CacheService.getStaleJson(cacheKey);
     if (stale is List && stale.isNotEmpty) {
       unawaited(_refreshPaisesCatalog());
-      return stale
-          .whereType<Map>()
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
+      return _normalizePaises(stale);
     }
 
     return _refreshPaisesCatalog();
+  }
+
+  /// Checks the stored shape, rather than values: null is a valid value and
+  /// deliberately tells the UI to use its local/flagcdn fallback.
+  static bool _hasCountryMediaFields(dynamic raw) {
+    if (raw is! List || raw.isEmpty) return false;
+    return raw.every(
+      (entry) =>
+          entry is Map &&
+          entry.containsKey('codigo_iso') &&
+          entry.containsKey('flag_url') &&
+          entry.containsKey('background_url'),
+    );
+  }
+
+  static List<Map<String, dynamic>> _normalizePaises(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+
+    final normalized = <Map<String, dynamic>>[];
+    for (final entry in raw) {
+      if (entry is! Map) continue;
+
+      // Preserve future public country fields while making this media contract
+      // stable for every existing map-based caller.
+      final pais = Map<String, dynamic>.from(entry);
+      pais['id'] = entry['id'] is int
+          ? entry['id']
+          : int.tryParse(entry['id']?.toString() ?? '') ?? 0;
+      pais['nombre'] = _optionalCountryText(entry['nombre']) ?? '';
+      pais['codigo_iso'] = _optionalCountryText(
+        entry['codigo_iso'] ?? entry['codigoIso'],
+      )?.toUpperCase();
+      pais['flag_url'] = _optionalRemoteCountryUrl(
+        entry['flag_url'] ?? entry['flagUrl'],
+      );
+      pais['background_url'] = _optionalRemoteCountryUrl(
+        entry['background_url'] ?? entry['backgroundUrl'],
+      );
+      normalized.add(pais);
+    }
+    return normalized;
+  }
+
+  static String? _optionalCountryText(dynamic raw) {
+    final value = raw?.toString().trim();
+    return value == null || value.isEmpty ? null : value;
+  }
+
+  /// Prevents malformed or local schemes from reaching NetworkImage. An
+  /// absent/invalid value intentionally lets the presentation layer use its
+  /// generic background or flag fallback.
+  static String? _optionalRemoteCountryUrl(dynamic raw) {
+    final value = _optionalCountryText(raw);
+    if (value == null) return null;
+    final uri = Uri.tryParse(value);
+    final isHttp = uri != null &&
+        uri.hasAuthority &&
+        (uri.scheme == 'https' || uri.scheme == 'http');
+    return isHttp ? value : null;
   }
 
   static Future<List<Map<String, dynamic>>> _refreshPaisesCatalog() async {
@@ -1706,17 +1768,7 @@ class ApiService {
                 ? (decoded['data'] as List<dynamic>? ?? <dynamic>[])
                 : (decoded is List ? decoded : <dynamic>[]);
 
-        final result = data
-            .whereType<Map>()
-            .map<Map<String, dynamic>>(
-              (e) => {
-                "id": e['id'] is int
-                    ? e['id']
-                    : int.tryParse(e['id']?.toString() ?? '') ?? 0,
-                "nombre": e['nombre']?.toString() ?? '',
-              },
-            )
-            .toList();
+        final result = _normalizePaises(data);
 
         if (result.isNotEmpty) {
           await CacheService.setJson(cacheKey, result);
@@ -1727,10 +1779,7 @@ class ApiService {
 
     final stale = await CacheService.getStaleJson(cacheKey);
     if (stale is List) {
-      return stale
-          .whereType<Map>()
-          .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
-          .toList();
+      return _normalizePaises(stale);
     }
     return <Map<String, dynamic>>[];
   }
