@@ -77,6 +77,23 @@ async def update_user(
         logging.error(f"Internal error: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
+@router.delete("/users/fcm_token")
+async def delete_fcm_token(
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
+):
+    try:
+        return await use_cases.clear_fcm_token(int(current_user["user_id"]))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(
+            "[NOTIFICATIONS] event=FCM_TOKEN_CLEAR_ERROR error=%s",
+            type(e).__name__,
+        )
+        raise HTTPException(status_code=500, detail="Error interno del servidor")
+
 @router.delete("/users/{user_id}")
 async def delete_user(
     user_id: int, 
@@ -263,23 +280,6 @@ async def update_fcm_token(
         )
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-
-@router.delete("/users/fcm_token")
-async def delete_fcm_token(
-    current_user: dict = Depends(dependencies.get_current_user),
-    use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases),
-):
-    try:
-        return await use_cases.clear_fcm_token(int(current_user["user_id"]))
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(
-            "[NOTIFICATIONS] event=FCM_TOKEN_CLEAR_ERROR error=%s",
-            type(e).__name__,
-        )
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
 
 @router.post("/auth/social-login")
 async def social_login(request: schemas.SocialLoginRequest, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
