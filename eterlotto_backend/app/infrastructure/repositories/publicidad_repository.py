@@ -441,7 +441,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     SELECT
                         p.id,
                         p.nombre,
-                        UPPER(NULLIF(BTRIM(p.codigo_iso), '')) AS codigo_iso,
+                        UPPER(NULLIF(BTRIM(to_jsonb(p) ->> 'codigo_iso'), '')) AS codigo_iso,
                         NULLIF(BTRIM(to_jsonb(p) ->> 'flag_url'), '') AS flag_url,
                         NULLIF(BTRIM(to_jsonb(p) ->> 'background_url'), '') AS background_url
                     FROM paises AS p

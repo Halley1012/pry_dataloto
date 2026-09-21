@@ -167,6 +167,7 @@ class LoteriaOut(BaseModel):
     total_balotas_sorteo: Optional[int] = None
     tiene_complementario: Optional[bool] = None
     tiene_reintegro: Optional[bool] = None
+    top_probables_count: Optional[int] = None
     jackpot: Optional[str] = None
 
 class PublicidadQuery:
