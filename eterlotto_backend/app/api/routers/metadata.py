@@ -24,9 +24,12 @@ def listar_categorias(use_cases: PublicidadUseCases = Depends(dependencies.get_p
         logging.error(f"Internal error: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
 
-@router.get("/paises")
+@router.get("/paises", response_model=schemas.PaisesResponse)
 def listar_paises(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
-    cache_key = "metadata:paises"
+    # v2 starts a fresh server-side entry after adding country-owned media.
+    # This is deliberately public: the same country card must work for free
+    # and premium users without depending on entitlement state.
+    cache_key = "metadata:paises:v2"
     cached = memory_cache.get(cache_key)
     if cached is not None:
         return cached
@@ -155,8 +158,9 @@ def invalidate_dynamic_cache(
     ):
         raise HTTPException(status_code=403, detail="Clave interna inválida")
 
-    # Las ejecuciones de modelos son poco frecuentes. Limpiar la caché RAM
-    # completa aquí evita inconsistencias entre catálogo, resultados,
+    # Las ejecuciones de modelos y las publicaciones de medios por país son
+    # poco frecuentes. Limpiar la caché RAM completa aquí evita
+    # inconsistencias entre catálogo, imágenes de país, resultados,
     # predicciones y jackpot; se vuelve a poblar de forma natural.
     invalidate_cache()
     version = bump_data_version()

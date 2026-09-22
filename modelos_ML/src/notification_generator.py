@@ -32,6 +32,7 @@ class NotificationGenerator:
     """
 
     _BALOTA_RE = re.compile(r"^balota(\d+)$", re.IGNORECASE)
+    _BALOTA_ROJA_RE = re.compile(r"^balotaroja(\d*)$", re.IGNORECASE)
 
     def __init__(self):
         self.engine = get_engine()
@@ -288,12 +289,41 @@ class NotificationGenerator:
             values.update(cls._as_int_list(result.get(column)))
         return values
 
-    @staticmethod
-    def _winning_special_numbers(result: dict[str, Any]) -> set[int]:
+    @classmethod
+    def _winning_special_numbers(
+        cls,
+        result: dict[str, Any],
+        *,
+        expected_count: int | None,
+    ) -> set[int]:
+        """
+        Obtiene únicamente las balotas especiales que realmente forman parte
+        del sorteo según el catálogo.
+
+        `total_balotas_sorteo - max_seleccion` es la fuente canónica del
+        número de especiales. Esto evita interpretar como especial un
+        `balotaroja = 0` técnico en loterías que en realidad no tienen
+        balota especial.
+        """
+        if expected_count is not None and expected_count <= 0:
+            return set()
+
+        numbered_columns: list[tuple[int, str]] = []
+        for column in result:
+            match = cls._BALOTA_ROJA_RE.fullmatch(column)
+            if not match:
+                continue
+            suffix = match.group(1)
+            position = int(suffix) if suffix else 1
+            numbered_columns.append((position, column))
+
+        numbered_columns.sort()
+        if expected_count is not None:
+            numbered_columns = numbered_columns[:expected_count]
+
         values: set[int] = set()
-        for column, value in result.items():
-            if column.lower().startswith("balotaroja"):
-                values.update(NotificationGenerator._as_int_list(value))
+        for _, column in numbered_columns:
+            values.update(cls._as_int_list(result.get(column)))
         return values
 
     # ------------------------------------------------------------------
@@ -458,9 +488,14 @@ class NotificationGenerator:
         nombre_display: str,
         fecha,
         ganadores: set[int],
+        especiales_ganadores: set[int] | None = None,
+        max_seleccion: int | None = None,
+        total_balotas_sorteo: int | None = None,
+        especial_nombre: str | None = None,
         force: bool = False,
     ) -> None:
-        if not ganadores:
+        especiales_ganadores = especiales_ganadores or set()
+        if not ganadores and not especiales_ganadores:
             return
 
         try:
@@ -492,40 +527,91 @@ class NotificationGenerator:
         if jugadas.empty:
             return
 
-        total_resultado = len(ganadores)
+        try:
+            main_count = int(max_seleccion or 0)
+        except (TypeError, ValueError):
+            main_count = 0
+        if main_count <= 0:
+            main_count = len(ganadores)
+
+        try:
+            total_configurado = int(total_balotas_sorteo or 0)
+        except (TypeError, ValueError):
+            total_configurado = 0
+
+        total_resultado = (
+            total_configurado
+            if total_configurado > 0
+            else len(ganadores) + len(especiales_ganadores)
+        )
+        special_slots = max(0, total_resultado - main_count)
+        special_label = (especial_nombre or "Especial").strip() or "Especial"
 
         for user_id, grupo in jugadas.groupby("user_id"):
-            mejor_aciertos: set[int] = set()
+            mejor_principales: set[int] = set()
+            mejor_especiales: set[int] = set()
+            mejor_total = 0
             cantidad_jugadas = 0
 
             for _, row in grupo.iterrows():
-                numeros = set(self._as_int_list(row.get("numeros")))
+                numeros = self._as_int_list(row.get("numeros"))
                 if not numeros:
                     continue
 
                 cantidad_jugadas += 1
-                aciertos = numeros.intersection(ganadores)
-                if len(aciertos) > len(mejor_aciertos):
-                    mejor_aciertos = aciertos
+
+                # Los roles se preservan por posición: los primeros
+                # `max_seleccion` son principales y el resto son especiales.
+                # Esto evita que una balota principal con el mismo valor que
+                # una especial se cuente en el rol equivocado.
+                principales_jugada = set(numeros[:main_count])
+                especiales_jugada = set(
+                    numeros[main_count : main_count + special_slots]
+                )
+
+                aciertos_principales = principales_jugada.intersection(ganadores)
+                aciertos_especiales = especiales_jugada.intersection(
+                    especiales_ganadores
+                )
+                total_aciertos = (
+                    len(aciertos_principales) + len(aciertos_especiales)
+                )
+
+                if total_aciertos > mejor_total:
+                    mejor_total = total_aciertos
+                    mejor_principales = aciertos_principales
+                    mejor_especiales = aciertos_especiales
 
             # 0 aciertos no genera push.
-            if not mejor_aciertos:
+            if mejor_total <= 0:
                 continue
 
-            cantidad = len(mejor_aciertos)
-            numeros_txt = ", ".join(map(str, sorted(mejor_aciertos)))
+            detalles = []
+            if mejor_principales:
+                principales_txt = ", ".join(
+                    map(str, sorted(mejor_principales))
+                )
+                detalles.append(f"Principales: {principales_txt}")
+            if mejor_especiales:
+                especiales_txt = ", ".join(
+                    map(str, sorted(mejor_especiales))
+                )
+                detalles.append(f"{special_label}: {especiales_txt}")
+
+            detalle_txt = " · ".join(detalles)
+            detalle_sufijo = f". {detalle_txt}" if detalle_txt else ""
 
             if cantidad_jugadas > 1:
                 mensaje = (
                     f"🎯 En tus jugadas de {nombre_display}, tu mejor combinación "
-                    f"acertó {cantidad} de {total_resultado} números "
-                    f"({numeros_txt}) con el resultado del sorteo."
+                    f"acertó {mejor_total} de {total_resultado} números"
+                    f"{detalle_sufijo}."
                 )
             else:
                 mensaje = (
                     f"🎯 En tu jugada de {nombre_display} acertaste "
-                    f"{cantidad} de {total_resultado} números "
-                    f"({numeros_txt}) con el resultado del sorteo."
+                    f"{mejor_total} de {total_resultado} números"
+                    f"{detalle_sufijo}."
                 )
 
             self._publicar_notificacion_usuario(
@@ -664,7 +750,19 @@ class NotificationGenerator:
             )
             return
 
-        especiales_ganadores = self._winning_special_numbers(result)
+        try:
+            total_draw = int(catalog.get("total_balotas_sorteo") or 0)
+        except (TypeError, ValueError):
+            total_draw = 0
+
+        expected_special = None
+        if total_draw > 0 and expected_white is not None:
+            expected_special = max(0, total_draw - expected_white)
+
+        especiales_ganadores = self._winning_special_numbers(
+            result,
+            expected_count=expected_special,
+        )
 
         # Resultado real de las jugadas: independiente de la predicción IA.
         self.notificar_aciertos_jugadas(
@@ -672,6 +770,10 @@ class NotificationGenerator:
             nombre_display=nombre_display,
             fecha=fecha,
             ganadores=ganadores,
+            especiales_ganadores=especiales_ganadores,
+            max_seleccion=expected_white,
+            total_balotas_sorteo=total_draw or None,
+            especial_nombre=catalog.get("superbalota_nombre"),
             force=force,
         )
 

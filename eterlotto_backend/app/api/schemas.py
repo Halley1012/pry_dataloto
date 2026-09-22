@@ -135,6 +135,22 @@ class PostResponse(BaseModel):
     created_at: datetime
     comments_count: int = 0
 
+
+class PaisOut(BaseModel):
+    """Public country catalogue entry shared by free and premium clients."""
+
+    id: int
+    nombre: str
+    codigo_iso: Optional[str] = None
+    flag_url: Optional[str] = None
+    background_url: Optional[str] = None
+
+
+class PaisesResponse(BaseModel):
+    success: bool
+    data: List[PaisOut]
+
+
 class LoteriaOut(BaseModel):
     id: int
     nombre: str
@@ -151,6 +167,7 @@ class LoteriaOut(BaseModel):
     total_balotas_sorteo: Optional[int] = None
     tiene_complementario: Optional[bool] = None
     tiene_reintegro: Optional[bool] = None
+    top_probables_count: Optional[int] = None
     jackpot: Optional[str] = None
 
 class PublicidadQuery:

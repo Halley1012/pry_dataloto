@@ -391,17 +391,33 @@ class AdService {
               unlockFeature(featureKey, duration: unlockDuration);
             }
             onRewardGranted();
+          } else if (context.mounted) {
+            final langCode = Localizations.localeOf(context).languageCode;
+            final message = langCode == 'en'
+                ? 'Complete the video to unlock this feature.'
+                : (langCode == 'pt'
+                      ? 'Conclua o vídeo para desbloquear esta função.'
+                      : 'Completa el video para desbloquear esta función.');
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(content: Text(message)),
+            );
           }
         },
         onAdFailedToShowFullScreenContent: (ad, _) {
           ad.dispose();
           _rewardedAd = null;
           loadRewardedAd();
-          // En caso de error, permitir que el usuario continúe y desbloquear
-          if (featureKey != null) {
-            unlockFeature(featureKey, duration: unlockDuration);
+          if (context.mounted) {
+            final langCode = Localizations.localeOf(context).languageCode;
+            final message = langCode == 'en'
+                ? 'The video could not be shown. Please try again.'
+                : (langCode == 'pt'
+                      ? 'Não foi possível exibir o vídeo. Tente novamente.'
+                      : 'No se pudo mostrar el video. Inténtalo nuevamente.');
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(content: Text(message)),
+            );
           }
-          onRewardGranted();
         },
       );
 
@@ -411,12 +427,21 @@ class AdService {
         },
       );
     } else {
-      // Si el anuncio no está disponible (ej. sin internet o sin fill), otorgar acceso por cortesía
+      // Para usuarios no VIP la función sólo se desbloquea tras completar
+      // realmente el video. Si no hay anuncio disponible, se reintenta la
+      // precarga pero no se concede acceso por cortesía.
       loadRewardedAd();
-      if (featureKey != null) {
-        unlockFeature(featureKey, duration: unlockDuration);
+      if (context.mounted) {
+        final langCode = Localizations.localeOf(context).languageCode;
+        final message = langCode == 'en'
+            ? 'No video is available right now. Please try again shortly.'
+            : (langCode == 'pt'
+                  ? 'Nenhum vídeo está disponível agora. Tente novamente em instantes.'
+                  : 'No hay video disponible en este momento. Inténtalo de nuevo en unos instantes.');
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(message)),
+        );
       }
-      onRewardGranted();
     }
   }
 

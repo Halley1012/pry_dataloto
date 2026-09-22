@@ -149,12 +149,22 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         maxBlancas > 0;
   }
 
+  bool _hasTopProbablesField(Map<String, dynamic>? data) {
+    if (data == null) return false;
+    return data.containsKey('top_probables_count') ||
+        data.containsKey('topProbablesCount') ||
+        data.containsKey('cantidad_probables');
+  }
+
   /// Completa únicamente las REGLAS numéricas desde el catálogo cuando la
   /// pantalla fue abierta sin `loteriaData`. La identidad (`loteria_id`) sigue
   /// viniendo exclusivamente de la navegación original para no confundir
   /// loterías compartidas por varios países.
   Future<void> _resolverReglasLoteria(String route) async {
-    if (_hasNumericRules(_effectiveLoteriaData)) return;
+    if (_hasNumericRules(_effectiveLoteriaData) &&
+        _hasTopProbablesField(_effectiveLoteriaData)) {
+      return;
+    }
 
     try {
       final all = await ApiService.getAllLoterias();
@@ -467,7 +477,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
         ? 'id_${_loteriaId}_$route'
         : 'route_$route';
     final cacheKey =
-        'resultados_dashboard_cache_v12_${lotteryIdentity}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
+        'resultados_dashboard_cache_v13_${lotteryIdentity}_${requestedDrawDate.isEmpty ? 'latest' : requestedDrawDate}_$userId';
 
     // 1. SWR: el payload es privado por usuario, pero sigue siendo válido
     // para esa misma sesión aunque haya vencido mientras llega la red.
