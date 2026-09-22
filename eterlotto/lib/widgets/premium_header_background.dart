@@ -79,63 +79,19 @@ class _PremiumGoldenWavesPainter extends CustomPainter {
     Offset(0.11, 0.82),
   ];
 
-  static const List<Offset> _dustPositions = [
-    Offset(0.28, 0.68),
-    Offset(0.39, 0.22),
-    Offset(0.46, 0.88),
-    Offset(0.59, 0.59),
-    Offset(0.73, 0.76),
-    Offset(0.81, 0.34),
-  ];
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-
-    // Base casi negra con una calidez imperceptible. Mantiene el contraste
-    // del logo, saludo y acciones sin convertir la cabecera en un banner.
-    final basePaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF0D0D0C), Color(0xFF151208), Color(0xFF0C0D0D)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, w, h));
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), basePaint);
-
-    // Resplandor ambiental cálido superior/central.
-    final glowPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0.34, -0.28),
-        radius: 1.25,
-        colors: [
-          const Color(0xFFFFD700).withValues(alpha: 0.15),
-          const Color(0xFFC89600).withValues(alpha: 0.045),
-          Colors.transparent,
-        ],
-        stops: const [0.0, 0.42, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, w, h));
-
-    canvas.drawRect(Rect.fromLTWH(0, 0, w, h), glowPaint);
-
     final waveCycle = progress * 2 * math.pi;
 
-    // Partículas de oro, discretas y estáticas, para añadir textura.
-    for (final pos in _dustPositions) {
-      final opacity = 0.16 + ((math.sin(waveCycle + pos.dx * 7) + 1) * 0.08);
-      canvas.drawCircle(
-        Offset(pos.dx * w, pos.dy * h),
-        1.1,
-        Paint()..color = const Color(0xFFFFD958).withValues(alpha: opacity),
-      );
-    }
-
-    // Destellos limpios en forma de estrella de 4 puntas.
+    // Fondo totalmente transparente: el Home conserva su negro original.
+    // Para VIP solo quedan los destellos animados.
     for (int i = 0; i < _sparklePositions.length; i++) {
       final pos = _sparklePositions[i];
       final phase = waveCycle + (i * (math.pi / 2.5));
-      final rawPulse = (math.sin(phase) + 1.0) / 2.0; // 0.0 -> 1.0
-      // Fade suave y controlado
+      final rawPulse = (math.sin(phase) + 1.0) / 2.0;
       final opacity = (rawPulse * 0.70).clamp(0.0, 0.70);
       final scale = 6.0 + (rawPulse * 7.0);
 

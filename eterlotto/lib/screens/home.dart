@@ -670,10 +670,6 @@ class _HomeScreenState extends State<HomeScreen>
                     ? "Explore as loterias mais jogadas no país."
                     : "Explora las loterias más jugadas en el país."));
     final backgroundUrl = _currentCountryBackgroundUrl();
-    final borderColor = isPremium
-        ? AppColors.yellow.withValues(alpha: 0.54)
-        : Colors.white.withValues(alpha: 0.30);
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 25.0, 16.0, 12.0),
       child: Semantics(
@@ -699,19 +695,12 @@ class _HomeScreenState extends State<HomeScreen>
               decoration: BoxDecoration(
                 color: const Color(0xFF0F1622),
                 borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: borderColor, width: 1.1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.34),
-                    blurRadius: 16,
-                    offset: const Offset(0, 7),
+                    color: Colors.black.withValues(alpha: 0.28),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
                   ),
-                  if (isPremium)
-                    BoxShadow(
-                      color: AppColors.yellow.withValues(alpha: 0.10),
-                      blurRadius: 18,
-                      spreadRadius: 1,
-                    ),
                 ],
               ),
               child: Stack(
@@ -724,23 +713,14 @@ class _HomeScreenState extends State<HomeScreen>
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          Color(0xE9091424),
-                          Color(0xA6091322),
-                          Color(0xCC02060D),
+                          Color(0xD9091424),
+                          Color(0x76091322),
+                          Color(0x5202060D),
                         ],
-                        stops: [0.0, 0.56, 1.0],
+                        stops: [0.0, 0.50, 1.0],
                         begin: Alignment.centerLeft,
                         end: Alignment.centerRight,
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    left: 0,
-                    child: Container(
-                      height: 1,
-                      color: Colors.white.withValues(alpha: 0.16),
                     ),
                   ),
                   Padding(
@@ -793,18 +773,7 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         const SizedBox(width: 8),
                         _buildHeaderFlagWidget(isPremium),
-                        const Icon(
-                          Icons.chevron_right_rounded,
-                          color: Colors.white,
-                          size: 32,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black87,
-                              blurRadius: 7,
-                              offset: Offset(0, 1),
-                            ),
-                          ],
-                        ),
+
                       ],
                     ),
                   ),
@@ -823,6 +792,7 @@ class _HomeScreenState extends State<HomeScreen>
     return CachedNetworkImage(
       imageUrl: backgroundUrl,
       fit: BoxFit.cover,
+      alignment: Alignment.center,
       fadeInDuration: const Duration(milliseconds: 180),
       placeholder: (_, __) => _buildGenericCountryBackground(),
       errorWidget: (_, __, ___) => _buildGenericCountryBackground(),
@@ -2528,45 +2498,25 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          gradient: const LinearGradient(
-            colors: [Color(0xFF1D1D20), Color(0xFF131315)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          border: Border.all(
-            color: AppColors.yellow.withValues(alpha: 0.58),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.yellow.withValues(alpha: 0.12),
-              blurRadius: 16,
-              spreadRadius: 1,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildCommunityHeader(totalMessages),
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF171719),
+              borderRadius: BorderRadius.circular(16),
             ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildCommunityHeader(totalMessages),
-              const SizedBox(height: 10),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                child: _buildCommunityBody(),
-              ),
-            ],
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              child: _buildCommunityBody(),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -2577,63 +2527,17 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Row(
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: AppColors.yellow.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Icon(
-            Icons.forum_outlined,
-            color: AppColors.yellow,
-            size: 22,
-          ),
-        ),
-        const SizedBox(width: 10),
         Expanded(
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () => setState(
-              () => _isCommunityExpanded = !_isCommunityExpanded,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      commentsLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.h2.copyWith(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _buildCommunityCountBadge(totalMessages),
-                ],
-              ),
+          child: Text(
+            commentsLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.h2.copyWith(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
             ),
           ),
-        ),
-        IconButton(
-          tooltip: _isCommunityExpanded
-              ? 'Contraer comentarios'
-              : 'Ver todos los comentarios',
-          visualDensity: VisualDensity.compact,
-          onPressed: () => setState(
-            () => _isCommunityExpanded = !_isCommunityExpanded,
-          ),
-          icon: AnimatedRotation(
-            turns: _isCommunityExpanded ? 0.5 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: const Icon(Icons.keyboard_arrow_down_rounded),
-          ),
-          color: Colors.white70,
         ),
         IconButton(
           tooltip: 'Crear comentario',
@@ -2641,6 +2545,7 @@ class _HomeScreenState extends State<HomeScreen>
           onPressed: _createCommunityPost,
           icon: const Icon(Icons.add_circle_outline_rounded),
           color: AppColors.yellow,
+          iconSize: 30,
         ),
       ],
     );
@@ -2648,21 +2553,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildCommunityCountBadge(int totalMessages) {
     final countLabel = totalMessages > 99 ? '99+' : '$totalMessages';
-    return Container(
-      constraints: const BoxConstraints(minWidth: 28),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFF3B58),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        countLabel,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
+    return Text(
+      countLabel,
+      style: AppTextStyles.caption.copyWith(
+        color: Colors.white54,
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -2696,9 +2592,8 @@ class _HomeScreenState extends State<HomeScreen>
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.2),
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white12),
         ),
         child: Row(
           children: [
@@ -2733,19 +2628,22 @@ class _HomeScreenState extends State<HomeScreen>
 
     return Semantics(
       button: true,
-      label: 'Abrir comentarios de $displayName',
+      label: 'Mostrar todos los comentarios',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () => _abrirPostScreen(post),
+          onTap: () {
+            if (!_isCommunityExpanded && mounted) {
+              setState(() => _isCommunityExpanded = true);
+            }
+          },
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.2),
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white12),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2818,7 +2716,7 @@ class _HomeScreenState extends State<HomeScreen>
                         children: [
                           const Icon(
                             Icons.chat_bubble_outline_rounded,
-                            color: AppColors.yellow,
+                            color: Colors.white54,
                             size: 14,
                           ),
                           const SizedBox(width: 5),
@@ -2839,9 +2737,9 @@ class _HomeScreenState extends State<HomeScreen>
                 const Padding(
                   padding: EdgeInsets.only(top: 24),
                   child: Icon(
-                    Icons.arrow_forward_ios_rounded,
+                    Icons.keyboard_arrow_down_rounded,
                     color: Colors.white54,
-                    size: 15,
+                    size: 22,
                   ),
                 ),
               ],
@@ -2856,19 +2754,44 @@ class _HomeScreenState extends State<HomeScreen>
     if (isLoading && posts.isEmpty) return _buildCommunityLoadingPreview();
     if (posts.isEmpty) return _buildCommunityEmptyPreview();
 
-    return SizedBox(
-      height: 360,
-      child: ListView.builder(
-        padding: EdgeInsets.zero,
-        physics: const BouncingScrollPhysics(),
-        itemCount: posts.length,
-        itemBuilder: (context, index) {
-          final post = posts[index];
-          final isOwner =
-              currentUserId != null && post.userId == int.tryParse(currentUserId!);
-          return _buildPostItem(post, isOwner);
-        },
-      ),
+    return Column(
+      children: [
+        SizedBox(
+          height: 360,
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            physics: const BouncingScrollPhysics(),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              final post = posts[index];
+              final isOwner =
+                  currentUserId != null &&
+                  post.userId == int.tryParse(currentUserId!);
+              return _buildPostItem(post, isOwner);
+            },
+          ),
+        ),
+        TextButton.icon(
+          onPressed: () {
+            if (mounted) {
+              setState(() => _isCommunityExpanded = false);
+            }
+          },
+          icon: const Icon(
+            Icons.keyboard_arrow_up_rounded,
+            color: Colors.white54,
+            size: 20,
+          ),
+          label: Text(
+            'Ver menos',
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.white60,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
