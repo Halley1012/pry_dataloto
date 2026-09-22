@@ -90,3 +90,15 @@ coverage.xml
 **/google-services.json
 modelos_ML/config/firebase_credentials.json
 eterlotto/android/app/google-services.json
+
+# Python / modelos_ML
+*.pyc
+*.backup
+*_backup.py
+* copy.py
+.pytest_cache/
+modelos_ML/.secrets/
+modelos_ML/scratch/
+modelos_ML/_cache_patch_backups/
+modelos_ML/.env
+modelos_ML/.env.*

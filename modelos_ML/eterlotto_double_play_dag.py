@@ -45,7 +45,9 @@ with DAG(
     'eterlotto_ejecucion_double_play',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Double Play usando main_double_play.py',
-    schedule='0 3 * * *', # Martes, Jueves y Domingo
+    # Double Play se sortea lunes/miércoles/sábado por la noche.
+    # El pipeline corre después del sorteo: martes/jueves/domingo a las 03:00.
+    schedule='0 3 * * 0,2,4',
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'double_play'],
