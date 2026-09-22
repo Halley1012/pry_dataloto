@@ -185,6 +185,53 @@ class KabalaScraper:
                 }
         return None
 
+    def _filas_desde_ultimo_fuente(self, ultimo_fuente: dict | None) -> list[dict]:
+        """
+        Convierte el último sorteo ya leído desde la página principal en las
+        dos filas canónicas (Kábala + Chau Chamba).
+
+        Esto evita depender del sitemap para insertar el sorteo más reciente.
+        """
+        if not ultimo_fuente:
+            return []
+
+        concurso = ultimo_fuente.get("concurso")
+        fecha = ultimo_fuente.get("fecha")
+        buenazo = ultimo_fuente.get("buenazo_balls") or []
+        chamba = ultimo_fuente.get("chamba_balls") or []
+
+        if not concurso or not fecha or len(buenazo) != 6 or len(chamba) != 6:
+            return []
+
+        return [
+            {
+                "concurso": int(concurso),
+                "loteria_id": self.loteria_id,
+                "sorteo": "Kábala",
+                "fecha": fecha,
+                "balota1": int(buenazo[0]),
+                "balota2": int(buenazo[1]),
+                "balota3": int(buenazo[2]),
+                "balota4": int(buenazo[3]),
+                "balota5": int(buenazo[4]),
+                "balota6": int(buenazo[5]),
+                "balotaroja": 0,
+            },
+            {
+                "concurso": int(concurso),
+                "loteria_id": self.loteria_id,
+                "sorteo": "Chau Chamba",
+                "fecha": fecha,
+                "balota1": int(chamba[0]),
+                "balota2": int(chamba[1]),
+                "balota3": int(chamba[2]),
+                "balota4": int(chamba[3]),
+                "balota5": int(chamba[4]),
+                "balota6": int(chamba[5]),
+                "balotaroja": 0,
+            },
+        ]
+
     def _parsear_jugada(self, url: str) -> list[dict]:
         """Descarga y parsea una página individual de sorteo de Kábala (Pozo Buenazo + Chau Chamba)."""
         m_sorteo_url = re.search(r'sorteo-(\d+)', url)
@@ -280,7 +327,23 @@ class KabalaScraper:
             r = self._fetch_with_retries(self.url_sitemap, max_retries=3, base_delay=1.5)
             if r and r.status_code == 200:
                 urls = re.findall(r'<loc>(.*?)</loc>', r.text)
-                kabala_urls = [u for u in urls if 'kabala' in u.lower() and 'sorteo-' in u.lower()][:max_draws]
+                kabala_urls = [
+                    u for u in urls
+                    if 'kabala' in u.lower() and 'sorteo-' in u.lower()
+                ]
+
+                # El orden de un sitemap no está garantizado. Antes se tomaban
+                # los primeros N elementos y eso podía dejar fuera los sorteos
+                # nuevos. Ordenamos por número de concurso y luego limitamos.
+                def _concurso_url(url: str) -> int:
+                    match = re.search(r'sorteo-(\d+)', url, re.I)
+                    return int(match.group(1)) if match else -1
+
+                kabala_urls = sorted(
+                    kabala_urls,
+                    key=_concurso_url,
+                    reverse=True,
+                )[:max_draws]
             else:
                 kabala_urls = []
 
@@ -293,15 +356,37 @@ class KabalaScraper:
             if res:
                 draws.extend(res)
 
-        # En modo reciente, consultar también el último sorteo de la página principal
+        # En modo reciente, añadir también el último sorteo de la página
+        # principal usando el parser específico del Home. `_parsear_jugada`
+        # está pensado para páginas /sorteo-N y puede no reconocer el Home.
         if desde_concurso is None:
-            ultimo_res = self._parsear_jugada("https://www.tinkaresultados.com/kabala")
+            ultimo_fuente = self.extraer_ultimo_sorteo_fuente()
+            ultimo_res = self._filas_desde_ultimo_fuente(ultimo_fuente)
             if ultimo_res:
                 draws.extend(ultimo_res)
 
         df = pd.DataFrame(draws)
         if not df.empty:
-            df = df.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(['concurso', 'sorteo'], ascending=[False, False]).reset_index(drop=True)
+            df = (
+                df.drop_duplicates(subset=['fecha', 'sorteo'], keep='first')
+                .sort_values(['concurso', 'sorteo'], ascending=[False, False])
+                .reset_index(drop=True)
+            )
+
+        if desde_concurso is not None and hasta_concurso is not None:
+            esperados = set(range(int(desde_concurso), int(hasta_concurso) + 1))
+            obtenidos = set()
+            if not df.empty and "concurso" in df.columns:
+                obtenidos = {
+                    int(v)
+                    for v in df["concurso"].dropna().tolist()
+                }
+            faltantes = sorted(esperados - obtenidos)
+            if faltantes:
+                print(
+                    "⚠️ [Kábala] Concursos que no pudieron descargarse "
+                    f"en este intento: {faltantes}"
+                )
 
         print(f"📊 Sorteos únicos procesados de Kábala y Chau Chamba: {len(df)}")
         return df
@@ -375,12 +460,59 @@ class KabalaScraper:
         # 3. Descargar histórico y pozo oficial
         pozo_oficial = self.extraer_pozo_oficial()
 
+        concurso_db = None
+        concurso_fuente = None
+        try:
+            concurso_db = int(ultimo_db.get("concurso")) if ultimo_db and ultimo_db.get("concurso") else None
+        except (TypeError, ValueError):
+            concurso_db = None
+        try:
+            concurso_fuente = (
+                int(ultimo_fuente.get("concurso"))
+                if ultimo_fuente and ultimo_fuente.get("concurso")
+                else None
+            )
+        except (TypeError, ValueError):
+            concurso_fuente = None
+
         if backfill or desde_concurso is not None or df_existente.empty or len(df_existente) < 50:
             desde_c = desde_concurso or 1642
-            hasta_c = hasta_concurso or (ultimo_fuente.get("concurso") if ultimo_fuente else 2012)
-            df_scraped = self.extraer_historico_concurrente(desde_concurso=desde_c, hasta_concurso=hasta_c)
+            hasta_c = hasta_concurso or concurso_fuente or 2012
+            df_scraped = self.extraer_historico_concurrente(
+                desde_concurso=desde_c,
+                hasta_concurso=hasta_c,
+            )
+        elif concurso_db is not None and concurso_fuente is not None and concurso_fuente > concurso_db:
+            # Si la fuente sabe que hay sorteos nuevos, no dependemos del
+            # orden/actualización del sitemap: descargamos exactamente el hueco.
+            desde_c = concurso_db + 1
+            hasta_c = concurso_fuente
+            print(
+                f"🧩 [Kábala] BD atrasada: #{concurso_db}; "
+                f"fuente: #{concurso_fuente}. "
+                f"Recuperando rango faltante #{desde_c}..#{hasta_c}."
+            )
+            df_scraped = self.extraer_historico_concurrente(
+                desde_concurso=desde_c,
+                hasta_concurso=hasta_c,
+            )
         else:
             df_scraped = self.extraer_historico_concurrente(max_draws=30)
+
+        # El último resultado publicado en el Home es una segunda fuente de
+        # seguridad. Se añade aunque el sitemap/rango no lo haya devuelto.
+        filas_ultimo = self._filas_desde_ultimo_fuente(ultimo_fuente)
+        if filas_ultimo:
+            df_ultimo = pd.DataFrame(filas_ultimo)
+            if df_scraped.empty:
+                df_scraped = df_ultimo
+            else:
+                df_scraped = pd.concat([df_ultimo, df_scraped], ignore_index=True)
+                df_scraped = (
+                    df_scraped
+                    .drop_duplicates(subset=["fecha", "sorteo"], keep="first")
+                    .reset_index(drop=True)
+                )
 
         if df_scraped.empty and df_existente.empty:
             raise RuntimeError("❌ [Kábala] No se pudieron obtener resultados de Kábala tras reintentos.")
