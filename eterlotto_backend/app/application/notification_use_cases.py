@@ -56,10 +56,12 @@ class NotificationUseCases:
         mensaje: str,
         tipo: str,
         user_id: Optional[int],
+        fecha_sorteo: Optional[datetime],
     ) -> Dict[str, Any]:
         targets = await self.notification_repo.list_push_targets(
             loteria_id=loteria_id,
             user_id=user_id,
+            fecha_sorteo=fecha_sorteo,
         )
 
         if not targets:
@@ -203,6 +205,7 @@ class NotificationUseCases:
                 mensaje=mensaje,
                 tipo=tipo,
                 user_id=user_id,
+                fecha_sorteo=fecha,
             )
         except Exception as exc:
             # El buzón interno nunca se pierde porque FCM esté temporalmente caído.
