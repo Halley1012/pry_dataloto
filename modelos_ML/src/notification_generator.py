@@ -32,6 +32,7 @@ class NotificationGenerator:
     """
 
     _BALOTA_RE = re.compile(r"^balota(\d+)$", re.IGNORECASE)
+    _BALOTA_ROJA_RE = re.compile(r"^balotaroja(\d*)$", re.IGNORECASE)
 
     def __init__(self):
         self.engine = get_engine()
@@ -288,12 +289,41 @@ class NotificationGenerator:
             values.update(cls._as_int_list(result.get(column)))
         return values
 
-    @staticmethod
-    def _winning_special_numbers(result: dict[str, Any]) -> set[int]:
+    @classmethod
+    def _winning_special_numbers(
+        cls,
+        result: dict[str, Any],
+        *,
+        expected_count: int | None,
+    ) -> set[int]:
+        """
+        Obtiene únicamente las balotas especiales que realmente forman parte
+        del sorteo según el catálogo.
+
+        `total_balotas_sorteo - max_seleccion` es la fuente canónica del
+        número de especiales. Esto evita interpretar como especial un
+        `balotaroja = 0` técnico en loterías que en realidad no tienen
+        balota especial.
+        """
+        if expected_count is not None and expected_count <= 0:
+            return set()
+
+        numbered_columns: list[tuple[int, str]] = []
+        for column in result:
+            match = cls._BALOTA_ROJA_RE.fullmatch(column)
+            if not match:
+                continue
+            suffix = match.group(1)
+            position = int(suffix) if suffix else 1
+            numbered_columns.append((position, column))
+
+        numbered_columns.sort()
+        if expected_count is not None:
+            numbered_columns = numbered_columns[:expected_count]
+
         values: set[int] = set()
-        for column, value in result.items():
-            if column.lower().startswith("balotaroja"):
-                values.update(NotificationGenerator._as_int_list(value))
+        for _, column in numbered_columns:
+            values.update(cls._as_int_list(result.get(column)))
         return values
 
     # ------------------------------------------------------------------
@@ -460,6 +490,7 @@ class NotificationGenerator:
         ganadores: set[int],
         especiales_ganadores: set[int] | None = None,
         max_seleccion: int | None = None,
+        total_balotas_sorteo: int | None = None,
         especial_nombre: str | None = None,
         force: bool = False,
     ) -> None:
@@ -503,7 +534,17 @@ class NotificationGenerator:
         if main_count <= 0:
             main_count = len(ganadores)
 
-        total_resultado = len(ganadores) + len(especiales_ganadores)
+        try:
+            total_configurado = int(total_balotas_sorteo or 0)
+        except (TypeError, ValueError):
+            total_configurado = 0
+
+        total_resultado = (
+            total_configurado
+            if total_configurado > 0
+            else len(ganadores) + len(especiales_ganadores)
+        )
+        special_slots = max(0, total_resultado - main_count)
         special_label = (especial_nombre or "Especial").strip() or "Especial"
 
         for user_id, grupo in jugadas.groupby("user_id"):
@@ -524,7 +565,9 @@ class NotificationGenerator:
                 # Esto evita que una balota principal con el mismo valor que
                 # una especial se cuente en el rol equivocado.
                 principales_jugada = set(numeros[:main_count])
-                especiales_jugada = set(numeros[main_count:])
+                especiales_jugada = set(
+                    numeros[main_count : main_count + special_slots]
+                )
 
                 aciertos_principales = principales_jugada.intersection(ganadores)
                 aciertos_especiales = especiales_jugada.intersection(
@@ -707,7 +750,19 @@ class NotificationGenerator:
             )
             return
 
-        especiales_ganadores = self._winning_special_numbers(result)
+        try:
+            total_draw = int(catalog.get("total_balotas_sorteo") or 0)
+        except (TypeError, ValueError):
+            total_draw = 0
+
+        expected_special = None
+        if total_draw > 0 and expected_white is not None:
+            expected_special = max(0, total_draw - expected_white)
+
+        especiales_ganadores = self._winning_special_numbers(
+            result,
+            expected_count=expected_special,
+        )
 
         # Resultado real de las jugadas: independiente de la predicción IA.
         self.notificar_aciertos_jugadas(
@@ -717,6 +772,7 @@ class NotificationGenerator:
             ganadores=ganadores,
             especiales_ganadores=especiales_ganadores,
             max_seleccion=expected_white,
+            total_balotas_sorteo=total_draw or None,
             especial_nombre=catalog.get("superbalota_nombre"),
             force=force,
         )
