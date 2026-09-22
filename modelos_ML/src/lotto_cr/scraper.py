@@ -81,6 +81,87 @@ class LottoCostaRicaScraper:
             candidate += timedelta(days=1)
         return candidate
 
+    def _asegurar_esquema_resultados(self) -> None:
+        """
+        Asegura que resultados_lotto_cr tenga el esquema canónico incluso si
+        la tabla fue creada por una versión antigua del scraper.
+
+        CREATE TABLE IF NOT EXISTS no agrega columnas faltantes a una tabla
+        existente, por eso se complementa con ALTER TABLE ... ADD COLUMN IF
+        NOT EXISTS antes de cualquier UPSERT.
+        """
+        if self.loteria_id is None:
+            raise RuntimeError("loteria_id debe resolverse antes de asegurar el esquema.")
+
+        with self.engine.begin() as conn:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS resultados_lotto_cr (
+                    id SERIAL PRIMARY KEY,
+                    concurso INTEGER,
+                    loteria_id INTEGER REFERENCES loterias(id),
+                    sorteo VARCHAR(50) NOT NULL,
+                    fecha DATE NOT NULL,
+                    balota1 INTEGER NOT NULL,
+                    balota2 INTEGER NOT NULL,
+                    balota3 INTEGER NOT NULL,
+                    balota4 INTEGER NOT NULL,
+                    balota5 INTEGER NOT NULL,
+                    balotaroja INTEGER NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
+
+                ALTER TABLE resultados_lotto_cr
+                    ADD COLUMN IF NOT EXISTS concurso INTEGER,
+                    ADD COLUMN IF NOT EXISTS loteria_id INTEGER,
+                    ADD COLUMN IF NOT EXISTS balotaroja INTEGER NOT NULL DEFAULT 0,
+                    ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+            """))
+
+            # Completa filas históricas que provienen del esquema anterior.
+            conn.execute(
+                text("""
+                    UPDATE resultados_lotto_cr
+                    SET loteria_id = :loteria_id
+                    WHERE loteria_id IS NULL;
+                """),
+                {"loteria_id": int(self.loteria_id)},
+            )
+
+            # ON CONFLICT(fecha, sorteo) necesita una clave única. Si una tabla
+            # legacy contiene duplicados, conservar primero el resultado real y
+            # después el registro más recientemente actualizado.
+            conn.execute(text("""
+                WITH filas_duplicadas AS (
+                    SELECT ctid,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY fecha, sorteo
+                               ORDER BY
+                                   (COALESCE(balota1, 0) > 0) DESC,
+                                   updated_at DESC NULLS LAST,
+                                   ctid DESC
+                           ) AS posicion
+                    FROM resultados_lotto_cr
+                )
+                DELETE FROM resultados_lotto_cr AS resultado
+                USING filas_duplicadas AS duplicado
+                WHERE resultado.ctid = duplicado.ctid
+                  AND duplicado.posicion > 1;
+
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_lotto_cr_fecha_sorteo
+                    ON resultados_lotto_cr (fecha, sorteo);
+
+                CREATE INDEX IF NOT EXISTS idx_lotto_cr_fecha
+                    ON resultados_lotto_cr (fecha DESC);
+
+                CREATE INDEX IF NOT EXISTS idx_lotto_cr_loteria_id
+                    ON resultados_lotto_cr (loteria_id);
+
+                CREATE INDEX IF NOT EXISTS idx_lotto_cr_concurso
+                    ON resultados_lotto_cr (concurso);
+            """))
+
     def extraer_pozo_estimado(self) -> str:
         """Extrae el pozo acumulado para el próximo sorteo en Colones (CRC)."""
         print("➡️ Consultando pozo estimado de Lotto Costa Rica...")
@@ -273,6 +354,7 @@ class LottoCostaRicaScraper:
         print("🚀 Iniciando Scraping de Lotto y Revancha (Costa Rica)...")
 
         self.loteria_id = self._obtener_loteria_id()
+        self._asegurar_esquema_resultados()
 
         pozo_oficial = self.extraer_pozo_estimado()
 
@@ -361,28 +443,18 @@ class LottoCostaRicaScraper:
         df_final = df_final.drop_duplicates(subset=['fecha', 'sorteo'], keep='first').sort_values(by=['fecha', 'sorteo'], ascending=[False, True]).reset_index(drop=True)
 
         # 5. Guardar en PostgreSQL vía UPSERT seguro y limpiar placeholders viejos
+        # El esquema ya se aseguró al inicio de run(); se repite la llamada de
+        # forma idempotente antes del UPSERT para tolerar ejecuciones parciales.
+        self._asegurar_esquema_resultados()
         with self.engine.begin() as conn:
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS resultados_lotto_cr (
-                    id SERIAL PRIMARY KEY,
-                    concurso INT,
-                    loteria_id INT REFERENCES loterias(id),
-                    sorteo VARCHAR(50) NOT NULL,
-                    fecha DATE NOT NULL,
-                    balota1 INT NOT NULL,
-                    balota2 INT NOT NULL,
-                    balota3 INT NOT NULL,
-                    balota4 INT NOT NULL,
-                    balota5 INT NOT NULL,
-                    balotaroja INT NOT NULL DEFAULT 0,
-                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-                );
-                CREATE UNIQUE INDEX IF NOT EXISTS uq_lotto_cr_fecha_sorteo ON resultados_lotto_cr (fecha, sorteo);
-            """))
-
-            # Limpiar placeholders obsoletos de fechas anteriores
-            conn.execute(text("DELETE FROM resultados_lotto_cr WHERE (balota1 = 0 AND balota2 = 0 AND balota3 = 0 AND balota4 = 0 AND balota5 = 0) AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
+            conn.execute(
+                text(
+                    "DELETE FROM resultados_lotto_cr "
+                    "WHERE (balota1 = 0 AND balota2 = 0 AND balota3 = 0 "
+                    "AND balota4 = 0 AND balota5 = 0) AND fecha < :cur_date;"
+                ),
+                {"cur_date": proxima_fecha},
+            )
 
         insert_sql = """
             INSERT INTO resultados_lotto_cr (
@@ -441,6 +513,7 @@ class LottoCostaRicaScraper:
     def _asegurar_placeholders(self, proxima_fecha: date):
         """Garantiza la existencia de los placeholders para Lotto y Revancha."""
         try:
+            self._asegurar_esquema_resultados()
             with self.engine.begin() as conn:
                 conn.execute(text("DELETE FROM resultados_lotto_cr WHERE (balota1 = 0 AND balota2 = 0 AND balota3 = 0 AND balota4 = 0 AND balota5 = 0) AND fecha < :cur_date;"), {"cur_date": proxima_fecha})
                 for s in ["Lotto", "Revancha"]:

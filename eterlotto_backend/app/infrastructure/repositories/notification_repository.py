@@ -70,6 +70,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
         self,
         loteria_id: Optional[int],
         user_id: Optional[int] = None,
+        fecha_sorteo: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -105,17 +106,27 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                       AND COALESCE(u.notificaciones_activas, TRUE) = TRUE
                       AND NULLIF(TRIM(u.fcm_token), '') IS NOT NULL
                       AND (
+                        -- Las loterías del país del usuario son permanentes.
                         u.pais_id = l.pais_id
-                        OR EXISTS (
-                          SELECT 1
-                          FROM jugadas j
-                          WHERE j.user_id = u.id
-                            AND j.loteria_id = $1
-                            AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                        OR (
+                          -- Una lotería extranjera sólo aplica al sorteo
+                          -- concreto que el usuario realmente jugó.
+                          $2::date IS NOT NULL
+                          AND EXISTS (
+                            SELECT 1
+                            FROM jugadas j
+                            WHERE j.user_id = u.id
+                              AND j.loteria_id = $1
+                              AND COALESCE(
+                                    j.fecha_sorteo,
+                                    j.fecha_guardado::date
+                                  ) = $2::date
+                          )
                         )
                       )
                     """,
                     loteria_id,
+                    fecha_sorteo,
                 )
 
             # Un token físico recibe una sola vez el mismo evento aunque una
@@ -163,7 +174,11 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                           SELECT 1 FROM jugadas j
                           WHERE j.user_id = $1
                             AND j.loteria_id = n.loteria_id
-                            AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
+                            AND n.fecha_sorteo IS NOT NULL
+                            AND COALESCE(
+                                  j.fecha_sorteo,
+                                  j.fecha_guardado::date
+                                ) = n.fecha_sorteo::date
                         )
                       )
                     )
