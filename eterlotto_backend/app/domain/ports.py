@@ -323,7 +323,8 @@ class NotificationRepositoryPort(ABC):
     async def list_push_targets(
         self,
         loteria_id: Optional[int],
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        fecha_sorteo: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         pass
 

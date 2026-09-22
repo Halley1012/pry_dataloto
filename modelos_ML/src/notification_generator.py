@@ -190,18 +190,26 @@ class NotificationGenerator:
             }
         return self._table_columns_cache[table]
 
-    def _fetch_latest_result_from_table(
+    def _fetch_latest_results_from_table(
         self,
         table: str,
         *,
         loteria_id: int,
         require_loteria_id: bool,
-    ) -> dict[str, Any] | None:
+    ) -> list[dict[str, Any]]:
+        """
+        Devuelve TODAS las variantes reales del último sorteo de la tabla.
+
+        Varias loterías comparten una misma fecha y guardan modalidades como
+        filas distintas (por ejemplo principal/revancha). Tomar LIMIT 1 hacía
+        que la notificación pudiera atribuir a la modalidad principal los
+        aciertos de otra fila del mismo sorteo.
+        """
         columns = self._table_columns(table)
         if "fecha" not in columns:
-            return None
+            return []
 
-        clauses = []
+        clauses: list[str] = []
         params: dict[str, Any] = {}
 
         if "balota1" in columns:
@@ -209,34 +217,54 @@ class NotificationGenerator:
 
         if require_loteria_id:
             if "loteria_id" not in columns:
-                return None
+                return []
             clauses.append("loteria_id = :loteria_id")
             params["loteria_id"] = int(loteria_id)
 
         where = " WHERE " + " AND ".join(clauses) if clauses else ""
-        sql = text(
-            f'SELECT * FROM "{table}"'
-            f"{where} ORDER BY fecha DESC LIMIT 1"
+        latest_sql = text(
+            f'SELECT MAX(fecha) FROM "{table}"{where}'
         )
-
         with self.engine.connect() as conn:
-            row = conn.execute(sql, params).mappings().first()
+            latest_fecha = conn.execute(latest_sql, params).scalar()
 
-        return dict(row) if row else None
+        if latest_fecha is None:
+            return []
 
-    def _latest_result(
+        same_draw_clauses = list(clauses) + ["fecha = :latest_fecha"]
+        same_params = dict(params)
+        same_params["latest_fecha"] = latest_fecha
+        same_where = " WHERE " + " AND ".join(same_draw_clauses)
+
+        order_parts = []
+        if "sorteo" in columns:
+            order_parts.append("sorteo")
+        if "id" in columns:
+            order_parts.append("id")
+        order_sql = " ORDER BY " + ", ".join(order_parts) if order_parts else ""
+
+        sql = text(f'SELECT * FROM "{table}"{same_where}{order_sql}')
+        with self.engine.connect() as conn:
+            rows = conn.execute(sql, same_params).mappings().all()
+
+        # Evita que una tabla legacy con filas duplicadas genere una modalidad
+        # repetida en el mismo resumen.
+        unique: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            item = dict(row)
+            variant = str(item.get("sorteo") or "").strip()
+            key = self._normalize(variant) or f"row-{len(unique)}"
+            if key not in unique:
+                unique[key] = item
+        return list(unique.values())
+
+    def _latest_results(
         self,
         *,
         loteria_id: int,
         route: str,
-    ) -> tuple[str, dict[str, Any]] | tuple[None, None]:
-        """
-        1) Busca por loteria_id en cualquier resultados_*.
-        2) Como compatibilidad para datasets compartidos, usa resultados_<route>
-           si no existe fila concreta por ID.
-
-        No existen filtros del tipo sorteo='Baloto', nombres o IDs fijos.
-        """
+    ) -> tuple[str, list[dict[str, Any]]] | tuple[None, list]:
+        """Resuelve el dataset y conserva todas las modalidades de la fecha."""
         result_tables = self._result_tables()
         preferred = f"resultados_{route.strip().lower()}"
 
@@ -245,27 +273,45 @@ class NotificationGenerator:
             ordered.append(preferred)
         ordered.extend(table for table in result_tables if table != preferred)
 
-        # Identidad concreta primero.
         for table in ordered:
-            row = self._fetch_latest_result_from_table(
+            rows = self._fetch_latest_results_from_table(
                 table,
                 loteria_id=loteria_id,
                 require_loteria_id=True,
             )
-            if row:
-                return table, row
+            if rows:
+                return table, rows
 
-        # Compatibilidad: route como dataset compartido.
         if preferred in result_tables:
-            row = self._fetch_latest_result_from_table(
+            rows = self._fetch_latest_results_from_table(
                 preferred,
                 loteria_id=loteria_id,
                 require_loteria_id=False,
             )
-            if row:
-                return preferred, row
+            if rows:
+                return preferred, rows
 
-        return None, None
+        return None, []
+
+    @staticmethod
+    def _variant_name(result: dict[str, Any], fallback: str) -> str:
+        value = str(result.get("sorteo") or "").strip()
+        if value and value.lower() not in {"desconocido", "none", "null"}:
+            return value
+        return fallback
+
+    @staticmethod
+    def _format_fecha_es(value: Any) -> str:
+        meses = [
+            "enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre",
+            "diciembre",
+        ]
+        try:
+            dt = pd.to_datetime(value)
+            return f"{int(dt.day)} de {meses[int(dt.month) - 1]}"
+        except Exception:
+            return str(value)
 
     @classmethod
     def _winning_white_numbers(
@@ -487,15 +533,31 @@ class NotificationGenerator:
         loteria_id: int,
         nombre_display: str,
         fecha,
-        ganadores: set[int],
+        ganadores: set[int] | None = None,
         especiales_ganadores: set[int] | None = None,
+        variantes: list[dict[str, Any]] | None = None,
         max_seleccion: int | None = None,
         total_balotas_sorteo: int | None = None,
         especial_nombre: str | None = None,
         force: bool = False,
     ) -> None:
-        especiales_ganadores = especiales_ganadores or set()
-        if not ganadores and not especiales_ganadores:
+        """
+        Compara jugadas preservando roles y modalidades.
+
+        Compatibilidad: `ganadores`/`especiales_ganadores` siguen aceptándose
+        para pruebas o loterías de una sola modalidad. En producción se pasa
+        `variantes` para evitar mezclar Baloto/Revancha u otras modalidades.
+        """
+        if not variantes:
+            variantes = [
+                {
+                    "nombre": nombre_display,
+                    "ganadores": ganadores or set(),
+                    "especiales": especiales_ganadores or set(),
+                }
+            ]
+
+        if not any(v.get("ganadores") or v.get("especiales") for v in variantes):
             return
 
         try:
@@ -519,9 +581,7 @@ class NotificationGenerator:
                 },
             )
         except Exception as exc:
-            print(
-                f"⚠️ No se pudieron consultar jugadas de {nombre_display}: {exc}"
-            )
+            print(f"⚠️ No se pudieron consultar jugadas de {nombre_display}: {exc}")
             return
 
         if jugadas.empty:
@@ -532,93 +592,107 @@ class NotificationGenerator:
         except (TypeError, ValueError):
             main_count = 0
         if main_count <= 0:
-            main_count = len(ganadores)
+            main_count = max(
+                (len(v.get("ganadores") or set()) for v in variantes),
+                default=0,
+            )
 
         try:
             total_configurado = int(total_balotas_sorteo or 0)
         except (TypeError, ValueError):
             total_configurado = 0
 
-        total_resultado = (
-            total_configurado
-            if total_configurado > 0
-            else len(ganadores) + len(especiales_ganadores)
-        )
+        total_resultado = total_configurado if total_configurado > 0 else main_count
         special_slots = max(0, total_resultado - main_count)
         special_label = (especial_nombre or "Especial").strip() or "Especial"
 
         for user_id, grupo in jugadas.groupby("user_id"):
-            mejor_principales: set[int] = set()
-            mejor_especiales: set[int] = set()
-            mejor_total = 0
+            mejor: dict[str, Any] | None = None
             cantidad_jugadas = 0
 
             for _, row in grupo.iterrows():
                 numeros = self._as_int_list(row.get("numeros"))
                 if not numeros:
                     continue
-
                 cantidad_jugadas += 1
 
-                # Los roles se preservan por posición: los primeros
-                # `max_seleccion` son principales y el resto son especiales.
-                # Esto evita que una balota principal con el mismo valor que
-                # una especial se cuente en el rol equivocado.
                 principales_jugada = set(numeros[:main_count])
                 especiales_jugada = set(
                     numeros[main_count : main_count + special_slots]
                 )
 
-                aciertos_principales = principales_jugada.intersection(ganadores)
-                aciertos_especiales = especiales_jugada.intersection(
-                    especiales_ganadores
-                )
-                total_aciertos = (
-                    len(aciertos_principales) + len(aciertos_especiales)
-                )
+                for variant in variantes:
+                    principales_resultado = set(variant.get("ganadores") or set())
+                    especiales_resultado = set(variant.get("especiales") or set())
+                    aciertos_principales = principales_jugada.intersection(
+                        principales_resultado
+                    )
+                    aciertos_especiales = especiales_jugada.intersection(
+                        especiales_resultado
+                    )
+                    total_aciertos = len(aciertos_principales) + len(aciertos_especiales)
 
-                if total_aciertos > mejor_total:
-                    mejor_total = total_aciertos
-                    mejor_principales = aciertos_principales
-                    mejor_especiales = aciertos_especiales
+                    candidate = {
+                        "total": total_aciertos,
+                        "principales": aciertos_principales,
+                        "especiales": aciertos_especiales,
+                        "variante": str(variant.get("nombre") or nombre_display),
+                    }
+                    if mejor is None or (
+                        candidate["total"],
+                        len(candidate["principales"]),
+                        len(candidate["especiales"]),
+                    ) > (
+                        mejor["total"],
+                        len(mejor["principales"]),
+                        len(mejor["especiales"]),
+                    ):
+                        mejor = candidate
 
-            # 0 aciertos no genera push.
-            if mejor_total <= 0:
+            if not mejor or mejor["total"] <= 0:
                 continue
 
-            detalles = []
-            if mejor_principales:
-                principales_txt = ", ".join(
-                    map(str, sorted(mejor_principales))
-                )
-                detalles.append(f"Principales: {principales_txt}")
-            if mejor_especiales:
-                especiales_txt = ", ".join(
-                    map(str, sorted(mejor_especiales))
-                )
-                detalles.append(f"{special_label}: {especiales_txt}")
+            principales = sorted(mejor["principales"])
+            especiales = sorted(mejor["especiales"])
+            variante = mejor["variante"]
+            variante_sufijo = (
+                ""
+                if self._normalize(variante) == self._normalize(nombre_display)
+                else f" en {variante}"
+            )
 
-            detalle_txt = " · ".join(detalles)
-            detalle_sufijo = f". {detalle_txt}" if detalle_txt else ""
+            principales_txt = ", ".join(map(str, principales))
+            detalle_principal = f"Principales: {len(principales)} de {main_count}"
+            if principales_txt:
+                detalle_principal += f" ({principales_txt})"
 
-            if cantidad_jugadas > 1:
-                mensaje = (
-                    f"🎯 En tus jugadas de {nombre_display}, tu mejor combinación "
-                    f"acertó {mejor_total} de {total_resultado} números"
-                    f"{detalle_sufijo}."
-                )
-            else:
-                mensaje = (
-                    f"🎯 En tu jugada de {nombre_display} acertaste "
-                    f"{mejor_total} de {total_resultado} números"
-                    f"{detalle_sufijo}."
-                )
+            detalles = [detalle_principal]
+            if special_slots > 0:
+                if especiales:
+                    especiales_txt = ", ".join(map(str, especiales))
+                    if special_slots == 1:
+                        detalles.append(f"{special_label}: {especiales_txt} ✅")
+                    else:
+                        detalles.append(
+                            f"{special_label}: {len(especiales)} de {special_slots} "
+                            f"({especiales_txt})"
+                        )
+                else:
+                    detalles.append(f"{special_label}: sin acierto")
+
+            sujeto = "tus jugadas" if cantidad_jugadas > 1 else "tu jugada"
+            mensaje = (
+                f"🎯 En {sujeto} de {nombre_display}, tu mejor combinación "
+                f"acertó {mejor['total']} de {total_resultado}{variante_sufijo}. "
+                + " · ".join(detalles)
+                + "."
+            )
 
             self._publicar_notificacion_usuario(
                 user_id=int(user_id),
                 loteria_id=int(loteria_id),
                 fecha=fecha,
-                mensaje=mensaje,
+                mensaje=mensaje[:500],
                 tipo="resultado_jugada",
                 force=force,
             )
@@ -718,18 +792,18 @@ class NotificationGenerator:
         nombre_display = str(catalog.get("nombre") or catalog["route"])
         route = str(catalog["route"]).strip().lower()
 
-        table, result = self._latest_result(
+        table, results = self._latest_results(
             loteria_id=loteria_id,
             route=route,
         )
-        if not result:
+        if not results:
             print(
                 f"ℹ️ Sin resultado válido para {nombre_display} "
                 f"(loteria_id={loteria_id}, route={route})."
             )
             return
 
-        fecha = result.get("fecha")
+        fecha = results[0].get("fecha")
         if fecha is None:
             print(f"⚠️ Resultado sin fecha para {nombre_display}; se omite.")
             return
@@ -738,17 +812,6 @@ class NotificationGenerator:
             expected_white = int(catalog.get("max_seleccion") or 0) or None
         except (TypeError, ValueError):
             expected_white = None
-
-        ganadores = self._winning_white_numbers(
-            result,
-            expected_count=expected_white,
-        )
-        if not ganadores:
-            print(
-                f"⚠️ {table}: no fue posible obtener balotas ganadoras "
-                f"para {nombre_display}."
-            )
-            return
 
         try:
             total_draw = int(catalog.get("total_balotas_sorteo") or 0)
@@ -759,18 +822,40 @@ class NotificationGenerator:
         if total_draw > 0 and expected_white is not None:
             expected_special = max(0, total_draw - expected_white)
 
-        especiales_ganadores = self._winning_special_numbers(
-            result,
-            expected_count=expected_special,
-        )
+        variantes: list[dict[str, Any]] = []
+        for result in results:
+            ganadores = self._winning_white_numbers(
+                result,
+                expected_count=expected_white,
+            )
+            if not ganadores:
+                continue
+            especiales = self._winning_special_numbers(
+                result,
+                expected_count=expected_special,
+            )
+            variantes.append(
+                {
+                    "nombre": self._variant_name(result, nombre_display),
+                    "ganadores": ganadores,
+                    "especiales": especiales,
+                }
+            )
 
-        # Resultado real de las jugadas: independiente de la predicción IA.
+        if not variantes:
+            print(
+                f"⚠️ {table}: no fue posible obtener balotas ganadoras "
+                f"para {nombre_display}."
+            )
+            return
+
+        # Resultado de las jugadas: se evalúa contra cada modalidad de la fecha
+        # y se conserva la mejor, sin mezclar principales con especiales.
         self.notificar_aciertos_jugadas(
             loteria_id=loteria_id,
             nombre_display=nombre_display,
             fecha=fecha,
-            ganadores=ganadores,
-            especiales_ganadores=especiales_ganadores,
+            variantes=variantes,
             max_seleccion=expected_white,
             total_balotas_sorteo=total_draw or None,
             especial_nombre=catalog.get("superbalota_nombre"),
@@ -797,74 +882,58 @@ class NotificationGenerator:
         pred_special = self._as_int_list(pred.get("balotaroja"))
         top_count = self._top_probables_count(catalog, pred_nums)
         top_probables = set(pred_nums[:top_count])
-        coincidencias = ganadores.intersection(top_probables)
+        special_slots = max(0, (total_draw or 0) - (expected_white or 0))
+        pred_especial_top = set(pred_special[:special_slots]) if special_slots else set()
+        special_label = str(catalog.get("superbalota_nombre") or "Especial").strip()
 
-        # A. Acierto parcial
-        if len(coincidencias) >= self.partial_hit_min:
-            nums_str = ", ".join(map(str, sorted(coincidencias)))
-            mensaje = (
-                f"¡Casi! De los {top_count} números con mayor probabilidad "
-                f"generados por la IA para {nombre_display}, cayeron "
-                f"{len(coincidencias)} números ({nums_str})."
+        resumenes: list[str] = []
+        especiales_resumen: list[str] = []
+        nombres_variantes: list[str] = []
+
+        for variant in variantes:
+            variant_name = str(variant["nombre"])
+            nombres_variantes.append(variant_name)
+            ganadores = set(variant["ganadores"])
+            coincidencias = ganadores.intersection(top_probables)
+            total_winning = len(ganadores)
+            efectividad = (
+                (len(coincidencias) / total_winning) * 100
+                if total_winning
+                else 0.0
             )
-            self.guardar_notificacion(
-                loteria_id,
-                fecha,
-                mensaje,
-                "acierto_parcial",
-                force=force,
+            nums = ", ".join(map(str, sorted(coincidencias)))
+            nums_suffix = f" ({nums})" if nums else ""
+            resumenes.append(
+                f"{variant_name}: {len(coincidencias)}/{total_winning}"
+                f"{nums_suffix}, {int(round(efectividad))}%"
             )
 
-        # B. Especial: completamente genérico.
-        if especiales_ganadores and pred_special:
-            cantidad_especiales = len(especiales_ganadores)
-            pred_especial_top = set(pred_special[:cantidad_especiales])
-            aciertos_especiales = especiales_ganadores.intersection(
-                pred_especial_top
-            )
-
-            if aciertos_especiales:
-                label = str(
-                    catalog.get("superbalota_nombre")
-                    or "número especial"
-                ).strip()
-                valores = ", ".join(
-                    map(str, sorted(aciertos_especiales))
+            if pred_especial_top and variant.get("especiales"):
+                aciertos_especiales = set(variant["especiales"]).intersection(
+                    pred_especial_top
                 )
-
-                if len(aciertos_especiales) == 1:
-                    mensaje = (
-                        f"¡La IA acertó {label} ({valores}) en el sorteo "
-                        f"de {nombre_display}!"
-                    )
-                else:
-                    mensaje = (
-                        f"¡La IA acertó {len(aciertos_especiales)} números "
-                        f"especiales ({valores}) en el sorteo "
-                        f"de {nombre_display}!"
+                if aciertos_especiales:
+                    valores = ", ".join(map(str, sorted(aciertos_especiales)))
+                    especiales_resumen.append(
+                        f"{variant_name} {special_label}: {valores} ✅"
                     )
 
-                self.guardar_notificacion(
-                    loteria_id,
-                    fecha,
-                    mensaje,
-                    "acierto_directo",
-                    force=force,
-                )
-
-        # C. Precisión general
-        total_winning = len(ganadores)
-        efectividad = (
-            (len(coincidencias) / total_winning) * 100
-            if total_winning
-            else 0.0
-        )
+        # Una sola notificación global por sorteo. Se conserva el tipo
+        # 'precision' para que los índices de idempotencia existentes eviten
+        # republicar sorteos ya procesados al desplegar esta versión.
+        fecha_txt = self._format_fecha_es(fecha)
+        unique_names = list(dict.fromkeys(nombres_variantes))
+        display = "/".join(unique_names) if len(unique_names) > 1 else nombre_display
         mensaje = (
-            f"En el sorteo de {nombre_display}, los {top_count} números "
-            f"más probables tuvieron una efectividad del "
-            f"{int(round(efectividad))}% "
-            f"({len(coincidencias)} de {total_winning} aciertos)."
+            f"En el sorteo del {fecha_txt} para {display}, el Top {top_count} "
+            f"de la IA logró: " + " | ".join(resumenes) + "."
         )
+        if especiales_resumen:
+            mensaje += " Especiales: " + " | ".join(especiales_resumen) + "."
+
+        if len(mensaje) > 500:
+            mensaje = mensaje[:497].rstrip() + "..."
+
         self.guardar_notificacion(
             loteria_id,
             fecha,
