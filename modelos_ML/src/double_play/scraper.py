@@ -21,7 +21,7 @@ from psycopg2.extras import execute_values
 class DoublePlayScraper:
     def __init__(self):
         self.engine = get_engine()
-        self.loteria_id = 13
+        self.loteria_id = self._obtener_loteria_id()
         self.base_url = "https://www.powerball.com/es/sorteos-anteriores"
         self.game_code = "pb-double-play"
         self.headers = {
@@ -30,6 +30,26 @@ class DoublePlayScraper:
         }
         # Sorteos: Lunes (0), Miércoles (2), Sábados (5)
         self.draw_days = (0, 2, 5)
+
+    def _obtener_loteria_id(self) -> int:
+        """Resuelve la identidad canónica de Double Play desde el catálogo."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT id
+                FROM loterias
+                WHERE LOWER(TRIM(route)) = 'double_play'
+                   OR LOWER(TRIM(nombre)) = 'double play'
+                ORDER BY
+                    CASE WHEN LOWER(TRIM(route)) = 'double_play' THEN 0 ELSE 1 END,
+                    id
+                LIMIT 1
+            """)).first()
+
+        if not row:
+            raise RuntimeError(
+                "No existe Double Play en el catálogo de loterías."
+            )
+        return int(row[0])
 
     def _fetch_with_retries(self, url, method="get", max_retries=3, base_delay=1.5, **kwargs):
         """HTTP request con backoff exponencial. Retorna Response o None si todos los intentos fallan."""

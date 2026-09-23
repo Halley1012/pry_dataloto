@@ -63,9 +63,17 @@ def main():
                     print(f"📅 Último sorteo: {ultimo_sorteo}")
                 if proximo_esperado:
                     print(f"🎯 Próximo sorteo esperado: {proximo_esperado}")
-                print("✅ Finalizando ejecución con éxito (código 0).")
+
+                if task == "scrap":
+                    print("✅ Finalizando scraping con éxito (código 0).")
+                    print("==================================================\n")
+                    return
+
+                print(
+                    "➡️ Se valida igualmente la predicción del próximo sorteo "
+                    "para evitar fechas obsoletas."
+                )
                 print("==================================================\n")
-                return
 
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para Double Play: {e}")
