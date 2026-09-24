@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'dart:math' as math;
 import 'package:eterlotto/services/api_service.dart';
@@ -82,6 +83,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   // sólo con nombre/route (por ejemplo, desde una notificación). Nunca se usa
   // este mapa para inventar la identidad de una lotería compartida entre países.
   Map<String, dynamic>? _resolvedLoteriaData;
+  String? _paisNombreResolved;
 
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {
     final isoDate = _normalizarFechaISO(rawDate);
@@ -130,6 +132,12 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
           );
   }
 
+  String get _paisJackpotIso {
+    final pais = (_paisNombreResolved ?? _numberConfig.paisNombre ?? '').trim();
+    if (pais.isEmpty) return '';
+    return PaisHelper.getIsoCode(pais).trim().toLowerCase();
+  }
+
   bool _hasNumericRules(Map<String, dynamic>? data) {
     if (data == null) return false;
     final maxSel = int.tryParse(
@@ -163,6 +171,10 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   Future<void> _resolverReglasLoteria(String route) async {
     if (_hasNumericRules(_effectiveLoteriaData) &&
         _hasTopProbablesField(_effectiveLoteriaData)) {
+      // Aunque las reglas ya vengan completas, el país puede llegar sólo como
+      // `pais_id`. Resuélvalo antes de salir para que el encabezado pueda
+      // pintar la bandera del jackpot.
+      await _resolverPaisLoteria();
       return;
     }
 
@@ -223,6 +235,42 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
       // La pantalla sigue funcionando con LoteriaConfig.fromNombre como último
       // respaldo. No se bloquea Resultados por una falla del catálogo.
     }
+    await _resolverPaisLoteria();
+  }
+
+  Future<void> _resolverPaisLoteria() async {
+    if ((_paisNombreResolved ?? _numberConfig.paisNombre ?? '').trim().isNotEmpty) return;
+
+    final paisId = _numberConfig.paisId ?? widget.loteriaData?['pais_id'];
+    if (paisId == null) return;
+
+    String? resolvedName;
+    try {
+      final cachedPaises = await CacheService.getStaleJson('paises_list_cache');
+      if (cachedPaises is List) {
+        for (final item in cachedPaises) {
+          if (item is Map && item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+
+      if ((resolvedName ?? '').isEmpty) {
+        final paises = await ApiService.getPaises();
+        for (final item in paises) {
+          if (item['id']?.toString() == paisId.toString()) {
+            resolvedName = item['nombre']?.toString().trim();
+            if ((resolvedName ?? '').isNotEmpty) break;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted || (resolvedName ?? '').isEmpty) return;
+    setState(() {
+      _paisNombreResolved = resolvedName;
+    });
   }
 
   List<int> _parsePredictionNumbers(dynamic raw) {
@@ -1275,7 +1323,26 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                             "Dic",
                           ]));
         final diaSemana = dias[parsed.weekday - 1];
-        return "$diaSemana, ${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
+        String formatted = "$diaSemana, ${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
+
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final target = DateTime(parsed.year, parsed.month, parsed.day);
+        final diff = target.difference(today).inDays;
+
+        if (diff == 0) {
+          formatted += langCode == 'en' ? " (Today)" : (langCode == 'pt' ? " (Hoje)" : " (Hoy)");
+        } else if (diff == 1) {
+          formatted += langCode == 'en' ? " (Tomorrow)" : (langCode == 'pt' ? " (Amanhã)" : " (Mañana)");
+        } else if (diff == -1) {
+          formatted += langCode == 'en' ? " (Yesterday)" : (langCode == 'pt' ? " (Ontem)" : " (Ayer)");
+        } else if (diff > 1) {
+          formatted += langCode == 'en' ? " (In $diff days)" : (langCode == 'pt' ? " (Em $diff dias)" : " (En $diff días)");
+        } else if (diff < -1) {
+          formatted += langCode == 'en' ? " (${diff.abs()} days ago)" : (langCode == 'pt' ? " (Há ${diff.abs()} dias)" : " (Hace ${diff.abs()} días)");
+        }
+
+        return formatted;
       }
     } catch (_) {}
     return rawDate;
@@ -1506,6 +1573,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
                     fechaSorteo: _fechaSorteo,
                     jackpot: _jackpot,
                     canPop: canPop,
+                    jackpotIso: _paisJackpotIso,
                   ),
 
                   if (_showingStaleData) ...[

@@ -16,6 +16,11 @@ class CacheService {
   /// consultar Supabase en cada ciclo de refresco.
   static const String _serverDataVersionStorageKey = 'eterlotto_server_data_version';
 
+  /// Marca persistente de la última actualización exitosa por módulo.
+  /// Se guarda fuera del envelope JSON porque sólo necesitamos un timestamp.
+  static const String _refreshTimestampStoragePrefix =
+      'eterlotto_refresh_last_update_';
+
   /// Feed público de la comunidad. No contiene estado personal (likes,
   /// favoritos, permisos, etc.), por lo que puede compartirse entre cuentas.
   static const String homePostsKey = 'home_posts_v1';
@@ -330,6 +335,44 @@ class CacheService {
       // La ausencia de esta marca sólo provoca una renovación posterior.
     }
   }
+
+  /// Persiste la última actualización exitosa de un módulo para que cerrar la
+  /// app no haga que todo parezca vencido al siguiente arranque.
+  static Future<void> setModuleLastUpdate(
+    String module,
+    DateTime updatedAt,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        '$_refreshTimestampStoragePrefix$module',
+        updatedAt.millisecondsSinceEpoch,
+      );
+    } catch (_) {
+      // La marca es una optimización. Si falla, los TTL de las propias cachés
+      // siguen protegiendo la consistencia de datos.
+    }
+  }
+
+  /// Recupera las marcas persistentes de refresco para hidratar el gestor al
+  /// iniciar un proceso nuevo de Flutter.
+  static Future<Map<String, DateTime>> getModuleLastUpdates(
+    Iterable<String> modules,
+  ) async {
+    final result = <String, DateTime>{};
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final module in modules) {
+        final raw = prefs.getInt('$_refreshTimestampStoragePrefix$module');
+        if (raw == null || raw <= 0) continue;
+        result[module] = DateTime.fromMillisecondsSinceEpoch(raw);
+      }
+    } catch (_) {
+      // Se devuelve lo que se haya podido recuperar.
+    }
+    return result;
+  }
+
 
   /// Devuelve el último valor conocido aunque esté vencido. Úsalo únicamente
   /// como primer render mientras se solicita el dato fresco en segundo plano.
