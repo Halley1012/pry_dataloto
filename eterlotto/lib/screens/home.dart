@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -91,9 +92,6 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _welcomeWaveController;
   late final Animation<double> _welcomeWaveAngle;
   bool _hasPlayedWelcomeWave = false;
-  // La comunidad se muestra como una vista previa para no alargar el inicio.
-  // El usuario puede desplegar el feed completo cuando lo necesite.
-  bool _isCommunityExpanded = false;
 
   @override
   void initState() {
@@ -144,6 +142,12 @@ class _HomeScreenState extends State<HomeScreen>
     );
     _restoreBottomNavLayout();
     _loadUserAndData();
+
+    // Precalienta en segundo plano las reglas públicas del generador.
+    // No bloquea el Home y hace que CombinationGenerator abra desde memoria
+    // cuando el usuario entra después.
+    unawaited(ApiService.getCombinationLotteries());
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         context.read<NotificationProvider>().fetchNotifications();
@@ -292,9 +296,9 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadUserAndDataInternal({bool forceRefresh = false}) async {
     try {
-      if (forceRefresh) {
-        await CacheService.invalidateLotteryCatalogCaches();
-      }
+      // forceRefresh obliga a las llamadas de red a saltarse su caché, pero NO
+      // elimina el último contenido renderizable. Si la red tarda o falla, el
+      // usuario sigue viendo el Home que ya tenía.
 
       // SubscriptionProvider hidrata y valida el plan por cuenta al iniciar y
       // tras login. Home no dispara una segunda consulta redundante.
@@ -706,9 +710,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  IgnorePointer(
-                    child: _buildCountryBackground(backgroundUrl),
-                  ),
+                  IgnorePointer(child: _buildCountryBackground(backgroundUrl)),
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -773,7 +775,6 @@ class _HomeScreenState extends State<HomeScreen>
                         ),
                         const SizedBox(width: 8),
                         _buildHeaderFlagWidget(isPremium),
-
                       ],
                     ),
                   ),
@@ -868,10 +869,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildFlagAction(
-    bool isPremium, {
-    GestureTapCallback? onDoubleTap,
-  }) {
+  Widget _buildFlagAction(bool isPremium, {GestureTapCallback? onDoubleTap}) {
     const visualSize = 56.0;
     const hitSize = 64.0;
     final langCode = Localizations.localeOf(context).languageCode;
@@ -1002,11 +1000,7 @@ class _HomeScreenState extends State<HomeScreen>
       color: const Color(0xFF1E2029),
       alignment: Alignment.center,
       child: isInternational
-          ? Icon(
-              Icons.public_rounded,
-              color: Colors.white70,
-              size: size * 0.5,
-            )
+          ? Icon(Icons.public_rounded, color: Colors.white70, size: size * 0.5)
           : Text(
               PaisHelper.getBanderaEmoji(countryName),
               style: TextStyle(fontSize: size * 0.52),
@@ -1580,7 +1574,7 @@ class _HomeScreenState extends State<HomeScreen>
                 );
               },
             );
-          }
+          },
         ),
       ),
     );
@@ -2366,9 +2360,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildStaleHomeNotice() {
-    return const AppStaleDataBanner(
-      margin: EdgeInsets.fromLTRB(16, 0, 16, 4),
-    );
+    return const AppStaleDataBanner(margin: EdgeInsets.fromLTRB(16, 0, 16, 4));
   }
 
   Widget _buildDraggableProfileFab(
@@ -2534,8 +2526,7 @@ class _HomeScreenState extends State<HomeScreen>
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.h2.copyWith(
               color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.bold,
             ),
           ),
         ),
@@ -2551,20 +2542,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildCommunityCountBadge(int totalMessages) {
-    final countLabel = totalMessages > 99 ? '99+' : '$totalMessages';
-    return Text(
-      countLabel,
-      style: AppTextStyles.caption.copyWith(
-        color: Colors.white54,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-
   Widget _buildCommunityBody() {
-    if (_isCommunityExpanded) return _buildExpandedCommunityFeed();
     if (isLoading && posts.isEmpty) return _buildCommunityLoadingPreview();
     if (posts.isEmpty) return _buildCommunityEmptyPreview();
     return _buildCommunityPreview(posts.first);
@@ -2634,9 +2612,7 @@ class _HomeScreenState extends State<HomeScreen>
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: () {
-            if (!_isCommunityExpanded && mounted) {
-              setState(() => _isCommunityExpanded = true);
-            }
+            _openCommentsBottomSheet(context);
           },
           child: Container(
             width: double.infinity,
@@ -2750,55 +2726,80 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildExpandedCommunityFeed() {
-    if (isLoading && posts.isEmpty) return _buildCommunityLoadingPreview();
-    if (posts.isEmpty) return _buildCommunityEmptyPreview();
-
-    return Column(
-      children: [
-        SizedBox(
-          height: 360,
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            physics: const BouncingScrollPhysics(),
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              final isOwner =
-                  currentUserId != null &&
-                  post.userId == int.tryParse(currentUserId!);
-              return _buildPostItem(post, isOwner);
-            },
-          ),
-        ),
-        TextButton.icon(
-          onPressed: () {
-            if (mounted) {
-              setState(() => _isCommunityExpanded = false);
-            }
+  void _openCommentsBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          minChildSize: 0.4,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              clipBehavior: Clip.antiAlias,
+              decoration: const BoxDecoration(
+                color: Color(0xFF1E1E1E),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    AppLocalizations.of(context)?.comentarios ?? 'Comentarios',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Colors.white12, height: 1),
+                  Expanded(
+                    child: (isLoading && posts.isEmpty)
+                        ? _buildCommunityLoadingPreview()
+                        : (posts.isEmpty
+                              ? Center(child: _buildCommunityEmptyPreview())
+                              : ListView.builder(
+                                  controller: scrollController,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  itemCount: posts.length,
+                                  itemBuilder: (context, index) {
+                                    final post = posts[index];
+                                    final isOwner =
+                                        currentUserId != null &&
+                                        post.userId ==
+                                            int.tryParse(currentUserId!);
+                                    return _buildPostItem(post, isOwner);
+                                  },
+                                )),
+                  ),
+                ],
+              ),
+            );
           },
-          icon: const Icon(
-            Icons.keyboard_arrow_up_rounded,
-            color: Colors.white54,
-            size: 20,
-          ),
-          label: Text(
-            'Ver menos',
-            style: AppTextStyles.caption.copyWith(
-              color: Colors.white60,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
+        );
+      },
     );
   }
 
   Future<void> _createCommunityPost() async {
-    final newPost = await Navigator.of(context).push<Post>(
-      MaterialPageRoute(builder: (_) => const CreatePostScreen()),
-    );
+    final newPost = await Navigator.of(
+      context,
+    ).push<Post>(MaterialPageRoute(builder: (_) => const CreatePostScreen()));
     if (newPost == null || !mounted) return;
 
     setState(() {

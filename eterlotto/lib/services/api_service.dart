@@ -2710,6 +2710,14 @@ class ApiService {
     const cacheKey = CacheService.reglasCombinacionesKey;
 
     if (!forceRefresh) {
+      // 0. Memoria del proceso: al volver a entrar al generador no tiene
+      // sentido volver a esperar SharedPreferences si ya tenemos las reglas.
+      final memory = _combinationLotteriesMemoryCache;
+      if (memory != null && memory.isNotEmpty) {
+        _scheduleCombinationLotteriesRefresh(cacheKey);
+        return List<dynamic>.from(memory);
+      }
+
       // 1. Caché fresca: se muestra de inmediato y no genera una petición.
       final fresh = await CacheService.getJson(cacheKey);
       if (fresh is List && fresh.isNotEmpty) {

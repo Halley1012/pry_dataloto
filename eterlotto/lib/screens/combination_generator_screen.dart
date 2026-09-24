@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -12,6 +11,11 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
+import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:eterlotto/widgets/contenedor3.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _CombinationGeneratorSkeleton extends StatefulWidget {
   const _CombinationGeneratorSkeleton();
@@ -181,13 +185,70 @@ class CombinationGeneratorScreen extends StatefulWidget {
 }
 
 class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen> {
+  static const String _actionsOrderKey = 'combination_generator_actions_order_v1';
+  static const List<String> _defaultActionOrder = [
+    'generate',
+    'select',
+    'whatsapp',
+    'delete',
+    'save',
+  ];
+
   final TextEditingController _inputController = TextEditingController();
   late CombinationGeneratorProvider _provider;
+  List<String> _actionOrder = List<String>.from(_defaultActionOrder);
 
   @override
   void initState() {
     super.initState();
     _provider = CombinationGeneratorProvider();
+    _loadActionOrder();
+  }
+
+  Future<void> _loadActionOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_actionsOrderKey);
+
+    if (saved == null || saved.isEmpty) return;
+
+    // Migra órdenes anteriores (por ejemplo, cuando existía el botón PDF)
+    // conservando la posición elegida por el usuario para las acciones vigentes.
+    final migrated = saved
+        .where(_defaultActionOrder.contains)
+        .toList(growable: true);
+
+    for (final action in _defaultActionOrder) {
+      if (!migrated.contains(action)) {
+        migrated.add(action);
+      }
+    }
+
+    if (migrated.length != _defaultActionOrder.length) return;
+
+    if (!mounted) return;
+    setState(() {
+      _actionOrder = migrated;
+    });
+
+    await prefs.setStringList(_actionsOrderKey, migrated);
+  }
+
+  Future<void> _saveActionOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_actionsOrderKey, _actionOrder);
+  }
+
+  void _reorderActions(int oldIndex, int newIndex) {
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+
+    setState(() {
+      final item = _actionOrder.removeAt(oldIndex);
+      _actionOrder.insert(newIndex, item);
+    });
+
+    _saveActionOrder();
   }
 
   @override
@@ -208,19 +269,18 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
       child: Scaffold(
         backgroundColor: AppColors.blackfondo,
         appBar: AppBar(
-          backgroundColor: Colors.transparent,
+          backgroundColor: AppColors.blackfondo,
+          surfaceTintColor: Colors.transparent,
           elevation: 0,
+          scrolledUnderElevation: 0,
           centerTitle: true,
-          title: Text(
-            'Eterlotto',
-            style: GoogleFonts.montserrat(
-              color: AppColors.yellow,
-              fontWeight: FontWeight.bold,
-              fontSize: 24,
-            ),
-          ),
+          title: Text('Eterlotto', style: AppTextStyles.h2),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white70),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              color: AppColors.yellow,
+              size: 24,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
           actions: [
@@ -228,21 +288,18 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
               builder: (_, sub, __) => sub.isPremium
                   ? const Center(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 4.0),
+                        padding: EdgeInsets.only(right: 16),
                         child: PremiumCrownIcon(isPremium: true, size: 19),
                       ),
                     )
                   : const SizedBox.shrink(),
             ),
-            IconButton(
-              icon: const Icon(Icons.help_outline, color: Colors.white70),
-              onPressed: () {},
-            )
           ],
         ),
         body: Consumer<CombinationGeneratorProvider>(
           builder: (context, provider, child) {
             final l10n = AppLocalizations.of(context);
+            provider.setLanguageCode(Localizations.localeOf(context).languageCode);
 
             // Si aún no hay datos, mostramos Skeleton en lugar de bloquear
             // toda la pantalla con un spinner.
@@ -405,7 +462,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                                               Text(
                                                 provider.selectedLotteryRules?.proximoSorteo != null
                                                     ? _formatFullDate(provider.selectedLotteryRules!.proximoSorteo!)
-                                                    : "Por definir",
+                                                    : _t('Por definir', 'To be defined', 'A definir', 'À définir'),
                                                 style: GoogleFonts.montserrat(
                                                   color: AppColors.yellow,
                                                   fontWeight: FontWeight.bold,
@@ -483,7 +540,11 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               const SizedBox(width: 4),
                               Text(
                                 l10n?.limpiar ?? "Limpiar",
-                                style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
+                                style: AppTextStyles.caption.copyWith(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ],
                           ),
@@ -531,7 +592,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                       _buildSectionContainer(
                         title: l10n?.numerosDetectados ?? "Números detectados",
                         icon: Icons.auto_awesome,
-                        subtitle: "Toca cualquier número que no quieras utilizar para excluirlo.",
+                        subtitle: _t(
+                          'Toca cualquier número que no quieras utilizar para excluirlo.',
+                          'Tap any number you do not want to use to exclude it.',
+                          'Toque em qualquer número que não queira usar para excluí-lo.',
+                          'Touchez un numéro à exclure si vous ne voulez pas l’utiliser.',
+                        ),
                         action: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                           decoration: BoxDecoration(
@@ -540,7 +606,12 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                             border: Border.all(color: const Color(0xFF4CAF50).withValues(alpha: 0.3)),
                           ),
                           child: Text(
-                            "${provider.activeNumbers.length} de ${provider.detectedNumbers.length} activos",
+                            _t(
+                              '${provider.activeNumbers.length} de ${provider.detectedNumbers.length} activos',
+                              '${provider.activeNumbers.length} of ${provider.detectedNumbers.length} active',
+                              '${provider.activeNumbers.length} de ${provider.detectedNumbers.length} ativos',
+                              '${provider.activeNumbers.length} sur ${provider.detectedNumbers.length} actifs',
+                            ),
                             style: GoogleFonts.montserrat(
                               color: const Color(0xFF81C784),
                               fontSize: 11,
@@ -754,28 +825,9 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                     ),
                     const SizedBox(height: 20),
 
-                    // ── Generate button ────────────────────────────────────
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: provider.isLoading ? null : () => provider.generate(),
-                        icon: provider.isLoading
-                            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                            : const Icon(Icons.auto_awesome, color: Colors.black),
-                        label: Text(
-                          provider.isLoading
-                              ? (l10n?.generando ?? "GENERANDO...")
-                              : (l10n?.generarCombinaciones ?? "GENERAR COMBINACIONES"),
-                          style: GoogleFonts.montserrat(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.yellow,
-                          disabledBackgroundColor: AppColors.yellow.withValues(alpha: 0.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
+                    // Acciones del generador. Mantener pulsado un botón permite
+                    // cambiar su posición; el orden queda guardado localmente.
+                    _buildGeneratedActions(provider),
 
                     if (provider.error != null)
                       Padding(
@@ -785,7 +837,9 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                           decoration: BoxDecoration(
                             color: Colors.red.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.red.withValues(alpha: 0.4)),
+                            border: Border.all(
+                              color: Colors.red.withValues(alpha: 0.4),
+                            ),
                           ),
                           child: Row(
                             children: [
@@ -794,7 +848,10 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
                               Expanded(
                                 child: Text(
                                   provider.error!,
-                                  style: GoogleFonts.montserrat(color: Colors.red, fontSize: 12),
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: Colors.redAccent,
+                                    fontSize: 12,
+                                  ),
                                 ),
                               ),
                             ],
@@ -804,176 +861,35 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
 
                     // ── Results ────────────────────────────────────────────
                     if (provider.combinations.isNotEmpty) ...[
-                      const SizedBox(height: 28),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Row(
-                              children: [
-                                const Icon(Icons.grid_view_rounded, color: AppColors.yellow, size: 18),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    "${provider.combinations.length} ${l10n?.combinacionesGeneradas ?? 'combinaciones generadas'}",
-                                    style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
+                      const SizedBox(height: 24),
+                      Center(
+                        child: Column(
+                          children: [
+                            Text(
+                              '${provider.combinations.length} ${l10n?.combinacionesGeneradas ?? 'combinaciones generadas'}',
+                              style: AppTextStyles.h2.copyWith(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          TextButton.icon(
-                            onPressed: () => provider.generate(),
-                            icon: const Icon(Icons.refresh, color: Colors.white60, size: 16),
-                            label: Text(
-                              l10n?.generarOtras ?? "Generar otras",
-                              style: GoogleFonts.montserrat(color: Colors.white60, fontSize: 12.5, fontWeight: FontWeight.w500),
+                            const SizedBox(height: 4),
+                            Text(
+                              _selectionSummary(provider.selectedCount),
+                              style: AppTextStyles.caption.copyWith(
+                                color: provider.hasSelectedCombinations
+                                    ? AppColors.yellow
+                                    : Colors.white54,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
                             ),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Combinations list — vertical with copy and favorite actions
-                      ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: provider.combinations.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (context, index) {
-                          final combo = provider.combinations[index];
-                          return Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1E1E24),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.white12),
-                            ),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 24,
-                                  child: Text(
-                                    "#${combo.number}",
-                                    style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 11, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                Expanded(
-                                  child: Wrap(
-                                    spacing: 6,
-                                    runSpacing: 6,
-                                    crossAxisAlignment: WrapCrossAlignment.center,
-                                    children: [
-                                      ...combo.mainNumbers.map((n) => _buildMiniBalota(n, false)),
-                                      ...combo.specialNumbers.map(
-                                        (n) => _buildMiniBalota(n, true),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.copy_rounded, color: Colors.white38, size: 18),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.all(4),
-                                  constraints: const BoxConstraints(),
-                                  tooltip: l10n?.copiar ?? "Copiar",
-                                  onPressed: () {
-                                    final text = "${combo.mainNumbers.join(' · ')}${combo.specialNumbers.isNotEmpty ? ' + ${combo.specialNumbers.join(' · ')}' : ''}";
-                                    Clipboard.setData(ClipboardData(text: text));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          l10n?.combinacionCopiada ?? "Combinación copiada al portapapeles",
-                                          style: GoogleFonts.montserrat(fontSize: 12),
-                                        ),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 10),
-                                IconButton(
-                                  icon: const Icon(Icons.favorite_border_rounded, color: Colors.white38, size: 18),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.all(4),
-                                  constraints: const BoxConstraints(),
-                                  tooltip: l10n?.favorito ?? "Favorito",
-                                  onPressed: () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          l10n?.marcadaComoFavorita ?? "Marcada como favorita",
-                                          style: GoogleFonts.montserrat(fontSize: 12),
-                                        ),
-                                        duration: const Duration(seconds: 1),
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: OutlinedButton.icon(
-                          onPressed: () async {
-                            final l10nInner = AppLocalizations.of(context);
-                            final storage = AppSecureStorage.instance;
-                            final userId = await storage.read(key: "user_id");
-                            if (!context.mounted) return;
-                            if (userId != null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(l10nInner?.guardando ?? 'Guardando...', style: GoogleFonts.montserrat(fontSize: 12))),
-                              );
-                              final success = await provider.saveAll(userId);
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    success
-                                        ? (l10nInner?.jugadasGuardadasConExito ?? 'Jugadas guardadas con éxito')
-                                        : (l10nInner?.errorAlGuardarJugadas ?? 'Hubo un error al guardar algunas jugadas'),
-                                    style: GoogleFonts.montserrat(fontSize: 12),
-                                  ),
-                                  backgroundColor: success ? Colors.green.shade800 : Colors.red.shade800,
-                                ),
-                              );
-                            } else {
-                              if (!context.mounted) return;
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    l10nInner?.debesIniciarSesionParaGuardar ?? 'Debes iniciar sesión para guardar',
-                                    style: GoogleFonts.montserrat(fontSize: 12),
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          icon: const Icon(Icons.file_download_outlined, color: AppColors.yellow, size: 20),
-                          label: Text(
-                            l10n?.guardarTodas ?? "Guardar todas",
-                            style: GoogleFonts.montserrat(color: AppColors.yellow, fontWeight: FontWeight.bold, fontSize: 14),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            side: const BorderSide(color: AppColors.yellow, width: 1.2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
+                          ],
                         ),
                       ),
+                      const SizedBox(height: 10),
+                      _buildGeneratedPlaysTable(provider),
                     ],
                     const SizedBox(height: 24),
                   ],
@@ -984,6 +900,525 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
         ),
       ),
     );
+  }
+
+  Widget _buildGeneratedActions(CombinationGeneratorProvider provider) {
+    final hasCombinations = provider.combinations.isNotEmpty;
+    final hasSelection = provider.hasSelectedCombinations;
+    final allSelected =
+        hasCombinations && provider.selectedCount == provider.combinations.length;
+
+    return AppContainer3(
+      child: Center(
+        child: SizedBox(
+          width: double.infinity,
+          height: 44,
+          child: ReorderableListView.builder(
+            scrollDirection: Axis.horizontal,
+            buildDefaultDragHandles: false,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            itemCount: _actionOrder.length,
+            onReorder: _reorderActions,
+            proxyDecorator: (child, index, animation) {
+              return Material(
+                color: Colors.transparent,
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 1, end: 1.08).animate(animation),
+                  child: child,
+                ),
+              );
+            },
+            itemBuilder: (context, index) {
+              final action = _actionOrder[index];
+
+              return ReorderableDelayedDragStartListener(
+                key: ValueKey(action),
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  child: _buildGeneratorAction(
+                    action,
+                    provider,
+                    hasCombinations: hasCombinations,
+                    hasSelection: hasSelection,
+                    allSelected: allSelected,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGeneratorAction(
+    String action,
+    CombinationGeneratorProvider provider, {
+    required bool hasCombinations,
+    required bool hasSelection,
+    required bool allSelected,
+  }) {
+    switch (action) {
+      case 'generate':
+        return _buildActionButton(
+          icon: provider.isLoading ? null : Icons.auto_awesome,
+          color: AppColors.yellow,
+          enabled: !provider.isLoading,
+          tooltip: provider.isLoading
+              ? _t('Generando...', 'Generating...', 'Gerando...', 'Génération...')
+              : _t(
+                  'Generar combinaciones',
+                  'Generate combinations',
+                  'Gerar combinações',
+                  'Générer des combinaisons',
+                ),
+          onPressed: provider.isLoading ? null : provider.generate,
+          loading: provider.isLoading,
+        );
+
+      case 'select':
+        return _buildActionButton(
+          icon: allSelected ? Icons.deselect : Icons.check_circle_outline,
+          color: AppColors.yellow,
+          enabled: hasCombinations,
+          tooltip: allSelected
+              ? _t('Deseleccionar', 'Deselect all', 'Desmarcar', 'Tout désélectionner')
+              : _t('Seleccionar todo', 'Select all', 'Selecionar tudo', 'Tout sélectionner'),
+          onPressed:
+              hasCombinations ? provider.toggleSelectAllCombinations : null,
+        );
+
+      case 'whatsapp':
+        return _buildActionButton(
+          icon: FontAwesomeIcons.whatsapp,
+          color: const Color(0xFF25D366),
+          enabled: hasSelection,
+          tooltip: _t(
+            'Compartir por WhatsApp',
+            'Share via WhatsApp',
+            'Compartilhar no WhatsApp',
+            'Partager sur WhatsApp',
+          ),
+          onPressed:
+              hasSelection ? () => _shareSelectedWhatsApp(provider) : null,
+        );
+
+
+      case 'delete':
+        return _buildActionButton(
+          icon: Icons.delete_outline,
+          color: Colors.redAccent,
+          enabled: hasCombinations,
+          tooltip: hasSelection
+              ? _t(
+                  'Eliminar seleccionadas',
+                  'Delete selected',
+                  'Excluir selecionadas',
+                  'Supprimer la sélection',
+                )
+              : _t('Limpiar lista', 'Clear list', 'Limpar lista', 'Vider la liste'),
+          onPressed: hasCombinations ? () => _deleteGenerated(provider) : null,
+        );
+
+      case 'save':
+        return _buildActionButton(
+          icon: Icons.bookmark_add_outlined,
+          color: AppColors.yellow,
+          enabled: hasSelection,
+          tooltip: _t('Guardar', 'Save', 'Salvar', 'Enregistrer'),
+          onPressed:
+              hasSelection ? () => _saveSelectedCombinations(provider) : null,
+        );
+
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildActionButton({
+    required dynamic icon,
+    required Color color,
+    required bool enabled,
+    required String tooltip,
+    required VoidCallback? onPressed,
+    bool loading = false,
+  }) {
+    final button = InkWell(
+      onTap: enabled ? onPressed : null,
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled
+              ? color.withValues(alpha: 0.12)
+              : Colors.white.withValues(alpha: 0.03),
+          border: Border.all(
+            color: enabled ? color.withValues(alpha: 0.45) : Colors.white10,
+            width: 1.2,
+          ),
+        ),
+        child: Center(
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    color: AppColors.yellow,
+                    strokeWidth: 2,
+                  ),
+                )
+              : icon is IconData
+                  ? Icon(
+                      icon,
+                      color: enabled ? color : Colors.white24,
+                      size: 20,
+                    )
+                  : FaIcon(
+                      icon,
+                      color: enabled ? color : Colors.white24,
+                      size: 19,
+                    ),
+        ),
+      ),
+    );
+
+    return Tooltip(message: tooltip, child: button);
+  }
+
+  Widget _buildGeneratedPlaysTable(CombinationGeneratorProvider provider) {
+    final l10n = AppLocalizations.of(context);
+    final combinations = provider.combinations;
+    final date = provider.selectedLotteryRules?.proximoSorteo;
+    final dateLabel = date == null || date.trim().isEmpty
+        ? '--'
+        : _formatFullDate(date);
+
+    return Center(
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12, width: 0.8),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    '#',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      color: Colors.white38,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 82,
+                  child: Text(
+                    l10n?.sorteoLabel ?? 'Sorteo',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      color: Colors.white38,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    l10n?.balotas ?? 'Balotas',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      color: Colors.white38,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const Divider(color: Colors.white12, height: 16),
+            ...List.generate(combinations.length, (index) {
+              final combo = combinations[index];
+              final selected = provider.isCombinationSelected(combo);
+              final totalBalls = combo.mainNumbers.length + combo.specialNumbers.length;
+              final ballSize = totalBalls <= 5
+                  ? 32.0
+                  : (totalBalls == 6 ? 30.0 : (totalBalls == 7 ? 27.0 : 24.0));
+              final hPadding = totalBalls <= 5
+                  ? 2.5
+                  : (totalBalls == 6 ? 2.0 : (totalBalls == 7 ? 1.5 : 1.0));
+              final color = _playRowColors[index % _playRowColors.length];
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                margin: EdgeInsets.only(
+                  bottom: index == combinations.length - 1 ? 0 : 7,
+                ),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.yellow.withValues(alpha: 0.08)
+                      : color.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: selected ? AppColors.yellow : Colors.white10,
+                    width: selected ? 1.2 : 0.6,
+                  ),
+                ),
+                child: InkWell(
+                  onTap: () => provider.toggleCombinationSelection(combo),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 28,
+                          child: Center(
+                            child: Text(
+                              '${index + 1}',
+                              style: AppTextStyles.caption.copyWith(
+                                fontSize: 11,
+                                color: selected ? AppColors.yellow : Colors.white70,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        SizedBox(
+                          width: 82,
+                          child: Text(
+                            dateLabel,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.caption.copyWith(
+                              fontSize: 10.5,
+                              color: selected ? Colors.white : Colors.white70,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Center(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.center,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  for (final n in combo.mainNumbers)
+                                    Padding(
+                                      padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                      child: _build3DBall(
+                                        n,
+                                        baseColor: color,
+                                        size: ballSize,
+                                      ),
+                                    ),
+                                  if (combo.specialNumbers.isNotEmpty) ...[
+                                    SizedBox(width: hPadding * 1.5),
+                                    for (final n in combo.specialNumbers)
+                                      Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: hPadding),
+                                        child: _build3DBall(
+                                          n,
+                                          baseColor: const Color(0xFFB91C1C),
+                                          size: ballSize,
+                                        ),
+                                      ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const List<Color> _playRowColors = [
+    Color(0xFF1E3A8A),
+    Color(0xFF4C1D95),
+    Color(0xFF0F766E),
+    Color(0xFF9A3412),
+    Color(0xFF065F46),
+    Color(0xFF831843),
+    Color(0xFF312E81),
+    Color(0xFF155E75),
+    Color(0xFF7C2D12),
+    Color(0xFF78350F),
+  ];
+
+  Widget _build3DBall(
+    int? numero, {
+    Color baseColor = const Color(0xFFF33A21),
+    double size = 32,
+  }) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            baseColor.withValues(alpha: 0.95),
+            baseColor.withValues(alpha: 0.75),
+            baseColor.withValues(alpha: 0.5),
+          ],
+          center: Alignment.topLeft,
+          radius: 0.9,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.4),
+            offset: const Offset(3, 3),
+            blurRadius: 6,
+          ),
+          BoxShadow(
+            color: baseColor.withValues(alpha: 0.3),
+            offset: const Offset(-2, -2),
+            blurRadius: 4,
+          ),
+        ],
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1.2,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          numero?.toString() ?? '–',
+          style: AppTextStyles.caption.copyWith(
+            fontSize: size * 0.4,
+            fontWeight: FontWeight.bold,
+            color: numero != null ? Colors.white : Colors.white54,
+            shadows: numero != null
+                ? [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      offset: const Offset(1, 1),
+                      blurRadius: 2,
+                    ),
+                  ]
+                : null,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _shareSelectedWhatsApp(
+    CombinationGeneratorProvider provider,
+  ) async {
+    final selected = provider.combinations
+        .where(provider.isCombinationSelected)
+        .toList(growable: false);
+    if (selected.isEmpty) return;
+
+    final lotteryName = provider.selectedLotteryRules?.name ?? 'Eterlotto';
+    final buffer = StringBuffer()
+      ..writeln('🎲 $lotteryName - Eterlotto')
+      ..writeln();
+
+    for (var i = 0; i < selected.length; i++) {
+      final combo = selected[i];
+      final main = combo.mainNumbers.join(' - ');
+      final special = combo.specialNumbers.isEmpty
+          ? ''
+          : ' | ${_t('Especial', 'Special', 'Especial', 'Spécial')}: ${combo.specialNumbers.join(' - ')}';
+      buffer.writeln('${i + 1}. $main$special');
+    }
+
+    final uri = Uri.parse(
+      'https://wa.me/?text=${Uri.encodeComponent(buffer.toString())}',
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _deleteGenerated(
+    CombinationGeneratorProvider provider,
+  ) async {
+    final selectedCount = provider.selectedCount;
+    final deletingSelected = selectedCount > 0;
+    final message = deletingSelected
+        ? _t(
+            '¿Eliminar $selectedCount jugada(s) seleccionada(s)?',
+            'Delete $selectedCount selected play(s)?',
+            'Excluir $selectedCount aposta(s) selecionada(s)?',
+            'Supprimer $selectedCount grille(s) sélectionnée(s) ?',
+          )
+        : _t(
+            '¿Limpiar todas las combinaciones generadas?',
+            'Clear all generated combinations?',
+            'Limpar todas as combinações geradas?',
+            'Effacer toutes les combinaisons générées ?',
+          );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          deletingSelected
+              ? _t('Eliminar jugadas', 'Delete plays', 'Excluir apostas', 'Supprimer les grilles')
+              : _t('Limpiar lista', 'Clear list', 'Limpar lista', 'Vider la liste'),
+          style: AppTextStyles.h2.copyWith(color: Colors.white),
+        ),
+        content: Text(
+          message,
+          style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              _t('Cancelar', 'Cancel', 'Cancelar', 'Annuler'),
+              style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(
+              _t('Eliminar', 'Delete', 'Excluir', 'Supprimer'),
+              style: AppTextStyles.caption.copyWith(color: Colors.redAccent),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (deletingSelected) {
+      provider.removeSelectedCombinations();
+    } else {
+      provider.clearGeneratedCombinations();
+    }
   }
 
   Widget _buildLotteriesLoadFailure(
@@ -1100,7 +1535,11 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
               Expanded(
                 child: Text(
                   title,
-                  style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                  style: AppTextStyles.h2.copyWith(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
               if (action != null) action,
@@ -1110,7 +1549,10 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: GoogleFonts.montserrat(color: Colors.white38, fontSize: 11),
+              style: AppTextStyles.caption.copyWith(
+                color: Colors.white54,
+                fontSize: 11,
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -1120,30 +1562,126 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
     );
   }
 
-  Widget _buildMiniBalota(int number, bool isSpecial) {
-    return Container(
-      width: 28,
-      height: 28,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: isSpecial ? Colors.red : AppColors.yellow,
-        boxShadow: [
-          BoxShadow(
-            color: (isSpecial ? Colors.red : AppColors.yellow).withValues(alpha: 0.25),
-            blurRadius: 3,
+
+  Future<void> _saveSelectedCombinations(
+    CombinationGeneratorProvider provider,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final storage = AppSecureStorage.instance;
+    final userId = await storage.read(key: 'user_id');
+    if (!mounted) return;
+
+    if (userId == null || userId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            l10n?.debesIniciarSesionParaGuardar ??
+                'Debes iniciar sesión para guardar',
+            style: AppTextStyles.body.copyWith(fontSize: 12),
           ),
-        ],
-      ),
-      child: Text(
-        number.toString(),
-        style: GoogleFonts.montserrat(
-          color: isSpecial ? Colors.white : Colors.black,
-          fontWeight: FontWeight.bold,
-          fontSize: 11,
         ),
+      );
+      return;
+    }
+
+    final count = provider.selectedCount;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          l10n?.guardando ?? 'Guardando...',
+          style: AppTextStyles.body.copyWith(fontSize: 12),
+        ),
+        duration: const Duration(milliseconds: 700),
       ),
     );
+
+    final success = await provider.saveSelected(userId);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          success
+              ? _savedSelectionMessage(count)
+              : (l10n?.errorAlGuardarJugadas ??
+                    'Hubo un error al guardar algunas jugadas'),
+          style: AppTextStyles.body.copyWith(fontSize: 12),
+        ),
+        backgroundColor:
+            success ? Colors.green.shade800 : Colors.red.shade800,
+      ),
+    );
+  }
+
+  String _t(String es, String en, String pt, String fr) {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'en' => en,
+      'pt' => pt,
+      'fr' => fr,
+      _ => es,
+    };
+  }
+
+  String _selectionSummary(int count) {
+    final lang = Localizations.localeOf(context).languageCode;
+    if (count == 0) {
+      return switch (lang) {
+        'en' => 'Tap one or more plays to select them',
+        'pt' => 'Toque em uma ou mais apostas para selecioná-las',
+        'fr' => 'Touchez une ou plusieurs grilles pour les sélectionner',
+        _ => 'Toca una o varias jugadas para seleccionarlas',
+      };
+    }
+    return switch (lang) {
+      'en' => '$count selected',
+      'pt' => '$count selecionada${count == 1 ? '' : 's'}',
+      'fr' => '$count sélectionnée${count == 1 ? '' : 's'}',
+      _ => '$count seleccionada${count == 1 ? '' : 's'}',
+    };
+  }
+
+  String _saveSelectionLabel(int count) {
+    final lang = Localizations.localeOf(context).languageCode;
+    if (count == 0) {
+      return switch (lang) {
+        'en' => 'SELECT PLAYS TO SAVE',
+        'pt' => 'SELECIONE APOSTAS PARA SALVAR',
+        'fr' => 'SÉLECTIONNEZ DES GRILLES',
+        _ => 'SELECCIONA JUGADAS PARA GUARDAR',
+      };
+    }
+    if (count == 1) {
+      return switch (lang) {
+        'en' => 'SAVE PLAY',
+        'pt' => 'SALVAR APOSTA',
+        'fr' => 'ENREGISTRER LA GRILLE',
+        _ => 'GUARDAR JUGADA',
+      };
+    }
+    return switch (lang) {
+      'en' => 'SAVE $count PLAYS',
+      'pt' => 'SALVAR $count APOSTAS',
+      'fr' => 'ENREGISTRER $count GRILLES',
+      _ => 'GUARDAR $count JUGADAS',
+    };
+  }
+
+  String _clearSelectionLabel() {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'en' => 'Clear',
+      'pt' => 'Limpar',
+      'fr' => 'Effacer',
+      _ => 'Limpiar',
+    };
+  }
+
+  String _savedSelectionMessage(int count) {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'en' => count == 1 ? 'Play saved successfully' : '$count plays saved successfully',
+      'pt' => count == 1 ? 'Aposta salva com sucesso' : '$count apostas salvas com sucesso',
+      'fr' => count == 1 ? 'Grille enregistrée avec succès' : '$count grilles enregistrées avec succès',
+      _ => count == 1 ? 'Jugada guardada con éxito' : '$count jugadas guardadas con éxito',
+    };
   }
 
   String _formatFullDate(String dateStr) {

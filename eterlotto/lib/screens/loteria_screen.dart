@@ -3,7 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:eterlotto/screens/resultados/widgets/header_card.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/models/loteria_config.dart';
@@ -946,14 +946,84 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   String _getFechaProximoSorteo(AppLocalizations? l10n) {
+    String rawFecha = "";
     if (fechaPrediccion != null && fechaPrediccion!.isNotEmpty) {
-      return _formatearFecha(fechaPrediccion!);
+      rawFecha = fechaPrediccion!;
+    } else if (ultimosResultados.isNotEmpty && ultimosResultados.first["fecha"] != null) {
+      rawFecha = ultimosResultados.first["fecha"].toString();
     }
-    if (ultimosResultados.isNotEmpty &&
-        ultimosResultados.first["fecha"] != null) {
-      return _formatearFecha(ultimosResultados.first["fecha"].toString());
+
+    if (rawFecha.isEmpty) return l10n?.porDefinir ?? "Por definir";
+
+    final fechaFormateada = _formatearFecha(rawFecha);
+    final estado = _getEstadoRelativo(rawFecha);
+    return estado.isEmpty ? fechaFormateada : '$fechaFormateada ($estado)';
+  }
+
+  String _getEstadoRelativo(String rawFecha) {
+    try {
+      final clean = rawFecha.trim();
+      DateTime? parsed =
+          DateTime.tryParse(clean) ??
+          (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
+
+      if (parsed == null && clean.contains('/')) {
+        final parts = clean.split('/');
+        if (parts.length == 3) {
+          parsed = DateTime(
+            int.parse(parts[2]),
+            int.parse(parts[1]),
+            int.parse(parts[0]),
+          );
+        }
+      }
+      if (parsed == null) return '';
+
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final target = DateTime(parsed.year, parsed.month, parsed.day);
+      final diff = target.difference(today).inDays;
+      final langCode = mounted
+          ? Localizations.localeOf(context).languageCode
+          : 'es';
+
+      if (diff == 0) {
+        if (langCode == 'en') return 'Draws today';
+        if (langCode == 'pt') return 'Sorteia hoje';
+        if (langCode == 'fr') return 'Tirage aujourd’hui';
+        return 'Sortea hoy';
+      } else if (diff == 1) {
+        if (langCode == 'en') return 'Tomorrow';
+        if (langCode == 'pt') return 'Amanhã';
+        if (langCode == 'fr') return 'Demain';
+        return 'Mañana';
+      } else if (diff > 1) {
+        if (langCode == 'en') return 'In $diff days';
+        if (langCode == 'pt') return 'Faltam $diff dias';
+        if (langCode == 'fr') return 'Dans $diff jours';
+        return 'Faltan $diff días';
+      } else if (diff == -1) {
+        if (langCode == 'en') return 'Drew yesterday';
+        if (langCode == 'pt') return 'Sorteado ontem';
+        if (langCode == 'fr') return 'Tiré hier';
+        return 'Sorteó ayer';
+      } else {
+        final dias = diff.abs();
+        if (langCode == 'en') return 'Drew $dias days ago';
+        if (langCode == 'pt') return 'Sorteado há $dias dias';
+        if (langCode == 'fr') return 'Tiré il y a $dias jours';
+        return 'Sorteó hace $dias días';
+      }
+    } catch (_) {
+      return '';
     }
-    return l10n?.porDefinir ?? "Por definir";
+  }
+
+  ({String date, String status}) _separarFechaYEstado(String value) {
+    final match = RegExp(r'^(.*) \(([^()]+)\)$').firstMatch(value.trim());
+    return match == null
+        ? (date: value, status: '')
+        : (date: match.group(1)!.trim(), status: match.group(2)!.trim());
   }
 
   bool get _hasAvailableLotteryData =>
@@ -1236,131 +1306,12 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Widget _buildHeader(AppLocalizations? l10n) {
-    final jackpotIso = _paisJackpotIso;
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  LotteryAvatar3D(nombre: config.nombre, size: 32),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            config.nombre,
-                            style: AppTextStyles.tituloPrincipal.copyWith(
-                              fontSize: 18,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Consumer<SubscriptionProvider>(
-                          builder: (_, sub, __) => PremiumCrownIcon(
-                            isPremium: sub.isPremium,
-                            size: 16,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                "${l10n?.proximoSorteo ?? "Próximo sorteo"}: ${_getFechaProximoSorteo(l10n)}",
-                style: AppTextStyles.caption,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          constraints: const BoxConstraints(minWidth: 105),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            image: jackpotIso.isNotEmpty
-                ? DecorationImage(
-                    image: NetworkImage(
-                      'https://flagcdn.com/w320/$jackpotIso.png',
-                    ),
-                    fit: BoxFit.cover,
-                    opacity: 0.40,
-                    onError: (_, __) {},
-                  )
-                : null,
-          ),
-          child: Builder(
-            builder: (context) {
-              final parts = PaisHelper.getJackpotParts(
-                _jackpot,
-                fallbackValue: (_jackpot != null && _jackpot!.isNotEmpty)
-                    ? _jackpot!
-                    : "--",
-              );
-              final displayVal = parts["value"]!.isNotEmpty
-                  ? parts["value"]!
-                  : "--";
-
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    l10n?.jackpotEstimado ?? "Jackpot estimado",
-                    style: AppTextStyles.caption.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 9.5,
-                    ),
-                    maxLines: 1,
-                  ),
-                  const SizedBox(height: 2),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      displayVal,
-                      style: AppTextStyles.h2.copyWith(
-                        color: AppColors.yellow,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                      maxLines: 1,
-                    ),
-                  ),
-                  if (parts["label"]!.isNotEmpty) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      parts["label"]!,
-                      style: AppTextStyles.caption.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 9.5,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+    return HeaderCard(
+      selectedLoteria: config.nombre,
+      fechaSorteo: _getFechaProximoSorteo(l10n),
+      jackpot: (_jackpot ?? '').trim().isNotEmpty ? _jackpot! : '--',
+      canPop: false,
+      jackpotIso: _paisJackpotIso,
     );
   }
 

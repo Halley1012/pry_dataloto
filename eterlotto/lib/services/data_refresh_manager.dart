@@ -23,8 +23,8 @@ class RefreshModules {
 /// - Cada 5 minutos consulta únicamente /metadata/data-version.
 /// - Ese endpoint vive en memoria del backend y NO consulta Supabase.
 /// - Si Airflow terminó un modelo, invalida la caché backend y cambia la
-///   versión. Flutter detecta el cambio, borra sólo cachés dinámicas y emite
-///   una única señal global.
+///   versión. Flutter detecta el cambio, CONSERVA el último dato local visible
+///   y emite una señal para revalidar en segundo plano.
 /// - Como red de seguridad, el catálogo expira a los 15 minutos aunque la
 ///   invalidación remota no esté disponible.
 class DataRefreshManager with WidgetsBindingObserver {
@@ -59,14 +59,21 @@ class DataRefreshManager with WidgetsBindingObserver {
     }
   }
 
-  void initialize() {
+  Future<void> initialize() async {
     if (_isInitialized) return;
 
     WidgetsBinding.instance.addObserver(this);
     _isInitialized = true;
 
-    // Primera comprobación: si la app se actualizó y todavía tiene una caché
-    // antigua, se limpia una sola vez sin bloquear el arranque.
+    // Las marcas sobreviven a un cierre completo del proceso. Sin esto, cada
+    // cold start hacía que todos los módulos parecieran vencidos.
+    final persisted = await CacheService.getModuleLastUpdates(
+      _defaultTtls.keys,
+    );
+    _lastUpdateTimestamps.addAll(persisted);
+
+    // data-version sólo dispara revalidación. Nunca elimina primero el último
+    // dato conocido, porque eso convertiría un refresh de fondo en skeleton.
     unawaited(_checkServerDataVersion());
 
     _periodicTimer?.cancel();
@@ -90,7 +97,9 @@ class DataRefreshManager with WidgetsBindingObserver {
   }
 
   void markUpdated(String module) {
-    _lastUpdateTimestamps[module] = DateTime.now();
+    final now = DateTime.now();
+    _lastUpdateTimestamps[module] = now;
+    unawaited(CacheService.setModuleLastUpdate(module, now));
   }
 
   bool isExpired(String module, {Duration? customTtl}) {
@@ -135,27 +144,22 @@ class DataRefreshManager with WidgetsBindingObserver {
       _devLog('[DATA VERSION] local=$localVersion');
       _devLog('[DATA VERSION] remote=$remoteVersion');
 
-      // Migración de instalaciones que todavía no conocían data-version:
-      // limpiamos una sola vez para no heredar el catálogo de 12 horas.
+      // Primera instalación con data-version: registramos la versión sin
+      // destruir una caché que todavía puede pintar la interfaz al instante.
       if (localVersion == null) {
-        _devLog('[CACHE] sin version local -> invalidando catalogos dinamicos');
-        await CacheService.invalidateLotteryCatalogCaches();
         await CacheService.setServerDataVersion(remoteVersion);
         _devLog('[CACHE] version local inicializada=$remoteVersion');
-        _devLog('[CACHE] enviando refresh global de loterias');
         requestRefresh(RefreshModules.loterias);
         return;
       }
 
       if (remoteVersion != localVersion) {
         _devLog('[CACHE] CAMBIO DETECTADO $localVersion -> $remoteVersion');
-        _devLog('[CACHE] invalidando catalogos de loterias');
-        await CacheService.invalidateLotteryCatalogCaches();
         await CacheService.setServerDataVersion(remoteVersion);
 
-        // Todas las pantallas activas reciben la misma señal. Las que no estén
-        // montadas encontrarán la caché invalidada cuando se abran.
-        _devLog('[CACHE] refrescando Home / Explorar / Resultados');
+        // Stale-while-revalidate real: el contenido anterior permanece visible
+        // hasta que cada pantalla haya descargado y guardado el reemplazo.
+        _devLog('[CACHE] conservando stale y revalidando loterias');
         requestRefresh(RefreshModules.loterias);
       } else {
         _devLog('[DATA VERSION] sin cambios');
