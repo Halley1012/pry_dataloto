@@ -494,7 +494,29 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
   }
 
   Widget _buildSliverSkeletonList() {
-    return SliverToBoxAdapter(child: _buildSkeletonList());
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Shimmer.fromColors(
+              baseColor: const Color(0xFF1A1A1A),
+              highlightColor: const Color(0xFF2C2C2C),
+              period: const Duration(milliseconds: 1400),
+              child: Container(
+                height: 72,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ),
+          ),
+          childCount: 6,
+        ),
+      ),
+    );
   }
 
   Widget _buildEmptyState(AppLocalizations? l10n) {
@@ -1024,25 +1046,5 @@ class MisJugadasSelectorScreenState extends State<MisJugadasSelectorScreen> {
     );
   }
 
-  Widget _buildSkeletonList() {
-    return Shimmer.fromColors(
-      baseColor: const Color(0xFF1A1A1A),
-      highlightColor: const Color(0xFF2C2C2C),
-      period: const Duration(milliseconds: 1400),
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 6,
-        itemBuilder: (context, index) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            height: 72,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-          );
-        },
-      ),
-    );
-  }
+
 }

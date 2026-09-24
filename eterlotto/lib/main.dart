@@ -42,7 +42,9 @@ void main() {
       // Inicializar bindings y configuraciones dentro de la misma zona
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Inicializar gestor central de ciclo de vida y refresco inteligente con TTL
+      // Inicializar gestor central de ciclo de vida y refresco inteligente.
+      // No usamos await porque initialize() en tu implementación actual
+      // se ejecuta como inicialización en segundo plano.
       DataRefreshManager.instance.initialize();
 
       // Bloquear la app en vertical
@@ -51,7 +53,7 @@ void main() {
         DeviceOrientation.portraitDown,
       ]);
 
-      // Iniciar la aplicación inmediatamente (0 ms de pantalla negra)
+      // Iniciar la aplicación inmediatamente
       runApp(const EterlottoApp());
 
       // Inicializar Notificaciones Push y Firebase en segundo plano
@@ -60,12 +62,12 @@ void main() {
       // Inicializar Google Mobile Ads en segundo plano
       unawaited(AdService.instance.initialize());
     },
-
     (error, stackTrace) {
       // Los 401 se resuelven de forma centralizada en ApiService:
       // refresh silencioso o, sólo si el refresh expiró, sesión vencida.
-      // No navegar por coincidencias de texto desde el manejador global, ya
-      // que un error ajeno a autenticación podría contener "401".
+      //
+      // No navegar por coincidencias de texto desde el manejador global,
+      // ya que un error ajeno a autenticación podría contener "401".
       debugPrint('[APP] Unhandled error: ${error.runtimeType}');
     },
   );
@@ -78,155 +80,215 @@ class EterlottoApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider.value(value: localeProvider),
-        ChangeNotifierProvider(create: (_) => NotificationProvider()),
-        ChangeNotifierProvider(create: (_) => SubscriptionProvider()),
+        ChangeNotifierProvider.value(
+          value: localeProvider,
+        ),
+        ChangeNotifierProvider(
+          create: (_) => NotificationProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => SubscriptionProvider(),
+        ),
       ],
       child: ListenableBuilder(
         listenable: localeProvider,
         builder: (context, _) {
           return MaterialApp(
-          navigatorKey: navigatorKey, // 👈 importante para navegar globalmente
-          debugShowCheckedModeBanner: false,
-          initialRoute: '/splash',
-          title: 'Eterlotto',
-          // Mantiene la interfaz legible con la escala de accesibilidad del
-          // dispositivo, sin permitir que una escala extrema rompa filas o
-          // tarjetas que ya se adaptan a cualquier idioma/país.
-          builder: (context, child) {
-            final mediaQuery = MediaQuery.of(context);
-            return MediaQuery(
-              data: mediaQuery.copyWith(
-                textScaler: mediaQuery.textScaler.clamp(
-                  maxScaleFactor: 1.15,
+            navigatorKey: navigatorKey,
+            debugShowCheckedModeBanner: false,
+            initialRoute: '/splash',
+            title: 'Eterlotto',
+
+            // Mantiene la interfaz legible con la escala de accesibilidad del
+            // dispositivo, sin permitir que una escala extrema rompa filas o
+            // tarjetas que ya se adaptan a cualquier idioma/país.
+            builder: (context, child) {
+              final mediaQuery = MediaQuery.of(context);
+
+              return MediaQuery(
+                data: mediaQuery.copyWith(
+                  textScaler: mediaQuery.textScaler.clamp(
+                    maxScaleFactor: 1.15,
+                  ),
                 ),
-              ),
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
-          locale: localeProvider.locale,
-          localizationsDelegates: [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-            GlobalCupertinoLocalizations.delegate,
-          ],
-          supportedLocales: AppLocalizations.supportedLocales,
-          localeResolutionCallback: (deviceLocale, supportedLocales) {
-            if (localeProvider.locale != null) {
-              return localeProvider.locale;
-            }
-            if (deviceLocale != null) {
-              for (var supportedLocale in supportedLocales) {
-                if (supportedLocale.languageCode == deviceLocale.languageCode) {
-                  return supportedLocale;
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+
+            locale: localeProvider.locale,
+
+            localizationsDelegates: [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+
+            supportedLocales: AppLocalizations.supportedLocales,
+
+            localeResolutionCallback: (
+              deviceLocale,
+              supportedLocales,
+            ) {
+              if (localeProvider.locale != null) {
+                return localeProvider.locale;
+              }
+
+              if (deviceLocale != null) {
+                for (final supportedLocale in supportedLocales) {
+                  if (supportedLocale.languageCode ==
+                      deviceLocale.languageCode) {
+                    return supportedLocale;
+                  }
                 }
               }
-            }
-            return const Locale('es'); // Default fallback: Español
-          },
-          theme: ThemeData.dark().copyWith(
-            textTheme: GoogleFonts.montserratTextTheme(ThemeData.dark().textTheme),
-            primaryColor: Colors.deepPurple,
-            scaffoldBackgroundColor: AppColors.blackfondo,
-            canvasColor: AppColors.blackfondo,
-            cardColor: AppColors.darkGray,
-            colorScheme: const ColorScheme.dark(
-              primary: Colors.deepPurple,
-              surface: AppColors.blackfondo,
-            ),
-            pageTransitionsTheme: PageTransitionsTheme(
-              builders: {
-                TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-                TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-              },
-            ),
-            snackBarTheme: SnackBarThemeData(
-              backgroundColor: AppColors.amber,
-              contentTextStyle: AppTextStyles.mensajeImportante.copyWith(
-                color: const Color(0xFF1E1E1E),
+
+              // Fallback por defecto: Español
+              return const Locale('es');
+            },
+
+            theme: ThemeData.dark().copyWith(
+              textTheme: GoogleFonts.montserratTextTheme(
+                ThemeData.dark().textTheme,
               ),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              primaryColor: Colors.deepPurple,
+              scaffoldBackgroundColor: AppColors.blackfondo,
+              canvasColor: AppColors.blackfondo,
+              cardColor: AppColors.darkGray,
+
+              colorScheme: const ColorScheme.dark(
+                primary: Colors.deepPurple,
+                surface: AppColors.blackfondo,
               ),
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: const Color(0xFF1E1E24),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              labelStyle: GoogleFonts.montserrat(
-                color: Colors.white60,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
+
+              pageTransitionsTheme: PageTransitionsTheme(
+                builders: {
+                  TargetPlatform.android:
+                      FadeUpwardsPageTransitionsBuilder(),
+                  TargetPlatform.iOS:
+                      CupertinoPageTransitionsBuilder(),
+                },
               ),
-              hintStyle: GoogleFonts.montserrat(
-                color: Colors.white38,
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
-              floatingLabelStyle: GoogleFonts.montserrat(
-                color: AppColors.yellow,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: Colors.white12, width: 1.0),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: AppColors.yellow, width: 1.5),
-              ),
-              errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: Colors.redAccent, width: 1.0),
-              ),
-              focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(30),
-                borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-              ),
-            ),
-          ),
-          routes: {
-            '/splash': (context) => const SplashScreen(),
-            '/welcome': (context) => const WelcomeScreen(),
-            '/login': (context) => const LoginPage(),
-            '/home': (context) => const HomeScreen(),
-            '/notifications': (context) => const NotificationsScreen(),
-            '/subscription': (context) => const SubscriptionScreen(),
-            '/registro': (context) => const RegistroScreen(),
-          },
-          onGenerateRoute: (settings) {
-            final name = settings.name ?? '';
-            if (name == '/registro') {
-              final args = settings.arguments as Map<String, dynamic>?;
-              return MaterialPageRoute(
-                builder: (_) => RegistroScreen(
-                  user: args?['user'] as Map<String, dynamic>?,
-                  userId: args?['userId'] as int?,
-                  isSocialOnboarding: args?['isSocialOnboarding'] as bool? ?? false,
+
+              snackBarTheme: SnackBarThemeData(
+                backgroundColor: AppColors.amber,
+                contentTextStyle:
+                    AppTextStyles.mensajeImportante.copyWith(
+                  color: const Color(0xFF1E1E1E),
                 ),
-              );
-            }
-            if (name.startsWith('/estadisticas_')) {
-              final loteriaKey = name.replaceFirst('/estadisticas_', '');
-              return MaterialPageRoute(
-                builder: (_) => EstadisticasDashboardScreen(
-                  loteriaNombreInicial: loteriaKey,
-                  loteriaRoute: loteriaKey,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              );
-            }
-            return null;
-          },
-        );
-      },
-    ),
+              ),
+
+              inputDecorationTheme: InputDecorationTheme(
+                filled: true,
+                fillColor: const Color(0xFF1E1E24),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
+                labelStyle: GoogleFonts.montserrat(
+                  color: Colors.white60,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                hintStyle: GoogleFonts.montserrat(
+                  color: Colors.white38,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w400,
+                ),
+                floatingLabelStyle: GoogleFonts.montserrat(
+                  color: AppColors.yellow,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(
+                    color: Colors.white12,
+                    width: 1.0,
+                  ),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(
+                    color: Colors.white12,
+                    width: 1.0,
+                  ),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(
+                    color: AppColors.yellow,
+                    width: 1.5,
+                  ),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(
+                    color: Colors.redAccent,
+                    width: 1.0,
+                  ),
+                ),
+                focusedErrorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(30),
+                  borderSide: const BorderSide(
+                    color: Colors.redAccent,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+
+            routes: {
+              '/splash': (context) => const SplashScreen(),
+              '/welcome': (context) => const WelcomeScreen(),
+              '/login': (context) => const LoginPage(),
+              '/home': (context) => const HomeScreen(),
+              '/notifications': (context) =>
+                  const NotificationsScreen(),
+              '/subscription': (context) =>
+                  const SubscriptionScreen(),
+              '/registro': (context) => const RegistroScreen(),
+            },
+
+            onGenerateRoute: (settings) {
+              final name = settings.name ?? '';
+
+              if (name == '/registro') {
+                final args =
+                    settings.arguments as Map<String, dynamic>?;
+
+                return MaterialPageRoute(
+                  builder: (_) => RegistroScreen(
+                    user: args?['user'] as Map<String, dynamic>?,
+                    userId: args?['userId'] as int?,
+                    isSocialOnboarding:
+                        args?['isSocialOnboarding'] as bool? ?? false,
+                  ),
+                );
+              }
+
+              if (name.startsWith('/estadisticas_')) {
+                final loteriaKey =
+                    name.replaceFirst('/estadisticas_', '');
+
+                return MaterialPageRoute(
+                  builder: (_) =>
+                      EstadisticasDashboardScreen(
+                    loteriaNombreInicial: loteriaKey,
+                    loteriaRoute: loteriaKey,
+                  ),
+                );
+              }
+
+              return null;
+            },
+          );
+        },
+      ),
     );
   }
 }
