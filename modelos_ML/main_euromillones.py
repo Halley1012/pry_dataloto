@@ -69,13 +69,12 @@ def main():
                 if proximo_esperado:
                     print(f"🎯 Próximo esperado: {proximo_esperado}")
                 print("✅ Ejecución correcta.\n")
-                return
-
+                print("⏭️ Sin sorteo nuevo: se omite la predicción automática y se revisan notificaciones pendientes.")
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para Euromillones: {e}")
             sys.exit(1)
 
-    if task in ["predict", "all"]:
+    if task in ["predict", "all"] and (task == "predict" or hubo_sorteo is not False):
         try:
             predictor_inst = EuromillonesPredictor()
             predictor_inst.run()
