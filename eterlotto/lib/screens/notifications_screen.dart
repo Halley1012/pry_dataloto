@@ -176,11 +176,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             const SizedBox(height: 16),
                             Text(
                               _selectedFilterIndex == 0
-                                  ? 'No tienes notificaciones de tus loterías jugadas aún'
-                                  : AppLocalizations.of(
-                                          context,
-                                        )?.sinNotificaciones ??
-                                        "No tienes notificaciones aún",
+                                  ? _uiText('noPlayedNotifications')
+                                  : _uiText('noNotifications'),
                               style: AppTextStyles.mensajeSecundario,
                               textAlign: TextAlign.center,
                             ),
@@ -202,11 +199,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              AppLocalizations.of(
-                                    context,
-                                  )?.sinNotificacionesCategoria ??
-                                  "Sin notificaciones para tu país",
+                              _emptyFilterMessage(),
                               style: AppTextStyles.mensajeSecundario,
+                              textAlign: TextAlign.center,
                             ),
                           ],
                         ),
@@ -257,53 +252,123 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
+  String _uiText(String key) {
+    final lang = Localizations.localeOf(context).languageCode;
+
+    const values = {
+      'es': {
+        'myLotteries': 'Mis loterías',
+        'myCountry': 'Mi País',
+        'international': 'Internacionales',
+        'noPlayedNotifications':
+            'No tienes notificaciones de tus loterías jugadas aún',
+        'noNotifications': 'No tienes notificaciones aún',
+        'noMyLotteries': 'Sin notificaciones de tus loterías jugadas',
+        'noMyCountry': 'Sin notificaciones para tu país',
+        'noInternational': 'Sin notificaciones internacionales',
+        'read': 'Leído',
+        'delete': 'Eliminar',
+      },
+      'en': {
+        'myLotteries': 'My lotteries',
+        'myCountry': 'My country',
+        'international': 'International',
+        'noPlayedNotifications':
+            'You do not have notifications from your played lotteries yet',
+        'noNotifications': 'You do not have notifications yet',
+        'noMyLotteries': 'No notifications from your played lotteries',
+        'noMyCountry': 'No notifications for your country',
+        'noInternational': 'No international notifications',
+        'read': 'Read',
+        'delete': 'Delete',
+      },
+      'pt': {
+        'myLotteries': 'Minhas loterias',
+        'myCountry': 'Meu país',
+        'international': 'Internacionais',
+        'noPlayedNotifications':
+            'Você ainda não tem notificações das loterias que jogou',
+        'noNotifications': 'Você ainda não tem notificações',
+        'noMyLotteries': 'Sem notificações das loterias que você jogou',
+        'noMyCountry': 'Sem notificações para o seu país',
+        'noInternational': 'Sem notificações internacionais',
+        'read': 'Lido',
+        'delete': 'Excluir',
+      },
+    };
+
+    return values[lang]?[key] ?? values['es']![key] ?? key;
+  }
+
+  String _emptyFilterMessage() {
+    switch (_selectedFilterIndex) {
+      case 0:
+        return _uiText('noMyLotteries');
+      case 1:
+        return _uiText('noMyCountry');
+      case 2:
+        return _uiText('noInternational');
+      default:
+        return _uiText('noNotifications');
+    }
+  }
+
   Widget _buildFilterChips() {
-    final l10n = AppLocalizations.of(context);
     final filters = [
-      'Mis loterías',
-      l10n?.miPais ?? "Mi País",
-      l10n?.internacionales ?? "Internacionales",
+      _uiText('myLotteries'),
+      _uiText('myCountry'),
+      _uiText('international'),
     ];
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(filters.length, (index) {
-            final isSelected = _selectedFilterIndex == index;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: ChoiceChip(
-                label: Text(
-                  filters[index],
-                  style: TextStyle(
-                    color: isSelected ? Colors.black : Colors.white70,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: 12,
-                  ),
-                ),
-                selected: isSelected,
-                selectedColor: AppColors.yellow,
-                backgroundColor: const Color(0xFF1E1E1E),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  side: BorderSide(
-                    color: isSelected ? AppColors.yellow : Colors.white24,
-                  ),
-                ),
-                showCheckmark: false,
-                onSelected: (selected) {
-                  if (selected) {
-                    setState(() => _selectedFilterIndex = index);
-                  }
-                },
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(filters.length, (index) {
+                  final isSelected = _selectedFilterIndex == index;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: ChoiceChip(
+                      label: Text(
+                        filters[index],
+                        style: TextStyle(
+                          color: isSelected ? Colors.black : Colors.white70,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      selected: isSelected,
+                      selectedColor: AppColors.yellow,
+                      backgroundColor: const Color(0xFF1E1E1E),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color:
+                              isSelected ? AppColors.yellow : Colors.white24,
+                        ),
+                      ),
+                      showCheckmark: false,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _selectedFilterIndex = index);
+                        }
+                      },
+                    ),
+                  );
+                }),
               ),
-            );
-          }),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -380,7 +445,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
@@ -401,12 +466,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         localeCode,
                         fechaSorteoMostrar,
                       ),
-                      style: AppTextStyles.mensajeSecundario.copyWith(
+                      style: AppTextStyles.caption.copyWith(
                         color: Colors.white,
-                        fontWeight: notification.leido
-                            ? FontWeight.normal
-                            : FontWeight.w600,
-                        height: 1.35,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -415,9 +476,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       children: [
                         Text(
                           DateFormat(
-                            'dd MMM, yyyy',
+                            'dd MMM, yyyy • HH:mm',
                             localeCode,
-                          ).format(notification.createdAt),
+                          ).format(notification.createdAt.toLocal()),
                           style: AppTextStyles.caption.copyWith(
                             color: Colors.white54,
                             fontSize: 11,
@@ -428,7 +489,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             width: 8,
                             height: 8,
                             decoration: const BoxDecoration(
-                              color: AppColors.yellow,
+                              color: AppColors.amber,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -454,13 +515,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.mark_email_read_outlined, color: Colors.white, size: 26),
-            SizedBox(width: 8),
+            const Icon(
+              Icons.mark_email_read_outlined,
+              color: Colors.white,
+              size: 26,
+            ),
+            const SizedBox(width: 8),
             Text(
-              "Leído",
-              style: TextStyle(
+              _uiText('read'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
@@ -477,19 +542,19 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: const Row(
+        child: Row(
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             Text(
-              "Eliminar",
-              style: TextStyle(
+              _uiText('delete'),
+              style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
             ),
-            SizedBox(width: 8),
-            Icon(Icons.delete_outline, color: Colors.white, size: 26),
+            const SizedBox(width: 8),
+            const Icon(Icons.delete_outline, color: Colors.white, size: 26),
           ],
         ),
       ),

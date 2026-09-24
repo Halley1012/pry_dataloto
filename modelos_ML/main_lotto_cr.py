@@ -72,14 +72,13 @@ def main():
                     print(f"🎯 Próximo sorteo esperado: {proximo_esperado}")
                 print("✅ Finalizando ejecución con éxito (código 0).")
                 print("==================================================\n")
-                return
-
+                print("⏭️ Sin sorteo nuevo: se omite la predicción automática y se revisan notificaciones pendientes.")
         except Exception as e:
             print(f"❌ Falló la tarea de scraping para Lotto Costa Rica: {e}")
             sys.exit(1)
 
     # 2. Ejecutar predicción
-    if task in ["predict", "all"]:
+    if task in ["predict", "all"] and (task == "predict" or hubo_sorteo is not False):
         try:
             predictor_inst = LottoCostaRicaPredictor()
             predictor_inst.run()
