@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -27,19 +29,70 @@ class NotificationUseCases:
 
     @staticmethod
     def _params(value: Any) -> Dict[str, Any]:
-        return dict(value) if isinstance(value, dict) else {}
+        """Normaliza JSONB/JSON independientemente del codec usado por asyncpg."""
+        current = value
+
+        # Algunos codecs pueden devolver bytes o JSON serializado más de una vez.
+        for _ in range(3):
+            if current is None:
+                return {}
+
+            if isinstance(current, dict):
+                return dict(current)
+
+            if isinstance(current, (bytes, bytearray, memoryview)):
+                try:
+                    current = bytes(current).decode("utf-8")
+                    continue
+                except Exception:
+                    return {}
+
+            if isinstance(current, str):
+                raw = current.strip()
+                if not raw:
+                    return {}
+                try:
+                    current = json.loads(raw)
+                    continue
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return {}
+
+            try:
+                return dict(current)
+            except (TypeError, ValueError):
+                return {}
+
+        return dict(current) if isinstance(current, dict) else {}
+
+    @staticmethod
+    def _has_unresolved_placeholders(value: str) -> bool:
+        # Solo detecta placeholders simples del catálogo: {lottery}, {total_hits}, etc.
+        return bool(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", value or ""))
 
     def _localize_notification(self, item: Dict[str, Any]) -> Dict[str, Any]:
         result = dict(item)
         locale = result.pop("usuario_idioma", None)
         key = result.get("message_key")
         params = self._params(result.get("message_params"))
-        result["mensaje"] = notification_i18n.render(
+        stored_message = str(result.get("mensaje") or "").strip()
+
+        localized = notification_i18n.render(
             key,
             params,
             locale,
-            fallback_text=str(result.get("mensaje") or ""),
+            fallback_text=stored_message,
         )
+
+        # Defensa final: jamás exponer una plantilla cruda al cliente.
+        # Si faltó algún parámetro pero la BD ya contiene el texto renderizado,
+        # se usa ese texto. Esto conserva compatibilidad con notificaciones legacy
+        # y con cualquier diferencia de codec JSONB entre entornos.
+        if self._has_unresolved_placeholders(localized) and stored_message:
+            if not self._has_unresolved_placeholders(stored_message):
+                localized = stored_message
+
+        result["mensaje"] = localized or stored_message or "Eterlotto"
+
         # El cliente móvil no necesita conocer la estructura interna de i18n.
         result.pop("message_key", None)
         result.pop("message_params", None)
