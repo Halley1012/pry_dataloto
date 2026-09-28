@@ -297,13 +297,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get notificacionesIA => 'Notificações';
 
   @override
-  String get marcarTodoComoLeido => 'Mark all as read';
+  String get marcarTodoComoLeido => 'Marcar tudo como lido';
 
   @override
   String get seleccionarTodo => 'Selecionar tudo';
 
   @override
-  String get desmarcarTodo => 'Unselect all';
+  String get desmarcarTodo => 'Desmarcar tudo';
 
   @override
   String get eliminar => 'Excluir';
@@ -1566,4 +1566,15 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get continuarConGoogle => 'Continuar com o Google';
+
+  @override
+  String get misLoteriasFilter => 'Minhas loterias';
+
+  @override
+  String get sinNotificacionesMisLoterias =>
+      'Sem notificações das loterias em que você jogou';
+
+  @override
+  String get sinNotificacionesInternacionales =>
+      'Sem notificações internacionais';
 }

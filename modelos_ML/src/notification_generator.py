@@ -479,7 +479,8 @@ class NotificationGenerator:
         user_id: int,
         loteria_id: int,
         fecha,
-        mensaje: str,
+        message_key: str,
+        message_params: dict[str, Any],
         tipo: str,
         force: bool = False,
     ) -> bool:
@@ -502,7 +503,9 @@ class NotificationGenerator:
             result = self.notification_client.publish(
                 loteria_id=int(loteria_id),
                 fecha_sorteo=fecha,
-                mensaje=mensaje,
+                mensaje=None,
+                message_key=message_key,
+                message_params=message_params,
                 tipo=tipo,
                 user_id=int(user_id),
             )
@@ -662,37 +665,38 @@ class NotificationGenerator:
             )
 
             principales_txt = ", ".join(map(str, principales))
-            detalle_principal = f"Principales: {len(principales)} de {main_count}"
-            if principales_txt:
-                detalle_principal += f" ({principales_txt})"
+            principales_suffix = f" ({principales_txt})" if principales_txt else ""
+            especiales_txt = ", ".join(map(str, especiales))
+            especiales_suffix = f" ({especiales_txt})" if especiales_txt else ""
 
-            detalles = [detalle_principal]
-            if special_slots > 0:
-                if especiales:
-                    especiales_txt = ", ".join(map(str, especiales))
-                    if special_slots == 1:
-                        detalles.append(f"{special_label}: {especiales_txt} ✅")
-                    else:
-                        detalles.append(
-                            f"{special_label}: {len(especiales)} de {special_slots} "
-                            f"({especiales_txt})"
-                        )
-                else:
-                    detalles.append(f"{special_label}: sin acierto")
+            lottery_display = nombre_display
+            if self._normalize(variante) != self._normalize(nombre_display):
+                lottery_display = f"{nombre_display} / {variante}"
 
-            sujeto = "tus jugadas" if cantidad_jugadas > 1 else "tu jugada"
-            mensaje = (
-                f"🎯 En {sujeto} de {nombre_display}, tu mejor combinación "
-                f"acertó {mejor['total']} de {total_resultado}{variante_sufijo}. "
-                + " · ".join(detalles)
-                + "."
+            message_key = (
+                "result.play_hit_with_special"
+                if special_slots > 0
+                else "result.play_hit"
             )
+            message_params = {
+                "lottery": lottery_display,
+                "total_hits": int(mejor["total"]),
+                "total_draw": int(total_resultado),
+                "main_hits": len(principales),
+                "main_count": int(main_count),
+                "main_numbers": principales_suffix,
+                "special_label": special_label,
+                "special_hits": len(especiales),
+                "special_slots": int(special_slots),
+                "special_numbers": especiales_suffix,
+            }
 
             self._publicar_notificacion_usuario(
                 user_id=int(user_id),
                 loteria_id=int(loteria_id),
                 fecha=fecha,
-                mensaje=mensaje[:500],
+                message_key=message_key,
+                message_params=message_params,
                 tipo="resultado_jugada",
                 force=force,
             )
@@ -732,7 +736,8 @@ class NotificationGenerator:
         self,
         loteria_id: int,
         fecha,
-        mensaje: str,
+        message_key: str,
+        message_params: dict[str, Any],
         tipo: str,
         *,
         force: bool = False,
@@ -755,7 +760,9 @@ class NotificationGenerator:
             result = self.notification_client.publish(
                 loteria_id=int(loteria_id),
                 fecha_sorteo=fecha,
-                mensaje=mensaje,
+                mensaje=None,
+                message_key=message_key,
+                message_params=message_params,
                 tipo=tipo,
             )
 
@@ -918,26 +925,28 @@ class NotificationGenerator:
                         f"{variant_name} {special_label}: {valores} ✅"
                     )
 
-        # Una sola notificación global por sorteo. Se conserva el tipo
-        # 'precision' para que los índices de idempotencia existentes eviten
-        # republicar sorteos ya procesados al desplegar esta versión.
-        fecha_txt = self._format_fecha_es(fecha)
+        # Una sola notificación global por sorteo. El backend resuelve el
+        # idioma por destinatario usando message_key + message_params.
         unique_names = list(dict.fromkeys(nombres_variantes))
         display = "/".join(unique_names) if len(unique_names) > 1 else nombre_display
-        mensaje = (
-            f"En el sorteo del {fecha_txt} para {display}, el Top {top_count} "
-            f"de la IA logró: " + " | ".join(resumenes) + "."
+        message_key = (
+            "precision.result_with_special"
+            if especiales_resumen
+            else "precision.result"
         )
-        if especiales_resumen:
-            mensaje += " Especiales: " + " | ".join(especiales_resumen) + "."
-
-        if len(mensaje) > 500:
-            mensaje = mensaje[:497].rstrip() + "..."
+        message_params = {
+            "date": fecha,
+            "lottery": display,
+            "top_count": int(top_count),
+            "summary": " | ".join(resumenes),
+            "special_summary": " | ".join(especiales_resumen),
+        }
 
         self.guardar_notificacion(
             loteria_id,
             fecha,
-            mensaje,
+            message_key,
+            message_params,
             "precision",
             force=force,
         )

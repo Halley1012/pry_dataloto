@@ -151,7 +151,6 @@
   "guardando": "Guardando...",
   "jugadaGuardadaExito": "¡Jugada guardada con éxito! 🎉",
   "errorGuardarJugada": "Error al guardar la jugada",
-  "iniciaSesionParaContinuar": "Inicia sesión para continuar",
   "cargandoPrediccion": "Cargando predicción... Intenta de nuevo",
   "debesSeleccionarBalotas": "Debes seleccionar 5 balotas principales y 1 balota roja para guardar tu jugada.",
   "jugadaYaExiste": "Esta jugada ya se encuentra en tus jugadas guardadas",
@@ -399,7 +398,7 @@
   "confirmarEliminarCuenta": "¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.",
   "error": "Error",
   "sinResultadosAnalisis": "Aún no tienes análisis de resultados",
-  "buscaloAqui": "Búscalo Aquí",
+  "buscaloAqui": "Búscalo aquí",
   "anunciateHoy": "¡Anúnciate hoy y haz que todos te conozcan!",
   "crearNuevaPublicidad": "Crear nueva publicidad",
   "buscarPorTitulo": "Buscar por título",
@@ -422,7 +421,6 @@
   "eliminarAnuncio": "Eliminar anuncio",
   "confirmarEliminarAnuncio": "¿Estás seguro de eliminar este anuncio?",
   "editar": "Editar",
-  "eliminar": "Eliminar",
   "crearPublicidad": "Crear Publicidad",
   "editarAnuncio": "Editar Anuncio",
   "crearNuevoAnuncio": "Crear nuevo anuncio",
@@ -718,22 +716,29 @@
   "preparaTusJugadasIA": "Prepara tus jugadas con las predicciones de IA.",
   "publicidadLabel": "PUBLICIDAD",
   "quitarAnuncios": "Quitar anuncios",
-  "buscaloAqui": "Búscalo aquí",
   "buscarDirectorioHint": "Encuentra negocios, servicios y comercios...",
   "mejorJugadaTitulo": "Mejor jugada",
   "mejorJugadaSorteo": "Mejor jugada del sorteo",
   "aciertosConPorcentaje": "{hits} / {total} aciertos — {percent}%",
   "@aciertosConPorcentaje": {
     "placeholders": {
-      "hits": { "type": "int" },
-      "total": { "type": "int" },
-      "percent": { "type": "int" }
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
     }
   },
   "superoRendimientoJugadas": "⭐ Superó el rendimiento del {percent}% de tus jugadas anteriores.",
   "@superoRendimientoJugadas": {
     "placeholders": {
-      "percent": { "type": "int" }
+      "percent": {
+        "type": "int"
+      }
     }
   },
   "tuMejorJugadaSorteo": "⭐ Tu mejor resultado en este sorteo.",
@@ -741,7 +746,9 @@
   "rendimientoUltimosSorteos": "Rendimiento últimos {count} sorteos",
   "@rendimientoUltimosSorteos": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "tuRendimiento": "Tu rendimiento",
@@ -751,7 +758,9 @@
   "nSorteosLabel": "{count} Sorteos",
   "@nSorteosLabel": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "numerosMayorAfinidadHistorica": "🤖 Números con mayor afinidad histórica:",
@@ -776,7 +785,6 @@
   "combinacionesGeneradas": "combinaciones generadas",
   "generarOtras": "Generar otras",
   "guardarTodas": "Guardar todas",
-  "guardando": "Guardando...",
   "jugadasGuardadasConExito": "Jugadas guardadas con éxito",
   "errorAlGuardarJugadas": "Hubo un error al guardar algunas jugadas",
   "debesIniciarSesionParaGuardar": "Debes iniciar sesión para guardar",
@@ -803,10 +811,6 @@
       }
     }
   },
-  "anunciateHoy": "¡Anúnciate hoy y haz que todos te conozcan!",
-  "crearNuevaPublicidad": "Crear nueva publicidad",
-  "buscarPorTitulo": "Buscar por título",
-  "noHasPublicadoAnuncios": "No has publicado ningún anuncio todavía.\n¡Crea el primero ahora!",
   "estrategiaSoloMisNumeros": "Solo mis números",
   "estrategiaVariaciones": "Variaciones",
   "estrategiaEquilibradas": "Equilibradas",
@@ -830,5 +834,8 @@
   "sinConexionDatos": "Sin conexión · mostrando los últimos datos disponibles",
   "sinConexionAnuncios": "Sin conexión · mostrando tus últimos anuncios disponibles",
   "errorCargarAnuncios": "No pudimos cargar tus anuncios.",
-  "continuarConGoogle": "Continuar con Google"
+  "continuarConGoogle": "Continuar con Google",
+  "misLoteriasFilter": "Mis loterías",
+  "sinNotificacionesMisLoterias": "Sin notificaciones de tus loterías jugadas",
+  "sinNotificacionesInternacionales": "Sin notificaciones internacionales"
 }

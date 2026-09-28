@@ -1,0 +1,20 @@
+{
+  "push": {
+    "title": "Eterlotto"
+  },
+  "date": {
+    "pattern": "{day} de {month}",
+    "months": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+  },
+  "result": {
+    "play_hit": "🎯 {lottery}: tu mejor combinación acertó {total_hits}/{total_draw}. Principales: {main_hits}/{main_count}{main_numbers}.",
+    "play_hit_with_special": "🎯 {lottery}: tu mejor combinación acertó {total_hits}/{total_draw}. Principales: {main_hits}/{main_count}{main_numbers}. {special_label}: {special_hits}/{special_slots}{special_numbers}."
+  },
+  "precision": {
+    "result": "En el sorteo del {date} para {lottery}, el Top {top_count} de la IA logró: {summary}.",
+    "result_with_special": "En el sorteo del {date} para {lottery}, el Top {top_count} de la IA logró: {summary}. Especiales: {special_summary}."
+  },
+  "test": {
+    "message": "Prueba de notificaciones Eterlotto"
+  }
+}

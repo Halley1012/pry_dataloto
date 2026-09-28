@@ -1585,4 +1585,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get continuarConGoogle => 'Continuer avec Google';
+
+  @override
+  String get misLoteriasFilter => 'Mes loteries';
+
+  @override
+  String get sinNotificacionesMisLoterias =>
+      'Aucune notification pour les loteries auxquelles vous avez joué';
+
+  @override
+  String get sinNotificacionesInternacionales =>
+      'Aucune notification internationale';
 }

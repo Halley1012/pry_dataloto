@@ -1,14 +1,19 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+import json
 
 from app.domain.ports import NotificationRepositoryPort
 from app.infrastructure import db_connection
 
 
 class PostgresNotificationRepository(NotificationRepositoryPort):
-    async def _ensure_user_state_table(self, conn) -> None:
-        """Guarda el estado de una notificación global por usuario, no en ella."""
+    async def _ensure_schema(self, conn) -> None:
+        """Compatibilidad incremental sin depender de un despliegue de migración previo."""
         await conn.execute("""
+            ALTER TABLE notificaciones
+                ADD COLUMN IF NOT EXISTS message_key VARCHAR(120),
+                ADD COLUMN IF NOT EXISTS message_params JSONB NOT NULL DEFAULT '{}'::jsonb;
+
             CREATE TABLE IF NOT EXISTS notification_user_state (
                 notification_id INTEGER NOT NULL REFERENCES notificaciones(id) ON DELETE CASCADE,
                 user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -21,6 +26,9 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 ON notification_user_state (user_id, eliminado, notification_id);
         """)
 
+    async def _ensure_user_state_table(self, conn) -> None:
+        await self._ensure_schema(conn)
+
     async def create_notification(
         self,
         loteria_id: Optional[int],
@@ -28,27 +36,31 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
         mensaje: str,
         tipo: str,
         user_id: Optional[int] = None,
+        message_key: Optional[str] = None,
+        message_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            await self._ensure_schema(conn)
             row = await conn.fetchrow(
                 """
                 INSERT INTO notificaciones
-                    (usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, leido, created_at)
-                VALUES ($1, $2, $3, $4, $5, FALSE, CURRENT_TIMESTAMP)
+                    (usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, leido,
+                     message_key, message_params, created_at)
+                VALUES ($1, $2, $3, $4, $5, FALSE, $6, $7::jsonb, CURRENT_TIMESTAMP)
                 ON CONFLICT DO NOTHING
-                RETURNING id, usuario_id, loteria_id, fecha_sorteo, mensaje, tipo, created_at
+                RETURNING id, usuario_id, loteria_id, fecha_sorteo, mensaje, tipo,
+                          message_key, message_params, created_at
                 """,
                 user_id,
                 loteria_id,
                 fecha_sorteo,
                 mensaje,
                 tipo,
+                message_key,
+                json.dumps(message_params or {}, ensure_ascii=False),
             )
 
-            # Los índices UNIQUE parciales de notificaciones son la última
-            # barrera de idempotencia. Si otra ejecución publicó el mismo
-            # evento en paralelo, PostgreSQL no inserta una segunda fila.
             if row is None:
                 return {
                     "success": True,
@@ -77,7 +89,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
             if user_id is not None:
                 rows = await conn.fetch(
                     """
-                    SELECT id AS user_id, fcm_token
+                    SELECT id AS user_id, fcm_token, idioma
                     FROM users
                     WHERE id = $1
                       AND COALESCE(activo, TRUE) = TRUE
@@ -89,7 +101,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
             elif loteria_id is None:
                 rows = await conn.fetch(
                     """
-                    SELECT id AS user_id, fcm_token
+                    SELECT id AS user_id, fcm_token, idioma
                     FROM users
                     WHERE COALESCE(activo, TRUE) = TRUE
                       AND COALESCE(notificaciones_activas, TRUE) = TRUE
@@ -99,28 +111,22 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
             else:
                 rows = await conn.fetch(
                     """
-                    SELECT DISTINCT u.id AS user_id, u.fcm_token
+                    SELECT DISTINCT u.id AS user_id, u.fcm_token, u.idioma
                     FROM users u
                     JOIN loterias l ON l.id = $1
                     WHERE COALESCE(u.activo, TRUE) = TRUE
                       AND COALESCE(u.notificaciones_activas, TRUE) = TRUE
                       AND NULLIF(TRIM(u.fcm_token), '') IS NOT NULL
                       AND (
-                        -- Las loterías del país del usuario son permanentes.
                         u.pais_id = l.pais_id
                         OR (
-                          -- Una lotería extranjera sólo aplica al sorteo
-                          -- concreto que el usuario realmente jugó.
                           $2::date IS NOT NULL
                           AND EXISTS (
                             SELECT 1
                             FROM jugadas j
                             WHERE j.user_id = u.id
                               AND j.loteria_id = $1
-                              AND COALESCE(
-                                    j.fecha_sorteo,
-                                    j.fecha_guardado::date
-                                  ) = $2::date
+                              AND COALESCE(j.fecha_sorteo, j.fecha_guardado::date) = $2::date
                           )
                         )
                       )
@@ -129,8 +135,6 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                     fecha_sorteo,
                 )
 
-            # Un token físico recibe una sola vez el mismo evento aunque una
-            # instalación antigua haya quedado temporalmente duplicada.
             unique: Dict[str, Dict[str, Any]] = {}
             for row in rows:
                 item = dict(row)
@@ -146,11 +150,12 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
     ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            await self._ensure_user_state_table(conn)
+            await self._ensure_schema(conn)
             base_query = """
                 SELECT n.id, n.usuario_id, n.loteria_id, n.fecha_sorteo, n.mensaje,
-                       n.tipo, n.created_at, l.pais_id, l.nombre AS loteria_nombre,
-                       l.route AS loteria_route,
+                       n.tipo, n.message_key, n.message_params, n.created_at,
+                       l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route,
+                       u.idioma AS usuario_idioma,
                        CASE
                          WHEN n.usuario_id = $1 THEN COALESCE(s.leido, n.leido, FALSE)
                          ELSE COALESCE(s.leido, FALSE)
@@ -175,10 +180,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                           WHERE j.user_id = $1
                             AND j.loteria_id = n.loteria_id
                             AND n.fecha_sorteo IS NOT NULL
-                            AND COALESCE(
-                                  j.fecha_sorteo,
-                                  j.fecha_guardado::date
-                                ) = n.fecha_sorteo::date
+                            AND COALESCE(j.fecha_sorteo, j.fecha_guardado::date) = n.fecha_sorteo::date
                         )
                       )
                     )
@@ -190,7 +192,8 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                 rows = await conn.fetch(base_query, user_id, limit)
             else:
                 query_no_user = """
-                    SELECT n.*, l.pais_id, l.nombre AS loteria_nombre, l.route AS loteria_route
+                    SELECT n.*, l.pais_id, l.nombre AS loteria_nombre,
+                           l.route AS loteria_route, NULL::text AS usuario_idioma
                     FROM notificaciones n
                     LEFT JOIN loterias l ON l.id = n.loteria_id
                     WHERE n.usuario_id IS NULL

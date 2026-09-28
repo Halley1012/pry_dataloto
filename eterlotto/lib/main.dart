@@ -90,10 +90,11 @@ class EterlottoApp extends StatelessWidget {
           create: (_) => SubscriptionProvider(),
         ),
       ],
-      child: ListenableBuilder(
-        listenable: localeProvider,
-        builder: (context, _) {
-          return MaterialApp(
+      child: _AdLifecycleBridge(
+        child: ListenableBuilder(
+          listenable: localeProvider,
+          builder: (context, _) {
+            return MaterialApp(
             navigatorKey: navigatorKey,
             debugShowCheckedModeBanner: false,
             initialRoute: '/splash',
@@ -286,9 +287,62 @@ class EterlottoApp extends StatelessWidget {
 
               return null;
             },
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
+}
+
+class _AdLifecycleBridge extends StatefulWidget {
+  final Widget child;
+
+  const _AdLifecycleBridge({required this.child});
+
+  @override
+  State<_AdLifecycleBridge> createState() => _AdLifecycleBridgeState();
+}
+
+class _AdLifecycleBridgeState extends State<_AdLifecycleBridge>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final subscription = context.read<SubscriptionProvider>();
+      AdService.instance.onAppForegrounded(
+        isPremium: subscription.isPremium,
+      );
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      AdService.instance.onAppBackgrounded();
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      final subscription = context.read<SubscriptionProvider>();
+      AdService.instance.onAppForegrounded(
+        isPremium: subscription.isPremium,
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

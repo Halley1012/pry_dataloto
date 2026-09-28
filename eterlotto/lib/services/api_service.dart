@@ -2656,24 +2656,51 @@ class ApiService {
         body["selected_numbers"] = selectedNumbers;
       }
 
-      final response = await post(
-        "/combinations/generate",
-        body,
-        withAuth: false,
-        timeout: _generationTimeout,
-      );
+      http.Response? response;
+      Object? lastNetworkError;
+
+      // La generación no modifica datos, así que es seguro reintentar una vez
+      // cuando Android corta una conexión al volver de varios minutos en idle.
+      for (var attempt = 0; attempt < 2; attempt++) {
+        try {
+          response = await post(
+            "/combinations/generate",
+            body,
+            withAuth: false,
+            timeout: _generationTimeout,
+          );
+          break;
+        } on TimeoutException catch (e) {
+          lastNetworkError = e;
+        } on http.ClientException catch (e) {
+          lastNetworkError = e;
+        }
+
+        if (attempt == 0) {
+          await Future<void>.delayed(const Duration(milliseconds: 700));
+        }
+      }
+
+      if (response == null) {
+        debugPrint(
+          '[COMBINATIONS] temporary network failure: ${lastNetworkError?.runtimeType}',
+        );
+        return {'success': false, 'error_code': 'temporary_network'};
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return {'success': true, 'data': data};
-      } else {
-        return {
-          'success': false,
-          'error': 'Error del servidor: ${response.statusCode}',
-        };
       }
+
+      return {
+        'success': false,
+        'error_code': 'server_error',
+        'status_code': response.statusCode,
+      };
     } catch (e) {
-      return {'success': false, 'error': e.toString()};
+      debugPrint('[COMBINATIONS] generate failed: ${e.runtimeType}');
+      return {'success': false, 'error_code': 'unexpected'};
     }
   }
 
