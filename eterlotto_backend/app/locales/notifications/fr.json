@@ -4,7 +4,20 @@
   },
   "date": {
     "pattern": "{day} {month}",
-    "months": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"]
+    "months": [
+      "janvier",
+      "février",
+      "mars",
+      "avril",
+      "mai",
+      "juin",
+      "juillet",
+      "août",
+      "septembre",
+      "octobre",
+      "novembre",
+      "décembre"
+    ]
   },
   "result": {
     "play_hit": "🎯 {lottery} : votre meilleure combinaison a obtenu {total_hits}/{total_draw}. Principaux : {main_hits}/{main_count}{main_numbers}.",
@@ -16,5 +29,14 @@
   },
   "test": {
     "message": "Test des notifications Eterlotto"
+  },
+  "list": {
+    "separator": ", ",
+    "pair_separator": " et ",
+    "final_separator": " et "
+  },
+  "reminder": {
+    "draws_today_one": "🎟️ {lotteries} a un tirage aujourd’hui. Consultez vos analyses et vos jeux dans Eterlotto.",
+    "draws_today_many": "🎟️ {lotteries} ont un tirage aujourd’hui. Consultez vos analyses et vos jeux dans Eterlotto."
   }
 }

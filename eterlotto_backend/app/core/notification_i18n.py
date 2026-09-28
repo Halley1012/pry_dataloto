@@ -119,6 +119,29 @@ class NotificationI18n:
             _SafeFormatDict(day=dt.day, month=months[dt.month - 1], year=dt.year)
         )
 
+    def format_list(self, values: list[Any], locale: str) -> str:
+        items = [str(value) for value in values if str(value).strip()]
+        if not items:
+            return ""
+        if len(items) == 1:
+            return items[0]
+
+        catalog = self._load(locale)
+        separator = self._get_path(catalog, "list.separator")
+        pair_separator = self._get_path(catalog, "list.pair_separator")
+        final_separator = self._get_path(catalog, "list.final_separator")
+
+        if not isinstance(separator, str):
+            separator = ", "
+        if not isinstance(pair_separator, str):
+            pair_separator = " and "
+        if not isinstance(final_separator, str):
+            final_separator = pair_separator
+
+        if len(items) == 2:
+            return pair_separator.join(items)
+        return separator.join(items[:-1]) + final_separator + items[-1]
+
     def render(
         self,
         key: Optional[str],
@@ -137,6 +160,12 @@ class NotificationI18n:
         for param_name in ("date", "fecha"):
             if param_name in values:
                 values[param_name] = self.format_date(values[param_name], resolved)
+
+        # Las listas se formatean con separadores definidos por cada catálogo.
+        # Así un idioma nuevo solo necesita su JSON; no requiere modificar Python.
+        for param_name, param_value in list(values.items()):
+            if isinstance(param_value, (list, tuple)):
+                values[param_name] = self.format_list(list(param_value), resolved)
 
         template = self._template(resolved, key)
         try:
