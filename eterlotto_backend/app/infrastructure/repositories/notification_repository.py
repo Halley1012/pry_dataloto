@@ -7,6 +7,39 @@ from app.infrastructure import db_connection
 
 
 class PostgresNotificationRepository(NotificationRepositoryPort):
+    @staticmethod
+    def _decode_message_params(value: Any) -> Dict[str, Any]:
+        """Devuelve JSONB siempre como ``dict`` para la capa de aplicación."""
+        current = value
+
+        for _ in range(4):
+            if current is None:
+                return {}
+            if isinstance(current, dict):
+                return dict(current)
+            if isinstance(current, (bytes, bytearray, memoryview)):
+                try:
+                    current = bytes(current).decode("utf-8")
+                    continue
+                except (UnicodeDecodeError, ValueError):
+                    return {}
+            if isinstance(current, str):
+                raw = current.strip()
+                if not raw:
+                    return {}
+                try:
+                    current = json.loads(raw)
+                    continue
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return {}
+            try:
+                mapped = dict(current)
+            except (TypeError, ValueError):
+                return {}
+            return mapped if isinstance(mapped, dict) else {}
+
+        return dict(current) if isinstance(current, dict) else {}
+
     async def _ensure_schema(self, conn) -> None:
         """Compatibilidad incremental sin depender de un despliegue de migración previo."""
         await conn.execute("""
@@ -201,7 +234,14 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                     ORDER BY n.created_at DESC LIMIT $1
                 """
                 rows = await conn.fetch(query_no_user, limit)
-            return [dict(r) for r in rows]
+            notifications: List[Dict[str, Any]] = []
+            for row in rows:
+                item = dict(row)
+                item["message_params"] = self._decode_message_params(
+                    item.get("message_params")
+                )
+                notifications.append(item)
+            return notifications
 
     async def mark_as_read(self, notification_id: int, user_id: int) -> bool:
         pool = db_connection.get_pool()
