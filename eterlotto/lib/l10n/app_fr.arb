@@ -834,5 +834,8 @@
   "sinConexionDatos": "Hors connexion · affichage des dernières données disponibles",
   "sinConexionAnuncios": "Hors connexion · affichage de vos dernières annonces disponibles",
   "errorCargarAnuncios": "Impossible de charger vos annonces.",
-  "continuarConGoogle": "Continuer avec Google"
+  "continuarConGoogle": "Continuer avec Google",
+  "misLoteriasFilter": "Mes loteries",
+  "sinNotificacionesMisLoterias": "Aucune notification pour les loteries auxquelles vous avez joué",
+  "sinNotificacionesInternacionales": "Aucune notification internationale"
 }

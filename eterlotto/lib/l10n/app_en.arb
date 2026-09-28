@@ -399,9 +399,9 @@
   "confirmarEliminarCuenta": "Are you sure you want to delete your account? This action is irreversible.",
   "error": "Error",
   "sinResultadosAnalisis": "No results analysis yet",
-  "buscaloAqui": "Search Here",
-  "anunciateHoy": "Advertise today and make yourself known to everyone!",
-  "crearNuevaPublicidad": "Create new advertisement",
+  "buscaloAqui": "Find it here",
+  "anunciateHoy": "Advertise today and let everyone know you!",
+  "crearNuevaPublicidad": "Create new ad",
   "buscarPorTitulo": "Search by title",
   "noHayAnunciosFiltros": "No advertisements available \nfor the selected filters.",
   "todos": "All",
@@ -418,11 +418,10 @@
   "nro": "No.",
   "totalLabel": "Total",
   "misAnunciosTitle": "My Ads",
-  "noHasPublicadoAnuncios": "You haven't published any ads yet.\nCreate the first one now!",
+  "noHasPublicadoAnuncios": "You haven't published any ads yet.\nCreate your first one now!",
   "eliminarAnuncio": "Delete ad",
   "confirmarEliminarAnuncio": "Are you sure you want to delete this ad?",
   "editar": "Edit",
-  "eliminar": "Delete",
   "crearPublicidad": "Create Advertisement",
   "editarAnuncio": "Edit Ad",
   "crearNuevoAnuncio": "Create new ad",
@@ -718,22 +717,29 @@
   "preparaTusJugadasIA": "Prepare your plays with AI predictions.",
   "publicidadLabel": "ADVERTISEMENT",
   "quitarAnuncios": "Remove ads",
-  "buscaloAqui": "Find it here",
   "buscarDirectorioHint": "Find businesses, services, and local shops...",
   "mejorJugadaTitulo": "Best play",
   "mejorJugadaSorteo": "Best play of the draw",
   "aciertosConPorcentaje": "{hits} / {total} hits — {percent}%",
   "@aciertosConPorcentaje": {
     "placeholders": {
-      "hits": { "type": "int" },
-      "total": { "type": "int" },
-      "percent": { "type": "int" }
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "percent": {
+        "type": "int"
+      }
     }
   },
   "superoRendimientoJugadas": "⭐ Outperformed {percent}% of your previous plays.",
   "@superoRendimientoJugadas": {
     "placeholders": {
-      "percent": { "type": "int" }
+      "percent": {
+        "type": "int"
+      }
     }
   },
   "tuMejorJugadaSorteo": "⭐ Your best result in this draw.",
@@ -741,7 +747,9 @@
   "rendimientoUltimosSorteos": "Performance last {count} draws",
   "@rendimientoUltimosSorteos": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "tuRendimiento": "Your performance",
@@ -751,7 +759,9 @@
   "nSorteosLabel": "{count} Draws",
   "@nSorteosLabel": {
     "placeholders": {
-      "count": { "type": "int" }
+      "count": {
+        "type": "int"
+      }
     }
   },
   "numerosMayorAfinidadHistorica": "🤖 Numbers with highest historical affinity:",
@@ -776,7 +786,6 @@
   "combinacionesGeneradas": "combinations generated",
   "generarOtras": "Generate others",
   "guardarTodas": "Save all",
-  "guardando": "Saving...",
   "jugadasGuardadasConExito": "Plays saved successfully",
   "errorAlGuardarJugadas": "There was an error saving some plays",
   "debesIniciarSesionParaGuardar": "You must log in to save",
@@ -803,10 +812,6 @@
       }
     }
   },
-  "anunciateHoy": "Advertise today and let everyone know you!",
-  "crearNuevaPublicidad": "Create new ad",
-  "buscarPorTitulo": "Search by title",
-  "noHasPublicadoAnuncios": "You haven't published any ads yet.\nCreate your first one now!",
   "estrategiaSoloMisNumeros": "Only my numbers",
   "estrategiaVariaciones": "Variations",
   "estrategiaEquilibradas": "Balanced",
@@ -830,5 +835,8 @@
   "sinConexionDatos": "Offline · showing the latest available data",
   "sinConexionAnuncios": "Offline · showing your last available ads",
   "errorCargarAnuncios": "We couldn't load your ads.",
-  "continuarConGoogle": "Continue with Google"
+  "continuarConGoogle": "Continue with Google",
+  "misLoteriasFilter": "My lotteries",
+  "sinNotificacionesMisLoterias": "No notifications from your played lotteries",
+  "sinNotificacionesInternacionales": "No international notifications"
 }

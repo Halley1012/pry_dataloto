@@ -18,17 +18,21 @@ class AdService {
   static const String _prodAndroidBannerId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodAndroidInterstitialId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodAndroidRewardedId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
+  static const String _prodAndroidAppOpenId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodIosBannerId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodIosInterstitialId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodIosRewardedId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
+  static const String _prodIosAppOpenId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
 
   // 🧪 IDs Oficiales de Prueba de Google
   static const String _testAndroidBannerId = 'ca-app-pub-3940256099942544/6300978111';
   static const String _testAndroidInterstitialId = 'ca-app-pub-3940256099942544/1033173712';
   static const String _testAndroidRewardedId = 'ca-app-pub-3940256099942544/5224354917';
+  static const String _testAndroidAppOpenId = 'ca-app-pub-3940256099942544/9257395921';
   static const String _testIosBannerId = 'ca-app-pub-3940256099942544/2934735716';
   static const String _testIosInterstitialId = 'ca-app-pub-3940256099942544/4411468910';
   static const String _testIosRewardedId = 'ca-app-pub-3940256099942544/1712485313';
+  static const String _testIosAppOpenId = 'ca-app-pub-3940256099942544/5575463023';
 
   /// ID de Banner según plataforma y modo
   static String get bannerAdUnitId {
@@ -54,6 +58,15 @@ class AdService {
     return Platform.isAndroid ? _prodAndroidRewardedId : _prodIosRewardedId;
   }
 
+
+  /// ID de App Open según plataforma y modo
+  static String get appOpenAdUnitId {
+    if (isTestMode || kDebugMode) {
+      return Platform.isAndroid ? _testAndroidAppOpenId : _testIosAppOpenId;
+    }
+    return Platform.isAndroid ? _prodAndroidAppOpenId : _prodIosAppOpenId;
+  }
+
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
 
@@ -63,12 +76,22 @@ class AdService {
   int _sessionInterstitialShownCount = 0;
   int _actionCounter = 0;
   DateTime? _lastInterstitialShownAt;
+  DateTime? _backgroundedAt;
+  DateTime? _lastAnyFullScreenClosedAt;
+  DateTime? _lastAppOpenShownAt;
+  bool _hasCompletedColdStart = false;
+  bool _isFullScreenAdShowing = false;
 
   // 📐 Reglas de Oro configuradas
   static const Duration _sessionGracePeriod = Duration(seconds: 60); // Primeros 60s protegidos
   static const Duration _minIntervalBetweenInterstitials = Duration(minutes: 2); // 2 min cooldown
   static const int _maxInterstitialsPerSession = 2; // Máximo 2 por sesión
   static const int _actionsThreshold = 3; // Cada 3 acciones de valor
+  static const Duration _sessionResetAfterBackground = Duration(minutes: 30);
+  static const Duration _appOpenMinBackground = Duration(minutes: 2);
+  static const Duration _appOpenCooldown = Duration(minutes: 10);
+  static const Duration _minGapBetweenFullScreenAds = Duration(seconds: 30);
+  static const Duration _appOpenMaxCacheDuration = Duration(hours: 4);
 
   // Instancias de Anuncios
   InterstitialAd? _interstitialAd;
@@ -77,6 +100,10 @@ class AdService {
 
   RewardedAd? _rewardedAd;
   bool _isRewardedLoading = false;
+
+  AppOpenAd? _appOpenAd;
+  bool _isAppOpenLoading = false;
+  DateTime? _appOpenLoadedAt;
 
   /// Inicializar el SDK de Mobile Ads
   Future<void> initialize() async {
@@ -92,7 +119,140 @@ class AdService {
       // Precargar anuncios
       loadInterstitialAd();
       loadRewardedAd();
+      loadAppOpenAd();
     } catch (_) {}
+  }
+
+  // ==========================================
+  // 🚪 APP OPEN ADS (REGRESO A PRIMER PLANO)
+  // ==========================================
+
+  void onAppBackgrounded() {
+    _backgroundedAt ??= DateTime.now();
+  }
+
+  /// Se llama al volver al primer plano. No muestra App Open en el cold start.
+  /// En producción exige al menos 2 min fuera de la app y 10 min entre App Open.
+  void onAppForegrounded({bool isPremium = false}) {
+    final now = DateTime.now();
+
+    if (!_hasCompletedColdStart) {
+      _hasCompletedColdStart = true;
+      _backgroundedAt = null;
+      loadAppOpenAd();
+      return;
+    }
+
+    final backgroundedAt = _backgroundedAt;
+    _backgroundedAt = null;
+    if (backgroundedAt == null) return;
+
+    final backgroundDuration = now.difference(backgroundedAt);
+    if (backgroundDuration >= _sessionResetAfterBackground) {
+      _resetSession(now);
+    }
+
+    final minBackground = isTestMode
+        ? const Duration(seconds: 15)
+        : _appOpenMinBackground;
+    if (backgroundDuration < minBackground) return;
+
+    showAppOpenAdIfAvailable(isPremium: isPremium);
+  }
+
+  void _resetSession(DateTime now) {
+    _sessionStartTime = now;
+    _sessionInterstitialShownCount = 0;
+    _actionCounter = 0;
+    _lastInterstitialShownAt = null;
+  }
+
+  bool _canShowAnotherFullScreenAd() {
+    if (_isFullScreenAdShowing) return false;
+    final lastClosed = _lastAnyFullScreenClosedAt;
+    if (lastClosed == null) return true;
+    final gap = isTestMode
+        ? const Duration(seconds: 5)
+        : _minGapBetweenFullScreenAds;
+    return DateTime.now().difference(lastClosed) >= gap;
+  }
+
+  void _markFullScreenClosed() {
+    _isFullScreenAdShowing = false;
+    _lastAnyFullScreenClosedAt = DateTime.now();
+  }
+
+  void loadAppOpenAd() {
+    if (!_isInitialized || _appOpenAd != null || _isAppOpenLoading) return;
+    _isAppOpenLoading = true;
+
+    AppOpenAd.load(
+      adUnitId: appOpenAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: AppOpenAdLoadCallback(
+        onAdLoaded: (ad) {
+          _appOpenAd = ad;
+          _appOpenLoadedAt = DateTime.now();
+          _isAppOpenLoading = false;
+        },
+        onAdFailedToLoad: (_) {
+          _isAppOpenLoading = false;
+          _appOpenAd = null;
+          _appOpenLoadedAt = null;
+        },
+      ),
+    );
+  }
+
+  bool showAppOpenAdIfAvailable({bool isPremium = false}) {
+    if (isPremium || !_isInitialized || !_canShowAnotherFullScreenAd()) {
+      return false;
+    }
+
+    final now = DateTime.now();
+    final lastShown = _lastAppOpenShownAt;
+    final cooldown = isTestMode
+        ? const Duration(seconds: 30)
+        : _appOpenCooldown;
+    if (lastShown != null && now.difference(lastShown) < cooldown) {
+      return false;
+    }
+
+    final loadedAt = _appOpenLoadedAt;
+    if (_appOpenAd == null || loadedAt == null) {
+      loadAppOpenAd();
+      return false;
+    }
+
+    if (now.difference(loadedAt) >= _appOpenMaxCacheDuration) {
+      _appOpenAd?.dispose();
+      _appOpenAd = null;
+      _appOpenLoadedAt = null;
+      loadAppOpenAd();
+      return false;
+    }
+
+    final ad = _appOpenAd!;
+    _appOpenAd = null;
+    _appOpenLoadedAt = null;
+    _isFullScreenAdShowing = true;
+    _lastAppOpenShownAt = now;
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        _markFullScreenClosed();
+        loadAppOpenAd();
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        _markFullScreenClosed();
+        loadAppOpenAd();
+      },
+    );
+
+    ad.show();
+    return true;
   }
 
   // ==========================================
@@ -112,12 +272,15 @@ class AdService {
           _interstitialAd = ad;
           _isInterstitialLoading = false;
           _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
-            onAdShowedFullScreenContent: (_) {},
+            onAdShowedFullScreenContent: (_) {
+              _isFullScreenAdShowing = true;
+            },
             onAdDismissedFullScreenContent: (ad) {
               ad.dispose();
               _interstitialAd = null;
               _lastInterstitialShownAt = DateTime.now();
               _sessionInterstitialShownCount++;
+              _markFullScreenClosed();
               
               final callback = _currentOnClosedCallback;
               _currentOnClosedCallback = null;
@@ -128,6 +291,7 @@ class AdService {
             onAdFailedToShowFullScreenContent: (ad, _) {
               ad.dispose();
               _interstitialAd = null;
+              _markFullScreenClosed();
 
               final callback = _currentOnClosedCallback;
               _currentOnClosedCallback = null;
@@ -151,7 +315,7 @@ class AdService {
     bool ignoreThreshold = false,
     VoidCallback? onAdClosed,
   }) {
-    if (isPremium) {
+    if (isPremium || !_canShowAnotherFullScreenAd()) {
       onAdClosed?.call();
       return false;
     }
@@ -379,12 +543,19 @@ class AdService {
 
     // Ejecutar el anuncio recompensado
     if (_rewardedAd != null) {
+      if (!_canShowAnotherFullScreenAd()) {
+        return;
+      }
       bool userEarnedReward = false;
 
       _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+        onAdShowedFullScreenContent: (_) {
+          _isFullScreenAdShowing = true;
+        },
         onAdDismissedFullScreenContent: (ad) {
           ad.dispose();
           _rewardedAd = null;
+          _markFullScreenClosed();
           loadRewardedAd();
           if (userEarnedReward) {
             if (featureKey != null) {
@@ -406,6 +577,7 @@ class AdService {
         onAdFailedToShowFullScreenContent: (ad, _) {
           ad.dispose();
           _rewardedAd = null;
+          _markFullScreenClosed();
           loadRewardedAd();
           if (context.mounted) {
             final langCode = Localizations.localeOf(context).languageCode;
@@ -451,6 +623,9 @@ class AdService {
     _interstitialAd = null;
     _rewardedAd?.dispose();
     _rewardedAd = null;
+    _appOpenAd?.dispose();
+    _appOpenAd = null;
+    _appOpenLoadedAt = null;
     _currentOnClosedCallback = null;
   }
 }

@@ -4,6 +4,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 import re
 import requests
 import pandas as pd
+from bs4 import BeautifulSoup
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from sqlalchemy import text
@@ -23,6 +24,7 @@ class DuplaSenaScraper:
             "Accept-Language": "pt-BR,pt;q=0.9,es;q=0.8,en;q=0.7",
         }
         self.url_caixa = "https://servicebus2.caixa.gov.br/portaldeloterias/api/duplasena"
+        self.url_megaloterias = "https://www.megaloterias.com.br/dupla-sena/resultados"
 
     def _parse_fecha(self, text_raw: str) -> str:
         """Parsea fechas en formato 'DD/MM/YYYY' o 'YYYY-MM-DD' a 'YYYY-MM-DD'."""
@@ -73,21 +75,86 @@ class DuplaSenaScraper:
             print(f"⚠️ Error obteniendo último sorteo de BD: {e}")
         return None
 
+    def _extraer_ultimo_sorteo_megaloterias(self) -> dict:
+        """Fallback del último resultado de Dupla Sena desde MegaLoterias."""
+        print("🔁 [Dupla Sena] Consultando fallback MegaLoterias...")
+        headers = {
+            "User-Agent": self.headers["User-Agent"],
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.7",
+        }
+        try:
+            r = requests.get(self.url_megaloterias, headers=headers, timeout=20)
+        except Exception as exc:
+            print(f"❌ [Dupla Sena] Error conectando con MegaLoterias: {exc}")
+            return None
+        if r.status_code != 200:
+            print(f"❌ [Dupla Sena] MegaLoterias respondió HTTP {r.status_code}.")
+            return None
+
+        texto = BeautifulSoup(r.text, "html.parser").get_text(" ", strip=True)
+        m = re.search(
+            r"Resultados da Dupla Sena.*?Sorteio:\s*(\d{1,2}/\d{1,2}/\d{4})"
+            r"\s+Concurso:\s*(\d+).*?1º Sorteio\s+"
+            r"(?P<b1>(?:\d{1,2}\s+){5}\d{1,2})\s+Premiação"
+            r".*?2º Sorteio\s+(?P<b2>(?:\d{1,2}\s+){5}\d{1,2})\s+",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        if not m:
+            print("❌ [Dupla Sena] No se pudo identificar el último resultado en MegaLoterias.")
+            return None
+
+        fecha = self._parse_fecha(m.group(1))
+        concurso = int(m.group(2))
+        b1 = [int(x) for x in re.findall(r"\d{1,2}", m.group("b1"))]
+        b2 = [int(x) for x in re.findall(r"\d{1,2}", m.group("b2"))]
+        if (
+            len(b1) != 6 or len(b2) != 6
+            or any(n < 1 or n > 50 for n in b1 + b2)
+        ):
+            print(f"❌ [Dupla Sena] Números inválidos en fallback: 1º={b1} 2º={b2}")
+            return None
+
+        head = re.search(
+            r"Dupla Sena\s+Sorteio:\s*.*?Concurso:\s*(\d+)\s+Prêmio \(R\$\):\s*([^\n]+?)\s+Acumul",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        jackpot = f"R$ {head.group(2).strip()}" if head else None
+        prox = int(head.group(1)) if head else concurso + 1
+
+        print(
+            f"✅ [Dupla Sena] Fallback MegaLoterias OK: Concurso {concurso} "
+            f"({fecha}) -> 1º {b1} | 2º {b2}"
+        )
+        return {
+            "concurso": concurso,
+            "fecha": fecha,
+            "balls1": b1,
+            "balls2": b2,
+            "proxima_fecha": None,
+            "proximo_concurso": prox,
+            "jackpot": jackpot,
+            "raw_data": None,
+            "fuente": "megaloterias",
+        }
+
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Obtiene la información del último sorteo disponible en la API oficial de Caixa."""
+        """Caixa como fuente primaria; MegaLoterias como fallback."""
         try:
             r = requests.get(self.url_caixa, headers=self.headers, timeout=10)
+            if r.status_code == 403:
+                print("⚠️ [Dupla Sena] Caixa respondió HTTP 403. Se usa fallback sin reintentos.")
+                return self._extraer_ultimo_sorteo_megaloterias()
             if r.status_code == 200:
                 data = r.json()
                 concurso = int(data.get("numero")) if data.get("numero") else None
-                fecha_raw = data.get("dataApuracao")
-                fecha_str = self._parse_fecha(fecha_raw)
-                
+                fecha_str = self._parse_fecha(data.get("dataApuracao"))
+
                 dezenas1 = data.get("listaDezenas", [])
                 dezenas2 = data.get("listaDezenasSegundoSorteio", [])
                 dezenas_ordem = data.get("dezenasSorteadasOrdemSorteio", [])
-
-                # Priorizar orden natural de extracción
                 if len(dezenas_ordem) >= 12:
                     balls1 = [int(x) for x in dezenas_ordem[:6]]
                     balls2 = [int(x) for x in dezenas_ordem[6:12]]
@@ -97,29 +164,38 @@ class DuplaSenaScraper:
 
                 prox_raw = data.get("dataProximoConcurso")
                 prox_fecha = self._parse_fecha(prox_raw) if prox_raw else None
-                prox_concurso = int(data.get("numeroConcursoProximo")) if data.get("numeroConcursoProximo") else (concurso + 1 if concurso else None)
-                
+                prox_concurso = (
+                    int(data.get("numeroConcursoProximo"))
+                    if data.get("numeroConcursoProximo")
+                    else (concurso + 1 if concurso else None)
+                )
                 jackpot_val = data.get("valorEstimadoProximoConcurso")
                 jackpot_str = "R$ 3.500.000,00"
                 if jackpot_val:
                     try:
-                        jackpot_str = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        jackpot_str = (
+                            f"R$ {jackpot_val:,.2f}"
+                            .replace(",", "X").replace(".", ",").replace("X", ".")
+                        )
                     except Exception:
                         pass
 
-                return {
-                    "concurso": concurso,
-                    "fecha": fecha_str,
-                    "balls1": balls1,
-                    "balls2": balls2,
-                    "proxima_fecha": prox_fecha,
-                    "proximo_concurso": prox_concurso,
-                    "jackpot": jackpot_str,
-                    "raw_data": data
-                }
+                if concurso and fecha_str and len(balls1) == 6 and len(balls2) == 6:
+                    return {
+                        "concurso": concurso,
+                        "fecha": fecha_str,
+                        "balls1": balls1,
+                        "balls2": balls2,
+                        "proxima_fecha": prox_fecha,
+                        "proximo_concurso": prox_concurso,
+                        "jackpot": jackpot_str,
+                        "raw_data": data,
+                        "fuente": "caixa",
+                    }
         except Exception as e:
             print(f"⚠️ Error consultando API Caixa para último sorteo de Dupla Sena: {e}")
-        return None
+
+        return self._extraer_ultimo_sorteo_megaloterias()
 
     def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
         """Extrae el sorteo más reciente desde la API oficial de Caixa preservando orden original."""
@@ -368,10 +444,21 @@ class DuplaSenaScraper:
 
         df_recientes, jackpot_reciente, prox_fecha_oficial = self.extraer_recientes()
         ultimo_num = fuente_info.get("concurso") if fuente_info else None
-        if backfill or df_existente.empty or len(df_existente) < 50:
+        if backfill:
+            if fuente_info and fuente_info.get("fuente") != "caixa":
+                raise RuntimeError("❌ Backfill histórico de Dupla Sena requiere acceso a Caixa.")
+            df_historico = self.extraer_historico_concurrente(ultimo_num, cantidad=400)
+            df_scraped = pd.concat([df_recientes, df_historico], ignore_index=True)
+        elif (
+            (df_existente.empty or len(df_existente) < 50)
+            and fuente_info
+            and fuente_info.get("fuente") == "caixa"
+        ):
             df_historico = self.extraer_historico_concurrente(ultimo_num, cantidad=400)
             df_scraped = pd.concat([df_recientes, df_historico], ignore_index=True)
         else:
+            if (df_existente.empty or len(df_existente) < 50) and fuente_info and fuente_info.get("fuente") != "caixa":
+                print("ℹ️ [Dupla Sena] Fallback activo: se omite backfill automático dependiente de Caixa.")
             df_scraped = df_recientes
 
         if df_scraped.empty and df_existente.empty:

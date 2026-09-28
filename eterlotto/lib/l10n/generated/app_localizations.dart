@@ -2884,6 +2884,24 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Continuar con Google'**
   String get continuarConGoogle;
+
+  /// No description provided for @misLoteriasFilter.
+  ///
+  /// In es, this message translates to:
+  /// **'Mis loterías'**
+  String get misLoteriasFilter;
+
+  /// No description provided for @sinNotificacionesMisLoterias.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin notificaciones de tus loterías jugadas'**
+  String get sinNotificacionesMisLoterias;
+
+  /// No description provided for @sinNotificacionesInternacionales.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin notificaciones internacionales'**
+  String get sinNotificacionesInternacionales;
 }
 
 class _AppLocalizationsDelegate

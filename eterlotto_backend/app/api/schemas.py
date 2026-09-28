@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from fastapi import Query
 
@@ -200,7 +200,11 @@ class FCMTokenUpdate(BaseModel):
 class NotificationPublishRequest(BaseModel):
     loteria_id: Optional[int] = None
     fecha_sorteo: Optional[datetime] = None
-    mensaje: str = Field(..., min_length=1, max_length=500)
+    # `mensaje` se conserva por compatibilidad con productores antiguos.
+    # Los nuevos productores deben preferir message_key + message_params.
+    mensaje: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    message_key: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    message_params: Dict[str, Any] = Field(default_factory=dict)
     tipo: str = Field(default="general", min_length=1, max_length=80)
     user_id: Optional[int] = None
 

@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:eterlotto/config/navigation.dart';
 import 'package:eterlotto/services/api_service.dart';
@@ -126,6 +128,7 @@ class PushNotificationService {
       final synced = await ApiService.updateFCMToken(token)
           .timeout(const Duration(seconds: 10));
       _log('token synced=$synced');
+      unawaited(syncLanguagePreference());
     } catch (e) {
       _log('permission/token setup failed: ${e.runtimeType}');
     }
@@ -152,8 +155,37 @@ class PushNotificationService {
       final synced = await ApiService.updateFCMToken(token)
           .timeout(const Duration(seconds: 10));
       _log('manual sync=$synced');
+      unawaited(syncLanguagePreference());
     } catch (e) {
       _log('manual sync failed: ${e.runtimeType}');
+    }
+  }
+
+
+  /// Mantiene en el backend el idioma real usado por la app para que las
+  /// notificaciones generadas en servidor no queden siempre en español.
+  /// Si el usuario eligió "idioma del sistema", se usa el locale del equipo.
+  static Future<void> syncLanguagePreference() async {
+    try {
+      final userId = await ApiService.getUserId();
+      if (userId == null) return;
+
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('language_code')?.trim().toLowerCase();
+      final device = PlatformDispatcher.instance.locale.languageCode
+          .trim()
+          .toLowerCase();
+      final candidate = (saved == null || saved.isEmpty) ? device : saved;
+      const supported = {'es', 'en', 'pt', 'fr'};
+      final languageCode = supported.contains(candidate) ? candidate : 'es';
+
+      final result = await ApiService.updateUser(
+        userId,
+        {'idioma': languageCode},
+      ).timeout(const Duration(seconds: 8));
+      _log("language synced=${result['success'] == true} ($languageCode)");
+    } catch (e) {
+      _log('language sync failed: ${e.runtimeType}');
     }
   }
 

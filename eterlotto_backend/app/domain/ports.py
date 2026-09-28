@@ -307,7 +307,9 @@ class NotificationRepositoryPort(ABC):
         fecha_sorteo: Optional[datetime],
         mensaje: str,
         tipo: str,
-        user_id: Optional[int] = None
+        user_id: Optional[int] = None,
+        message_key: Optional[str] = None,
+        message_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         pass
 

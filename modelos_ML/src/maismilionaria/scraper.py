@@ -2,6 +2,7 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8', line_buffering=True)
 import re
+from html import unescape
 import requests
 import pandas as pd
 from datetime import datetime, timedelta, date
@@ -22,32 +23,62 @@ class MaisMilionariaScraper:
             "Accept": "application/json, text/html, */*",
         }
         self.url_caixa = "https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria"
+        self.url_fallback = "https://www.megaloterias.com.br/mais-milionaria/resultados"
 
-    def _fetch_with_retries(self, url: str, max_retries: int = 3, base_delay: float = 1.5) -> dict:
-        """Realiza una petición HTTP con hasta max_retries reintentos y retroceso exponencial (backoff).
-        Nunca silencia errores definitivos.
+    def _fetch_with_retries(
+        self,
+        url: str,
+        max_retries: int = 3,
+        base_delay: float = 1.5,
+    ) -> dict:
+        """
+        Realiza una petición HTTP a Caixa.
+
+        Un HTTP 403 se considera bloqueo explícito y NO se reintenta, porque
+        repetir inmediatamente desde el mismo origen no aporta nada. Otros
+        errores transitorios conservan el backoff.
         """
         import time
+
         last_error = None
         for attempt in range(1, max_retries + 1):
             try:
                 r = requests.get(url, headers=self.headers, timeout=10)
+
                 if r.status_code == 200:
                     return r.json()
-                elif r.status_code == 404:
+
+                if r.status_code == 404:
                     return None
-                else:
-                    last_error = f"HTTP {r.status_code}"
-                    print(f"⚠️ [+Milionária] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+
+                if r.status_code == 403:
+                    print(
+                        f"⚠️ [+Milionária] Caixa respondió HTTP 403 para {url}. "
+                        "Se omiten reintentos y se usará la fuente fallback."
+                    )
+                    return None
+
+                last_error = f"HTTP {r.status_code}"
+                print(
+                    f"⚠️ [+Milionária] URL {url} - intento "
+                    f"{attempt}/{max_retries}: {last_error}"
+                )
+
             except Exception as e:
                 last_error = str(e)
-                print(f"⚠️ [+Milionária] URL {url} - intento {attempt}/{max_retries}: {last_error}")
+                print(
+                    f"⚠️ [+Milionária] URL {url} - intento "
+                    f"{attempt}/{max_retries}: {last_error}"
+                )
 
             if attempt < max_retries:
                 sleep_time = base_delay * (2 ** (attempt - 1))
                 time.sleep(sleep_time)
 
-        print(f"❌ [+Milionária] Error definitivo consultando {url} tras {max_retries} intentos: {last_error}")
+        print(
+            f"❌ [+Milionária] Error definitivo consultando {url} "
+            f"tras {max_retries} intentos: {last_error}"
+        )
         return None
 
     def _parse_fecha(self, text_raw: str) -> str:
@@ -103,16 +134,199 @@ class MaisMilionariaScraper:
             print(f"⚠️ Error obteniendo último sorteo de BD: {e}")
         return None
 
+    @staticmethod
+    def _html_a_texto(html_raw: str) -> str:
+        """
+        Convierte el HTML a texto plano sin depender de BeautifulSoup.
+        Se usa únicamente para el fallback de MegaLoterias.
+        """
+        cleaned = re.sub(
+            r"<(?:script|style)\b[^>]*>.*?</(?:script|style)>",
+            " ",
+            html_raw,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = unescape(cleaned)
+        return re.sub(r"\s+", " ", cleaned).strip()
+
+    def _extraer_ultimo_sorteo_megaloterias(self) -> dict:
+        """
+        Fallback cuando Caixa bloquea el acceso.
+
+        MegaLoterias publica el último resultado visible de +Milionária.
+        El parser se ancla en la secuencia 'Sorteio -> Concurso' y valida:
+          - concurso numérico;
+          - fecha DD/MM/YYYY;
+          - 6 dezenas entre 1 y 50;
+          - 2 trevos entre 1 y 6.
+
+        No inventa jackpot ni fecha próxima si la página no los expone con
+        suficiente claridad.
+        """
+        print("🔁 [+Milionária] Consultando fallback MegaLoterias...")
+
+        headers_html = {
+            "User-Agent": self.headers["User-Agent"],
+            "Accept": (
+                "text/html,application/xhtml+xml,application/xml;"
+                "q=0.9,*/*;q=0.8"
+            ),
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.7",
+        }
+
+        try:
+            r = requests.get(
+                self.url_fallback,
+                headers=headers_html,
+                timeout=20,
+            )
+        except Exception as exc:
+            print(
+                "❌ [+Milionária] Error conectando con MegaLoterias: "
+                f"{exc}"
+            )
+            return None
+
+        if r.status_code != 200:
+            print(
+                "❌ [+Milionária] MegaLoterias respondió "
+                f"HTTP {r.status_code}."
+            )
+            return None
+
+        texto = self._html_a_texto(r.text)
+
+        # La página contiene también un encabezado del próximo concurso.
+        # Para no confundirlo con un resultado real, exigimos que la fecha de
+        # sorteo aparezca ANTES del número de concurso.
+        patron_resultado = re.compile(
+            r"Sorteio:\s*"
+            r"(?P<fecha>\d{1,2}/\d{1,2}/\d{4})"
+            r"\s+Concurso:\s*(?P<concurso>\d+)",
+            re.IGNORECASE,
+        )
+        match = patron_resultado.search(texto)
+        if not match:
+            print(
+                "❌ [+Milionária] No se encontró el bloque "
+                "'Sorteio + Concurso' en MegaLoterias."
+            )
+            return None
+
+        fecha_str = self._parse_fecha(match.group("fecha"))
+        concurso = int(match.group("concurso"))
+
+        # Tomamos solo el bloque del último resultado hasta la palabra Trevo.
+        pos_trevo = re.search(
+            r"\bTrevo\b",
+            texto[match.end():],
+            flags=re.IGNORECASE,
+        )
+        if not pos_trevo:
+            print(
+                "❌ [+Milionária] No se encontró el bloque de Trevos "
+                "en MegaLoterias."
+            )
+            return None
+
+        inicio = match.end()
+        fin_trevo = inicio + pos_trevo.start()
+        bloque_dezenas = texto[inicio:fin_trevo]
+
+        # Antes de las dezenas puede aparecer el valor del premio. Filtramos
+        # estrictamente a 1..50 y usamos las últimas 6 cifras válidas antes
+        # de 'Trevo', que corresponden al resultado.
+        candidatos = [
+            int(x)
+            for x in re.findall(r"(?<!\d)(\d{1,2})(?!\d)", bloque_dezenas)
+            if 1 <= int(x) <= 50
+        ]
+        if len(candidatos) < 6:
+            print(
+                "❌ [+Milionária] MegaLoterias no devolvió "
+                "6 dezenas válidas."
+            )
+            return None
+
+        balls = candidatos[-6:]
+
+        bloque_post_trevo = texto[
+            inicio + pos_trevo.end():
+            inicio + pos_trevo.end() + 120
+        ]
+        trevos = [
+            int(x)
+            for x in re.findall(
+                r"(?<!\d)([1-6])(?!\d)",
+                bloque_post_trevo,
+            )
+        ][:2]
+
+        if len(trevos) != 2:
+            print(
+                "❌ [+Milionária] MegaLoterias no devolvió "
+                "2 trevos válidos."
+            )
+            return None
+
+        # El encabezado de la página suele exponer el premio estimado del
+        # próximo concurso. Si cambia la estructura, simplemente se deja el
+        # valor por defecto del scraper.
+        jackpot_str = None
+        jackpot_match = re.search(
+            r"Pr[eê]mio\s*\(R\$\)\s*:\s*"
+            r"([0-9][0-9.,]*\s*(?:Milh(?:ão|ões)|Bilhões?|mil)?)",
+            texto,
+            flags=re.IGNORECASE,
+        )
+        if jackpot_match:
+            jackpot_str = f"R$ {jackpot_match.group(1).strip()}"
+
+        proximo_concurso = concurso + 1
+
+        # La página de resultados no ofrece de forma estable una fecha del
+        # próximo concurso. Se deja None para que el flujo existente use su
+        # cálculo de calendario como fallback.
+        result = {
+            "concurso": concurso,
+            "fecha": fecha_str,
+            "balotas": balls,
+            "trevos": trevos,
+            "proxima_fecha": None,
+            "proximo_concurso": proximo_concurso,
+            "jackpot": jackpot_str,
+            "raw_data": None,
+            "fuente": "megaloterias",
+        }
+
+        print(
+            "✅ [+Milionária] Fallback MegaLoterias OK: "
+            f"Concurso {concurso} ({fecha_str}) -> "
+            f"Números: {balls}, Tréboles: {trevos}"
+        )
+        return result
+
     def extraer_ultimo_sorteo_fuente(self) -> dict:
-        """Obtiene la información del último sorteo disponible en la API oficial de Caixa con reintentos."""
+        """
+        Fuente primaria: API oficial de Caixa.
+        Fallback: MegaLoterias cuando Caixa devuelve 403 o no entrega datos.
+        """
         data = self._fetch_with_retries(self.url_caixa, max_retries=3)
+
         if data:
             try:
-                concurso = int(data.get("numero")) if data.get("numero") else None
+                concurso = (
+                    int(data.get("numero"))
+                    if data.get("numero")
+                    else None
+                )
                 fecha_raw = data.get("dataApuracao")
                 fecha_str = self._parse_fecha(fecha_raw)
-                
-                dezenas_ordem = data.get("dezenasSorteadasOrdemSorteio") or []
+
+                dezenas_ordem = (
+                    data.get("dezenasSorteadasOrdemSorteio") or []
+                )
                 lista_dezenas = data.get("listaDezenas") or []
                 trevos = data.get("trevosSorteados") or []
 
@@ -120,37 +334,75 @@ class MaisMilionariaScraper:
                     balls = [int(x) for x in dezenas_ordem[:6]]
                     tr = [int(x) for x in dezenas_ordem[6:8]]
                 else:
-                    balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
-                    tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
+                    balls = (
+                        [int(x) for x in lista_dezenas[:6]]
+                        if len(lista_dezenas) >= 6
+                        else []
+                    )
+                    tr = (
+                        [int(x) for x in trevos[:2]]
+                        if len(trevos) >= 2
+                        else []
+                    )
 
                 prox_raw = data.get("dataProximoConcurso")
-                prox_fecha = self._parse_fecha(prox_raw) if prox_raw else None
-                prox_concurso = int(data.get("numeroConcursoProximo")) if data.get("numeroConcursoProximo") else (concurso + 1 if concurso else None)
-                
+                prox_fecha = (
+                    self._parse_fecha(prox_raw)
+                    if prox_raw
+                    else None
+                )
+                prox_concurso = (
+                    int(data.get("numeroConcursoProximo"))
+                    if data.get("numeroConcursoProximo")
+                    else (concurso + 1 if concurso else None)
+                )
+
                 jackpot_val = data.get("valorEstimadoProximoConcurso")
                 jackpot_str = "R$ 92.000.000,00"
                 if jackpot_val:
                     try:
-                        jackpot_str = f"R$ {jackpot_val:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                        jackpot_str = (
+                            f"R$ {jackpot_val:,.2f}"
+                            .replace(",", "X")
+                            .replace(".", ",")
+                            .replace("X", ".")
+                        )
                     except Exception:
                         pass
 
-                return {
-                    "concurso": concurso,
-                    "fecha": fecha_str,
-                    "balotas": balls,
-                    "trevos": tr,
-                    "proxima_fecha": prox_fecha,
-                    "proximo_concurso": prox_concurso,
-                    "jackpot": jackpot_str,
-                    "raw_data": data
-                }
+                if (
+                    concurso
+                    and fecha_str
+                    and len(balls) == 6
+                    and len(tr) == 2
+                ):
+                    return {
+                        "concurso": concurso,
+                        "fecha": fecha_str,
+                        "balotas": balls,
+                        "trevos": tr,
+                        "proxima_fecha": prox_fecha,
+                        "proximo_concurso": prox_concurso,
+                        "jackpot": jackpot_str,
+                        "raw_data": data,
+                        "fuente": "caixa",
+                    }
+
+                print(
+                    "⚠️ [+Milionária] Caixa respondió, pero los datos "
+                    "del sorteo están incompletos. Se intenta fallback."
+                )
+
             except Exception as e:
-                print(f"⚠️ Error parseando respuesta oficial de Caixa (+Milionária): {e}")
-        return None
+                print(
+                    "⚠️ Error parseando respuesta oficial de Caixa "
+                    f"(+Milionária): {e}"
+                )
+
+        return self._extraer_ultimo_sorteo_megaloterias()
 
     def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
-        """Extrae el sorteo más reciente desde la API oficial de Caixa preservando orden original."""
+        """Extrae el sorteo más reciente desde Caixa o desde MegaLoterias como fallback."""
         print(f"➡️ Solicitando resultados recientes de +Milionária...")
         draws = []
         jackpot_destacado = "R$ 92.000.000,00"
@@ -361,7 +613,7 @@ class MaisMilionariaScraper:
         fuente_info = self.extraer_ultimo_sorteo_fuente()
 
         if not fuente_info and not backfill:
-            raise RuntimeError("❌ No se pudo conectar con la API oficial de Caixa (+Milionária) tras 3 intentos. Fallo real de servicio.")
+            raise RuntimeError("❌ No fue posible obtener +Milionária ni desde Caixa ni desde MegaLoterias.")
 
         if not backfill and fuente_info and db_ultimo:
             concurso_fuente = fuente_info.get("concurso")

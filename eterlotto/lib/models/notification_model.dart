@@ -1,4 +1,32 @@
 class NotificationModel {
+  static DateTime _parseCreatedAt(dynamic value) {
+    if (value == null) return DateTime.now();
+
+    final raw = value.toString().trim();
+    if (raw.isEmpty) return DateTime.now();
+
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return DateTime.now();
+
+    // PostgreSQL/FastAPI may serialize a UTC timestamp without Z/offset.
+    // In that case DateTime.tryParse treats it as local time, so we rebuild
+    // the same clock value explicitly as UTC. If an offset/Z is present,
+    // Dart already preserves the correct instant.
+    final hasZone = RegExp(r'(Z|[+-]\d{2}:?\d{2})$').hasMatch(raw);
+    if (hasZone) return parsed;
+
+    return DateTime.utc(
+      parsed.year,
+      parsed.month,
+      parsed.day,
+      parsed.hour,
+      parsed.minute,
+      parsed.second,
+      parsed.millisecond,
+      parsed.microsecond,
+    );
+  }
+
   final int id;
   final int? loteriaId;
   final int? paisId;
@@ -60,7 +88,7 @@ class NotificationModel {
       mensaje: json['mensaje'] ?? '',
       tipo: json['tipo'] ?? '',
       leido: json['leido'] ?? false,
-      createdAt: json['created_at'] != null ? (DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()) : DateTime.now(),
+      createdAt: _parseCreatedAt(json['created_at']),
     );
   }
 
