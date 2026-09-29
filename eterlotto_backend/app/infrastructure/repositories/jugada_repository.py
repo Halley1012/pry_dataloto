@@ -54,6 +54,29 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
                    OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
             """)
+
+            # Elimina duplicados exactos históricos antes de crear la restricción.
+            # Se conserva la fila más antigua de la misma jugada.
+            await conn.execute("""
+                DELETE FROM jugadas j
+                USING jugadas d
+                WHERE j.id > d.id
+                  AND j.user_id = d.user_id
+                  AND j.loteria_id IS NOT DISTINCT FROM d.loteria_id
+                  AND LOWER(j.loteria_route) = LOWER(d.loteria_route)
+                  AND j.fecha_sorteo IS NOT DISTINCT FROM d.fecha_sorteo
+                  AND j.numeros = d.numeros;
+            """)
+
+            # Barrera definitiva en BD para las jugadas nuevas con identidad canónica.
+            # La condición parcial mantiene compatibilidad con filas legacy sin loteria_id/fecha_sorteo.
+            await conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_jugadas_user_loteria_fecha_numeros
+                ON jugadas (user_id, loteria_id, fecha_sorteo, numeros)
+                WHERE loteria_id IS NOT NULL
+                  AND fecha_sorteo IS NOT NULL;
+            """)
+
             cls._table_ensured = True
         except Exception as e:
             logging.getLogger(__name__).error(f'Error capturado: {e}')
@@ -128,6 +151,8 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         loteria_route = (tipo or "").strip().lower()
+        numeros_clean = [int(n) for n in numeros]
+
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
             lot_row = await self._resolve_lottery(conn, loteria_route, loteria_id)
@@ -139,15 +164,85 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             if not loteria_route:
                 raise ValueError("No se pudo determinar la route de la lotería")
 
-            row = await conn.fetchrow("""
-                INSERT INTO jugadas (user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                RETURNING id, user_id, loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira
-            """, user_id, resolved_loteria_id, loteria_route, numeros, fecha_sorteo, fecha_guardado, expira)
-            d = dict(row)
-            if d.get('fecha_sorteo'):
-                d['fecha_sorteo'] = str(d['fecha_sorteo'])
-            return d
+            # La transacción + advisory lock hace idempotente incluso el caso
+            # legacy sin loteria_id. Dos taps simultáneos para la misma jugada
+            # no pueden insertar dos filas.
+            lock_identity = (
+                f"{int(user_id)}|"
+                f"{resolved_loteria_id if resolved_loteria_id is not None else loteria_route}|"
+                f"{fecha_sorteo.isoformat() if fecha_sorteo else ''}|"
+                f"{','.join(map(str, numeros_clean))}"
+            )
+
+            async with conn.transaction():
+                await conn.execute(
+                    "SELECT pg_advisory_xact_lock(hashtext($1)::bigint)",
+                    lock_identity,
+                )
+
+                existing = await conn.fetchrow("""
+                    SELECT id, user_id, loteria_id, loteria_route, numeros,
+                           fecha_sorteo, fecha_guardado, expira
+                    FROM jugadas
+                    WHERE user_id = $1
+                      AND (
+                            ($2::int IS NOT NULL AND loteria_id = $2)
+                            OR
+                            ($2::int IS NULL AND loteria_id IS NULL
+                             AND LOWER(loteria_route) = $3)
+                          )
+                      AND fecha_sorteo IS NOT DISTINCT FROM $4::date
+                      AND numeros = $5::integer[]
+                    ORDER BY id
+                    LIMIT 1
+                """, user_id, resolved_loteria_id, loteria_route, fecha_sorteo, numeros_clean)
+
+                if existing:
+                    d = dict(existing)
+                    if d.get('fecha_sorteo'):
+                        d['fecha_sorteo'] = str(d['fecha_sorteo'])
+                    return d
+
+                # Para las filas canónicas, el índice UNIQUE es una segunda
+                # protección contra carreras entre procesos/instancias.
+                row = await conn.fetchrow("""
+                    INSERT INTO jugadas (
+                        user_id, loteria_id, loteria_route, numeros,
+                        fecha_sorteo, fecha_guardado, expira
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    ON CONFLICT (
+                        user_id, loteria_id, fecha_sorteo, numeros
+                    )
+                    WHERE loteria_id IS NOT NULL
+                      AND fecha_sorteo IS NOT NULL
+                    DO NOTHING
+                    RETURNING id, user_id, loteria_id, loteria_route, numeros,
+                              fecha_sorteo, fecha_guardado, expira
+                """, user_id, resolved_loteria_id, loteria_route, numeros_clean,
+                     fecha_sorteo, fecha_guardado, expira)
+
+                if row is None:
+                    # Otra instancia ganó la carrera después del SELECT.
+                    row = await conn.fetchrow("""
+                        SELECT id, user_id, loteria_id, loteria_route, numeros,
+                               fecha_sorteo, fecha_guardado, expira
+                        FROM jugadas
+                        WHERE user_id = $1
+                          AND loteria_id = $2
+                          AND fecha_sorteo = $3
+                          AND numeros = $4::integer[]
+                        ORDER BY id
+                        LIMIT 1
+                    """, user_id, resolved_loteria_id, fecha_sorteo, numeros_clean)
+
+                if row is None:
+                    raise RuntimeError("No fue posible guardar ni recuperar la jugada")
+
+                d = dict(row)
+                if d.get('fecha_sorteo'):
+                    d['fecha_sorteo'] = str(d['fecha_sorteo'])
+                return d
 
     async def list_jugadas(
         self,

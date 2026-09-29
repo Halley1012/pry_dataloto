@@ -1628,10 +1628,17 @@ class ApiService {
         "$baseUrl/publicidad",
       ).replace(queryParameters: queryParams);
 
-      // 📬 3. Enviar solicitud HTTP
-      final response = await http
-          .get(uri, headers: await _getHeaders(withAuth: false))
+      // 📬 3. Enviar solicitud HTTP. Si existe sesión, mandamos token para
+      // recibir is_favorite/user_rating; si el token expiró, reintentamos como
+      // catálogo público para no bloquear el directorio.
+      var response = await http
+          .get(uri, headers: await _getHeaders(withAuth: true))
           .timeout(_requestTimeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        response = await http
+            .get(uri, headers: await _getHeaders(withAuth: false))
+            .timeout(_requestTimeout);
+      }
 
       // ✅ 4. Validar estado de la respuesta
       if (response.statusCode == 200) {
@@ -1643,13 +1650,6 @@ class ApiService {
           resultList = List<Map<String, dynamic>>.from(data);
         } else if (decoded is List) {
           resultList = List<Map<String, dynamic>>.from(decoded);
-        }
-
-        // Nunca mezclar estado privado de una cuenta con el catálogo público.
-        for (final ad in resultList) {
-          ad.remove('is_favorite');
-          ad.remove('is_favorito');
-          ad.remove('favorito');
         }
         return resultList;
       } else {
@@ -1970,6 +1970,8 @@ class ApiService {
       "tiktok_url": data["tiktok_url"],
       "pagina_url": data["pagina_url"],
       "direccion": data["direccion"],
+      "about_us": data["about_us"],
+      "galeria_urls": data["galeria_urls"] ?? <String>[],
       "es_24_7": data["es_24_7"],
       "hora_apertura": data["hora_apertura"],
       "hora_cierre": data["hora_cierre"],
@@ -2152,6 +2154,7 @@ class ApiService {
     return {
       "success": true,
       "is_favorite": willBeFav,
+      "total_likes": null,
       "total_votos": null,
       "is_destacado": null,
     };

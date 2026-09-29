@@ -83,6 +83,8 @@ class PublicidadCreate(BaseModel):
     tiktok_url: Optional[str] = None
     pagina_url: Optional[str] = None
     direccion: Optional[str] = None
+    about_us: Optional[str] = Field(default=None, max_length=800)
+    galeria_urls: List[str] = Field(default_factory=list)
     es_24_7: Optional[bool] = False
     hora_apertura: Optional[str] = None
     hora_cierre: Optional[str] = None

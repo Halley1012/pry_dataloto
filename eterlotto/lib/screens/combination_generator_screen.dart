@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:eterlotto/widgets/contenedor3.dart';
+import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _CombinationGeneratorSkeleton extends StatefulWidget {
@@ -196,6 +197,7 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
 
   final TextEditingController _inputController = TextEditingController();
   late CombinationGeneratorProvider _provider;
+  bool _isSavingSelection = false;
   List<String> _actionOrder = List<String>.from(_defaultActionOrder);
 
   @override
@@ -1025,10 +1027,14 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
         return _buildActionButton(
           icon: Icons.bookmark_add_outlined,
           color: AppColors.yellow,
-          enabled: hasSelection,
-          tooltip: _t('Guardar', 'Save', 'Salvar', 'Enregistrer'),
-          onPressed:
-              hasSelection ? () => _saveSelectedCombinations(provider) : null,
+          enabled: hasSelection && !_isSavingSelection && !provider.isSaving,
+          loading: _isSavingSelection || provider.isSaving,
+          tooltip: (_isSavingSelection || provider.isSaving)
+              ? _t('Guardando...', 'Saving...', 'Salvando...', 'Enregistrement...')
+              : _t('Guardar', 'Save', 'Salvar', 'Enregistrer'),
+          onPressed: hasSelection && !_isSavingSelection && !provider.isSaving
+              ? () => _saveSelectedCombinations(provider)
+              : null,
         );
 
       default:
@@ -1566,51 +1572,108 @@ class _CombinationGeneratorScreenState extends State<CombinationGeneratorScreen>
   Future<void> _saveSelectedCombinations(
     CombinationGeneratorProvider provider,
   ) async {
-    final l10n = AppLocalizations.of(context);
-    final storage = AppSecureStorage.instance;
-    final userId = await storage.read(key: 'user_id');
-    if (!mounted) return;
+    if (_isSavingSelection || provider.isSaving) return;
+    setState(() => _isSavingSelection = true);
 
-    if (userId == null || userId.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            l10n?.debesIniciarSesionParaGuardar ??
-                'Debes iniciar sesión para guardar',
-            style: AppTextStyles.body.copyWith(fontSize: 12),
+    try {
+      final l10n = AppLocalizations.of(context);
+      final storage = AppSecureStorage.instance;
+      final userId = await storage.read(key: 'user_id');
+      if (!mounted) return;
+
+      if (userId == null || userId.trim().isEmpty) {
+        showEterSnackBar(
+          context,
+          message: l10n?.debesIniciarSesionParaGuardar ??
+              'Debes iniciar sesión para guardar',
+          isError: true,
+        );
+        return;
+      }
+
+      final requestedCount = provider.selectedCount;
+      final success = await provider.saveSelected(userId);
+      if (!mounted) return;
+
+      final saved = provider.lastSaveSavedCount;
+      final duplicates = provider.lastSaveDuplicateCount;
+      final failed = provider.lastSaveFailedCount;
+
+      if (failed > 0) {
+        showEterSnackBar(
+          context,
+          message: _saveResultMessage(
+            saved: saved,
+            duplicates: duplicates,
+            failed: failed,
           ),
-        ),
+          isError: true,
+        );
+        return;
+      }
+
+      if (saved == 0 && duplicates > 0) {
+        showEterSnackBar(
+          context,
+          message: _duplicatesOnlyMessage(duplicates),
+        );
+        return;
+      }
+
+      showEterSnackBar(
+        context,
+        message: duplicates > 0
+            ? _saveResultMessage(
+                saved: saved,
+                duplicates: duplicates,
+                failed: 0,
+              )
+            : _savedSelectionMessage(saved > 0 ? saved : requestedCount),
+        isSuccess: success,
       );
-      return;
+    } finally {
+      if (mounted) setState(() => _isSavingSelection = false);
+    }
+  }
+
+  String _duplicatesOnlyMessage(int count) {
+    return switch (Localizations.localeOf(context).languageCode) {
+      'en' => count == 1
+          ? 'This play is already saved'
+          : 'These $count plays are already saved',
+      'pt' => count == 1
+          ? 'Esta aposta já está salva'
+          : 'Estas $count apostas já estão salvas',
+      'fr' => count == 1
+          ? 'Cette grille est déjà enregistrée'
+          : 'Ces $count grilles sont déjà enregistrées',
+      _ => count == 1
+          ? 'Esta jugada ya está guardada'
+          : 'Estas $count jugadas ya están guardadas',
+    };
+  }
+
+  String _saveResultMessage({
+    required int saved,
+    required int duplicates,
+    required int failed,
+  }) {
+    final lang = Localizations.localeOf(context).languageCode;
+    if (failed > 0) {
+      return switch (lang) {
+        'en' => '$saved saved, $duplicates already existed and $failed failed',
+        'pt' => '$saved salvas, $duplicates já existiam e $failed falharam',
+        'fr' => '$saved enregistrées, $duplicates existaient déjà et $failed ont échoué',
+        _ => '$saved guardadas, $duplicates ya existían y $failed fallaron',
+      };
     }
 
-    final count = provider.selectedCount;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          l10n?.guardando ?? 'Guardando...',
-          style: AppTextStyles.body.copyWith(fontSize: 12),
-        ),
-        duration: const Duration(milliseconds: 700),
-      ),
-    );
-
-    final success = await provider.saveSelected(userId);
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          success
-              ? _savedSelectionMessage(count)
-              : (l10n?.errorAlGuardarJugadas ??
-                    'Hubo un error al guardar algunas jugadas'),
-          style: AppTextStyles.body.copyWith(fontSize: 12),
-        ),
-        backgroundColor:
-            success ? Colors.green.shade800 : Colors.red.shade800,
-      ),
-    );
+    return switch (lang) {
+      'en' => '$saved saved · $duplicates already existed',
+      'pt' => '$saved salvas · $duplicates já existiam',
+      'fr' => '$saved enregistrées · $duplicates existaient déjà',
+      _ => '$saved guardadas · $duplicates ya existían',
+    };
   }
 
   String _t(String es, String en, String pt, String fr) {

@@ -16,6 +16,7 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/widgets/contenedor3.dart';
+import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
@@ -555,177 +556,175 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Future<void> _guardarJugada(AppLocalizations? l10n) async {
+    // Bloquea el botón inmediatamente. Antes se activaba después de varias
+    // consultas async, dejando una ventana donde dos taps podían crear dos
+    // solicitudes de guardado en paralelo.
     if (isSaving) return;
-
-    String? currentUid = (await ApiService.getUserId())?.toString();
-    if (currentUid != null && currentUid.isNotEmpty && userId != currentUid) {
-      if (mounted) setState(() => userId = currentUid);
-    }
-    currentUid ??= userId;
-
-    if (currentUid == null || currentUid.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n?.iniciaSesionParaContinuar ??
-                  "Inicia sesión para guardar tu jugada",
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    List<int> whitesToSave = [];
-    List<int> specialsToSave = [];
-
-    if (seleccionados.isEmpty) {
-      if (listaProbables.length < config.maxSeleccion) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Cargando predicción, espera un momento..."),
-            ),
-          );
-        }
-        return;
-      }
-      whitesToSave = listaProbables.take(config.maxSeleccion).toList();
-      if (config.cantidadEspeciales > 0 && listaBalotaRoja.isNotEmpty) {
-        specialsToSave = listaBalotaRoja.take(config.cantidadEspeciales).toList();
-      }
-    } else {
-      if (seleccionados.length != config.maxSeleccion ||
-          (config.cantidadEspeciales > 0 &&
-              balotasEspecialesSeleccionadas.length != config.cantidadEspeciales)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                config.cantidadEspeciales > 0
-                    ? (l10n?.debesSeleccionarBalotas ??
-                          "Debes seleccionar ${config.maxSeleccion} balotas y ${config.cantidadEspeciales} ${config.superbalotaNombre}")
-                    : (l10n?.debesSeleccionarBalotas ??
-                          "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
-              ),
-            ),
-          );
-        }
-        return;
-      }
-      whitesToSave = List<int>.from(seleccionados);
-      specialsToSave = List<int>.from(balotasEspecialesSeleccionadas);
-    }
-
-    if (specialsToSave.length != config.cantidadEspeciales) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Debes seleccionar ${config.cantidadEspeciales} ${config.superbalotaNombre}',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    final whites = List<int>.from(whitesToSave)..sort();
-    final jugadaCompleta = [...whites, ...specialsToSave];
-
-    if (_jugadasList.isEmpty) {
-      final cacheKey = CacheService.jugadasUsuarioKey(config.route, currentUid, loteriaId: config.loteriaId);
-      final cached = await CacheService.getStaleJson(cacheKey);
-      if (cached is List && cached.isNotEmpty) {
-        _jugadasList = List<Map<String, dynamic>>.from(cached);
-      } else {
-        try {
-          final res = await ApiService.listarJugadasGenerica(
-            config.route,
-            loteriaId: config.loteriaId,
-          );
-          if (res.isNotEmpty) {
-            _jugadasList = List<Map<String, dynamic>>.from(res);
-          }
-        } catch (_) {}
-      }
-    }
-
-    final layout = config.numberLayout;
-    final newGroups = layout.split(jugadaCompleta);
-    final principalesNuevos = newGroups.main;
-    final especialesNuevos = newGroups.specials;
-    final complementariaNueva = newGroups.complementary;
-
-    final bool isDuplicate = _jugadasList.any((j) {
-      final rawNums =
-          (j["numeros"] as List<dynamic>?)
-              ?.map((n) => int.tryParse(n.toString()) ?? -1)
-              .where((n) => n >= 0)
-              .toList() ??
-          [];
-      if (rawNums.isEmpty) return false;
-
-      // Los roles se obtienen por posición: principales, especiales y
-      // complementaria. Nunca por igualdad de valores.
-      final existingGroups = layout.split(rawNums);
-      final principalesExistentes = existingGroups.main;
-      final especialesExistentes = List<int>.from(existingGroups.specials);
-      final complementariaExistente = existingGroups.complementary;
-      if (especialesExistentes.isEmpty && config.cantidadEspeciales > 0) {
-        final legacy = int.tryParse(
-          (j['balota_roja'] ?? j['balotaroja'] ?? j['superbalota'])
-                  ?.toString() ??
-              '',
-        );
-        if (legacy != null) especialesExistentes.add(legacy);
-      }
-
-      final mismosPrincipales = _sameNumbersIgnoringOrder(
-        principalesExistentes,
-        principalesNuevos,
-      );
-      final mismasEspeciales = _sameNumbersIgnoringOrder(
-        especialesExistentes,
-        especialesNuevos,
-      );
-      final mismaComplementaria = _sameNumbersIgnoringOrder(
-        complementariaExistente,
-        complementariaNueva,
-      );
-
-      return mismosPrincipales &&
-          mismasEspeciales &&
-          mismaComplementaria;
-    });
-
-    if (isDuplicate) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n?.jugadaYaExiste ??
-                  "Esta jugada ya se encuentra en tus jugadas guardadas",
-            ),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() => isSaving = true);
-
-    final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
-      config.route,
-      fechaPrediccion: fechaPrediccion,
-      ultimoSorteoFecha: ultimosResultados.isNotEmpty
-          ? ultimosResultados.first["fecha"]?.toString()
-          : null,
-    );
+    if (mounted) setState(() => isSaving = true);
 
     try {
+      String? currentUid = (await ApiService.getUserId())?.toString();
+      if (currentUid != null && currentUid.isNotEmpty && userId != currentUid) {
+        if (mounted) setState(() => userId = currentUid);
+      }
+      currentUid ??= userId;
+
+      if (currentUid == null || currentUid.isEmpty) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message: l10n?.iniciaSesionParaContinuar ??
+                "Inicia sesión para guardar tu jugada",
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      List<int> whitesToSave = [];
+      List<int> specialsToSave = [];
+
+      if (seleccionados.isEmpty) {
+        if (listaProbables.length < config.maxSeleccion) {
+          if (mounted) {
+            showEterSnackBar(
+              context,
+              message: "Cargando predicción, espera un momento...",
+            );
+          }
+          return;
+        }
+        whitesToSave = listaProbables.take(config.maxSeleccion).toList();
+        if (config.cantidadEspeciales > 0 && listaBalotaRoja.isNotEmpty) {
+          specialsToSave =
+              listaBalotaRoja.take(config.cantidadEspeciales).toList();
+        }
+      } else {
+        if (seleccionados.length != config.maxSeleccion ||
+            (config.cantidadEspeciales > 0 &&
+                balotasEspecialesSeleccionadas.length !=
+                    config.cantidadEspeciales)) {
+          if (mounted) {
+            showEterSnackBar(
+              context,
+              message: config.cantidadEspeciales > 0
+                  ? (l10n?.debesSeleccionarBalotas ??
+                      "Debes seleccionar ${config.maxSeleccion} balotas y ${config.cantidadEspeciales} ${config.superbalotaNombre}")
+                  : (l10n?.debesSeleccionarBalotas ??
+                      "Debes seleccionar ${config.maxSeleccion} números para guardar tu jugada"),
+              isError: true,
+            );
+          }
+          return;
+        }
+        whitesToSave = List<int>.from(seleccionados);
+        specialsToSave = List<int>.from(balotasEspecialesSeleccionadas);
+      }
+
+      if (specialsToSave.length != config.cantidadEspeciales) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message:
+                'Debes seleccionar ${config.cantidadEspeciales} ${config.superbalotaNombre}',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      final whites = List<int>.from(whitesToSave)..sort();
+      final jugadaCompleta = [...whites, ...specialsToSave];
+
+      // Antes de guardar se refresca la lista si aún no está disponible.
+      // Esto evita duplicados visibles para el usuario y, combinado con
+      // isSaving, elimina la carrera provocada por taps repetidos.
+      if (_jugadasList.isEmpty) {
+        final cacheKey = CacheService.jugadasUsuarioKey(
+          config.route,
+          currentUid,
+          loteriaId: config.loteriaId,
+        );
+        final cached = await CacheService.getStaleJson(cacheKey);
+        if (cached is List && cached.isNotEmpty) {
+          _jugadasList = List<Map<String, dynamic>>.from(cached);
+        } else {
+          try {
+            final res = await ApiService.listarJugadasGenerica(
+              config.route,
+              loteriaId: config.loteriaId,
+              retries: 1,
+            );
+            if (res.isNotEmpty) {
+              _jugadasList = List<Map<String, dynamic>>.from(res);
+            }
+          } catch (_) {}
+        }
+      }
+
+      final layout = config.numberLayout;
+      final newGroups = layout.split(jugadaCompleta);
+      final principalesNuevos = newGroups.main;
+      final especialesNuevos = newGroups.specials;
+      final complementariaNueva = newGroups.complementary;
+
+      final bool isDuplicate = _jugadasList.any((j) {
+        final rawNums =
+            (j["numeros"] as List<dynamic>?)
+                    ?.map((n) => int.tryParse(n.toString()) ?? -1)
+                    .where((n) => n >= 0)
+                    .toList() ??
+                [];
+        if (rawNums.isEmpty) return false;
+
+        final existingGroups = layout.split(rawNums);
+        final principalesExistentes = existingGroups.main;
+        final especialesExistentes =
+            List<int>.from(existingGroups.specials);
+        final complementariaExistente = existingGroups.complementary;
+
+        if (especialesExistentes.isEmpty && config.cantidadEspeciales > 0) {
+          final legacy = int.tryParse(
+            (j['balota_roja'] ?? j['balotaroja'] ?? j['superbalota'])
+                    ?.toString() ??
+                '',
+          );
+          if (legacy != null) especialesExistentes.add(legacy);
+        }
+
+        return _sameNumbersIgnoringOrder(
+              principalesExistentes,
+              principalesNuevos,
+            ) &&
+            _sameNumbersIgnoringOrder(
+              especialesExistentes,
+              especialesNuevos,
+            ) &&
+            _sameNumbersIgnoringOrder(
+              complementariaExistente,
+              complementariaNueva,
+            );
+      });
+
+      if (isDuplicate) {
+        if (mounted) {
+          showEterSnackBar(
+            context,
+            message: l10n?.jugadaYaExiste ??
+                "Esta jugada ya se encuentra en tus jugadas guardadas",
+          );
+        }
+        return;
+      }
+
+      final String targetFechaSorteo = ApiService.getProximoSorteoFecha(
+        config.route,
+        fechaPrediccion: fechaPrediccion,
+        ultimoSorteoFecha: ultimosResultados.isNotEmpty
+            ? ultimosResultados.first["fecha"]?.toString()
+            : null,
+      );
+
       await ApiService.crearJugadaGenerica(
         config.route,
         whites,
@@ -744,42 +743,38 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         "fecha_sorteo": targetFechaSorteo,
       };
       _jugadasList.insert(0, nuevaJugada);
-      final uIdStr = currentUid;
+
       await CacheService.setJson(
-        CacheService.jugadasUsuarioKey(config.route, uIdStr, loteriaId: config.loteriaId),
+        CacheService.jugadasUsuarioKey(
+          config.route,
+          currentUid,
+          loteriaId: config.loteriaId,
+        ),
         _jugadasList,
       );
 
       await _loadJugadas();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n?.jugadaGuardadaExito ?? "¡Jugada guardada con éxito! 🎉",
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
-          ),
+        showEterSnackBar(
+          context,
+          message: l10n?.jugadaGuardadaExito ??
+              "¡Jugada guardada con éxito! 🎉",
+          isSuccess: true,
         );
 
-        // 🎯 Monetización Inteligente: Evaluar anuncio intersticial tras guardar la jugada con éxito
+        // Ya no se fuerza un interstitial inmediatamente al guardar.
+        // Guardar cuenta como acción de valor y AdService decide si corresponde
+        // mostrar publicidad según cooldown, sesión y estado Premium.
         final isPremium = context.read<SubscriptionProvider>().isSubscribed;
-        AdService.instance.showInterstitialAd(
-          isPremium: isPremium,
-          ignoreThreshold: true,
-        );
+        AdService.instance.recordValueAction(isPremium: isPremium);
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              l10n?.errorGuardarJugada ?? "Error al guardar la jugada",
-            ),
-            backgroundColor: Colors.redAccent,
-            duration: const Duration(seconds: 2),
-          ),
+        showEterSnackBar(
+          context,
+          message: l10n?.errorGuardarJugada ?? "Error al guardar la jugada",
+          isError: true,
         );
       }
     } finally {

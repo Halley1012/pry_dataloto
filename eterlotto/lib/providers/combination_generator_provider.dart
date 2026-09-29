@@ -12,6 +12,7 @@ class CombinationGeneratorProvider with ChangeNotifier {
   final Set<int> _excludedNumbers = {};
   
   bool _isLoading = false;
+  bool _isSaving = false;
   bool _isLoadingLotteries = true;
   bool _isDisposed = false;
   String? _error;
@@ -195,6 +196,10 @@ class CombinationGeneratorProvider with ChangeNotifier {
   Set<int> get selectedCombinationNumbers => Set.unmodifiable(_selectedCombinationNumbers);
   int get selectedCount => _selectedCombinationNumbers.length;
   bool get hasSelectedCombinations => _selectedCombinationNumbers.isNotEmpty;
+  bool get isSaving => _isSaving;
+  int lastSaveSavedCount = 0;
+  int lastSaveDuplicateCount = 0;
+  int lastSaveFailedCount = 0;
 
   bool isCombinationSelected(GeneratedCombination combination) =>
       _selectedCombinationNumbers.contains(combination.number);
@@ -404,7 +409,9 @@ class CombinationGeneratorProvider with ChangeNotifier {
   }
 
   Future<bool> saveSelected(String userId) async {
-    if (_selectedLottery == null || _selectedCombinationNumbers.isEmpty) {
+    if (_isSaving ||
+        _selectedLottery == null ||
+        _selectedCombinationNumbers.isEmpty) {
       return false;
     }
 
@@ -412,12 +419,54 @@ class CombinationGeneratorProvider with ChangeNotifier {
         .where((combo) => _selectedCombinationNumbers.contains(combo.number))
         .toList(growable: false);
 
-    return _saveCombinations(userId, selected);
+    _isSaving = true;
+    lastSaveSavedCount = 0;
+    lastSaveDuplicateCount = 0;
+    lastSaveFailedCount = 0;
+    notifyListeners();
+
+    try {
+      return await _saveCombinations(userId, selected);
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> saveAll(String userId) async {
-    if (_selectedLottery == null || _combinations.isEmpty) return false;
-    return _saveCombinations(userId, _combinations);
+    if (_isSaving || _selectedLottery == null || _combinations.isEmpty) {
+      return false;
+    }
+
+    _isSaving = true;
+    lastSaveSavedCount = 0;
+    lastSaveDuplicateCount = 0;
+    lastSaveFailedCount = 0;
+    notifyListeners();
+
+    try {
+      return await _saveCombinations(userId, _combinations);
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  List<int> _toIntList(dynamic raw) {
+    if (raw is! List) return <int>[];
+    return raw
+        .map((value) => int.tryParse(value.toString()))
+        .whereType<int>()
+        .toList(growable: false);
+  }
+
+  String _playSignature(
+    List<int> mainNumbers,
+    List<int> specialNumbers,
+  ) {
+    final main = List<int>.from(mainNumbers)..sort();
+    final special = List<int>.from(specialNumbers)..sort();
+    return '${main.join(',')}|${special.join(',')}';
   }
 
   Future<bool> _saveCombinations(
@@ -425,8 +474,6 @@ class CombinationGeneratorProvider with ChangeNotifier {
     List<GeneratedCombination> combinationsToSave,
   ) async {
     if (_selectedLottery == null || combinationsToSave.isEmpty) return false;
-
-    bool allSuccess = true;
 
     final rules = selectedLotteryRules;
     final saveRoute = rules?.route ?? _selectedLottery!;
@@ -439,7 +486,57 @@ class CombinationGeneratorProvider with ChangeNotifier {
               )
             : null;
 
+    final existingSignatures = <String>{};
+    try {
+      final existing = await ApiService.listarJugadasGenerica(
+        saveRoute,
+        loteriaId: rules?.catalogLotteryId,
+        retries: 1,
+      );
+      final mainCount = rules?.mainNumbersCount ?? 0;
+      final specialCount = rules?.specialNumbersCount ??
+          (combinationsToSave.isNotEmpty
+              ? combinationsToSave.first.specialNumbers.length
+              : 0);
+
+      for (final raw in existing) {
+        if (raw is! Map) continue;
+        final numeros = _toIntList(raw['numeros']);
+        if (numeros.isEmpty || mainCount <= 0) continue;
+
+        final main = numeros.take(mainCount).toList(growable: false);
+        var special = numeros
+            .skip(mainCount)
+            .take(specialCount)
+            .toList(growable: false);
+
+        if (special.isEmpty && specialCount > 0) {
+          final legacy = int.tryParse(
+            (raw['balota_roja'] ?? raw['balotaroja'] ?? raw['superbalota'])
+                    ?.toString() ??
+                '',
+          );
+          if (legacy != null) special = <int>[legacy];
+        }
+
+        existingSignatures.add(_playSignature(main, special));
+      }
+    } catch (_) {
+      // La validación local de duplicados es defensiva. Si la consulta falla,
+      // se deja que el backend decida si la creación es válida.
+    }
+
     for (final combo in combinationsToSave) {
+      final signature = _playSignature(
+        combo.mainNumbers,
+        combo.specialNumbers,
+      );
+
+      if (existingSignatures.contains(signature)) {
+        lastSaveDuplicateCount++;
+        continue;
+      }
+
       try {
         await ApiService.crearJugadaGenerica(
           saveRoute,
@@ -449,17 +546,20 @@ class CombinationGeneratorProvider with ChangeNotifier {
           specialNumbers: combo.specialNumbers,
           fechaSorteo: nextDrawDate,
         );
+        lastSaveSavedCount++;
+        existingSignatures.add(signature);
       } catch (_) {
-        allSuccess = false;
+        lastSaveFailedCount++;
       }
     }
 
-    if (allSuccess) {
+    if (lastSaveFailedCount == 0) {
       _selectedCombinationNumbers.clear();
       notifyListeners();
+      return true;
     }
 
-    return allSuccess;
+    return false;
   }
 
 }
