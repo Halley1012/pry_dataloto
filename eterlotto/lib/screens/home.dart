@@ -1639,11 +1639,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _selectBottomTab(int index) {
-    if (!mounted) return;
+    if (!mounted || index == _selectedIndex) return;
+
+    // La navegación ocurre primero: el anuncio nunca bloquea el cambio de tab.
     setState(() {
       _selectedIndex = index;
       _loadedBottomTabs.add(index);
     });
+
+    final isPremium = context.read<SubscriptionProvider>().isPremium;
+    AdService.instance.recordValueAction(isPremium: isPremium);
   }
 
   Future<void> _restoreBottomNavLayout() async {
