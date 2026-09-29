@@ -1941,6 +1941,46 @@ class ApiService {
     return <Map<String, dynamic>>[];
   }
 
+  // 📷 Subir imagen de publicidad al backend -> Supabase Storage
+  static Future<String> uploadPublicidadImage(
+    String filePath, {
+    String tipo = 'galeria',
+  }) async {
+    await ensureValidSession();
+    final token = await getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Debes iniciar sesión para subir imágenes');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/publicidad/upload-image'),
+    );
+    request.headers['Authorization'] = 'Bearer $token';
+    request.fields['tipo'] = tipo;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      decoded = null;
+    }
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        decoded is Map &&
+        decoded['url'] != null) {
+      return decoded['url'].toString();
+    }
+
+    final detail = decoded is Map
+        ? (decoded['detail'] ?? decoded['message'])
+        : response.body;
+    throw Exception(detail ?? 'No fue posible subir la imagen');
+  }
+
   // --- CREAR PUBLICIDAD ---
   static Future<Map<String, dynamic>> crearPublicidad(
     Map<String, dynamic> data,
