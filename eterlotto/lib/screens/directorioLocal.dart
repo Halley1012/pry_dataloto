@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/screens/publicidad.dart';
+import 'package:eterlotto/screens/publicidad_detail_screen.dart';
 import 'package:eterlotto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -201,6 +202,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       ad.remove('is_favorite');
       ad.remove('is_favorito');
       ad.remove('favorito');
+      ad.remove('user_rating');
       return ad;
     }).toList();
   }
@@ -220,6 +222,62 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       ad['is_favorite'] = id != null && favorites.contains(id);
       return ad;
     }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _mergeServerPrivateState(
+    List<Map<String, dynamic>> rawAds,
+    List<Map<String, dynamic>> decoratedAds,
+    String? userId,
+  ) async {
+    if (userId == null) return decoratedAds;
+
+    final rawById = <int, Map<String, dynamic>>{};
+    for (final raw in rawAds) {
+      final id = raw['id'] is int
+          ? raw['id'] as int
+          : int.tryParse(raw['id']?.toString() ?? '');
+      if (id == null) continue;
+      rawById[id] = raw;
+      if (raw['is_favorite'] is bool) {
+        await ApiService.guardarFavoritoLocal(
+          id,
+          raw['is_favorite'] == true,
+          userId: userId,
+        );
+      }
+    }
+
+    return decoratedAds.map((source) {
+      final ad = Map<String, dynamic>.from(source);
+      final id = ad['id'] is int
+          ? ad['id'] as int
+          : int.tryParse(ad['id']?.toString() ?? '');
+      final raw = id == null ? null : rawById[id];
+      if (raw != null) {
+        if (raw['is_favorite'] is bool) {
+          ad['is_favorite'] = raw['is_favorite'];
+        }
+        if (raw['user_rating'] != null) {
+          ad['user_rating'] = raw['user_rating'];
+        }
+      }
+      return ad;
+    }).toList();
+  }
+
+  Future<void> _openDetalle(Map<String, dynamic> anuncio, int index) async {
+    final updated = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicidadDetailScreen(
+          publicidad: Map<String, dynamic>.from(anuncio),
+        ),
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(() {
+      anuncios[index] = Map<String, dynamic>.from(updated);
+    });
   }
 
   Future<void> buscarAnuncios(String titulo) async {
@@ -272,8 +330,13 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       );
 
       final publicAds = _publicAdsFrom(data);
-      final decoratedAds = await _applyPrivateFavorites(
+      var decoratedAds = await _applyPrivateFavorites(
         publicAds,
+        expectedUserId,
+      );
+      decoratedAds = await _mergeServerPrivateState(
+        data,
+        decoratedAds,
         expectedUserId,
       );
       if (requestVersion != _searchRequestVersion ||
@@ -376,8 +439,8 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       if (res["success"] == true && mounted) {
         setState(() {
           anuncio["is_favorite"] = res["is_favorite"] ?? !currentFav;
-          if (res["total_votos"] != null) {
-            anuncio["total_likes"] = res["total_votos"];
+          if (res["total_likes"] != null) {
+            anuncio["total_likes"] = res["total_likes"];
           }
           if (res["is_destacado"] != null) {
             anuncio["is_destacado"] = res["is_destacado"];
@@ -574,6 +637,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                                 ) ??
                                 0,
                             onAction: () => _toggleFavorito(anuncio, index),
+                            onTap: () => _openDetalle(anuncio, index),
                           ),
                         );
                       },

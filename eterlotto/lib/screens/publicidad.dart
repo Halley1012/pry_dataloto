@@ -31,6 +31,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   // --- Controladores ---
   final tituloController = TextEditingController();
   final descripcionController = TextEditingController();
+  final aboutUsController = TextEditingController();
+  final galeriaController = TextEditingController();
   final telefonoController = TextEditingController();
   final direccionController = TextEditingController();
   final imagenUrlController = TextEditingController();
@@ -116,6 +118,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     descripcionController.removeListener(_onDescripcionChanged);
     tituloController.dispose();
     descripcionController.dispose();
+    aboutUsController.dispose();
+    galeriaController.dispose();
     telefonoController.dispose();
     direccionController.dispose();
     imagenUrlController.dispose();
@@ -466,6 +470,16 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     tituloController.text = pub["titulo"]?.toString() ?? "";
     descripcionController.text = pub["descripcion"]?.toString() ?? "";
     descripcionLength = descripcionController.text.length;
+    aboutUsController.text = pub["about_us"]?.toString() ?? "";
+    final galleryRaw = pub["galeria_urls"];
+    if (galleryRaw is List) {
+      galeriaController.text = galleryRaw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .join("\n");
+    } else {
+      galeriaController.text = galleryRaw?.toString() ?? "";
+    }
     direccionController.text = pub["direccion"]?.toString() ?? "";
     imagenUrlController.text = pub["imagen_url"]?.toString() ?? "";
 
@@ -566,6 +580,34 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   // === RESTO DEL CÓDIGO SIN CAMBIOS (enviar, UI, etc.) ===
   // (Todo igual: _enviarFormulario, _buildTextField, etc.)
 
+  String _localizedLabel(
+    BuildContext context, {
+    required String es,
+    required String en,
+    required String fr,
+    required String pt,
+  }) {
+    switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+      case 'en':
+        return en;
+      case 'fr':
+        return fr;
+      case 'pt':
+        return pt;
+      default:
+        return es;
+    }
+  }
+
+  List<String> _parseGalleryUrls(String value) {
+    return value
+        .split(RegExp(r'[\n,;]+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
   Future<void> _enviarFormulario(AppLocalizations l10n) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -612,6 +654,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "tiktok_url": tiktokController.text.trim(),
         "pagina_url": paginaController.text.trim(),
         "direccion": direccionController.text.trim(),
+        "about_us": aboutUsController.text.trim(),
+        "galeria_urls": _parseGalleryUrls(galeriaController.text),
         "es_24_7": _esAtencion24Horas,
         "hora_apertura": _esAtencion24Horas ? "00:00" : horaAperturaStr,
         "hora_cierre": _esAtencion24Horas ? "23:59" : horaCierreStr,
@@ -656,6 +700,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     _formKey.currentState?.reset();
     tituloController.clear();
     descripcionController.clear();
+    aboutUsController.clear();
+    galeriaController.clear();
     telefonoController.clear();
     direccionController.clear();
     imagenUrlController.clear();
@@ -788,6 +834,34 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       maxLines: 4,
                       validator: (v) =>
                           v?.isEmpty ?? true ? l10n.descripcionObligatoria : null,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      aboutUsController,
+                      _localizedLabel(
+                        context,
+                        es: "Sobre nosotros",
+                        en: "About us",
+                        fr: "À propos",
+                        pt: "Sobre nós",
+                      ),
+                      false,
+                      l10n,
+                      maxLines: 5,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      galeriaController,
+                      _localizedLabel(
+                        context,
+                        es: "Galería (URLs, una por línea)",
+                        en: "Gallery (URLs, one per line)",
+                        fr: "Galerie (URLs, une par ligne)",
+                        pt: "Galeria (URLs, uma por linha)",
+                      ),
+                      false,
+                      l10n,
+                      maxLines: 4,
                     ),
                     const SizedBox(height: 16),
                     FormField<String>(

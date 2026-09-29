@@ -15,6 +15,7 @@ class BusinessCard extends StatelessWidget {
   final VoidCallback onAction;
   final String actionLabel;
   final String paginaweb;
+  final VoidCallback? onTap;
 
   // Redes sociales opcionales
   final String? whatsappUrl;
@@ -39,6 +40,7 @@ class BusinessCard extends StatelessWidget {
     required this.onAction,
     this.actionLabel = "Contactar",
     required this.paginaweb,
+    this.onTap,
     this.whatsappUrl,
     this.facebookUrl,
     this.instagramUrl,
@@ -109,7 +111,10 @@ class BusinessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF13191E),
@@ -138,7 +143,7 @@ class BusinessCard extends StatelessWidget {
                 Stack(
                   children: [
                     GestureDetector(
-                      onTap: paginaweb.isNotEmpty ? () => _launchUrl(paginaweb) : null,
+                      onTap: onTap ?? (paginaweb.isNotEmpty ? () => _launchUrl(paginaweb) : null),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(18),
                         child: Image.network(
@@ -204,7 +209,7 @@ class BusinessCard extends StatelessWidget {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: paginaweb.isNotEmpty ? () => _launchUrl(paginaweb) : null,
+                              onTap: onTap ?? (paginaweb.isNotEmpty ? () => _launchUrl(paginaweb) : null),
                               child: Text(
                                 title,
                                 style: GoogleFonts.montserrat(
@@ -358,6 +363,7 @@ class BusinessCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 
