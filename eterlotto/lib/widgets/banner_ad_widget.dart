@@ -31,8 +31,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   bool _isAdLoaded = false;
   Timer? _delayTimer;
 
-  // ⏱️ Periodo de gracia para el banner inferior (40 segundos sin publicidad al inicio)
-  static const Duration _bannerGracePeriod = Duration(seconds: 40);
+  // ⏱️ Periodo de gracia para el banner inferior (25 segundos sin publicidad al inicio)
+  static const Duration _bannerGracePeriod = Duration(seconds: 25);
 
   @override
   void didChangeDependencies() {

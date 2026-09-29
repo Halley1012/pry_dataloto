@@ -135,21 +135,13 @@ class DailyLotteryReminder:
             )
 
     @staticmethod
-    def _message(names: list[str]) -> str:
-        if len(names) == 1:
-            return (
-                f"🎟️ Hoy juega {names[0]}. "
-                "Revisa tus análisis y jugadas en Eterlotto."
-            )
-
-        if len(names) == 2:
-            joined = f"{names[0]} y {names[1]}"
-        else:
-            joined = ", ".join(names[:-1]) + f" y {names[-1]}"
-
+    def _message_key(names: list[str]) -> str:
+        # La gramática vive en los catálogos del backend, no en Airflow.
+        # Aquí solo elegimos singular/plural de forma semántica.
         return (
-            f"🎟️ Hoy juegan {joined}. "
-            "Revisa tus análisis y jugadas en Eterlotto."
+            "reminder.draws_today_one"
+            if len(names) == 1
+            else "reminder.draws_today_many"
         )
 
     def run(self, target_date: date | None = None, force: bool = False) -> None:
@@ -185,7 +177,7 @@ class DailyLotteryReminder:
                 continue
 
             names = [str(item["nombre"]) for item in country_lotteries]
-            message = self._message(names)
+            message_key = self._message_key(names)
 
             try:
                 # Se asocia al primer juego únicamente para mantener contexto
@@ -193,7 +185,14 @@ class DailyLotteryReminder:
                 response = self.client.publish(
                     loteria_id=int(country_lotteries[0]["id"]),
                     fecha_sorteo=target_date,
-                    mensaje=message,
+                    # Fallback legacy por seguridad. La traducción real se
+                    # resuelve en el backend según users.idioma.
+                    mensaje=(
+                        f"🎟️ {', '.join(names)} draw today. "
+                        "Check your analyses and plays in Eterlotto."
+                    ),
+                    message_key=message_key,
+                    message_params={"lotteries": names},
                     tipo="recordatorio_sorteos_hoy",
                     user_id=user_id,
                 )

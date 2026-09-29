@@ -1,0 +1,42 @@
+{
+  "push": {
+    "title": "Eterlotto"
+  },
+  "date": {
+    "pattern": "{day} de {month}",
+    "months": [
+      "janeiro",
+      "fevereiro",
+      "março",
+      "abril",
+      "maio",
+      "junho",
+      "julho",
+      "agosto",
+      "setembro",
+      "outubro",
+      "novembro",
+      "dezembro"
+    ]
+  },
+  "result": {
+    "play_hit": "🎯 {lottery}: sua melhor combinação acertou {total_hits}/{total_draw}. Principais: {main_hits}/{main_count}{main_numbers}.",
+    "play_hit_with_special": "🎯 {lottery}: sua melhor combinação acertou {total_hits}/{total_draw}. Principais: {main_hits}/{main_count}{main_numbers}. {special_label}: {special_hits}/{special_slots}{special_numbers}."
+  },
+  "precision": {
+    "result": "No sorteio de {date} para {lottery}, o Top {top_count} da IA alcançou: {summary}.",
+    "result_with_special": "No sorteio de {date} para {lottery}, o Top {top_count} da IA alcançou: {summary}. Especiais: {special_summary}."
+  },
+  "test": {
+    "message": "Teste de notificações Eterlotto"
+  },
+  "list": {
+    "separator": ", ",
+    "pair_separator": " e ",
+    "final_separator": " e "
+  },
+  "reminder": {
+    "draws_today_one": "🎟️ {lotteries} tem sorteio hoje. Confira suas análises e apostas no Eterlotto.",
+    "draws_today_many": "🎟️ {lotteries} têm sorteio hoje. Confira suas análises e apostas no Eterlotto."
+  }
+}

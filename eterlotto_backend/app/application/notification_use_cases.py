@@ -1,9 +1,11 @@
 import asyncio
+import json
 import logging
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from app.core import config
+from app.core.notification_i18n import notification_i18n
 from app.domain.ports import (
     NotificationRepositoryPort,
     PushNotificationPort,
@@ -25,11 +27,83 @@ class NotificationUseCases:
         self.user_repo = user_repo
         self.push_service = push_service
 
+    @staticmethod
+    def _params(value: Any) -> Dict[str, Any]:
+        """Normaliza JSONB/JSON independientemente del codec usado por asyncpg."""
+        current = value
+
+        # Algunos codecs pueden devolver bytes o JSON serializado más de una vez.
+        for _ in range(3):
+            if current is None:
+                return {}
+
+            if isinstance(current, dict):
+                return dict(current)
+
+            if isinstance(current, (bytes, bytearray, memoryview)):
+                try:
+                    current = bytes(current).decode("utf-8")
+                    continue
+                except Exception:
+                    return {}
+
+            if isinstance(current, str):
+                raw = current.strip()
+                if not raw:
+                    return {}
+                try:
+                    current = json.loads(raw)
+                    continue
+                except (TypeError, ValueError, json.JSONDecodeError):
+                    return {}
+
+            try:
+                return dict(current)
+            except (TypeError, ValueError):
+                return {}
+
+        return dict(current) if isinstance(current, dict) else {}
+
+    @staticmethod
+    def _has_unresolved_placeholders(value: str) -> bool:
+        # Solo detecta placeholders simples del catálogo: {lottery}, {total_hits}, etc.
+        return bool(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", value or ""))
+
+    def _localize_notification(self, item: Dict[str, Any]) -> Dict[str, Any]:
+        result = dict(item)
+        locale = result.pop("usuario_idioma", None)
+        key = result.get("message_key")
+        params = self._params(result.get("message_params"))
+        stored_message = str(result.get("mensaje") or "").strip()
+
+        localized = notification_i18n.render(
+            key,
+            params,
+            locale,
+            fallback_text=stored_message,
+        )
+
+        # Defensa final: jamás exponer una plantilla cruda al cliente.
+        # Si faltó algún parámetro pero la BD ya contiene el texto renderizado,
+        # se usa ese texto. Esto conserva compatibilidad con notificaciones legacy
+        # y con cualquier diferencia de codec JSONB entre entornos.
+        if self._has_unresolved_placeholders(localized) and stored_message:
+            if not self._has_unresolved_placeholders(stored_message):
+                localized = stored_message
+
+        result["mensaje"] = localized or stored_message or "Eterlotto"
+
+        # El cliente móvil no necesita conocer la estructura interna de i18n.
+        result.pop("message_key", None)
+        result.pop("message_params", None)
+        return result
+
     async def obtener_notificaciones(
         self,
         user_id: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
-        return await self.notification_repo.list_notifications(user_id)
+        rows = await self.notification_repo.list_notifications(user_id)
+        return [self._localize_notification(row) for row in rows]
 
     async def marcar_como_leida(
         self,
@@ -54,6 +128,8 @@ class NotificationUseCases:
         notification_id: int,
         loteria_id: Optional[int],
         mensaje: str,
+        message_key: Optional[str],
+        message_params: Optional[Dict[str, Any]],
         tipo: str,
         user_id: Optional[int],
         fecha_sorteo: Optional[datetime],
@@ -91,10 +167,17 @@ class NotificationUseCases:
         async def send_one(target: Dict[str, Any]) -> Dict[str, Any]:
             async with semaphore:
                 token = str(target["fcm_token"])
+                locale = target.get("idioma")
+                localized_body = notification_i18n.render(
+                    message_key,
+                    message_params,
+                    locale,
+                    fallback_text=mensaje,
+                )
                 result = await self.push_service.send(
                     token=token,
-                    title=config.PUSH_NOTIFICATION_TITLE,
-                    body=mensaje,
+                    title=notification_i18n.title(locale),
+                    body=localized_body,
                     data={
                         "notification_id": notification_id,
                         "loteria_id": loteria_id,
@@ -152,23 +235,36 @@ class NotificationUseCases:
         *,
         loteria_id: Optional[int],
         fecha: Optional[datetime],
-        mensaje: str,
+        mensaje: Optional[str],
         tipo: str,
         user_id: Optional[int] = None,
+        message_key: Optional[str] = None,
+        message_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
+        params = dict(message_params or {})
+        fallback_message = str(mensaje or "").strip()
+        if not fallback_message and message_key:
+            fallback_message = notification_i18n.render(
+                message_key,
+                params,
+                notification_i18n.fallback_locale,
+                fallback_text=message_key,
+            )
+        if not fallback_message:
+            fallback_message = "Eterlotto"
+
         created = await self.notification_repo.create_notification(
             loteria_id=loteria_id,
             fecha_sorteo=fecha,
-            mensaje=mensaje,
+            mensaje=fallback_message,
             tipo=tipo,
             user_id=user_id,
+            message_key=message_key,
+            message_params=params,
         )
 
         notification = created.get("notification") or {}
 
-        # Si PostgreSQL rechazó el INSERT por la restricción UNIQUE del
-        # evento, no se vuelve a enviar FCM. Así la idempotencia cubre tanto
-        # el buzón interno como la notificación física del dispositivo.
         if not created.get("created", True) or not notification:
             logger.info(
                 "[NOTIFICATIONS] event=NOTIFICATION_DUPLICATE_SKIPPED loteria_id=%s user_id=%s tipo=%s fecha=%s",
@@ -202,13 +298,14 @@ class NotificationUseCases:
             push = await self._send_pushes(
                 notification_id=notification_id,
                 loteria_id=loteria_id,
-                mensaje=mensaje,
+                mensaje=fallback_message,
+                message_key=message_key,
+                message_params=params,
                 tipo=tipo,
                 user_id=user_id,
                 fecha_sorteo=fecha,
             )
         except Exception as exc:
-            # El buzón interno nunca se pierde porque FCM esté temporalmente caído.
             logger.error(
                 "[NOTIFICATIONS] event=PUSH_BATCH_ERROR notification_id=%s error=%s",
                 notification_id,

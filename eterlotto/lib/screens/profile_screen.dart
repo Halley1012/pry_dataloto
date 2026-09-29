@@ -741,6 +741,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       } else {
         await locProvider.clearLocale();
       }
+      unawaited(PushNotificationService.syncLanguagePreference());
       if (mounted) {
         Navigator.pop(context); // Cerrar el diálogo de selección de idioma
       }

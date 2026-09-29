@@ -50,10 +50,18 @@ async def publish_notification(
     ):
         raise HTTPException(status_code=403, detail="Clave de notificación inválida")
 
+    if not payload.mensaje and not payload.message_key:
+        raise HTTPException(
+            status_code=422,
+            detail="Se requiere mensaje o message_key",
+        )
+
     return await use_cases.crear_notificacion(
         loteria_id=payload.loteria_id,
         fecha=payload.fecha_sorteo,
         mensaje=payload.mensaje,
+        message_key=payload.message_key,
+        message_params=payload.message_params,
         tipo=payload.tipo,
         user_id=payload.user_id,
     )
@@ -70,7 +78,9 @@ async def test_push(
     return await use_cases.crear_notificacion(
         loteria_id=None,
         fecha=None,
-        mensaje="Prueba de notificaciones Eterlotto",
+        mensaje=None,
+        message_key="test.message",
+        message_params={},
         tipo="test",
         user_id=int(current_user["user_id"]),
     )

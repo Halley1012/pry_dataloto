@@ -1,0 +1,42 @@
+{
+  "push": {
+    "title": "Eterlotto"
+  },
+  "date": {
+    "pattern": "{month} {day}",
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ]
+  },
+  "result": {
+    "play_hit": "🎯 {lottery}: your best combination matched {total_hits}/{total_draw}. Main: {main_hits}/{main_count}{main_numbers}.",
+    "play_hit_with_special": "🎯 {lottery}: your best combination matched {total_hits}/{total_draw}. Main: {main_hits}/{main_count}{main_numbers}. {special_label}: {special_hits}/{special_slots}{special_numbers}."
+  },
+  "precision": {
+    "result": "In the {date} draw for {lottery}, the AI Top {top_count} achieved: {summary}.",
+    "result_with_special": "In the {date} draw for {lottery}, the AI Top {top_count} achieved: {summary}. Specials: {special_summary}."
+  },
+  "test": {
+    "message": "Eterlotto notification test"
+  },
+  "list": {
+    "separator": ", ",
+    "pair_separator": " and ",
+    "final_separator": ", and "
+  },
+  "reminder": {
+    "draws_today_one": "🎟️ {lotteries} draws today. Check your analyses and plays in Eterlotto.",
+    "draws_today_many": "🎟️ {lotteries} draw today. Check your analyses and plays in Eterlotto."
+  }
+}

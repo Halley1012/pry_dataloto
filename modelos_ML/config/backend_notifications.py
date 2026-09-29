@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Mapping
 
 import requests
 
@@ -39,9 +39,11 @@ class BackendNotificationClient:
         *,
         loteria_id: int,
         fecha_sorteo: date | datetime | str | None,
-        mensaje: str,
+        mensaje: str | None,
         tipo: str,
         user_id: int | None = None,
+        message_key: str | None = None,
+        message_params: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         if not self.configured:
             missing = []
@@ -61,10 +63,21 @@ class BackendNotificationClient:
         else:
             fecha_value = str(fecha_sorteo)
 
+        def json_safe(value: Any) -> Any:
+            if isinstance(value, (date, datetime)):
+                return value.isoformat()
+            if isinstance(value, Mapping):
+                return {str(k): json_safe(v) for k, v in value.items()}
+            if isinstance(value, (list, tuple, set)):
+                return [json_safe(v) for v in value]
+            return value
+
         payload = {
             "loteria_id": int(loteria_id),
             "fecha_sorteo": fecha_value,
             "mensaje": mensaje,
+            "message_key": message_key,
+            "message_params": json_safe(dict(message_params or {})),
             "tipo": tipo,
             "user_id": user_id,
         }

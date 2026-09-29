@@ -176,8 +176,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             const SizedBox(height: 16),
                             Text(
                               _selectedFilterIndex == 0
-                                  ? _uiText('noPlayedNotifications')
-                                  : _uiText('noNotifications'),
+                                  ? AppLocalizations.of(context)!
+                                        .sinNotificacionesMisLoterias
+                                  : AppLocalizations.of(context)!
+                                        .sinNotificaciones,
                               style: AppTextStyles.mensajeSecundario,
                               textAlign: TextAlign.center,
                             ),
@@ -252,72 +254,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  String _uiText(String key) {
-    final lang = Localizations.localeOf(context).languageCode;
-
-    const values = {
-      'es': {
-        'myLotteries': 'Mis loterías',
-        'myCountry': 'Mi País',
-        'international': 'Internacionales',
-        'noPlayedNotifications':
-            'No tienes notificaciones de tus loterías jugadas aún',
-        'noNotifications': 'No tienes notificaciones aún',
-        'noMyLotteries': 'Sin notificaciones de tus loterías jugadas',
-        'noMyCountry': 'Sin notificaciones para tu país',
-        'noInternational': 'Sin notificaciones internacionales',
-        'read': 'Leído',
-        'delete': 'Eliminar',
-      },
-      'en': {
-        'myLotteries': 'My lotteries',
-        'myCountry': 'My country',
-        'international': 'International',
-        'noPlayedNotifications':
-            'You do not have notifications from your played lotteries yet',
-        'noNotifications': 'You do not have notifications yet',
-        'noMyLotteries': 'No notifications from your played lotteries',
-        'noMyCountry': 'No notifications for your country',
-        'noInternational': 'No international notifications',
-        'read': 'Read',
-        'delete': 'Delete',
-      },
-      'pt': {
-        'myLotteries': 'Minhas loterias',
-        'myCountry': 'Meu país',
-        'international': 'Internacionais',
-        'noPlayedNotifications':
-            'Você ainda não tem notificações das loterias que jogou',
-        'noNotifications': 'Você ainda não tem notificações',
-        'noMyLotteries': 'Sem notificações das loterias que você jogou',
-        'noMyCountry': 'Sem notificações para o seu país',
-        'noInternational': 'Sem notificações internacionais',
-        'read': 'Lido',
-        'delete': 'Excluir',
-      },
-    };
-
-    return values[lang]?[key] ?? values['es']![key] ?? key;
-  }
-
   String _emptyFilterMessage() {
+    final l10n = AppLocalizations.of(context)!;
     switch (_selectedFilterIndex) {
       case 0:
-        return _uiText('noMyLotteries');
+        return l10n.sinNotificacionesMisLoterias;
       case 1:
-        return _uiText('noMyCountry');
+        return l10n.sinNotificacionesCategoria;
       case 2:
-        return _uiText('noInternational');
+        return l10n.sinNotificacionesInternacionales;
       default:
-        return _uiText('noNotifications');
+        return l10n.sinNotificaciones;
     }
   }
 
   Widget _buildFilterChips() {
+    final l10n = AppLocalizations.of(context)!;
     final filters = [
-      _uiText('myLotteries'),
-      _uiText('myCountry'),
-      _uiText('international'),
+      l10n.misLoteriasFilter,
+      l10n.miPaisFilter,
+      l10n.internacionalesFilter,
     ];
 
     return Padding(
@@ -352,8 +308,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                         side: BorderSide(
-                          color:
-                              isSelected ? AppColors.yellow : Colors.white24,
+                          color: isSelected
+                              ? AppColors.yellow
+                              : Colors.white24,
                         ),
                       ),
                       showCheckmark: false,
@@ -475,10 +432,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          DateFormat(
-                            'dd MMM, yyyy • HH:mm',
-                            localeCode,
-                          ).format(notification.createdAt.toLocal()),
+                          DateFormat.yMMMd(localeCode)
+                              .add_Hm()
+                              .format(notification.createdAt.toLocal()),
                           style: AppTextStyles.caption.copyWith(
                             color: Colors.white54,
                             fontSize: 11,
@@ -524,7 +480,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
             const SizedBox(width: 8),
             Text(
-              _uiText('read'),
+              AppLocalizations.of(context)!.marcarLeido,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -546,7 +502,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             Text(
-              _uiText('delete'),
+              AppLocalizations.of(context)!.eliminar,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,

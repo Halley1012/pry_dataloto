@@ -374,13 +374,29 @@ class CombinationGeneratorProvider with ChangeNotifier {
       _combinations = data.combinations;
       _selectedCombinationNumbers.clear();
     } else {
-      _error = result['error'] ??
-          _tr(
-            'Error desconocido',
-            'Unknown error',
-            'Erro desconhecido',
-            'Erreur inconnue',
-          );
+      final errorCode = result['error_code']?.toString();
+      if (errorCode == 'temporary_network') {
+        _error = _tr(
+          'La conexión se interrumpió. Verifica tu internet e inténtalo nuevamente.',
+          'The connection was interrupted. Check your internet and try again.',
+          'A conexão foi interrompida. Verifique sua internet e tente novamente.',
+          'La connexion a été interrompue. Vérifiez votre connexion Internet et réessayez.',
+        );
+      } else if (errorCode == 'server_error') {
+        _error = _tr(
+          'No pudimos generar las combinaciones en este momento. Inténtalo nuevamente.',
+          'We could not generate the combinations right now. Please try again.',
+          'Não foi possível gerar as combinações agora. Tente novamente.',
+          'Impossible de générer les combinaisons pour le moment. Réessayez.',
+        );
+      } else {
+        _error = _tr(
+          'Ocurrió un problema temporal. Inténtalo nuevamente.',
+          'A temporary problem occurred. Please try again.',
+          'Ocorreu um problema temporário. Tente novamente.',
+          'Un problème temporaire est survenu. Réessayez.',
+        );
+      }
     }
 
     _isLoading = false;
