@@ -1,6 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:eterlotto/services/api_service.dart';
@@ -269,6 +269,20 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
     );
   }
 
+  void _openImageViewer(List<String> images, int initialIndex) {
+    if (images.isEmpty) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (_) => _PublicidadImageViewer(
+          images: images,
+          initialIndex: initialIndex,
+        ),
+      ),
+    );
+  }
+
   void _openGallery(List<String> images) {
     if (images.isEmpty) return;
     showModalBottomSheet<void>(
@@ -287,7 +301,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
             children: [
               Text(
                 _tr(es: 'Galería', en: 'Gallery', fr: 'Galerie', pt: 'Galeria'),
-                style: GoogleFonts.montserrat(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 20),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -299,14 +313,23 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                     mainAxisSpacing: 10,
                   ),
                   itemCount: images.length,
-                  itemBuilder: (_, index) => ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
-                    child: Image.network(
-                      images[index],
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: Colors.white10,
-                        child: const Icon(Icons.broken_image_outlined, color: Colors.white38),
+                  itemBuilder: (_, index) => GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      Future.microtask(() => _openImageViewer(images, index));
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: Image.network(
+                        images[index],
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: Colors.white10,
+                          child: const Icon(
+                            Icons.broken_image_outlined,
+                            color: Colors.white38,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -352,7 +375,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
               child: Stack(
                 children: [
                   SizedBox(
-                    height: 330,
+                    height: 255,
                     width: double.infinity,
                     child: images.isEmpty
                         ? Container(
@@ -363,13 +386,44 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                             controller: _pageController,
                             itemCount: images.length,
                             onPageChanged: (value) => setState(() => _page = value),
-                            itemBuilder: (_, index) => Image.network(
-                              images[index],
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                color: const Color(0xFF171C21),
-                                child: const Icon(Icons.broken_image_outlined, color: Colors.white24, size: 64),
-                              ),
+                            itemBuilder: (_, index) => Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                ImageFiltered(
+                                  imageFilter: ImageFilter.blur(
+                                    sigmaX: 18,
+                                    sigmaY: 18,
+                                  ),
+                                  child: Image.network(
+                                    images[index],
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: const Color(0xFF171C21),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  color: Colors.black.withValues(alpha: 0.22),
+                                ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                  ),
+                                  child: Image.network(
+                                    images[index],
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      color: const Color(0xFF171C21),
+                                      alignment: Alignment.center,
+                                      child: const Icon(
+                                        Icons.broken_image_outlined,
+                                        color: Colors.white24,
+                                        size: 64,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                   ),
@@ -405,7 +459,13 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                                 children: [
                                   Icon(favorite ? Icons.favorite : Icons.favorite_border, color: favorite ? Colors.redAccent : AppColors.yellow),
                                   const SizedBox(width: 6),
-                                  Text(_formatLikes(likes), style: GoogleFonts.montserrat(color: Colors.white, fontWeight: FontWeight.w600)),
+                                  Text(
+                                    _formatLikes(likes),
+                                    style: AppTextStyles.caption2.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ],
                               ),
                             ),
@@ -414,6 +474,29 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                       ),
                     ),
                   ),
+                  if (images.isNotEmpty)
+                    Positioned(
+                      right: 14,
+                      bottom: 14,
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.48),
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          tooltip: _tr(
+                            es: 'Ver imagen',
+                            en: 'View image',
+                            fr: 'Voir l’image',
+                            pt: 'Ver imagem',
+                          ),
+                          onPressed: () => _openImageViewer(images, _page),
+                          icon: const Icon(
+                            Icons.open_in_full_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
                   if (images.length > 1)
                     Positioned(
                       bottom: 18,
@@ -441,7 +524,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
             ),
             SliverToBoxAdapter(
               child: Transform.translate(
-                offset: const Offset(0, -18),
+                offset: const Offset(0, -10),
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
                   decoration: const BoxDecoration(
@@ -454,17 +537,47 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ClipOval(
-                            child: images.isNotEmpty
-                                ? Image.network(images.first, width: 72, height: 72, fit: BoxFit.cover)
-                                : Container(width: 72, height: 72, color: Colors.white10, child: const Icon(Icons.store, color: Colors.white38)),
+                          GestureDetector(
+                            onTap: () => _launch(
+                              _ad['pagina_url']?.toString(),
+                            ),
+                            behavior: HitTestBehavior.opaque,
+                            child: ClipOval(
+                              child: images.isNotEmpty
+                                  ? Image.network(
+                                      images.first,
+                                      width: 72,
+                                      height: 72,
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Container(
+                                      width: 72,
+                                      height: 72,
+                                      color: Colors.white10,
+                                      child: const Icon(
+                                        Icons.store,
+                                        color: Colors.white38,
+                                      ),
+                                    ),
+                            ),
                           ),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(title, style: GoogleFonts.montserrat(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                                GestureDetector(
+                                  onTap: () => _launch(
+                                    _ad['pagina_url']?.toString(),
+                                  ),
+                                  behavior: HitTestBehavior.opaque,
+                                  child: Text(
+                                    title,
+                                    style: AppTextStyles.tituloPrincipal.copyWith(
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                ),
                                 const SizedBox(height: 8),
                                 Wrap(
                                   spacing: 8,
@@ -501,7 +614,10 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                                     return Icon(active ? Icons.star : Icons.star_border, color: AppColors.yellow, size: 19);
                                   }),
                                   const SizedBox(width: 6),
-                                  Text('${average.toStringAsFixed(1)} ($votes)', style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 12.5)),
+                                  Text(
+                                    '${average.toStringAsFixed(1)} ($votes)',
+                                    style: AppTextStyles.caption.copyWith(color: Colors.white70),
+                                  ),
                                 ],
                               ),
                             ),
@@ -513,7 +629,10 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                                 children: [
                                   Icon(favorite ? Icons.favorite : Icons.favorite_border, color: favorite ? Colors.redAccent : Colors.white70, size: 20),
                                   const SizedBox(width: 6),
-                                  Text(_formatLikes(likes), style: GoogleFonts.montserrat(color: Colors.white70, fontWeight: FontWeight.w600)),
+                                  Text(
+                                    _formatLikes(likes),
+                                    style: AppTextStyles.caption2.copyWith(color: Colors.white70),
+                                  ),
                                 ],
                               ),
                             ),
@@ -521,7 +640,13 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      Text(shortDescription, style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 14, height: 1.45)),
+                      Text(
+                        shortDescription,
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          color: Colors.white70,
+                          height: 1.45,
+                        ),
+                      ),
                       const SizedBox(height: 18),
                       if (address.isNotEmpty) _infoRow(Icons.location_on_outlined, address, onTap: _maps),
                       if (city.isNotEmpty || dept.isNotEmpty)
@@ -532,11 +657,20 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                       const SizedBox(height: 24),
                       _sectionTitle(Icons.pets, _tr(es: 'Sobre nosotros', en: 'About us', fr: 'À propos', pt: 'Sobre nós')),
                       const SizedBox(height: 8),
-                      Text(about, style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 14, height: 1.5)),
+                      Text(
+                        about,
+                        style: AppTextStyles.mensajeSecundario.copyWith(
+                          color: Colors.white70,
+                          height: 1.5,
+                        ),
+                      ),
                       const SizedBox(height: 24),
                       _sectionTitle(Icons.schedule, _tr(es: 'Horario de atención', en: 'Opening hours', fr: 'Horaires', pt: 'Horário de atendimento')),
                       const SizedBox(height: 8),
-                      Text(_scheduleDetail(), style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 14)),
+                      Text(
+                        _scheduleDetail(),
+                        style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+                      ),
                       const SizedBox(height: 24),
                       _sectionTitle(Icons.star_rate_rounded, _tr(es: 'Tu calificación', en: 'Your rating', fr: 'Votre note', pt: 'Sua avaliação')),
                       const SizedBox(height: 8),
@@ -561,7 +695,10 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                               onPressed: () => _openGallery(images),
                               child: Text(
                                 _tr(es: 'Ver todas', en: 'View all', fr: 'Voir toutes', pt: 'Ver todas'),
-                                style: GoogleFonts.montserrat(color: AppColors.yellow, fontSize: 12.5, fontWeight: FontWeight.w600),
+                                style: AppTextStyles.caption2.copyWith(
+                                  color: AppColors.yellow,
+                                  fontWeight: FontWeight.w600,
+                                ),
                               ),
                             ),
                           ],
@@ -574,9 +711,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                             itemCount: images.length,
                             separatorBuilder: (_, __) => const SizedBox(width: 10),
                             itemBuilder: (_, index) => GestureDetector(
-                              onTap: () {
-                                _pageController.animateToPage(index, duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
-                              },
+                              onTap: () => _openImageViewer(images, index),
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(14),
                                 child: Image.network(
@@ -623,7 +758,14 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
         children: [
           Icon(icon, color: color, size: iconSize),
           const SizedBox(width: 6),
-          Text(text, style: GoogleFonts.montserrat(color: color, fontSize: 11.5, fontWeight: FontWeight.w600)),
+          Text(
+            text,
+            style: AppTextStyles.caption2.copyWith(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -635,7 +777,15 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
       children: [
         Icon(icon, color: AppColors.yellow, size: 22),
         const SizedBox(width: 9),
-        Flexible(child: Text(text, style: GoogleFonts.montserrat(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))),
+        Flexible(
+          child: Text(
+            text,
+            style: AppTextStyles.mensajeImportante.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -647,7 +797,12 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
         children: [
           Icon(icon, color: onTap != null ? AppColors.yellow : Colors.white54, size: 20),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: GoogleFonts.montserrat(color: Colors.white70, fontSize: 13.5))),
+          Expanded(
+            child: Text(
+              text,
+              style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
+            ),
+          ),
         ],
       ),
     );
@@ -663,7 +818,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
           child: GestureDetector(
             onTap: () => _launch(url),
             child: Container(
-              height: 48,
+              height: 46,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.13),
                 borderRadius: BorderRadius.circular(16),
@@ -674,7 +829,16 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                 children: [
                   FaIcon(icon, color: color, size: 19),
                   const SizedBox(width: 8),
-                  Flexible(child: Text(label, overflow: TextOverflow.ellipsis, style: GoogleFonts.montserrat(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600))),
+                  Flexible(
+                    child: Text(
+                      label,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption2.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -698,3 +862,122 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
     );
   }
 }
+
+class _PublicidadImageViewer extends StatefulWidget {
+  final List<String> images;
+  final int initialIndex;
+
+  const _PublicidadImageViewer({
+    required this.images,
+    required this.initialIndex,
+  });
+
+  @override
+  State<_PublicidadImageViewer> createState() => _PublicidadImageViewerState();
+}
+
+class _PublicidadImageViewerState extends State<_PublicidadImageViewer> {
+  late final PageController _controller;
+  late int _current;
+
+  @override
+  void initState() {
+    super.initState();
+    _current = widget.initialIndex.clamp(0, widget.images.length - 1);
+    _controller = PageController(initialPage: _current);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          PageView.builder(
+            controller: _controller,
+            itemCount: widget.images.length,
+            onPageChanged: (index) => setState(() => _current = index),
+            itemBuilder: (_, index) {
+              return SafeArea(
+                child: Center(
+                  child: InteractiveViewer(
+                    minScale: 1,
+                    maxScale: 4,
+                    panEnabled: true,
+                    scaleEnabled: true,
+                    child: Image.network(
+                      widget.images[index],
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: Colors.white38,
+                          size: 72,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Material(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  shape: const CircleBorder(),
+                  child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (widget.images.length > 1)
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 18),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.48),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Text(
+                      '${_current + 1} / ${widget.images.length}',
+                      style: AppTextStyles.caption2.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+

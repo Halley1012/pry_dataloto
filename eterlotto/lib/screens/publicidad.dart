@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -6,6 +7,7 @@ import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../utils/pais_helper.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -27,6 +29,16 @@ class CrearPublicidadForm extends StatefulWidget {
 
 class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   final _formKey = GlobalKey<FormState>();
+
+
+  static const int _maxFotosTotal = 4;
+  static const int _maxFotosGaleria = 3;
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _fotoPrincipalLocal;
+  final List<XFile> _galeriaLocal = [];
+  String? _fotoPrincipalRemota;
+  final List<String> _galeriaRemota = [];
+  bool _subiendoImagenes = false;
 
   // --- Controladores ---
   final tituloController = TextEditingController();
@@ -483,6 +495,13 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     direccionController.text = pub["direccion"]?.toString() ?? "";
     imagenUrlController.text = pub["imagen_url"]?.toString() ?? "";
 
+    _fotoPrincipalRemota = imagenUrlController.text.trim().isEmpty
+        ? null
+        : imagenUrlController.text.trim();
+    _galeriaRemota
+      ..clear()
+      ..addAll(_parseGalleryUrls(galeriaController.text).take(_maxFotosGaleria));
+
     facebookController.text = cleanSocial(
       pub["facebook_url"],
       "https://www.facebook.com/",
@@ -608,6 +627,399 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         .toList();
   }
 
+
+  int get _cantidadFotos =>
+      ((_fotoPrincipalLocal != null ||
+                  (_fotoPrincipalRemota?.trim().isNotEmpty ?? false))
+              ? 1
+              : 0) +
+      _galeriaRemota.length +
+      _galeriaLocal.length;
+
+  Future<void> _seleccionarPrincipal(ImageSource source) async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 82,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (image == null || !mounted) return;
+      setState(() => _fotoPrincipalLocal = image);
+    } catch (_) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'No fue posible seleccionar la imagen.',
+          en: 'Could not select the image.',
+          fr: 'Impossible de sélectionner l’image.',
+          pt: 'Não foi possível selecionar a imagem.',
+        ),
+      );
+    }
+  }
+
+  Future<void> _seleccionarGaleria() async {
+    final disponibles = _maxFotosGaleria -
+        _galeriaRemota.length -
+        _galeriaLocal.length;
+    if (disponibles <= 0) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'Máximo 4 fotos por anuncio.',
+          en: 'Maximum 4 photos per ad.',
+          fr: 'Maximum 4 photos par annonce.',
+          pt: 'Máximo de 4 fotos por anúncio.',
+        ),
+      );
+      return;
+    }
+
+    try {
+      final images = await _imagePicker.pickMultiImage(
+        imageQuality: 82,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (images.isEmpty || !mounted) return;
+      final selected = images.take(disponibles).toList();
+      setState(() => _galeriaLocal.addAll(selected));
+      if (images.length > disponibles) {
+        _mostrarMensaje(
+          _localizedLabel(
+            context,
+            es: 'Se agregaron sólo $disponibles foto(s). El máximo total es 4.',
+            en: 'Only $disponibles photo(s) were added. The total maximum is 4.',
+            fr: 'Seulement $disponibles photo(s) ajoutée(s). Maximum total : 4.',
+            pt: 'Apenas $disponibles foto(s) foram adicionadas. Máximo total: 4.',
+          ),
+        );
+      }
+    } catch (_) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'No fue posible abrir la galería.',
+          en: 'Could not open the gallery.',
+          fr: 'Impossible d’ouvrir la galerie.',
+          pt: 'Não foi possível abrir a galeria.',
+        ),
+      );
+    }
+  }
+
+  void _mostrarMensaje(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text, style: AppTextStyles.mensajeSecundario),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _subirFotosPendientes() async {
+    String principal = _fotoPrincipalRemota?.trim() ?? '';
+    final galeria = List<String>.from(_galeriaRemota);
+
+    if (_fotoPrincipalLocal != null) {
+      principal = await ApiService.uploadPublicidadImage(
+        _fotoPrincipalLocal!.path,
+        tipo: 'principal',
+      );
+    }
+
+    for (final image in _galeriaLocal) {
+      if (galeria.length >= _maxFotosGaleria) break;
+      final url = await ApiService.uploadPublicidadImage(
+        image.path,
+        tipo: 'galeria',
+      );
+      galeria.add(url);
+    }
+
+    return {
+      'principal': principal,
+      'galeria': galeria.take(_maxFotosGaleria).toList(),
+    };
+  }
+
+  Widget _fotoPrincipalPicker() {
+    final local = _fotoPrincipalLocal;
+    final remote = _fotoPrincipalRemota?.trim() ?? '';
+    final hasImage = local != null || remote.isNotEmpty;
+
+    Widget preview;
+    if (local != null) {
+      preview = Image.file(
+        File(local.path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 190,
+      );
+    } else if (remote.isNotEmpty) {
+      preview = Image.network(
+        remote,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 190,
+        errorBuilder: (_, __, ___) => const Center(
+          child: Icon(Icons.broken_image_outlined, color: Colors.white38),
+        ),
+      );
+    } else {
+      preview = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add_photo_alternate_outlined,
+                color: AppColors.yellow, size: 42),
+            const SizedBox(height: 8),
+            Text(
+              _localizedLabel(
+                context,
+                es: 'Selecciona la foto principal',
+                en: 'Select the main photo',
+                fr: 'Sélectionnez la photo principale',
+                pt: 'Selecione a foto principal',
+              ),
+              style: AppTextStyles.mensajeSecundario,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _localizedLabel(
+            context,
+            es: 'Foto principal',
+            en: 'Main photo',
+            fr: 'Photo principale',
+            pt: 'Foto principal',
+          ),
+          style: AppTextStyles.mensajeImportante,
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 190,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.04),
+            child: preview,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _subiendoImagenes
+                    ? null
+                    : () => _seleccionarPrincipal(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Galería',
+                    en: 'Gallery',
+                    fr: 'Galerie',
+                    pt: 'Galeria',
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _subiendoImagenes
+                    ? null
+                    : () => _seleccionarPrincipal(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Cámara',
+                    en: 'Camera',
+                    fr: 'Caméra',
+                    pt: 'Câmera',
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (hasImage)
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _subiendoImagenes
+                  ? null
+                  : () => setState(() {
+                        _fotoPrincipalLocal = null;
+                        _fotoPrincipalRemota = null;
+                      }),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: Text(
+                _localizedLabel(
+                  context,
+                  es: 'Quitar',
+                  en: 'Remove',
+                  fr: 'Retirer',
+                  pt: 'Remover',
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _galeriaPicker() {
+    final total = _galeriaRemota.length + _galeriaLocal.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _localizedLabel(
+                context,
+                es: 'Galería del anuncio',
+                en: 'Ad gallery',
+                fr: 'Galerie de l’annonce',
+                pt: 'Galeria do anúncio',
+              ),
+              style: AppTextStyles.mensajeImportante,
+            ),
+            Text(
+              '${_cantidadFotos.clamp(0, _maxFotosTotal)} / $_maxFotosTotal',
+              style: AppTextStyles.caption2.copyWith(color: AppColors.yellow),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (total > 0)
+          SizedBox(
+            height: 92,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (int i = 0; i < _galeriaRemota.length; i++)
+                  _miniaturaRemota(i),
+                for (int i = 0; i < _galeriaLocal.length; i++)
+                  _miniaturaLocal(i),
+              ],
+            ),
+          ),
+        if (total > 0) const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: (_subiendoImagenes || total >= _maxFotosGaleria)
+                ? null
+                : _seleccionarGaleria,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
+            label: Text(
+              _localizedLabel(
+                context,
+                es: 'Agregar fotos',
+                en: 'Add photos',
+                fr: 'Ajouter des photos',
+                pt: 'Adicionar fotos',
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _localizedLabel(
+            context,
+            es: 'Máximo 4 fotos en total: 1 principal + 3 de galería.',
+            en: 'Maximum 4 photos total: 1 main + 3 gallery photos.',
+            fr: 'Maximum 4 photos : 1 principale + 3 de galerie.',
+            pt: 'Máximo de 4 fotos: 1 principal + 3 da galeria.',
+          ),
+          style: AppTextStyles.caption.copyWith(color: Colors.white54),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniaturaRemota(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              _galeriaRemota[index],
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaRemota.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniaturaLocal(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(_galeriaLocal[index].path),
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaLocal.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _removePhotoButton(VoidCallback onTap) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.66),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _subiendoImagenes ? null : onTap,
+        child: const Padding(
+          padding: EdgeInsets.all(5),
+          child: Icon(Icons.close, color: Colors.white, size: 16),
+        ),
+      ),
+    );
+  }
+
   Future<void> _enviarFormulario(AppLocalizations l10n) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -629,9 +1041,30 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     );
     if (numeroWhatsAppLimpio.length < 7) return;
 
-    setState(() => isSubmitting = true);
+    final hasPrincipal = _fotoPrincipalLocal != null ||
+        (_fotoPrincipalRemota?.trim().isNotEmpty ?? false);
+    if (!hasPrincipal) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'Selecciona una foto principal.',
+          en: 'Select a main photo.',
+          fr: 'Sélectionnez une photo principale.',
+          pt: 'Selecione uma foto principal.',
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+      _subiendoImagenes = true;
+    });
 
     try {
+      final fotos = await _subirFotosPendientes();
+      final imagenPrincipalFinal = fotos['principal']?.toString() ?? '';
+      final galeriaFinal = List<String>.from(fotos['galeria'] as List);
       final telefonoCompleto = '$_selectedCountryCode $numeroLimpio';
       final codigoLimpio = _selectedWhatsAppCode.replaceAll('+', '');
       final whatsappFinal = '$codigoLimpio$numeroWhatsAppLimpio';
@@ -646,7 +1079,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "categoria_id": categoriaSeleccionada,
         "titulo": tituloController.text.trim(),
         "descripcion": descripcionController.text.trim(),
-        "imagen_url": imagenUrlController.text.trim(),
+        "imagen_url": imagenPrincipalFinal,
         "telefono": telefonoCompleto,
         "facebook_url": facebookController.text.trim(),
         "instagram_url": instagramController.text.trim(),
@@ -655,7 +1088,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "pagina_url": paginaController.text.trim(),
         "direccion": direccionController.text.trim(),
         "about_us": aboutUsController.text.trim(),
-        "galeria_urls": _parseGalleryUrls(galeriaController.text),
+        "galeria_urls": galeriaFinal,
         "es_24_7": _esAtencion24Horas,
         "hora_apertura": _esAtencion24Horas ? "00:00" : horaAperturaStr,
         "hora_cierre": _esAtencion24Horas ? "23:59" : horaCierreStr,
@@ -691,7 +1124,10 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       // Silencioso
     } finally {
       if (mounted) {
-        setState(() => isSubmitting = false);
+        setState(() {
+          isSubmitting = false;
+          _subiendoImagenes = false;
+        });
       }
     }
   }
@@ -710,6 +1146,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     whatsappController.clear();
     tiktokController.clear();
     paginaController.clear();
+
+    _fotoPrincipalLocal = null;
+    _fotoPrincipalRemota = null;
+    _galeriaLocal.clear();
+    _galeriaRemota.clear();
 
     setState(() {
       paisSeleccionado = null;
@@ -850,20 +1291,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       maxLines: 5,
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField(
-                      galeriaController,
-                      _localizedLabel(
-                        context,
-                        es: "Galería (URLs, una por línea)",
-                        en: "Gallery (URLs, one per line)",
-                        fr: "Galerie (URLs, une par ligne)",
-                        pt: "Galeria (URLs, uma por linha)",
-                      ),
-                      false,
-                      l10n,
-                      maxLines: 4,
-                    ),
-                    const SizedBox(height: 16),
                     FormField<String>(
                       validator: (_) {
                         final n = telefonoController.text.replaceAll(
@@ -891,7 +1318,9 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     const SizedBox(height: 16),
                     _buildTextField(direccionController, l10n.direccion, true, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(imagenUrlController, l10n.imagenUrl, true, l10n),
+                    _fotoPrincipalPicker(),
+                    const SizedBox(height: 18),
+                    _galeriaPicker(),
                     const SizedBox(height: 24),
                     _buildDropdown(l10n.pais, paisSeleccionado, _paises, (val) {
                       setState(() {
