@@ -81,16 +81,20 @@ class AdService {
   DateTime? _lastAppOpenShownAt;
   bool _hasCompletedColdStart = false;
   bool _isFullScreenAdShowing = false;
+  bool _appOpenEligible = false;
+  bool _appOpenShownThisSession = false;
 
   // 📐 Reglas de Oro configuradas
   static const Duration _sessionGracePeriod = Duration(seconds: 60); // Primeros 60s protegidos
   static const Duration _minIntervalBetweenInterstitials = Duration(minutes: 2); // 2 min cooldown
   static const int _maxInterstitialsPerSession = 2; // Máximo 2 por sesión
   static const int _actionsThreshold = 3; // Cada 3 acciones de valor
-  static const Duration _sessionResetAfterBackground = Duration(minutes: 30);
-  static const Duration _appOpenMinBackground = Duration(minutes: 2);
-  static const Duration _appOpenCooldown = Duration(minutes: 10);
-  static const Duration _minGapBetweenFullScreenAds = Duration(seconds: 30);
+  static const Duration _sessionResetAfterBackground = Duration(hours: 1);
+  // App Open debe sentirse ocasional, no como un castigo por cambiar de app.
+  // Sólo se considera tras una ausencia real y con un cooldown amplio.
+  static const Duration _appOpenMinBackground = Duration(minutes: 15);
+  static const Duration _appOpenCooldown = Duration(hours: 4);
+  static const Duration _minGapBetweenFullScreenAds = Duration(minutes: 10);
   static const Duration _appOpenMaxCacheDuration = Duration(hours: 4);
 
   // Instancias de Anuncios
@@ -127,12 +131,25 @@ class AdService {
   // 🚪 APP OPEN ADS (REGRESO A PRIMER PLANO)
   // ==========================================
 
+  /// Habilita/deshabilita App Open según el estado real de navegación.
+  /// Se mantiene deshabilitado durante Splash, Welcome, Login, registro y onboarding.
+  void setAppOpenEligibility(bool enabled) {
+    _appOpenEligible = enabled;
+    if (!enabled) {
+      _backgroundedAt = null;
+    }
+  }
+
   void onAppBackgrounded() {
+    // Un Rewarded/Interstitial/AppOpen también pausa la Activity de Android.
+    // Esa pausa NO debe contarse como si el usuario hubiera abandonado Eterlotto.
+    if (_isFullScreenAdShowing || !_appOpenEligible) return;
     _backgroundedAt ??= DateTime.now();
   }
 
   /// Se llama al volver al primer plano. No muestra App Open en el cold start.
-  /// En producción exige al menos 2 min fuera de la app y 10 min entre App Open.
+  /// En producción exige una ausencia real (15 min), un cooldown amplio (4 h)
+  /// y como máximo un App Open por sesión.
   void onAppForegrounded({bool isPremium = false}) {
     final now = DateTime.now();
 
@@ -140,6 +157,13 @@ class AdService {
       _hasCompletedColdStart = true;
       _backgroundedAt = null;
       loadAppOpenAd();
+      return;
+    }
+
+    // Nunca mostramos App Open antes de que el usuario haya entrado realmente
+    // a la experiencia autenticada (Home y pantallas derivadas).
+    if (!_appOpenEligible) {
+      _backgroundedAt = null;
       return;
     }
 
@@ -152,8 +176,10 @@ class AdService {
       _resetSession(now);
     }
 
+    // En pruebas sigue siendo más corto que producción, pero suficientemente
+    // largo para evitar un anuncio cada vez que el tester cambia de app.
     final minBackground = isTestMode
-        ? const Duration(seconds: 15)
+        ? const Duration(minutes: 2)
         : _appOpenMinBackground;
     if (backgroundDuration < minBackground) return;
 
@@ -165,6 +191,7 @@ class AdService {
     _sessionInterstitialShownCount = 0;
     _actionCounter = 0;
     _lastInterstitialShownAt = null;
+    _appOpenShownThisSession = false;
   }
 
   bool _canShowAnotherFullScreenAd() {
@@ -205,14 +232,18 @@ class AdService {
   }
 
   bool showAppOpenAdIfAvailable({bool isPremium = false}) {
-    if (isPremium || !_isInitialized || !_canShowAnotherFullScreenAd()) {
+    if (!_appOpenEligible ||
+        _appOpenShownThisSession ||
+        isPremium ||
+        !_isInitialized ||
+        !_canShowAnotherFullScreenAd()) {
       return false;
     }
 
     final now = DateTime.now();
     final lastShown = _lastAppOpenShownAt;
     final cooldown = isTestMode
-        ? const Duration(seconds: 30)
+        ? const Duration(minutes: 30)
         : _appOpenCooldown;
     if (lastShown != null && now.difference(lastShown) < cooldown) {
       return false;
@@ -237,6 +268,7 @@ class AdService {
     _appOpenLoadedAt = null;
     _isFullScreenAdShowing = true;
     _lastAppOpenShownAt = now;
+    _appOpenShownThisSession = true;
 
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {

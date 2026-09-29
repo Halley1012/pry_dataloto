@@ -14,6 +14,7 @@ import 'package:eterlotto/widgets/custom_dialogs.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'resultados/widgets/resultados_shared.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 class RegistroScreen extends StatefulWidget {
   final Map<String, dynamic>? user; // Para edición u onboarding
@@ -57,6 +58,11 @@ class _RegistroPageState extends State<RegistroScreen> {
   @override
   void initState() {
     super.initState();
+    // En registro/onboarding no debe aparecer App Open. En edición de perfil
+    // mantenemos el estado del Home porque el usuario ya está dentro de la app.
+    if (!_esEdicion || widget.isSocialOnboarding) {
+      AdService.instance.setAppOpenEligibility(false);
+    }
     _cargarDatosInicialesOptimizado();
   }
 
