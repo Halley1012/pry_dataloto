@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../services/cache_service.dart';
 import '../services/push_notification_service.dart';
 import '../utils/secure_storage_helper.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -37,6 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    AdService.instance.setAppOpenEligibility(false);
     _splashStartedAt = DateTime.now();
 
     unawaited(_startApplication());

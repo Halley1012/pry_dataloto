@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/screens/registro.dart';
 import 'package:eterlotto/screens/login.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -20,6 +21,12 @@ class WelcomeScreen extends StatefulWidget {
 
 class _WelcomeScreenState extends State<WelcomeScreen> {
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AdService.instance.setAppOpenEligibility(false);
+  }
   final storage = AppSecureStorage.instance;
 
   Future<void> _loginWithGoogle() async {

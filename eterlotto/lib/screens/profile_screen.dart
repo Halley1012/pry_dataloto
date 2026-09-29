@@ -26,6 +26,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/services/cache_service.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onLogout;
@@ -307,6 +308,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
+              AdService.instance.setAppOpenEligibility(false);
               context.read<SubscriptionProvider>().reset();
               await PushNotificationService.unregisterToken();
               await storage.deleteAll();
