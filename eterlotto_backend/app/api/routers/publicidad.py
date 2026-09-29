@@ -35,10 +35,38 @@ async def upload_publicidad_image(
     user_id = int(current_user["user_id"])
     content_type = (file.content_type or "").lower().strip()
     extension = _ALLOWED_IMAGE_TYPES.get(content_type)
+
+    # `http.MultipartFile.fromPath()` puede enviar archivos seleccionados desde
+    # Android como application/octet-stream. En ese caso resolvemos el tipo por
+    # la extensión real del nombre del archivo, en vez de rechazar una imagen válida.
+    if extension is None:
+        filename = (file.filename or "").lower().strip()
+        suffix_map = {
+            ".jpg": ("image/jpeg", ".jpg"),
+            ".jpeg": ("image/jpeg", ".jpg"),
+            ".png": ("image/png", ".png"),
+            ".webp": ("image/webp", ".webp"),
+            ".heic": ("image/heic", ".heic"),
+            ".heif": ("image/heif", ".heif"),
+        }
+        matched = next(
+            (
+                (mime, ext)
+                for suffix, (mime, ext) in suffix_map.items()
+                if filename.endswith(suffix)
+            ),
+            None,
+        )
+        if matched is not None:
+            content_type, extension = matched
+
     if extension is None:
         raise HTTPException(
             status_code=400,
-            detail="Formato no permitido. Usa JPG, PNG, WEBP, HEIC o HEIF.",
+            detail=(
+                f"Formato no permitido ({file.content_type or 'sin MIME'}). "
+                "Usa JPG, PNG, WEBP, HEIC o HEIF."
+            ),
         )
 
     payload = await file.read(_MAX_IMAGE_BYTES + 1)
