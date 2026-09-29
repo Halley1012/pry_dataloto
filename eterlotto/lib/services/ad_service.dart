@@ -309,7 +309,37 @@ class AdService {
     );
   }
 
-  /// Mostrar anuncio intersticial respetando todas las Reglas de Oro UX
+  /// Registra una acción de valor (por ejemplo, cambiar de sección principal)
+  /// y deja que AdService decida si corresponde mostrar un intersticial.
+  ///
+  /// La acción nunca bloquea la navegación. Si el umbral ya se alcanzó pero
+  /// todavía hay cooldown, el contador se conserva y se vuelve a intentar en
+  /// la siguiente acción válida.
+  bool recordValueAction({
+    bool isPremium = false,
+    VoidCallback? onAdClosed,
+  }) {
+    if (isPremium) {
+      onAdClosed?.call();
+      return false;
+    }
+
+    _actionCounter++;
+    if (_actionCounter < _actionsThreshold) {
+      onAdClosed?.call();
+      return false;
+    }
+
+    return showInterstitialAd(
+      isPremium: isPremium,
+      ignoreThreshold: true,
+      onAdClosed: onAdClosed,
+    );
+  }
+
+  /// Mostrar anuncio intersticial respetando todas las Reglas de Oro UX.
+  /// Las llamadas tradicionales sin [ignoreThreshold] también participan del
+  /// mismo contador global de acciones de valor.
   bool showInterstitialAd({
     bool isPremium = false,
     bool ignoreThreshold = false,
@@ -334,10 +364,12 @@ class AdService {
       return false;
     }
 
-    // 3. Regla: Contador de acciones de valor (cada 3 acciones)
+    // 3. Regla: Contador global de acciones de valor.
+    // Si hay cooldown cuando se alcanza el umbral, NO perdemos el progreso:
+    // el siguiente evento volverá a intentar mostrar el anuncio.
     if (!ignoreThreshold) {
       _actionCounter++;
-      if (_actionCounter % _actionsThreshold != 0) {
+      if (_actionCounter < _actionsThreshold) {
         onAdClosed?.call();
         return false;
       }
@@ -354,6 +386,9 @@ class AdService {
     }
 
     if (_interstitialAd != null) {
+      // Un intersticial mostrado satisface el umbral global, incluso cuando
+      // fue solicitado por una transición explícita (ignoreThreshold=true).
+      _actionCounter = 0;
       _currentOnClosedCallback = onAdClosed;
       _interstitialAd!.show();
       return true;
