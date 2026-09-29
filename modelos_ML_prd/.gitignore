@@ -1,0 +1,35 @@
+# Eterlotto environments / secrets
+.env
+.env.*
+!.env.dev.example
+!.env.prd.example
+.secrets/
+config/firebase_credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+.venv_*/
+venv/
+
+# ML artifacts generated locally (version separately when needed)
+models/
+*.pkl
+*.joblib
+*.onnx
+
+# Local tooling / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs / temp
+*.log
+*.tmp
