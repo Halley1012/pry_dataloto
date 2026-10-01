@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from typing import List
+from typing import List, Optional
 from app.api import schemas, dependencies
 from app.application.post_use_cases import PostUseCases
 
@@ -16,8 +16,17 @@ async def create_post(post: schemas.PostCreate, current_user: dict = Depends(dep
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/posts", response_model=List[schemas.PostResponse])
-async def get_posts(use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
-    return await use_cases.listar_posts()
+async def get_posts(
+    current_user: Optional[dict] = Depends(dependencies.get_optional_current_user),
+    use_cases: PostUseCases = Depends(dependencies.get_post_use_cases),
+):
+    requesting_user_id = None
+    if current_user and current_user.get("user_id") is not None:
+        requesting_user_id = int(current_user["user_id"])
+
+    return await use_cases.listar_posts(
+        requesting_user_id=requesting_user_id,
+    )
 
 @router.put("/posts/{post_id}", response_model=schemas.PostResponse)
 async def update_post(post_id: int, post_update: schemas.PostCreate, current_user: dict = Depends(dependencies.get_current_user), use_cases: PostUseCases = Depends(dependencies.get_post_use_cases)):
@@ -87,6 +96,36 @@ async def report_comment(
     except ValueError as e:
         # No revela si un comentario no público existe o no.
         raise HTTPException(status_code=404, detail=str(e))
+
+@router.post("/posts/{post_id}/like")
+async def toggle_post_like(
+    post_id: int,
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: PostUseCases = Depends(dependencies.get_post_use_cases),
+):
+    try:
+        return await use_cases.toggle_post_like(
+            post_id,
+            int(current_user["user_id"]),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/comments/{comment_id}/like")
+async def toggle_comment_like(
+    comment_id: int,
+    current_user: dict = Depends(dependencies.get_current_user),
+    use_cases: PostUseCases = Depends(dependencies.get_post_use_cases),
+):
+    try:
+        return await use_cases.toggle_comment_like(
+            comment_id,
+            int(current_user["user_id"]),
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 
 @router.get("/posts/{post_id}/comments", response_model=List[schemas.CommentResponse])
 async def get_comments(
