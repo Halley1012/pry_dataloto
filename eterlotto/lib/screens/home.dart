@@ -22,6 +22,7 @@ import 'package:eterlotto/models/post.dart';
 import 'package:eterlotto/screens/createpostscreen.dart';
 import 'package:eterlotto/screens/notifications_screen.dart';
 import 'package:eterlotto/screens/post.dart';
+import 'package:eterlotto/services/community_like_service.dart';
 import 'package:eterlotto/screens/combination_generator_screen.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:provider/provider.dart';
@@ -1727,6 +1728,9 @@ class _HomeScreenState extends State<HomeScreen>
             userName: existing.userName,
             createdAt: existing.createdAt,
             commentsCount: updatedCount,
+            avatarUrl: existing.avatarUrl,
+            totalLikes: existing.totalLikes,
+            isLiked: existing.isLiked,
           );
         }
         _postsVersion++;
@@ -1756,6 +1760,9 @@ class _HomeScreenState extends State<HomeScreen>
             commentsCount: updatedPost.commentsCount > 0
                 ? updatedPost.commentsCount
                 : existing.commentsCount,
+            avatarUrl: updatedPost.avatarUrl ?? existing.avatarUrl,
+            totalLikes: updatedPost.totalLikes,
+            isLiked: updatedPost.isLiked,
           );
         }
         _postsVersion++;
@@ -2633,6 +2640,7 @@ class _HomeScreenState extends State<HomeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 UserBalotaAvatar(
+                  avatarUrl: post.avatarUrl,
                   userName: displayName,
                   userId: post.userId,
                   radius: 18,
@@ -2817,6 +2825,51 @@ class _HomeScreenState extends State<HomeScreen>
     await _persistPostsCache();
   }
 
+  Future<void> _togglePostLike(Post post) async {
+    final index = posts.indexWhere((p) => p.id == post.id);
+    if (index < 0) return;
+
+    final previous = posts[index];
+    final optimistic = previous.copyWith(
+      isLiked: !previous.isLiked,
+      totalLikes: !previous.isLiked
+          ? previous.totalLikes + 1
+          : (previous.totalLikes > 0 ? previous.totalLikes - 1 : 0),
+    );
+
+    setState(() {
+      posts[index] = optimistic;
+      _postsVersion++;
+    });
+    await _persistPostsCache();
+
+    try {
+      final response = await CommunityLikeService.togglePostLike(post.id);
+      if (!mounted) return;
+      final currentIndex = posts.indexWhere((p) => p.id == post.id);
+      if (currentIndex < 0) return;
+      setState(() {
+        posts[currentIndex] = posts[currentIndex].copyWith(
+          isLiked: response['is_liked'] == true,
+          totalLikes: int.tryParse(response['total_likes']?.toString() ?? '') ??
+              posts[currentIndex].totalLikes,
+        );
+        _postsVersion++;
+      });
+      await _persistPostsCache();
+    } catch (_) {
+      if (!mounted) return;
+      final currentIndex = posts.indexWhere((p) => p.id == post.id);
+      if (currentIndex >= 0) {
+        setState(() {
+          posts[currentIndex] = previous;
+          _postsVersion++;
+        });
+        await _persistPostsCache();
+      }
+    }
+  }
+
   Widget _buildPostItem(Post post, bool isOwner) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
@@ -2831,6 +2884,7 @@ class _HomeScreenState extends State<HomeScreen>
                 Row(
                   children: [
                     UserBalotaAvatar(
+                      avatarUrl: post.avatarUrl,
                       userName: post.userName,
                       userId: post.userId,
                       radius: 12,
@@ -2872,6 +2926,32 @@ class _HomeScreenState extends State<HomeScreen>
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    InkWell(
+                      onTap: () => _togglePostLike(post),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        child: Row(
+                          children: [
+                            Icon(
+                              post.isLiked ? Icons.favorite : Icons.favorite_border,
+                              color: post.isLiked ? Colors.redAccent : AppColors.yellow,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${post.totalLikes}',
+                              style: AppTextStyles.caption.copyWith(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
                     InkWell(
                       onTap: () => _abrirPostScreen(post),
                       borderRadius: BorderRadius.circular(8),

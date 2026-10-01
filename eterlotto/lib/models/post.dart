@@ -9,6 +9,9 @@ class Post {
   final String userName;
   final DateTime createdAt;
   final int commentsCount;
+  final String? avatarUrl;
+  final int totalLikes;
+  final bool isLiked;
 
   Post({
     required this.id,
@@ -18,6 +21,9 @@ class Post {
     required this.userName,
     required this.createdAt,
     this.commentsCount = 0,
+    this.avatarUrl,
+    this.totalLikes = 0,
+    this.isLiked = false,
   });
 
   factory Post.fromJson(Map<String, dynamic> json) {
@@ -34,6 +40,11 @@ class Post {
               json['commentsCount'] as int? ??
               json['comment_count'] as int? ??
               0,
+      avatarUrl: json['avatar_url']?.toString(),
+      totalLikes: json['total_likes'] is int
+          ? json['total_likes']
+          : int.tryParse(json['total_likes']?.toString() ?? '') ?? 0,
+      isLiked: json['is_liked'] == true,
     );
   }
 
@@ -46,7 +57,32 @@ class Post {
       'user_name': userName,
       'created_at': createdAt.toIso8601String(),
       'comments_count': commentsCount,
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      'total_likes': totalLikes,
+      'is_liked': isLiked,
     };
+  }
+
+  Post copyWith({
+    String? title,
+    String? content,
+    int? commentsCount,
+    String? avatarUrl,
+    int? totalLikes,
+    bool? isLiked,
+  }) {
+    return Post(
+      id: id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      userId: userId,
+      userName: userName,
+      createdAt: createdAt,
+      commentsCount: commentsCount ?? this.commentsCount,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      totalLikes: totalLikes ?? this.totalLikes,
+      isLiked: isLiked ?? this.isLiked,
+    );
   }
 
   String get formattedDate {
