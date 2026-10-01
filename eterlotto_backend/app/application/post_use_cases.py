@@ -32,8 +32,17 @@ class PostUseCases:
 
         return await self.post_repo.create_post(title.strip(), content.strip(), user_id)
 
-    async def listar_posts(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
-        return await self.post_repo.list_posts(skip, limit)
+    async def listar_posts(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        requesting_user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        return await self.post_repo.list_posts(
+            skip,
+            limit,
+            requesting_user_id,
+        )
 
     async def editar_post(self, post_id: int, title: str, content: str, user_id: int) -> Dict[str, Any]:
         # 1. Moderación de título
@@ -139,3 +148,18 @@ class PostUseCases:
             post_id,
             requesting_user_id,
         )
+
+    async def toggle_post_like(
+        self,
+        post_id: int,
+        user_id: int,
+    ) -> Dict[str, Any]:
+        return await self.post_repo.toggle_post_like(post_id, user_id)
+
+    async def toggle_comment_like(
+        self,
+        comment_id: int,
+        user_id: int,
+    ) -> Dict[str, Any]:
+        return await self.post_repo.toggle_comment_like(comment_id, user_id)
+

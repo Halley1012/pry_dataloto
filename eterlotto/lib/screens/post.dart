@@ -10,6 +10,7 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
+import 'package:eterlotto/services/community_like_service.dart';
 
 import '../utils/secure_storage_helper.dart';
 
@@ -286,6 +287,44 @@ class _PostScreenState extends State<PostScreen> {
     } finally {
       if (mounted) {
         setState(() => _reportingCommentIds.remove(comment.id));
+      }
+    }
+  }
+
+  Future<void> _toggleCommentLike(Comment comment) async {
+    final index = comments.indexWhere((c) => c.id == comment.id);
+    if (index < 0) return;
+
+    final previous = comments[index];
+    setState(() {
+      comments[index] = previous.copyWith(
+        isLiked: !previous.isLiked,
+        totalLikes: !previous.isLiked
+            ? previous.totalLikes + 1
+            : (previous.totalLikes > 0 ? previous.totalLikes - 1 : 0),
+      );
+    });
+    await _persistCommentsCache();
+
+    try {
+      final response = await CommunityLikeService.toggleCommentLike(comment.id);
+      if (!mounted) return;
+      final currentIndex = comments.indexWhere((c) => c.id == comment.id);
+      if (currentIndex < 0) return;
+      setState(() {
+        comments[currentIndex] = comments[currentIndex].copyWith(
+          isLiked: response['is_liked'] == true,
+          totalLikes: int.tryParse(response['total_likes']?.toString() ?? '') ??
+              comments[currentIndex].totalLikes,
+        );
+      });
+      await _persistCommentsCache();
+    } catch (_) {
+      if (!mounted) return;
+      final currentIndex = comments.indexWhere((c) => c.id == comment.id);
+      if (currentIndex >= 0) {
+        setState(() => comments[currentIndex] = previous);
+        await _persistCommentsCache();
       }
     }
   }
@@ -573,6 +612,7 @@ class _PostScreenState extends State<PostScreen> {
           Row(
             children: [
               UserBalotaAvatar(
+                avatarUrl: comment.avatarUrl,
                 userName: comment.userName,
                 userId: comment.userId,
                 radius: isReply ? 11 : 12,
@@ -657,7 +697,33 @@ class _PostScreenState extends State<PostScreen> {
           Row(
             children: [
               InkWell(
-                onTap: () => _iniciarRespuesta(comment),
+                onTap: () => _toggleCommentLike(comment),
+                 borderRadius: BorderRadius.circular(8),
+                 child: Padding(
+                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                   child: Row(
+                     children: [
+                       Icon(
+                         comment.isLiked ? Icons.favorite : Icons.favorite_border,
+                         color: comment.isLiked ? Colors.redAccent : AppColors.yellow,
+                         size: 15,
+                       ),
+                       const SizedBox(width: 4),
+                       Text(
+                         '${comment.totalLikes}',
+                         style: AppTextStyles.caption.copyWith(
+                           color: Colors.white70,
+                           fontSize: 12,
+                           fontWeight: FontWeight.w500,
+                         ),
+                       ),
+                     ],
+                   ),
+                 ),
+               ),
+               const SizedBox(width: 16),
+               InkWell(
+                 onTap: () => _iniciarRespuesta(comment),
                 borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),

@@ -11,6 +11,9 @@ class Comment {
   final String status;
   final String? moderationReason;
   final DateTime? updatedAt;
+  final String? avatarUrl;
+  final int totalLikes;
+  final bool isLiked;
 
   Comment({
     required this.id,
@@ -23,6 +26,9 @@ class Comment {
     this.status = 'active',
     this.moderationReason,
     this.updatedAt,
+    this.avatarUrl,
+    this.totalLikes = 0,
+    this.isLiked = false,
   });
 
   factory Comment.fromJson(Map<String, dynamic> json) {
@@ -54,6 +60,11 @@ class Comment {
       status: json['status'] ?? 'active',
       moderationReason: json['moderation_reason'],
       updatedAt: parsedUpdatedAt,
+      avatarUrl: json['avatar_url']?.toString(),
+      totalLikes: json['total_likes'] is int
+          ? json['total_likes']
+          : int.tryParse(json['total_likes']?.toString() ?? '') ?? 0,
+      isLiked: json['is_liked'] == true,
     );
   }
 
@@ -69,7 +80,32 @@ class Comment {
       'status': status,
       if (moderationReason != null) 'moderation_reason': moderationReason,
       if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
+      if (avatarUrl != null) 'avatar_url': avatarUrl,
+      'total_likes': totalLikes,
+      'is_liked': isLiked,
     };
+  }
+
+  Comment copyWith({
+    int? totalLikes,
+    bool? isLiked,
+    String? avatarUrl,
+  }) {
+    return Comment(
+      id: id,
+      postId: postId,
+      userId: userId,
+      userName: userName,
+      content: content,
+      createdAt: createdAt,
+      parentId: parentId,
+      status: status,
+      moderationReason: moderationReason,
+      updatedAt: updatedAt,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      totalLikes: totalLikes ?? this.totalLikes,
+      isLiked: isLiked ?? this.isLiked,
+    );
   }
 
   String get formattedDate {

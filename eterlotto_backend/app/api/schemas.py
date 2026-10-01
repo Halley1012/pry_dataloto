@@ -119,6 +119,9 @@ class CommentResponse(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
     parent_id: Optional[int] = None
+    avatar_url: Optional[str] = None
+    total_likes: int = 0
+    is_liked: bool = False
 
 class CommentReportResponse(BaseModel):
     comment_id: int
@@ -136,6 +139,9 @@ class PostResponse(BaseModel):
     user_name: str
     created_at: datetime
     comments_count: int = 0
+    avatar_url: Optional[str] = None
+    total_likes: int = 0
+    is_liked: bool = False
 
 
 class PaisOut(BaseModel):

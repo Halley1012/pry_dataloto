@@ -177,7 +177,12 @@ class PostRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    async def list_posts(self, skip: int, limit: int) -> List[Dict[str, Any]]:
+    async def list_posts(
+        self,
+        skip: int,
+        limit: int,
+        requesting_user_id: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -210,6 +215,23 @@ class PostRepositoryPort(ABC):
         post_id: int,
         requesting_user_id: int,
     ) -> List[Dict[str, Any]]:
+        pass
+
+
+    @abstractmethod
+    async def toggle_post_like(
+        self,
+        post_id: int,
+        user_id: int,
+    ) -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    async def toggle_comment_like(
+        self,
+        comment_id: int,
+        user_id: int,
+    ) -> Dict[str, Any]:
         pass
 
 
