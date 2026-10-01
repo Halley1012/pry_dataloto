@@ -36,8 +36,8 @@ with DAG(
     "eterlotto_recordatorios_sorteos_diarios",
     default_args=default_args,
     description="Envía un recordatorio diario por usuario con los sorteos de su país",
-    # Configurable para DEV/PRD. Si no se define, 13:00 UTC (~08:00 Colombia).
-    schedule=os.getenv("DAILY_REMINDER_CRON", "0 13 * * *"),
+    # Ejecución horaria; el código decide la ventana local de cada país.
+    schedule=os.getenv("DAILY_REMINDER_CRON", "0 * * * *"),
     start_date=datetime(2026, 1, 1),
     catchup=False,
     tags=["eterlotto", "notifications", "reminders"],

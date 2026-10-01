@@ -2,7 +2,8 @@ import argparse
 import re
 import sys
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 
 from sqlalchemy import inspect, text
@@ -84,11 +85,20 @@ class DailyLotteryReminder:
 
             rows = conn.execute(
                 text("""
-                    SELECT id, nombre, pais_id
-                    FROM loterias
-                    WHERE id = ANY(:ids)
-                      AND pais_id IS NOT NULL
-                    ORDER BY pais_id, nombre
+                    SELECT
+                        l.id,
+                        l.nombre,
+                        l.pais_id,
+                        COALESCE(NULLIF(l.timezone, ''), p.timezone_default) AS timezone,
+                        l.hora_sorteo,
+                        COALESCE(l.horas_anticipacion_recordatorio, 5)
+                            AS horas_anticipacion_recordatorio
+                    FROM loterias l
+                    JOIN paises p ON p.id = l.pais_id
+                    WHERE l.id = ANY(:ids)
+                      AND l.pais_id IS NOT NULL
+                      AND COALESCE(l.activa, TRUE) = TRUE
+                    ORDER BY l.pais_id, l.nombre
                 """),
                 {"ids": sorted(due_ids)},
             ).mappings().all()
@@ -144,14 +154,116 @@ class DailyLotteryReminder:
             else "reminder.draws_today_many"
         )
 
-    def run(self, target_date: date | None = None, force: bool = False) -> None:
-        target_date = target_date or date.today()
-        lotteries = self._lotteries_due_on(target_date)
+    @staticmethod
+    def _local_now(timezone_name: str, now_utc: datetime) -> datetime | None:
+        try:
+            return now_utc.astimezone(ZoneInfo(timezone_name))
+        except (ZoneInfoNotFoundError, ValueError):
+            return None
 
-        if not lotteries:
-            print(f"ℹ️ No se detectaron sorteos para {target_date}.")
+    @staticmethod
+    def _reminder_hour(lottery: dict) -> int:
+        """Hora local de envío. Fallback: 18:00 local."""
+        draw_time = lottery.get("hora_sorteo")
+        if draw_time is None:
+            return 18
+
+        if isinstance(draw_time, str):
+            try:
+                draw_time = time.fromisoformat(draw_time)
+            except ValueError:
+                return 18
+
+        anticipation = max(
+            0, int(lottery.get("horas_anticipacion_recordatorio") or 5)
+        )
+        base = datetime.combine(date(2000, 1, 2), draw_time)
+        reminder = base - timedelta(hours=anticipation)
+
+        # El mensaje actual dice "hoy juega". Si el cálculo cae el día anterior,
+        # usamos 18:00 del día del sorteo hasta tener mensaje "mañana juega".
+        if reminder.date() != base.date():
+            return 18
+        return reminder.hour
+
+    def _scheduled_lotteries(self, now_utc: datetime) -> dict[date, list[dict]]:
+        """Selecciona las loterías que están en su ventana local de envío."""
+        with self.engine.connect() as conn:
+            rows = conn.execute(
+                text("""
+                    SELECT DISTINCT
+                        COALESCE(NULLIF(l.timezone, ''), p.timezone_default) AS timezone
+                    FROM loterias l
+                    JOIN paises p ON p.id = l.pais_id
+                    WHERE COALESCE(l.activa, TRUE) = TRUE
+                      AND COALESCE(NULLIF(l.timezone, ''), p.timezone_default)
+                          IS NOT NULL
+                """)
+            ).mappings().all()
+
+        local_dates: set[date] = set()
+        for row in rows:
+            tz_name = str(row["timezone"]).strip()
+            local_now = self._local_now(tz_name, now_utc)
+            if local_now is not None:
+                local_dates.add(local_now.date())
+
+        selected: dict[date, list[dict]] = defaultdict(list)
+        for local_date in sorted(local_dates):
+            for lottery in self._lotteries_due_on(local_date):
+                tz_name = str(lottery.get("timezone") or "").strip()
+                if not tz_name:
+                    print(f"⚠️ Lotería {lottery.get('id')} sin timezone; se omite.")
+                    continue
+
+                local_now = self._local_now(tz_name, now_utc)
+                if local_now is None:
+                    print(
+                        f"⚠️ Timezone inválida '{tz_name}' "
+                        f"para lotería {lottery.get('id')}; se omite."
+                    )
+                    continue
+
+                if local_now.date() != local_date:
+                    continue
+                if local_now.hour != self._reminder_hour(lottery):
+                    continue
+
+                selected[local_date].append(lottery)
+
+        return selected
+
+    def run(self, target_date: date | None = None, force: bool = False) -> None:
+        # Modo manual/diagnóstico: --date procesa esa fecha inmediatamente.
+        if target_date is not None:
+            lotteries = self._lotteries_due_on(target_date)
+            if not lotteries:
+                print(f"ℹ️ No se detectaron sorteos para {target_date}.")
+                return
+            self._send_reminders(target_date, lotteries, force)
             return
 
+        # Modo automático: Airflow corre cada hora en UTC y aquí se decide
+        # qué países/loterías están en su hora local de recordatorio.
+        now_utc = datetime.now(ZoneInfo("UTC"))
+        scheduled = self._scheduled_lotteries(now_utc)
+
+        if not scheduled:
+            print(
+                f"ℹ️ Sin recordatorios en esta ventana. "
+                f"UTC={now_utc.isoformat(timespec='seconds')}"
+            )
+            return
+
+        for local_date, lotteries in sorted(scheduled.items()):
+            self._send_reminders(local_date, lotteries, force)
+
+    def _send_reminders(
+        self,
+        target_date: date,
+        lotteries: list[dict],
+        force: bool = False,
+    ) -> None:
         by_country: dict[int, list[dict]] = defaultdict(list)
         for lottery in lotteries:
             by_country[int(lottery["pais_id"])].append(lottery)
@@ -180,13 +292,9 @@ class DailyLotteryReminder:
             message_key = self._message_key(names)
 
             try:
-                # Se asocia al primer juego únicamente para mantener contexto
-                # de país en el buzón; el mensaje resume todas las loterías.
                 response = self.client.publish(
                     loteria_id=int(country_lotteries[0]["id"]),
                     fecha_sorteo=target_date,
-                    # Fallback legacy por seguridad. La traducción real se
-                    # resuelve en el backend según users.idioma.
                     mensaje=(
                         f"🎟️ {', '.join(names)} draw today. "
                         "Check your analyses and plays in Eterlotto."
@@ -199,7 +307,8 @@ class DailyLotteryReminder:
                 push = response.get("push") or {}
                 print(
                     f"✅ user_id={user_id} | país={pais_id} "
-                    f"| loterías={len(names)} | sent={push.get('sent', 0)}"
+                    f"| fecha={target_date} | loterías={len(names)} "
+                    f"| sent={push.get('sent', 0)}"
                 )
                 sent += 1
             except Exception as exc:
@@ -207,7 +316,7 @@ class DailyLotteryReminder:
                 failed += 1
 
         print(
-            f"📨 Recordatorios: enviados={sent}, "
+            f"📨 Recordatorios {target_date}: enviados={sent}, "
             f"omitidos={skipped}, fallidos={failed}"
         )
 
@@ -218,7 +327,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--date",
-        help="Fecha YYYY-MM-DD. Por defecto usa hoy.",
+        help="Fecha YYYY-MM-DD. Si se indica, procesa esa fecha inmediatamente.",
     )
     parser.add_argument(
         "--force",
