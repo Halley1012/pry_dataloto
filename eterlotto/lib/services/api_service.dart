@@ -610,6 +610,43 @@ class ApiService {
     }
   }
 
+  // 📷 Subir foto de perfil al backend -> Supabase Storage
+  static Future<String> uploadProfileImage(String filePath) async {
+    await ensureValidSession();
+    final token = await getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Debes iniciar sesión para subir una foto');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/users/avatar/upload'),
+    );
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      decoded = null;
+    }
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        decoded is Map &&
+        decoded['url'] != null) {
+      return decoded['url'].toString();
+    }
+
+    final detail = decoded is Map
+        ? (decoded['detail'] ?? decoded['message'])
+        : response.body;
+    throw Exception(detail ?? 'No fue posible subir la foto de perfil');
+  }
+
   /// 🖼️ Obtener avatar guardado
   static Future<String?> getAvatarUrl() async {
     return await _storage.read(key: "avatar_url");
@@ -1596,16 +1633,21 @@ class ApiService {
   }
 
   // 📢 Obtener anuncios filtrados (por ID)
-  static Future<List<Map<String, dynamic>>> getPublicidades({
+  static Future<Map<String, dynamic>> getPublicidadesPage({
     int? paisId,
     int? departamentoId,
     int? ciudadId,
     int? categoriaId,
     String? titulo,
+    int limit = 10,
+    int offset = 0,
   }) async {
     try {
       // 🧱 1. Construir la URL base con filtros dinámicos
-      final Map<String, String> queryParams = {};
+      final Map<String, String> queryParams = {
+        'limit': limit.clamp(1, 100).toString(),
+        'offset': offset < 0 ? '0' : offset.toString(),
+      };
 
       if (paisId != null && paisId > 0) {
         queryParams['pais_id'] = paisId.toString();
@@ -1628,30 +1670,57 @@ class ApiService {
         "$baseUrl/publicidad",
       ).replace(queryParameters: queryParams);
 
-      // 📬 3. Enviar solicitud HTTP
-      final response = await http
-          .get(uri, headers: await _getHeaders(withAuth: false))
+      // 📬 3. Enviar solicitud HTTP. Si existe sesión, mandamos token para
+      // recibir is_favorite/user_rating; si el token expiró, reintentamos como
+      // catálogo público para no bloquear el directorio.
+      var response = await http
+          .get(uri, headers: await _getHeaders(withAuth: true))
           .timeout(_requestTimeout);
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        response = await http
+            .get(uri, headers: await _getHeaders(withAuth: false))
+            .timeout(_requestTimeout);
+      }
 
       // ✅ 4. Validar estado de la respuesta
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
 
         List<Map<String, dynamic>> resultList = [];
+        Map<String, dynamic> pagination = {
+          'total': 0,
+          'limit': limit,
+          'offset': offset,
+          'has_more': false,
+        };
+
         if (decoded is Map<String, dynamic> && decoded.containsKey('data')) {
-          final List<dynamic> data = decoded['data'];
-          resultList = List<Map<String, dynamic>>.from(data);
+          final dynamic rawData = decoded['data'];
+          if (rawData is List) {
+            resultList = rawData
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList();
+          }
+          if (decoded['pagination'] is Map) {
+            pagination = Map<String, dynamic>.from(decoded['pagination']);
+          } else {
+            pagination['total'] = resultList.length;
+            pagination['has_more'] = resultList.length >= limit;
+          }
         } else if (decoded is List) {
-          resultList = List<Map<String, dynamic>>.from(decoded);
+          resultList = decoded
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList();
+          pagination['total'] = resultList.length;
+          pagination['has_more'] = resultList.length >= limit;
         }
 
-        // Nunca mezclar estado privado de una cuenta con el catálogo público.
-        for (final ad in resultList) {
-          ad.remove('is_favorite');
-          ad.remove('is_favorito');
-          ad.remove('favorito');
-        }
-        return resultList;
+        return {
+          'data': resultList,
+          'pagination': pagination,
+        };
       } else {
         throw Exception(
           "Error ${response.statusCode}: ${response.reasonPhrase}",
@@ -1663,6 +1732,36 @@ class ApiService {
       );
     }
   }
+
+
+  static Future<List<Map<String, dynamic>>> getPublicidades({
+    int? paisId,
+    int? departamentoId,
+    int? ciudadId,
+    int? categoriaId,
+    String? titulo,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final page = await getPublicidadesPage(
+      paisId: paisId,
+      departamentoId: departamentoId,
+      ciudadId: ciudadId,
+      categoriaId: categoriaId,
+      titulo: titulo,
+      limit: limit,
+      offset: offset,
+    );
+    final data = page['data'];
+    if (data is List) {
+      return data
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
 
   // ✅ Obtener lista de países. Es catálogo público: no se mezcla con estado
   // de suscripción, por lo que VIP y usuarios normales reciben lo mismo.
@@ -1941,6 +2040,46 @@ class ApiService {
     return <Map<String, dynamic>>[];
   }
 
+  // 📷 Subir imagen de publicidad al backend -> Supabase Storage
+  static Future<String> uploadPublicidadImage(
+    String filePath, {
+    String tipo = 'galeria',
+  }) async {
+    await ensureValidSession();
+    final token = await getToken();
+    if (token == null || token.isEmpty) {
+      throw Exception('Debes iniciar sesión para subir imágenes');
+    }
+
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/publicidad/upload-image'),
+    );
+    request.headers['Authorization'] = 'Bearer $token';
+    request.fields['tipo'] = tipo;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+
+    final streamed = await request.send().timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(response.body);
+    } catch (_) {
+      decoded = null;
+    }
+
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        decoded is Map &&
+        decoded['url'] != null) {
+      return decoded['url'].toString();
+    }
+
+    final detail = decoded is Map
+        ? (decoded['detail'] ?? decoded['message'])
+        : response.body;
+    throw Exception(detail ?? 'No fue posible subir la imagen');
+  }
+
   // --- CREAR PUBLICIDAD ---
   static Future<Map<String, dynamic>> crearPublicidad(
     Map<String, dynamic> data,
@@ -1970,6 +2109,8 @@ class ApiService {
       "tiktok_url": data["tiktok_url"],
       "pagina_url": data["pagina_url"],
       "direccion": data["direccion"],
+      "about_us": data["about_us"],
+      "galeria_urls": data["galeria_urls"] ?? <String>[],
       "es_24_7": data["es_24_7"],
       "hora_apertura": data["hora_apertura"],
       "hora_cierre": data["hora_cierre"],
@@ -2152,6 +2293,7 @@ class ApiService {
     return {
       "success": true,
       "is_favorite": willBeFav,
+      "total_likes": null,
       "total_votos": null,
       "is_destacado": null,
     };

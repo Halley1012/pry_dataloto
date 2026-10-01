@@ -1,11 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:google_fonts/google_fonts.dart';
+import 'package:image_picker/image_picker.dart';
 import '../utils/pais_helper.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
@@ -28,9 +29,21 @@ class CrearPublicidadForm extends StatefulWidget {
 class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   final _formKey = GlobalKey<FormState>();
 
+
+  static const int _maxFotosTotal = 4;
+  static const int _maxFotosGaleria = 3;
+  final ImagePicker _imagePicker = ImagePicker();
+  XFile? _fotoPrincipalLocal;
+  final List<XFile> _galeriaLocal = [];
+  String? _fotoPrincipalRemota;
+  final List<String> _galeriaRemota = [];
+  bool _subiendoImagenes = false;
+
   // --- Controladores ---
   final tituloController = TextEditingController();
   final descripcionController = TextEditingController();
+  final aboutUsController = TextEditingController();
+  final galeriaController = TextEditingController();
   final telefonoController = TextEditingController();
   final direccionController = TextEditingController();
   final imagenUrlController = TextEditingController();
@@ -116,6 +129,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     descripcionController.removeListener(_onDescripcionChanged);
     tituloController.dispose();
     descripcionController.dispose();
+    aboutUsController.dispose();
+    galeriaController.dispose();
     telefonoController.dispose();
     direccionController.dispose();
     imagenUrlController.dispose();
@@ -466,8 +481,25 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     tituloController.text = pub["titulo"]?.toString() ?? "";
     descripcionController.text = pub["descripcion"]?.toString() ?? "";
     descripcionLength = descripcionController.text.length;
+    aboutUsController.text = pub["about_us"]?.toString() ?? "";
+    final galleryRaw = pub["galeria_urls"];
+    if (galleryRaw is List) {
+      galeriaController.text = galleryRaw
+          .map((e) => e.toString().trim())
+          .where((e) => e.isNotEmpty)
+          .join("\n");
+    } else {
+      galeriaController.text = galleryRaw?.toString() ?? "";
+    }
     direccionController.text = pub["direccion"]?.toString() ?? "";
     imagenUrlController.text = pub["imagen_url"]?.toString() ?? "";
+
+    _fotoPrincipalRemota = imagenUrlController.text.trim().isEmpty
+        ? null
+        : imagenUrlController.text.trim();
+    _galeriaRemota
+      ..clear()
+      ..addAll(_parseGalleryUrls(galeriaController.text).take(_maxFotosGaleria));
 
     facebookController.text = cleanSocial(
       pub["facebook_url"],
@@ -566,6 +598,733 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   // === RESTO DEL CÓDIGO SIN CAMBIOS (enviar, UI, etc.) ===
   // (Todo igual: _enviarFormulario, _buildTextField, etc.)
 
+  String _localizedLabel(
+    BuildContext context, {
+    required String es,
+    required String en,
+    required String fr,
+    required String pt,
+  }) {
+    switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
+      case 'en':
+        return en;
+      case 'fr':
+        return fr;
+      case 'pt':
+        return pt;
+      default:
+        return es;
+    }
+  }
+
+  List<String> _parseGalleryUrls(String value) {
+    return value
+        .split(RegExp(r'[\n,;]+'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+  }
+
+
+  int get _cantidadFotos =>
+      ((_fotoPrincipalLocal != null ||
+                  (_fotoPrincipalRemota?.trim().isNotEmpty ?? false))
+              ? 1
+              : 0) +
+      _galeriaRemota.length +
+      _galeriaLocal.length;
+
+  Future<void> _seleccionarPrincipal(ImageSource source) async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: source,
+        imageQuality: 82,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (image == null || !mounted) return;
+      setState(() => _fotoPrincipalLocal = image);
+    } catch (_) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'No fue posible seleccionar la imagen.',
+          en: 'Could not select the image.',
+          fr: 'Impossible de sélectionner l’image.',
+          pt: 'Não foi possível selecionar a imagem.',
+        ),
+      );
+    }
+  }
+
+  Future<void> _seleccionarGaleria() async {
+    final disponibles = _maxFotosGaleria -
+        _galeriaRemota.length -
+        _galeriaLocal.length;
+    if (disponibles <= 0) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'Máximo 4 fotos por anuncio.',
+          en: 'Maximum 4 photos per ad.',
+          fr: 'Maximum 4 photos par annonce.',
+          pt: 'Máximo de 4 fotos por anúncio.',
+        ),
+      );
+      return;
+    }
+
+    try {
+      final images = await _imagePicker.pickMultiImage(
+        imageQuality: 82,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (images.isEmpty || !mounted) return;
+      final selected = images.take(disponibles).toList();
+      setState(() => _galeriaLocal.addAll(selected));
+      if (images.length > disponibles) {
+        _mostrarMensaje(
+          _localizedLabel(
+            context,
+            es: 'Se agregaron sólo $disponibles foto(s). El máximo total es 4.',
+            en: 'Only $disponibles photo(s) were added. The total maximum is 4.',
+            fr: 'Seulement $disponibles photo(s) ajoutée(s). Maximum total : 4.',
+            pt: 'Apenas $disponibles foto(s) foram adicionadas. Máximo total: 4.',
+          ),
+        );
+      }
+    } catch (_) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'No fue posible abrir la galería.',
+          en: 'Could not open the gallery.',
+          fr: 'Impossible d’ouvrir la galerie.',
+          pt: 'Não foi possível abrir a galeria.',
+        ),
+      );
+    }
+  }
+
+  void _mostrarMensaje(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text, style: AppTextStyles.mensajeSecundario),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>> _subirFotosPendientes() async {
+    String principal = _fotoPrincipalRemota?.trim() ?? '';
+    final galeria = List<String>.from(_galeriaRemota);
+
+    if (_fotoPrincipalLocal != null) {
+      principal = await ApiService.uploadPublicidadImage(
+        _fotoPrincipalLocal!.path,
+        tipo: 'principal',
+      );
+    }
+
+    for (final image in _galeriaLocal) {
+      if (galeria.length >= _maxFotosGaleria) break;
+      final url = await ApiService.uploadPublicidadImage(
+        image.path,
+        tipo: 'galeria',
+      );
+      galeria.add(url);
+    }
+
+    return {
+      'principal': principal,
+      'galeria': galeria.take(_maxFotosGaleria).toList(),
+    };
+  }
+
+  ButtonStyle _photoActionButtonStyle({bool destructive = false}) {
+    final activeColor = destructive ? Colors.redAccent : AppColors.yellow;
+
+    return OutlinedButton.styleFrom(
+      foregroundColor: activeColor,
+      disabledForegroundColor: Colors.white38,
+      minimumSize: const Size(0, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      side: BorderSide(
+        color: activeColor.withValues(alpha: 0.70),
+        width: 1,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+      ),
+      textStyle: AppTextStyles.caption2.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _fotosCompactasSection() {
+    final local = _fotoPrincipalLocal;
+    final remote = _fotoPrincipalRemota?.trim() ?? '';
+    final hasImage = local != null || remote.isNotEmpty;
+    final galleryCount = _galeriaRemota.length + _galeriaLocal.length;
+
+    Widget mainPreview;
+    if (local != null) {
+      mainPreview = Image.file(
+        File(local.path),
+        fit: BoxFit.cover,
+        width: 104,
+        height: 104,
+      );
+    } else if (remote.isNotEmpty) {
+      mainPreview = Image.network(
+        remote,
+        fit: BoxFit.cover,
+        width: 104,
+        height: 104,
+        errorBuilder: (_, __, ___) => const Icon(
+          Icons.broken_image_outlined,
+          color: Colors.white38,
+          size: 32,
+        ),
+      );
+    } else {
+      mainPreview = Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.add_photo_alternate_outlined,
+            color: AppColors.yellow,
+            size: 32,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _localizedLabel(
+              context,
+              es: 'Principal',
+              en: 'Main',
+              fr: 'Principale',
+              pt: 'Principal',
+            ),
+            style: AppTextStyles.caption2.copyWith(color: Colors.white70),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _localizedLabel(
+                context,
+                es: 'Fotos del anuncio',
+                en: 'Ad photos',
+                fr: 'Photos de l’annonce',
+                pt: 'Fotos do anúncio',
+              ),
+              style: AppTextStyles.mensajeImportante,
+            ),
+            Text(
+              '${_cantidadFotos.clamp(0, _maxFotosTotal)} / $_maxFotosTotal',
+              style: AppTextStyles.caption2.copyWith(color: AppColors.yellow),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _subiendoImagenes
+                      ? null
+                      : () => _seleccionarPrincipal(ImageSource.gallery),
+                  child: Container(
+                    width: 104,
+                    height: 104,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: hasImage
+                            ? Colors.white12
+                            : AppColors.yellow.withValues(alpha: 0.55),
+                      ),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: mainPreview,
+                  ),
+                ),
+                if (hasImage)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: _removePhotoButton(
+                      () => setState(() {
+                        _fotoPrincipalLocal = null;
+                        _fotoPrincipalRemota = null;
+                      }),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 104,
+                child: galleryCount == 0
+                    ? GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: (_subiendoImagenes ||
+                                _cantidadFotos >= _maxFotosTotal)
+                            ? null
+                            : _seleccionarGaleria,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.025),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(
+                                Icons.photo_library_outlined,
+                                color: Colors.white54,
+                                size: 28,
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _localizedLabel(
+                                  context,
+                                  es: 'Agregar galería',
+                                  en: 'Add gallery',
+                                  fr: 'Ajouter galerie',
+                                  pt: 'Adicionar galeria',
+                                ),
+                                style: AppTextStyles.caption2.copyWith(
+                                  color: Colors.white54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (int i = 0; i < _galeriaRemota.length; i++)
+                            _miniaturaRemotaCompacta(i),
+                          for (int i = 0; i < _galeriaLocal.length; i++)
+                            _miniaturaLocalCompacta(i),
+                          if (_cantidadFotos < _maxFotosTotal)
+                            _agregarFotoCompacta(),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        const SizedBox(height: 8),
+        const SizedBox(height: 6),
+        Text(
+          _localizedLabel(
+            context,
+            es: 'Toca la foto principal o el recuadro de galería para agregar imágenes. Máximo 4 fotos.',
+            en: 'Tap the main photo or gallery box to add images. Maximum 4 photos.',
+            fr: 'Touchez la photo principale ou la galerie pour ajouter des images. Maximum 4 photos.',
+            pt: 'Toque na foto principal ou na galeria para adicionar imagens. Máximo de 4 fotos.',
+          ),
+          style: AppTextStyles.caption.copyWith(color: Colors.white54),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniaturaRemotaCompacta(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.network(
+              _galeriaRemota[index],
+              width: 88,
+              height: 104,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaRemota.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniaturaLocalCompacta(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: Image.file(
+              File(_galeriaLocal[index].path),
+              width: 88,
+              height: 104,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaLocal.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _agregarFotoCompacta() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _subiendoImagenes ? null : _seleccionarGaleria,
+      child: Container(
+        width: 76,
+        height: 104,
+        margin: const EdgeInsets.only(right: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.025),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white12),
+        ),
+        child: const Icon(
+          Icons.add_photo_alternate_outlined,
+          color: AppColors.yellow,
+          size: 28,
+        ),
+      ),
+    );
+  }
+
+  Widget _fotoPrincipalPicker() {
+    final local = _fotoPrincipalLocal;
+    final remote = _fotoPrincipalRemota?.trim() ?? '';
+    final hasImage = local != null || remote.isNotEmpty;
+
+    Widget preview;
+    if (local != null) {
+      preview = Image.file(
+        File(local.path),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 190,
+      );
+    } else if (remote.isNotEmpty) {
+      preview = Image.network(
+        remote,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: 190,
+        errorBuilder: (_, __, ___) => const Center(
+          child: Icon(Icons.broken_image_outlined, color: Colors.white38),
+        ),
+      );
+    } else {
+      preview = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.add_photo_alternate_outlined,
+                color: AppColors.yellow, size: 42),
+            const SizedBox(height: 8),
+            Text(
+              _localizedLabel(
+                context,
+                es: 'Selecciona la foto principal',
+                en: 'Select the main photo',
+                fr: 'Sélectionnez la photo principale',
+                pt: 'Selecione a foto principal',
+              ),
+              style: AppTextStyles.mensajeSecundario,
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _localizedLabel(
+            context,
+            es: 'Foto principal',
+            en: 'Main photo',
+            fr: 'Photo principale',
+            pt: 'Foto principal',
+          ),
+          style: AppTextStyles.mensajeImportante,
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            height: 190,
+            width: double.infinity,
+            color: Colors.white.withValues(alpha: 0.04),
+            child: preview,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(),
+                onPressed: _subiendoImagenes
+                    ? null
+                    : () => _seleccionarPrincipal(ImageSource.gallery),
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Galería',
+                    en: 'Gallery',
+                    fr: 'Galerie',
+                    pt: 'Galeria',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: AppColors.yellow,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(),
+                onPressed: _subiendoImagenes
+                    ? null
+                    : () => _seleccionarPrincipal(ImageSource.camera),
+                icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Cámara',
+                    en: 'Camera',
+                    fr: 'Caméra',
+                    pt: 'Câmera',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: AppColors.yellow,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(destructive: true),
+                onPressed: (_subiendoImagenes || !hasImage)
+                    ? null
+                    : () => setState(() {
+                          _fotoPrincipalLocal = null;
+                          _fotoPrincipalRemota = null;
+                        }),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Quitar',
+                    en: 'Remove',
+                    fr: 'Retirer',
+                    pt: 'Remover',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: hasImage ? Colors.redAccent : Colors.white38,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _galeriaPicker() {
+    final total = _galeriaRemota.length + _galeriaLocal.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _localizedLabel(
+                context,
+                es: 'Galería del anuncio',
+                en: 'Ad gallery',
+                fr: 'Galerie de l’annonce',
+                pt: 'Galeria do anúncio',
+              ),
+              style: AppTextStyles.mensajeImportante,
+            ),
+            Text(
+              '${_cantidadFotos.clamp(0, _maxFotosTotal)} / $_maxFotosTotal',
+              style: AppTextStyles.caption2.copyWith(color: AppColors.yellow),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (total > 0)
+          SizedBox(
+            height: 92,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (int i = 0; i < _galeriaRemota.length; i++)
+                  _miniaturaRemota(i),
+                for (int i = 0; i < _galeriaLocal.length; i++)
+                  _miniaturaLocal(i),
+              ],
+            ),
+          ),
+        if (total > 0) const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            style: _photoActionButtonStyle(),
+            onPressed: (_subiendoImagenes || total >= _maxFotosGaleria)
+                ? null
+                : _seleccionarGaleria,
+            icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
+            label: Text(
+              _localizedLabel(
+                context,
+                es: 'Agregar fotos',
+                en: 'Add photos',
+                fr: 'Ajouter des photos',
+                pt: 'Adicionar fotos',
+              ),
+              style: AppTextStyles.caption2.copyWith(
+                color: AppColors.yellow,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _localizedLabel(
+            context,
+            es: 'Máximo 4 fotos en total: 1 principal + 3 de galería.',
+            en: 'Maximum 4 photos total: 1 main + 3 gallery photos.',
+            fr: 'Maximum 4 photos : 1 principale + 3 de galerie.',
+            pt: 'Máximo de 4 fotos: 1 principal + 3 da galeria.',
+          ),
+          style: AppTextStyles.caption.copyWith(color: Colors.white54),
+        ),
+      ],
+    );
+  }
+
+  Widget _miniaturaRemota(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              _galeriaRemota[index],
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaRemota.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniaturaLocal(int index) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 10),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.file(
+              File(_galeriaLocal[index].path),
+              width: 92,
+              height: 92,
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: _removePhotoButton(
+              () => setState(() => _galeriaLocal.removeAt(index)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _removePhotoButton(VoidCallback onTap) {
+    return Material(
+      color: Colors.black.withValues(alpha: 0.66),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: _subiendoImagenes ? null : onTap,
+        child: const Padding(
+          padding: EdgeInsets.all(5),
+          child: Icon(Icons.close, color: Colors.white, size: 16),
+        ),
+      ),
+    );
+  }
+
   Future<void> _enviarFormulario(AppLocalizations l10n) async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -587,9 +1346,30 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     );
     if (numeroWhatsAppLimpio.length < 7) return;
 
-    setState(() => isSubmitting = true);
+    final hasPrincipal = _fotoPrincipalLocal != null ||
+        (_fotoPrincipalRemota?.trim().isNotEmpty ?? false);
+    if (!hasPrincipal) {
+      _mostrarMensaje(
+        _localizedLabel(
+          context,
+          es: 'Selecciona una foto principal.',
+          en: 'Select a main photo.',
+          fr: 'Sélectionnez une photo principale.',
+          pt: 'Selecione uma foto principal.',
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isSubmitting = true;
+      _subiendoImagenes = true;
+    });
 
     try {
+      final fotos = await _subirFotosPendientes();
+      final imagenPrincipalFinal = fotos['principal']?.toString() ?? '';
+      final galeriaFinal = List<String>.from(fotos['galeria'] as List);
       final telefonoCompleto = '$_selectedCountryCode $numeroLimpio';
       final codigoLimpio = _selectedWhatsAppCode.replaceAll('+', '');
       final whatsappFinal = '$codigoLimpio$numeroWhatsAppLimpio';
@@ -604,7 +1384,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "categoria_id": categoriaSeleccionada,
         "titulo": tituloController.text.trim(),
         "descripcion": descripcionController.text.trim(),
-        "imagen_url": imagenUrlController.text.trim(),
+        "imagen_url": imagenPrincipalFinal,
         "telefono": telefonoCompleto,
         "facebook_url": facebookController.text.trim(),
         "instagram_url": instagramController.text.trim(),
@@ -612,6 +1392,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         "tiktok_url": tiktokController.text.trim(),
         "pagina_url": paginaController.text.trim(),
         "direccion": direccionController.text.trim(),
+        "about_us": aboutUsController.text.trim(),
+        "galeria_urls": galeriaFinal,
         "es_24_7": _esAtencion24Horas,
         "hora_apertura": _esAtencion24Horas ? "00:00" : horaAperturaStr,
         "hora_cierre": _esAtencion24Horas ? "23:59" : horaCierreStr,
@@ -647,7 +1429,10 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       // Silencioso
     } finally {
       if (mounted) {
-        setState(() => isSubmitting = false);
+        setState(() {
+          isSubmitting = false;
+          _subiendoImagenes = false;
+        });
       }
     }
   }
@@ -656,6 +1441,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     _formKey.currentState?.reset();
     tituloController.clear();
     descripcionController.clear();
+    aboutUsController.clear();
+    galeriaController.clear();
     telefonoController.clear();
     direccionController.clear();
     imagenUrlController.clear();
@@ -664,6 +1451,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     whatsappController.clear();
     tiktokController.clear();
     paginaController.clear();
+
+    _fotoPrincipalLocal = null;
+    _fotoPrincipalRemota = null;
+    _galeriaLocal.clear();
+    _galeriaRemota.clear();
 
     setState(() {
       paisSeleccionado = null;
@@ -772,7 +1564,13 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    _buildTextField(tituloController, l10n.titulo, true, l10n),
+                    _buildTextField(
+                      tituloController,
+                      l10n.titulo,
+                      true,
+                      l10n,
+                      maxLength: 300,
+                    ),
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: descripcionController,
@@ -788,6 +1586,21 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       maxLines: 4,
                       validator: (v) =>
                           v?.isEmpty ?? true ? l10n.descripcionObligatoria : null,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      aboutUsController,
+                      _localizedLabel(
+                        context,
+                        es: "Sobre nosotros",
+                        en: "About us",
+                        fr: "À propos",
+                        pt: "Sobre nós",
+                      ),
+                      false,
+                      l10n,
+                      maxLines: 5,
+                      maxLength: 500,
                     ),
                     const SizedBox(height: 16),
                     FormField<String>(
@@ -817,8 +1630,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     const SizedBox(height: 16),
                     _buildTextField(direccionController, l10n.direccion, true, l10n),
                     const SizedBox(height: 16),
-                    _buildTextField(imagenUrlController, l10n.imagenUrl, true, l10n),
-                    const SizedBox(height: 24),
                     _buildDropdown(l10n.pais, paisSeleccionado, _paises, (val) {
                       setState(() {
                         paisSeleccionado = val;
@@ -897,9 +1708,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                               const SizedBox(width: 12),
                               Text(
                                 "Atención 24 Horas (24/7)",
-                                style: GoogleFonts.montserrat(
+                                style: AppTextStyles.mensajeSecundario.copyWith(
                                   color: Colors.white,
-                                  fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -1025,14 +1835,19 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         },
                       ),
                     ),
+                    const SizedBox(height: 28),
+                    _fotosCompactasSection(),
                     const SizedBox(height: 30),
                     ElevatedButton(
                       onPressed: isSubmitting ? null : () => _enviarFormulario(l10n),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.yellow,
+                        foregroundColor: const Color(0xFF1E1E1E),
+                        disabledBackgroundColor: AppColors.yellow.withValues(alpha: 0.45),
+                        minimumSize: const Size(double.infinity, 50),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(30),
                         ),
                       ),
                       child: isSubmitting
@@ -1097,6 +1912,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     bool required,
     AppLocalizations l10n, {
     int maxLines = 1,
+    int? maxLength,
   }) {
     return TextFormField(
       controller: controller,
@@ -1107,6 +1923,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       ),
       decoration: _inputStyle(label),
       maxLines: maxLines,
+      maxLength: maxLength,
       validator: required
           ? (v) => v?.isEmpty ?? true ? l10n.campoRequerido(label) : null
           : null,
@@ -1293,7 +2110,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           children: [
             Text(
               label,
-              style: GoogleFonts.montserrat(
+              style: AppTextStyles.caption.copyWith(
                 color: Colors.white54,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -1305,9 +2122,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
               children: [
                 Text(
                   formattedTime,
-                  style: GoogleFonts.montserrat(
+                  style: AppTextStyles.mensajeSecundario.copyWith(
                     color: Colors.white,
-                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

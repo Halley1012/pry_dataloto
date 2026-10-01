@@ -16,6 +16,7 @@ import 'resultados/widgets/resultados_shared.dart';
 import 'package:provider/provider.dart';
 import '../providers/subscription_provider.dart';
 import '../utils/secure_storage_helper.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -31,6 +32,12 @@ class _LoginPageState extends State<LoginPage> {
   bool _obscureText = true; // State for password visibility
 
   bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AdService.instance.setAppOpenEligibility(false);
+  }
 
   // Guardar token en SecureStorage
   Future<void> saveToken(String token) async {

@@ -96,6 +96,9 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    // App Open sólo queda habilitado una vez que el usuario llegó al Home.
+    // Así nunca interrumpe Splash, login, registro ni onboarding.
+    AdService.instance.setAppOpenEligibility(true);
     _welcomeWaveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),

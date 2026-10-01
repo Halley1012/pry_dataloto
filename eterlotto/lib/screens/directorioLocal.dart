@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:eterlotto/screens/publicidad.dart';
+import 'package:eterlotto/screens/publicidad_detail_screen.dart';
 import 'package:eterlotto/services/api_service.dart';
 import '../services/cache_service.dart';
 import 'package:eterlotto/styles/colores.dart';
@@ -27,6 +28,12 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   bool _lastFetchFailed = false;
   String? _activeUserId;
   int _searchRequestVersion = 0;
+
+  static const int _pageSize = 10;
+  final ScrollController _scrollController = ScrollController();
+  int _offset = 0;
+  bool _hasMore = true;
+  bool _loadingMore = false;
 
   final tituloController = TextEditingController();
   final categoriaController = TextEditingController();
@@ -53,6 +60,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     _departamentosFuture = Future.value(<Map<String, dynamic>>[]);
     _categoriasFuture = ApiService.getCategorias();
 
+    _scrollController.addListener(_onDirectoryScroll);
     _inicializarFiltros();
     tituloController.addListener(_onSearchChanged);
   }
@@ -173,11 +181,73 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   void dispose() {
     _debounce?.cancel();
     tituloController.removeListener(_onSearchChanged);
+    _scrollController
+      ..removeListener(_onDirectoryScroll)
+      ..dispose();
     tituloController.dispose();
     categoriaController.dispose();
     departamentoController.dispose();
     paisController.dispose();
     super.dispose();
+  }
+
+  void _onDirectoryScroll() {
+    if (!_scrollController.hasClients ||
+        cargando ||
+        _loadingMore ||
+        !_hasMore) {
+      return;
+    }
+
+    final position = _scrollController.position;
+    if (position.extentAfter <= 550) {
+      _cargarMasAnuncios();
+    }
+  }
+
+  String _currentDirectoryCacheKey() {
+    return CacheService.directorioAnunciosKey(
+      paisId: _paisSeleccionadoId,
+      departamentoId: _departamentoSeleccionadoId,
+      categoriaId: _categoriaSeleccionadaId,
+      titulo: tituloController.text.trim(),
+    );
+  }
+
+  Future<void> _syncPublicAdIntoCache(Map<String, dynamic> updated) async {
+    final rawId = updated['id'];
+    final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+    if (id == null) return;
+
+    final cacheKey = _currentDirectoryCacheKey();
+    final rawCache =
+        await CacheService.getJson(cacheKey) ??
+        await CacheService.getStaleJson(cacheKey);
+    if (rawCache is! List) return;
+
+    final cached = rawCache
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+
+    final index = cached.indexWhere((item) {
+      final raw = item['id'];
+      final cachedId = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+      return cachedId == id;
+    });
+    if (index < 0) return;
+
+    final merged = Map<String, dynamic>.from(cached[index]);
+    merged.addAll(updated);
+
+    // Nunca guardamos estado privado de una cuenta en el catálogo público.
+    merged.remove('is_favorite');
+    merged.remove('is_favorito');
+    merged.remove('favorito');
+    merged.remove('user_rating');
+
+    cached[index] = merged;
+    await CacheService.setJson(cacheKey, cached);
   }
 
   void _onSearchChanged() {
@@ -201,6 +271,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       ad.remove('is_favorite');
       ad.remove('is_favorito');
       ad.remove('favorito');
+      ad.remove('user_rating');
       return ad;
     }).toList();
   }
@@ -220,6 +291,79 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       ad['is_favorite'] = id != null && favorites.contains(id);
       return ad;
     }).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> _mergeServerPrivateState(
+    List<Map<String, dynamic>> rawAds,
+    List<Map<String, dynamic>> decoratedAds,
+    String? userId,
+  ) async {
+    if (userId == null) return decoratedAds;
+
+    final rawById = <int, Map<String, dynamic>>{};
+    for (final raw in rawAds) {
+      final id = raw['id'] is int
+          ? raw['id'] as int
+          : int.tryParse(raw['id']?.toString() ?? '');
+      if (id == null) continue;
+      rawById[id] = raw;
+      if (raw['is_favorite'] is bool) {
+        await ApiService.guardarFavoritoLocal(
+          id,
+          raw['is_favorite'] == true,
+          userId: userId,
+        );
+      }
+    }
+
+    return decoratedAds.map((source) {
+      final ad = Map<String, dynamic>.from(source);
+      final id = ad['id'] is int
+          ? ad['id'] as int
+          : int.tryParse(ad['id']?.toString() ?? '');
+      final raw = id == null ? null : rawById[id];
+      if (raw != null) {
+        if (raw['is_favorite'] is bool) {
+          ad['is_favorite'] = raw['is_favorite'];
+        }
+        if (raw['user_rating'] != null) {
+          ad['user_rating'] = raw['user_rating'];
+        }
+      }
+      return ad;
+    }).toList();
+  }
+
+  Future<void> _openDetalle(Map<String, dynamic> anuncio, int index) async {
+    final updated = await Navigator.push<Map<String, dynamic>>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicidadDetailScreen(
+          publicidad: Map<String, dynamic>.from(anuncio),
+        ),
+      ),
+    );
+    if (!mounted || updated == null) return;
+
+    final rawId = updated['id'];
+    final updatedId =
+        rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+
+    setState(() {
+      final currentIndex = updatedId == null
+          ? index
+          : anuncios.indexWhere((item) {
+              final raw = item['id'];
+              final itemId =
+                  raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+              return itemId == updatedId;
+            });
+      if (currentIndex >= 0 && currentIndex < anuncios.length) {
+        anuncios[currentIndex] = Map<String, dynamic>.from(updated);
+      }
+    });
+
+    await _syncPublicAdIntoCache(updated);
   }
 
   Future<void> buscarAnuncios(String titulo) async {
@@ -249,6 +393,8 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       }
       setState(() {
         anuncios = cachedList;
+        _offset = cachedList.length;
+        _hasMore = cachedList.length >= _pageSize;
         cargando = false;
         _hasCachedSnapshot = true;
         _showingStaleData = fresh == null;
@@ -257,6 +403,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     } else if (mounted && requestVersion == _searchRequestVersion) {
       setState(() {
         cargando = true;
+        _offset = 0;
+        _hasMore = true;
+        _loadingMore = false;
         _hasCachedSnapshot = false;
         _showingStaleData = false;
         _lastFetchFailed = false;
@@ -264,16 +413,34 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     }
 
     try {
-      final data = await ApiService.getPublicidades(
+      final page = await ApiService.getPublicidadesPage(
         paisId: paisId,
         departamentoId: departamentoId,
         categoriaId: categoriaId,
         titulo: titulo.trim().isNotEmpty ? titulo.trim() : null,
+        limit: _pageSize,
+        offset: 0,
       );
 
+      final rawData = page['data'];
+      final data = rawData is List
+          ? rawData
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+          : <Map<String, dynamic>>[];
+      final pagination = page['pagination'] is Map
+          ? Map<String, dynamic>.from(page['pagination'])
+          : <String, dynamic>{};
+
       final publicAds = _publicAdsFrom(data);
-      final decoratedAds = await _applyPrivateFavorites(
+      var decoratedAds = await _applyPrivateFavorites(
         publicAds,
+        expectedUserId,
+      );
+      decoratedAds = await _mergeServerPrivateState(
+        data,
+        decoratedAds,
         expectedUserId,
       );
       if (requestVersion != _searchRequestVersion ||
@@ -284,6 +451,9 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
       if (!mounted || requestVersion != _searchRequestVersion) return;
       setState(() {
         anuncios = decoratedAds;
+        _offset = decoratedAds.length;
+        _hasMore = pagination['has_more'] == true;
+        _loadingMore = false;
         _hasCachedSnapshot = true;
         _showingStaleData = false;
         _lastFetchFailed = false;
@@ -295,6 +465,88 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     } finally {
       if (mounted && requestVersion == _searchRequestVersion) {
         setState(() => cargando = false);
+      }
+    }
+  }
+
+  Future<void> _cargarMasAnuncios() async {
+    if (_loadingMore || !_hasMore || cargando) return;
+
+    final expectedUserId = _activeUserId;
+    final int? paisId = _paisSeleccionadoId;
+    final int? departamentoId = _departamentoSeleccionadoId;
+    final int? categoriaId = _categoriaSeleccionadaId;
+    final titulo = tituloController.text.trim();
+    final requestVersion = _searchRequestVersion;
+    final requestedOffset = _offset;
+
+    if (mounted) {
+      setState(() => _loadingMore = true);
+    }
+
+    try {
+      final page = await ApiService.getPublicidadesPage(
+        paisId: paisId,
+        departamentoId: departamentoId,
+        categoriaId: categoriaId,
+        titulo: titulo.isNotEmpty ? titulo : null,
+        limit: _pageSize,
+        offset: requestedOffset,
+      );
+
+      if (requestVersion != _searchRequestVersion ||
+          !await _isCurrentDirectorySession(expectedUserId)) {
+        return;
+      }
+
+      final rawData = page['data'];
+      final data = rawData is List
+          ? rawData
+              .whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
+              .toList()
+          : <Map<String, dynamic>>[];
+      final pagination = page['pagination'] is Map
+          ? Map<String, dynamic>.from(page['pagination'])
+          : <String, dynamic>{};
+
+      final publicAds = _publicAdsFrom(data);
+      var decoratedAds = await _applyPrivateFavorites(
+        publicAds,
+        expectedUserId,
+      );
+      decoratedAds = await _mergeServerPrivateState(
+        data,
+        decoratedAds,
+        expectedUserId,
+      );
+
+      if (!mounted || requestVersion != _searchRequestVersion) return;
+
+      setState(() {
+        final existingIds = anuncios.map((item) {
+          final raw = item['id'];
+          return raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+        }).whereType<int>().toSet();
+
+        for (final ad in decoratedAds) {
+          final raw = ad['id'];
+          final id = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+          if (id == null || !existingIds.contains(id)) {
+            anuncios.add(ad);
+            if (id != null) existingIds.add(id);
+          }
+        }
+
+        _offset = requestedOffset + data.length;
+        _hasMore = pagination['has_more'] == true;
+      });
+    } catch (_) {
+      // Conservamos las tarjetas ya cargadas. El usuario puede volver a
+      // acercarse al final y reintentar automáticamente.
+    } finally {
+      if (mounted && requestVersion == _searchRequestVersion) {
+        setState(() => _loadingMore = false);
       }
     }
   }
@@ -370,19 +622,21 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
           ? currentLikes + 1
           : (currentLikes > 0 ? currentLikes - 1 : 0);
     });
+    await _syncPublicAdIntoCache(anuncio);
 
     try {
       final res = await ApiService.toggleFavoritoPublicidad(publicidadId);
       if (res["success"] == true && mounted) {
         setState(() {
           anuncio["is_favorite"] = res["is_favorite"] ?? !currentFav;
-          if (res["total_votos"] != null) {
-            anuncio["total_likes"] = res["total_votos"];
+          if (res["total_likes"] != null) {
+            anuncio["total_likes"] = res["total_likes"];
           }
           if (res["is_destacado"] != null) {
             anuncio["is_destacado"] = res["is_destacado"];
           }
         });
+        await _syncPublicAdIntoCache(anuncio);
       }
     } catch (e) {
       // Estado local ya protegido
@@ -399,6 +653,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
         color: AppColors.yellow,
         backgroundColor: const Color(0xFF1E1E1E),
         child: CustomScrollView(
+          controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             CustomSliverAppBar(
@@ -574,10 +829,25 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
                                 ) ??
                                 0,
                             onAction: () => _toggleFavorito(anuncio, index),
+                            onTap: () => _openDetalle(anuncio, index),
                           ),
                         );
                       },
                     ),
+                    if (_loadingMore)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              color: AppColors.yellow,
+                              strokeWidth: 2.5,
+                            ),
+                          ),
+                        ),
+                      ),
                     const SizedBox(height: 50),
                   ],
                 ),

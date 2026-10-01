@@ -9,6 +9,32 @@ from app.infrastructure import db_connection
 logger = logging.getLogger(__name__)
 
 class PostgresPublicidadRepository(PublicidadRepositoryPort):
+    _engagement_schema_ensured: bool = False
+
+    @classmethod
+    async def _ensure_engagement_schema(cls, conn):
+        if cls._engagement_schema_ensured:
+            return
+        await conn.execute("""
+            ALTER TABLE publicidad
+                ADD COLUMN IF NOT EXISTS about_us TEXT,
+                ADD COLUMN IF NOT EXISTS galeria_urls TEXT[] DEFAULT ARRAY[]::TEXT[];
+
+            CREATE TABLE IF NOT EXISTS publicidad_likes (
+                id BIGSERIAL PRIMARY KEY,
+                publicidad_id INTEGER NOT NULL REFERENCES publicidad(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (publicidad_id, user_id)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_publicidad_likes_publicidad
+                ON publicidad_likes(publicidad_id);
+            CREATE INDEX IF NOT EXISTS idx_publicidad_likes_user
+                ON publicidad_likes(user_id);
+        """)
+        cls._engagement_schema_ensured = True
+
     @staticmethod
     def _normalize_identity(value: Optional[str]) -> str:
         return re.sub(
@@ -123,19 +149,27 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def create_publicidad_full(self, user_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            await self._ensure_engagement_schema(conn)
+            galeria_urls = [
+                str(url).strip()
+                for url in (data.get("galeria_urls") or [])
+                if str(url).strip()
+            ]
             await conn.execute("""
                 INSERT INTO publicidad (
                     usuario_id, categoria_id, pais_id, departamento_id, ciudad_id,
-                    titulo, descripcion, imagen_url, telefono, 
+                    titulo, descripcion, imagen_url, telefono,
                     facebook_url, instagram_url, whatsapp_url, tiktok_url, pagina_url,
-                    direccion, es_24_7, hora_apertura, hora_cierre, dias_atencion, estado_texto,
+                    direccion, about_us, galeria_urls,
+                    es_24_7, hora_apertura, hora_cierre, dias_atencion, estado_texto,
                     fecha_inicio, fecha_fin, estado, aprobado, pago_confirmado
                 )
                 VALUES (
                     $1, $2, $3, $4, $5,
                     $6, $7, $8, $9,
                     $10, $11, $12, $13, $14,
-                    $15, $16, $17, $18, $19, $20,
+                    $15, $16, $17,
+                    $18, $19, $20, $21, $22,
                     CURRENT_DATE, CURRENT_DATE + INTERVAL '15 days',
                     TRUE, FALSE, FALSE
                 )
@@ -155,6 +189,8 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             data.get("tiktok_url"),
             data.get("pagina_url"),
             data.get("direccion"),
+            data.get("about_us"),
+            galeria_urls,
             bool(data.get("es_24_7", True)),
             data.get("hora_apertura", "00:00"),
             data.get("hora_cierre", "23:59"),
@@ -170,18 +206,37 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def list_publicidad_dinamica(self, filters: Dict[str, Any], limit: int, offset: int) -> Tuple[List[Dict[str, Any]], int]:
         pool = db_connection.get_pool()
         user_id = filters.get("user_id")
-        user_fav_sql = f"COALESCE((SELECT TRUE FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id AND pc.user_id = {int(user_id)} LIMIT 1), FALSE)" if user_id else "FALSE"
+        user_id_sql = int(user_id) if user_id is not None else None
+
+        if user_id_sql is not None:
+            user_fav_sql = (
+                "COALESCE((SELECT TRUE FROM publicidad_likes pl "
+                f"WHERE pl.publicidad_id = p.id AND pl.user_id = {user_id_sql} LIMIT 1), FALSE)"
+            )
+            user_rating_sql = (
+                "COALESCE((SELECT pc.estrellas FROM publicidad_calificaciones pc "
+                f"WHERE pc.publicidad_id = p.id AND pc.user_id = {user_id_sql} LIMIT 1), 0)"
+            )
+        else:
+            user_fav_sql = "FALSE"
+            user_rating_sql = "0"
 
         base_query = f"""
-            SELECT 
+            SELECT
                 p.*,
                 pa.nombre AS pais_nombre,
                 d.nombre AS departamento_nombre,
                 c.nombre AS categoria_nombre,
                 ci.nombre AS ciudad_nombre,
-                COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
+                COALESCE((SELECT COUNT(*) FROM publicidad_likes pl WHERE pl.publicidad_id = p.id), 0) AS total_likes,
                 COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas,
-                {user_fav_sql} AS is_favorite
+                COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_calificaciones,
+                (
+                    COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) >= 4.5
+                    AND COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) >= 3
+                ) AS is_destacado,
+                {user_fav_sql} AS is_favorite,
+                {user_rating_sql} AS user_rating
             FROM publicidad p
             LEFT JOIN paises pa ON p.pais_id = pa.id
             LEFT JOIN departamentos d ON p.departamento_id = d.id
@@ -219,16 +274,16 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             full_query += " AND " + " AND ".join(conditions)
 
         full_query += f" ORDER BY p.fecha_creacion DESC NULLS LAST LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}"
-        
+
         count_params = list(params)
         params.extend([limit, offset])
 
         async with pool.acquire() as conn:
+            await self._ensure_engagement_schema(conn)
             rows = await conn.fetch(full_query, *params)
             data = [dict(row) for row in rows]
 
-            # Reemplazar de forma limpia y simplificada para evitar errores de matching de strings multilinea largos
-            simplified_count_query = f"""
+            simplified_count_query = """
                 SELECT COUNT(*)
                 FROM publicidad p
                 WHERE p.estado = TRUE
@@ -247,15 +302,22 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def list_my_publicidades(self, user_id: int) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            await self._ensure_engagement_schema(conn)
             query = """
-                SELECT 
-                    p.*, 
+                SELECT
+                    p.*,
                     c.nombre AS categoria_nombre,
                     ci.nombre AS ciudad_nombre,
                     d.nombre AS departamento_nombre,
-                    COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_likes,
+                    COALESCE((SELECT COUNT(*) FROM publicidad_likes pl WHERE pl.publicidad_id = p.id), 0) AS total_likes,
                     COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) AS promedio_estrellas,
-                    COALESCE((SELECT TRUE FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id AND pc.user_id = $1 LIMIT 1), FALSE) AS is_favorite
+                    COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) AS total_calificaciones,
+                    (
+                        COALESCE((SELECT AVG(pc.estrellas) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0.0) >= 4.5
+                        AND COALESCE((SELECT COUNT(*) FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id), 0) >= 3
+                    ) AS is_destacado,
+                    COALESCE((SELECT TRUE FROM publicidad_likes pl WHERE pl.publicidad_id = p.id AND pl.user_id = $1 LIMIT 1), FALSE) AS is_favorite,
+                    COALESCE((SELECT pc.estrellas FROM publicidad_calificaciones pc WHERE pc.publicidad_id = p.id AND pc.user_id = $1 LIMIT 1), 0) AS user_rating
                 FROM publicidad p
                 LEFT JOIN categorias c ON p.categoria_id = c.id
                 LEFT JOIN ciudades ci ON p.ciudad_id = ci.id
@@ -272,9 +334,20 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def update_publicidad_full(self, publicidad_id: int, user_id: int, data: Dict[str, Any]) -> bool:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            existe = await conn.fetchrow("SELECT 1 FROM publicidad WHERE id = $1 AND usuario_id = $2", publicidad_id, user_id)
+            await self._ensure_engagement_schema(conn)
+            existe = await conn.fetchrow(
+                "SELECT 1 FROM publicidad WHERE id = $1 AND usuario_id = $2",
+                publicidad_id,
+                user_id,
+            )
             if not existe:
                 return False
+
+            galeria_urls = [
+                str(url).strip()
+                for url in (data.get("galeria_urls") or [])
+                if str(url).strip()
+            ]
 
             query = """
                 UPDATE publicidad SET
@@ -297,13 +370,16 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     hora_cierre = COALESCE($17, hora_cierre),
                     dias_atencion = COALESCE($18, dias_atencion),
                     estado_texto = COALESCE($19, estado_texto),
-                    fecha_fin = CASE 
+                    about_us = $20,
+                    galeria_urls = $21,
+                    fecha_fin = CASE
                         WHEN pago_confirmado = FALSE THEN CURRENT_DATE + INTERVAL '15 days'
                         ELSE fecha_fin
-                     END
-                WHERE id = $20
+                    END
+                WHERE id = $22
             """
-            await conn.execute(query,
+            await conn.execute(
+                query,
                 data.get("titulo"),
                 data.get("descripcion"),
                 data.get("direccion"),
@@ -323,7 +399,9 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 data.get("hora_cierre"),
                 data.get("dias_atencion"),
                 data.get("estado_texto"),
-                publicidad_id
+                data.get("about_us"),
+                galeria_urls,
+                publicidad_id,
             )
             return True
 
@@ -342,6 +420,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
     async def calificar_publicidad(self, user_id: int, publicidad_id: int, estrellas: int) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
+            await self._ensure_engagement_schema(conn)
             await conn.execute("""
                 INSERT INTO publicidad_calificaciones (publicidad_id, user_id, estrellas, created_at)
                 VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
@@ -350,7 +429,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             """, publicidad_id, user_id, estrellas)
 
             stats = await conn.fetchrow("""
-                SELECT 
+                SELECT
                     COALESCE(AVG(estrellas), 0.0) AS promedio,
                     COUNT(*) AS total_votos
                 FROM publicidad_calificaciones
@@ -364,49 +443,59 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                 "success": True,
                 "promedio": round(promedio, 1),
                 "total_votos": total_votos,
-                "is_destacado": promedio >= 4.5 and total_votos >= 3
+                "user_rating": estrellas,
+                "is_destacado": promedio >= 4.5 and total_votos >= 3,
             }
 
     async def toggle_favorito(self, user_id: int, publicidad_id: int) -> Dict[str, Any]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
-            existe = await conn.fetchrow("""
-                SELECT estrellas FROM publicidad_calificaciones 
+            await self._ensure_engagement_schema(conn)
+
+            existe = await conn.fetchval("""
+                SELECT 1
+                FROM publicidad_likes
                 WHERE publicidad_id = $1 AND user_id = $2
             """, publicidad_id, user_id)
 
             if existe:
                 await conn.execute("""
-                    DELETE FROM publicidad_calificaciones 
+                    DELETE FROM publicidad_likes
                     WHERE publicidad_id = $1 AND user_id = $2
                 """, publicidad_id, user_id)
                 is_fav = False
             else:
                 await conn.execute("""
-                    INSERT INTO publicidad_calificaciones (publicidad_id, user_id, estrellas, created_at)
-                    VALUES ($1, $2, 5, CURRENT_TIMESTAMP)
-                    ON CONFLICT (publicidad_id, user_id)
-                    DO UPDATE SET estrellas = 5, created_at = CURRENT_TIMESTAMP
+                    INSERT INTO publicidad_likes (publicidad_id, user_id, created_at)
+                    VALUES ($1, $2, CURRENT_TIMESTAMP)
+                    ON CONFLICT (publicidad_id, user_id) DO NOTHING
                 """, publicidad_id, user_id)
                 is_fav = True
 
-            stats = await conn.fetchrow("""
-                SELECT 
+            total_likes = int(await conn.fetchval("""
+                SELECT COUNT(*)
+                FROM publicidad_likes
+                WHERE publicidad_id = $1
+            """, publicidad_id) or 0)
+
+            rating_stats = await conn.fetchrow("""
+                SELECT
                     COALESCE(AVG(estrellas), 0.0) AS promedio,
                     COUNT(*) AS total_votos
                 FROM publicidad_calificaciones
                 WHERE publicidad_id = $1
             """, publicidad_id)
 
-            promedio = float(stats["promedio"]) if stats else 0.0
-            total_votos = int(stats["total_votos"]) if stats else 0
+            promedio = float(rating_stats["promedio"]) if rating_stats else 0.0
+            total_votos = int(rating_stats["total_votos"]) if rating_stats else 0
 
             return {
                 "success": True,
                 "is_favorite": is_fav,
+                "total_likes": total_likes,
                 "promedio": round(promedio, 1),
                 "total_votos": total_votos,
-                "is_destacado": promedio >= 4.5 and total_votos >= 3
+                "is_destacado": promedio >= 4.5 and total_votos >= 3,
             }
 
     async def aprobar_publicidad(self, publicidad_id: int, admin_user_id: int) -> bool:
