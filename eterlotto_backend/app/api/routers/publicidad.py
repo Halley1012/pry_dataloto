@@ -25,7 +25,13 @@ _MAX_IMAGE_BYTES = 2 * 1024 * 1024  # 2 MB tras compresión en Flutter
 
 
 def _storage_settings():
-    supabase_url, secret_key, bucket = _storage_settings()
+    supabase_url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    secret_key = (
+        os.getenv("SUPABASE_SECRET_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
+    bucket = (os.getenv("SUPABASE_STORAGE_BUCKET") or "publicidad").strip()
     return supabase_url, secret_key, bucket
 
 
