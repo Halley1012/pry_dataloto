@@ -1,9 +1,163 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import logging
+import os
+import uuid
+from urllib.parse import quote, unquote
+
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from app.api import schemas, dependencies
 from app.application.auth_use_cases import AuthUseCases
 from app.core import security
 
 router = APIRouter()
+
+_ALLOWED_AVATAR_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+}
+_MAX_AVATAR_BYTES = 2 * 1024 * 1024
+
+
+def _profile_storage_settings():
+    supabase_url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+    secret_key = (
+        os.getenv("SUPABASE_SECRET_KEY")
+        or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+        or ""
+    ).strip()
+    bucket = (os.getenv("SUPABASE_PROFILE_BUCKET") or "usuarios").strip()
+    return supabase_url, secret_key, bucket
+
+
+def _profile_storage_object_path(public_url: str):
+    if not public_url:
+        return None
+
+    supabase_url, _, bucket = _profile_storage_settings()
+    if not supabase_url or not bucket:
+        return None
+
+    prefix = f"{supabase_url}/storage/v1/object/public/{bucket}/"
+    if not public_url.startswith(prefix):
+        return None
+
+    value = unquote(public_url[len(prefix):]).lstrip("/")
+    return value or None
+
+
+async def _delete_profile_avatar(public_url: str):
+    object_path = _profile_storage_object_path(public_url)
+    if not object_path:
+        return
+
+    supabase_url, secret_key, bucket = _profile_storage_settings()
+    if not supabase_url or not secret_key:
+        return
+
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+    }
+    endpoint = (
+        f"{supabase_url}/storage/v1/object/{bucket}/"
+        f"{quote(object_path, safe='/')}"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            response = await client.delete(endpoint, headers=headers)
+        if response.status_code not in (200, 204):
+            logging.warning(
+                "[PROFILE_STORAGE] No se pudo eliminar avatar: %s %s",
+                response.status_code,
+                response.text[:300],
+            )
+    except httpx.HTTPError as exc:
+        logging.warning(
+            "[PROFILE_STORAGE] Error eliminando avatar: %s",
+            exc,
+        )
+
+
+async def _upload_profile_avatar(user_id: int, file: UploadFile):
+    supabase_url, secret_key, bucket = _profile_storage_settings()
+    if not supabase_url or not secret_key or not bucket:
+        raise HTTPException(
+            status_code=500,
+            detail="Storage de perfiles no configurado",
+        )
+
+    content_type = (file.content_type or "").lower().strip()
+    extension = _ALLOWED_AVATAR_TYPES.get(content_type)
+
+    if extension is None:
+        filename = (file.filename or "").lower().strip()
+        suffix_map = {
+            ".jpg": ("image/jpeg", ".jpg"),
+            ".jpeg": ("image/jpeg", ".jpg"),
+            ".png": ("image/png", ".png"),
+            ".webp": ("image/webp", ".webp"),
+            ".heic": ("image/heic", ".heic"),
+            ".heif": ("image/heif", ".heif"),
+        }
+        for suffix, resolved in suffix_map.items():
+            if filename.endswith(suffix):
+                content_type, extension = resolved
+                break
+
+    if extension is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Formato no permitido. Usa JPG, PNG, WEBP, HEIC o HEIF.",
+        )
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="La imagen está vacía")
+    if len(raw) > _MAX_AVATAR_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail="La foto supera el límite de 2 MB",
+        )
+
+    object_path = (
+        f"user_{user_id}/perfil/"
+        f"avatar_{uuid.uuid4().hex}{extension}"
+    )
+    endpoint = (
+        f"{supabase_url}/storage/v1/object/{bucket}/"
+        f"{quote(object_path, safe='/')}"
+    )
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": content_type,
+        "x-upsert": "false",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            endpoint,
+            content=raw,
+            headers=headers,
+        )
+
+    if response.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=502,
+            detail=f"Storage rechazó la imagen: {response.text[:300]}",
+        )
+
+    public_url = (
+        f"{supabase_url}/storage/v1/object/public/{bucket}/"
+        f"{quote(object_path, safe='/')}"
+    )
+    return public_url
+
+
 
 @router.post("/register")
 async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases = Depends(dependencies.get_auth_use_cases)):
@@ -24,6 +178,18 @@ async def register_user(new_user: schemas.RegisterUser, use_cases: AuthUseCases 
         import logging
         logging.error(f"Error interno: {e}")
         raise HTTPException(status_code=500, detail="Error interno del servidor")
+
+@router.post("/users/avatar/upload")
+async def upload_user_avatar(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(dependencies.get_current_user),
+):
+    user_id = int(current_user["user_id"])
+    return {
+        "success": True,
+        "url": await _upload_profile_avatar(user_id, file),
+    }
+
 
 @router.get("/users/{user_id}")
 async def get_user(
@@ -53,6 +219,9 @@ async def update_user(
     if str(user_id) != str(current_user["user_id"]):
         raise HTTPException(status_code=403, detail="No autorizado para editar este perfil")
     try:
+        previous_profile = await use_cases.get_user_profile(user_id)
+        previous_avatar = previous_profile.get("avatar_url")
+
         res = await use_cases.update_user_profile(
             user_id=user_id,
             name=user_update.name,
@@ -69,6 +238,13 @@ async def update_user(
             terms_accepted_at=user_update.terms_accepted_at,
             is_adult=user_update.is_adult
         )
+
+        if user_update.avatar_url is not None:
+            new_avatar = user_update.avatar_url.strip()
+            old_avatar = (previous_avatar or "").strip()
+            if old_avatar and old_avatar != new_avatar:
+                await _delete_profile_avatar(old_avatar)
+
         return res
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

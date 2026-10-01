@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:eterlotto/screens/welcome.dart';
 import '../services/api_service.dart';
@@ -41,6 +43,11 @@ class _RegistroPageState extends State<RegistroScreen> {
 
   bool _isLoading = false;
   bool _obscurePassword = true;
+
+  final ImagePicker _avatarPicker = ImagePicker();
+  XFile? _avatarLocal;
+  String? _avatarRemoto;
+  bool _quitarAvatar = false;
   bool _aceptaTerminos = false;
   bool _esMayorEdad = false;
 
@@ -72,6 +79,8 @@ class _RegistroPageState extends State<RegistroScreen> {
       final u = widget.user!;
       _nameController.text = u['name']?.toString() ?? '';
       _emailController.text = u['email']?.toString() ?? '';
+      final initialAvatar = u['avatar_url']?.toString().trim() ?? '';
+      _avatarRemoto = initialAvatar.isEmpty ? null : initialAvatar;
       _paisSeleccionado = u['pais_id'] as int?;
       _departamentoSeleccionado = u['departamento_id'] as int?;
     }
@@ -572,6 +581,148 @@ class _RegistroPageState extends State<RegistroScreen> {
     }
   }
 
+  Future<void> _seleccionarAvatar() async {
+    if (!_esEdicion || _isLoading) return;
+
+    try {
+      final image = await _avatarPicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 82,
+        maxWidth: 1200,
+        maxHeight: 1200,
+      );
+      if (image == null || !mounted) return;
+
+      setState(() {
+        _avatarLocal = image;
+        _quitarAvatar = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      showEterSnackBar(
+        context,
+        message: 'No fue posible seleccionar la foto.',
+        isError: true,
+      );
+    }
+  }
+
+  void _quitarFotoPerfil() {
+    if (!_esEdicion || _isLoading) return;
+    setState(() {
+      _avatarLocal = null;
+      _avatarRemoto = null;
+      _quitarAvatar = true;
+    });
+  }
+
+  Widget _buildEditableAvatar() {
+    const radius = 50.0;
+    const size = radius * 2;
+    final hasLocal = _avatarLocal != null;
+    final hasRemote =
+        !_quitarAvatar && (_avatarRemoto?.trim().isNotEmpty ?? false);
+    final hasPhoto = hasLocal || hasRemote;
+
+    Widget avatar;
+    if (hasLocal) {
+      avatar = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: AppColors.yellow, width: 2.4),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.yellow.withValues(alpha: 0.35),
+              blurRadius: 8,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Image.file(
+            File(_avatarLocal!.path),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        ),
+      );
+    } else {
+      avatar = UserBalotaAvatar(
+        avatarUrl: hasRemote ? _avatarRemoto : null,
+        userName: _nameController.text.isNotEmpty
+            ? _nameController.text
+            : widget.user?['name']?.toString() ?? '',
+        userId: widget.userId ?? 0,
+        radius: radius,
+        showGlow: true,
+        showBorder: true,
+        borderColor: AppColors.yellow,
+      );
+    }
+
+    return SizedBox(
+      width: 118,
+      height: 118,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _seleccionarAvatar,
+            child: avatar,
+          ),
+          Positioned(
+            right: 3,
+            bottom: 6,
+            child: Material(
+              color: AppColors.yellow,
+              shape: const CircleBorder(),
+              elevation: 2,
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: _seleccionarAvatar,
+                child: const Padding(
+                  padding: EdgeInsets.all(7),
+                  child: Icon(
+                    Icons.photo_camera_outlined,
+                    color: Color(0xFF1E1E1E),
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (hasPhoto)
+            Positioned(
+              left: 2,
+              bottom: 6,
+              child: Material(
+                color: Colors.redAccent,
+                shape: const CircleBorder(),
+                elevation: 2,
+                child: InkWell(
+                  customBorder: const CircleBorder(),
+                  onTap: _quitarFotoPerfil,
+                  child: const Padding(
+                    padding: EdgeInsets.all(7),
+                    child: Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 17,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
   // Actualizar usuario (edición u onboarding social)
   void _updateUser() async {
     if (!_formKey.currentState!.validate()) return;
@@ -608,13 +759,24 @@ class _RegistroPageState extends State<RegistroScreen> {
           .toIso8601String();
     }
 
-    if (updateData.isEmpty) {
+    if (_esEdicion && _quitarAvatar) {
+      updateData['avatar_url'] = '';
+    }
+
+    if (updateData.isEmpty && _avatarLocal == null) {
       if (!mounted) return;
       setState(() => _isLoading = false);
       return;
     }
 
     try {
+      if (_esEdicion && _avatarLocal != null) {
+        final avatarUrl = await ApiService.uploadProfileImage(
+          _avatarLocal!.path,
+        );
+        updateData['avatar_url'] = avatarUrl;
+      }
+
       final result = await ApiService.updateUser(widget.userId!, updateData);
 
       if (!mounted) return; // Evita usar context si el widget ya se cerró
@@ -764,15 +926,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                   children: [
                     if (_esEdicion) ...[
                       Center(
-                        child: UserBalotaAvatar(
-                          avatarUrl: widget.user?['avatar_url'],
-                          userName: widget.user?['name']?.toString() ?? '',
-                          userId: widget.userId ?? 0,
-                          radius: 50,
-                          showGlow: true,
-                          showBorder: true,
-                          borderColor: AppColors.yellow,
-                        ),
+                        child: _buildEditableAvatar(),
                       ),
                       const SizedBox(height: 20),
                     ],
