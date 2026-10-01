@@ -6,7 +6,6 @@ import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/pais_helper.dart';
 import '../utils/secure_storage_helper.dart';
@@ -746,6 +745,27 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     };
   }
 
+  ButtonStyle _photoActionButtonStyle({bool destructive = false}) {
+    final activeColor = destructive ? Colors.redAccent : AppColors.yellow;
+
+    return OutlinedButton.styleFrom(
+      foregroundColor: activeColor,
+      disabledForegroundColor: Colors.white38,
+      minimumSize: const Size(0, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      side: BorderSide(
+        color: activeColor.withValues(alpha: 0.70),
+        width: 1,
+      ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(30),
+      ),
+      textStyle: AppTextStyles.caption2.copyWith(
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
   Widget _fotoPrincipalPicker() {
     final local = _fotoPrincipalLocal;
     final remote = _fotoPrincipalRemota?.trim() ?? '';
@@ -820,10 +840,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(),
                 onPressed: _subiendoImagenes
                     ? null
                     : () => _seleccionarPrincipal(ImageSource.gallery),
-                icon: const Icon(Icons.photo_library_outlined),
+                icon: const Icon(Icons.photo_library_outlined, size: 18),
                 label: Text(
                   _localizedLabel(
                     context,
@@ -832,16 +853,23 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     fr: 'Galerie',
                     pt: 'Galeria',
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: AppColors.yellow,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(),
                 onPressed: _subiendoImagenes
                     ? null
                     : () => _seleccionarPrincipal(ImageSource.camera),
-                icon: const Icon(Icons.camera_alt_outlined),
+                icon: const Icon(Icons.camera_alt_outlined, size: 18),
                 label: Text(
                   _localizedLabel(
                     context,
@@ -850,33 +878,45 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     fr: 'Caméra',
                     pt: 'Câmera',
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: AppColors.yellow,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: _photoActionButtonStyle(destructive: true),
+                onPressed: (_subiendoImagenes || !hasImage)
+                    ? null
+                    : () => setState(() {
+                          _fotoPrincipalLocal = null;
+                          _fotoPrincipalRemota = null;
+                        }),
+                icon: const Icon(Icons.delete_outline, size: 18),
+                label: Text(
+                  _localizedLabel(
+                    context,
+                    es: 'Quitar',
+                    en: 'Remove',
+                    fr: 'Retirer',
+                    pt: 'Remover',
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption2.copyWith(
+                    color: hasImage ? Colors.redAccent : Colors.white38,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
           ],
         ),
-        if (hasImage)
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _subiendoImagenes
-                  ? null
-                  : () => setState(() {
-                        _fotoPrincipalLocal = null;
-                        _fotoPrincipalRemota = null;
-                      }),
-              icon: const Icon(Icons.delete_outline, size: 18),
-              label: Text(
-                _localizedLabel(
-                  context,
-                  es: 'Quitar',
-                  en: 'Remove',
-                  fr: 'Retirer',
-                  pt: 'Remover',
-                ),
-              ),
-            ),
-          ),
       ],
     );
   }
@@ -923,10 +963,11 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
+            style: _photoActionButtonStyle(),
             onPressed: (_subiendoImagenes || total >= _maxFotosGaleria)
                 ? null
                 : _seleccionarGaleria,
-            icon: const Icon(Icons.add_photo_alternate_outlined),
+            icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
             label: Text(
               _localizedLabel(
                 context,
@@ -934,6 +975,10 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                 en: 'Add photos',
                 fr: 'Ajouter des photos',
                 pt: 'Adicionar fotos',
+              ),
+              style: AppTextStyles.caption2.copyWith(
+                color: AppColors.yellow,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -1400,9 +1445,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                               const SizedBox(width: 12),
                               Text(
                                 "Atención 24 Horas (24/7)",
-                                style: GoogleFonts.montserrat(
+                                style: AppTextStyles.mensajeSecundario.copyWith(
                                   color: Colors.white,
-                                  fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -1533,9 +1577,12 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       onPressed: isSubmitting ? null : () => _enviarFormulario(l10n),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.yellow,
+                        foregroundColor: const Color(0xFF1E1E1E),
+                        disabledBackgroundColor: AppColors.yellow.withValues(alpha: 0.45),
+                        minimumSize: const Size(double.infinity, 50),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(30),
                         ),
                       ),
                       child: isSubmitting
@@ -1796,7 +1843,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           children: [
             Text(
               label,
-              style: GoogleFonts.montserrat(
+              style: AppTextStyles.caption.copyWith(
                 color: Colors.white54,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
@@ -1808,9 +1855,8 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
               children: [
                 Text(
                   formattedTime,
-                  style: GoogleFonts.montserrat(
+                  style: AppTextStyles.mensajeSecundario.copyWith(
                     color: Colors.white,
-                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
