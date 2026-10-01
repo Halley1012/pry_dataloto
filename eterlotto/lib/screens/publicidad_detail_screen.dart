@@ -386,44 +386,48 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                             controller: _pageController,
                             itemCount: images.length,
                             onPageChanged: (value) => setState(() => _page = value),
-                            itemBuilder: (_, index) => Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                ImageFiltered(
-                                  imageFilter: ImageFilter.blur(
-                                    sigmaX: 18,
-                                    sigmaY: 18,
-                                  ),
-                                  child: Image.network(
-                                    images[index],
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      color: const Color(0xFF171C21),
+                            itemBuilder: (_, index) => GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => _openImageViewer(images, index),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ImageFiltered(
+                                    imageFilter: ImageFilter.blur(
+                                      sigmaX: 18,
+                                      sigmaY: 18,
                                     ),
-                                  ),
-                                ),
-                                Container(
-                                  color: Colors.black.withValues(alpha: 0.22),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 18,
-                                  ),
-                                  child: Image.network(
-                                    images[index],
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      color: const Color(0xFF171C21),
-                                      alignment: Alignment.center,
-                                      child: const Icon(
-                                        Icons.broken_image_outlined,
-                                        color: Colors.white24,
-                                        size: 64,
+                                    child: Image.network(
+                                      images[index],
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: const Color(0xFF171C21),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                  Container(
+                                    color: Colors.black.withValues(alpha: 0.22),
+                                  ),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                    ),
+                                    child: Image.network(
+                                      images[index],
+                                      fit: BoxFit.contain,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        color: const Color(0xFF171C21),
+                                        alignment: Alignment.center,
+                                        child: const Icon(
+                                          Icons.broken_image_outlined,
+                                          color: Colors.white24,
+                                          size: 64,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                   ),
@@ -474,29 +478,6 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                       ),
                     ),
                   ),
-                  if (images.isNotEmpty)
-                    Positioned(
-                      right: 14,
-                      bottom: 14,
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.48),
-                        shape: const CircleBorder(),
-                        child: IconButton(
-                          tooltip: _tr(
-                            es: 'Ver imagen',
-                            en: 'View image',
-                            fr: 'Voir l’image',
-                            pt: 'Ver imagem',
-                          ),
-                          onPressed: () => _openImageViewer(images, _page),
-                          icon: const Icon(
-                            Icons.open_in_full_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
                   if (images.length > 1)
                     Positioned(
                       bottom: 18,
