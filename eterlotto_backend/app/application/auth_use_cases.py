@@ -409,9 +409,22 @@ class AuthUseCases:
             if user.get("activo") is False:
                 raise ValueError("Tu cuenta ha sido desactivada o suspendida. Por favor contacta a soporte.")
 
-            # Actualizar foto si no tenía o cambió
-            if picture and (not user.get("avatar_url") or user.get("avatar_url") != picture):
-                user = await self.user_repo.update(user["id"], {"avatar_url": picture})
+            # La foto de Google sirve como avatar inicial, pero nunca debe
+            # pisar una foto que el usuario eligió manualmente en Eterlotto.
+            current_avatar = (user.get("avatar_url") or "").strip()
+            is_google_avatar = (
+                "googleusercontent.com" in current_avatar.lower()
+                or "googleapis.com" in current_avatar.lower()
+            )
+
+            if picture and (
+                not current_avatar
+                or (is_google_avatar and current_avatar != picture)
+            ):
+                user = await self.user_repo.update(
+                    user["id"],
+                    {"avatar_url": picture},
+                )
 
             # Actualizar último inicio de sesión
             await self.user_repo.update_last_login(user["id"])

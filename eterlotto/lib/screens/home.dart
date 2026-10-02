@@ -55,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen>
   String? _homeLoadError;
   List<Post> posts = [];
   int _postsVersion = 0;
+  StateSetter? _commentsSheetSetState;
   String? currentUserId;
   String? pais;
   String? userName;
@@ -72,10 +73,10 @@ class _HomeScreenState extends State<HomeScreen>
   static const String _bottomNavOrderStorageKey =
       'eterlotto_bottom_nav_order_v4';
   static const double _bottomNavDockHeight = 82.0;
-  static const List<int> _defaultBottomNavOrder = [1, 3, 0, 2];
+  static const List<int> _defaultBottomNavOrder = [0, 1, 3, 2];
 
   // Cada valor representa el índice del botón que ocupa ese slot del dock.
-  // El orden base conserva Inicio en el centro de la barra.
+  // El orden base deja Inicio a la izquierda; el usuario puede reordenarlo.
   List<int> _bottomNavDockOrder = List<int>.from(_defaultBottomNavOrder);
   final ValueNotifier<Offset?> _flagPositionNotifier = ValueNotifier<Offset?>(
     null,
@@ -1671,8 +1672,29 @@ class _HomeScreenState extends State<HomeScreen>
               restoredOrder.every(
                 (item) => _defaultBottomNavOrder.contains(item),
               )) {
+            // Migración visual: sólo quien seguía usando el antiguo orden base
+            // pasa al nuevo orden con Inicio a la izquierda. Si el usuario ya
+            // había personalizado el dock, conservamos exactamente su orden.
+            const oldDefaultOrder = <int>[1, 3, 0, 2];
+            final wasOldDefault =
+                restoredOrder.length == oldDefaultOrder.length &&
+                List.generate(
+                  restoredOrder.length,
+                  (i) => restoredOrder[i] == oldDefaultOrder[i],
+                ).every((same) => same);
+
+            final orderToUse =
+                wasOldDefault ? List<int>.from(_defaultBottomNavOrder) : restoredOrder;
+
             if (!mounted) return;
-            setState(() => _bottomNavDockOrder = restoredOrder);
+            setState(() => _bottomNavDockOrder = orderToUse);
+
+            if (wasOldDefault) {
+              await prefs.setString(
+                _bottomNavOrderStorageKey,
+                jsonEncode(orderToUse),
+              );
+            }
           }
         }
       }
@@ -1735,6 +1757,7 @@ class _HomeScreenState extends State<HomeScreen>
         }
         _postsVersion++;
       });
+      _refreshCommentsSheet();
       await _persistPostsCache();
     }
   }
@@ -2498,37 +2521,32 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildComunidadSection() {
-    final totalMessages = posts.fold<int>(
-      0,
-      (total, post) => total + 1 + post.commentsCount,
-    );
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildCommunityHeader(totalMessages),
+          _buildCommunityHeader(),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF171719),
-              borderRadius: BorderRadius.circular(16),
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: _buildCommunityBody(),
-            ),
+            child: isLoading && posts.isEmpty
+                ? _buildCommunityLoadingPreview()
+                : posts.isEmpty
+                    ? _buildCommunityEmptyPreview()
+                    : _buildCommunityPreview(posts.first),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCommunityHeader(int totalMessages) {
+  Widget _buildCommunityHeader() {
     final commentsLabel =
         AppLocalizations.of(context)?.comentarios ?? 'Comentarios';
 
@@ -2555,6 +2573,18 @@ class _HomeScreenState extends State<HomeScreen>
         ),
       ],
     );
+  }
+
+  String _formatCommunityCount(int value) {
+    if (value >= 1000000) {
+      final compact = (value / 1000000).toStringAsFixed(value >= 10000000 ? 0 : 1);
+      return '${compact.replaceAll('.0', '')} M';
+    }
+    if (value >= 1000) {
+      final compact = (value / 1000).toStringAsFixed(value >= 10000 ? 0 : 1);
+      return '${compact.replaceAll('.0', '')} K';
+    }
+    return value.toString();
   }
 
   Widget _buildCommunityBody() {
@@ -2615,9 +2645,9 @@ class _HomeScreenState extends State<HomeScreen>
     final displayName = post.userName.trim().isEmpty
         ? 'Comunidad'
         : post.userName.trim();
-    final repliesLabel = post.commentsCount == 1
-        ? (AppLocalizations.of(context)?.respuesta ?? 'respuesta')
-        : (AppLocalizations.of(context)?.respuestas ?? 'respuestas');
+    final previewText = post.content.trim().isNotEmpty
+        ? post.content.trim()
+        : post.title.trim();
 
     return Semantics(
       button: true,
@@ -2626,16 +2656,9 @@ class _HomeScreenState extends State<HomeScreen>
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
-            _openCommentsBottomSheet(context);
-          },
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.transparent,
-              borderRadius: BorderRadius.circular(12),
-            ),
+          onTap: () => _openCommentsBottomSheet(context),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2643,12 +2666,12 @@ class _HomeScreenState extends State<HomeScreen>
                   avatarUrl: post.avatarUrl,
                   userName: displayName,
                   userId: post.userId,
-                  radius: 18,
+                  radius: 15,
                   animateGradient: false,
                   showGlow: false,
                   showBorder: false,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 9),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2662,76 +2685,42 @@ class _HomeScreenState extends State<HomeScreen>
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.caption.copyWith(
                                 color: Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             post.relativeTime,
                             style: AppTextStyles.caption.copyWith(
-                              color: Colors.white38,
-                              fontSize: 11,
+                              color: Colors.white30,
+                              fontSize: 10.5,
                             ),
                           ),
                         ],
                       ),
-                      if (post.title.trim().isNotEmpty) ...[
-                        const SizedBox(height: 3),
-                        Text(
-                          post.title.trim(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 3),
                       Text(
-                        post.content.trim().isEmpty
-                            ? post.title.trim()
-                            : post.content.trim(),
+                        previewText,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.mensajeSecundario.copyWith(
-                          color: Colors.white70,
-                          fontSize: 13,
-                          height: 1.25,
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          height: 1.24,
                         ),
-                      ),
-                      const SizedBox(height: 7),
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.chat_bubble_outline_rounded,
-                            color: Colors.white54,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            '${post.commentsCount} $repliesLabel',
-                            style: AppTextStyles.caption.copyWith(
-                              color: Colors.white60,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
                 const Padding(
-                  padding: EdgeInsets.only(top: 24),
+                  padding: EdgeInsets.only(top: 13),
                   child: Icon(
                     Icons.keyboard_arrow_down_rounded,
-                    color: Colors.white54,
-                    size: 22,
+                    color: Colors.white38,
+                    size: 20,
                   ),
                 ),
               ],
@@ -2748,68 +2737,87 @@ class _HomeScreenState extends State<HomeScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (BuildContext ctx) {
-        return DraggableScrollableSheet(
-          initialChildSize: 0.65,
-          minChildSize: 0.4,
-          maxChildSize: 0.95,
-          builder: (context, scrollController) {
-            return Container(
-              clipBehavior: Clip.antiAlias,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.white24,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+        return StatefulBuilder(
+          builder: (context, sheetSetState) {
+            _commentsSheetSetState = sheetSetState;
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.65,
+              minChildSize: 0.4,
+              maxChildSize: 0.95,
+              builder: (context, scrollController) {
+                return Container(
+                  clipBehavior: Clip.antiAlias,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF1E1E1E),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    AppLocalizations.of(context)?.comentarios ?? 'Comentarios',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        AppLocalizations.of(context)?.comentarios ?? 'Comentarios',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Divider(color: Colors.white12, height: 1),
+                      Expanded(
+                        child: (isLoading && posts.isEmpty)
+                            ? _buildCommunityLoadingPreview()
+                            : (posts.isEmpty
+                                  ? Center(child: _buildCommunityEmptyPreview())
+                                  : ListView.builder(
+                                      controller: scrollController,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      itemCount: posts.length,
+                                      itemBuilder: (context, index) {
+                                        final post = posts[index];
+                                        final isOwner =
+                                            currentUserId != null &&
+                                            post.userId ==
+                                                int.tryParse(currentUserId!);
+                                        return _buildPostItem(post, isOwner);
+                                      },
+                                    )),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  const Divider(color: Colors.white12, height: 1),
-                  Expanded(
-                    child: (isLoading && posts.isEmpty)
-                        ? _buildCommunityLoadingPreview()
-                        : (posts.isEmpty
-                              ? Center(child: _buildCommunityEmptyPreview())
-                              : ListView.builder(
-                                  controller: scrollController,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  itemCount: posts.length,
-                                  itemBuilder: (context, index) {
-                                    final post = posts[index];
-                                    final isOwner =
-                                        currentUserId != null &&
-                                        post.userId ==
-                                            int.tryParse(currentUserId!);
-                                    return _buildPostItem(post, isOwner);
-                                  },
-                                )),
-                  ),
-                ],
-              ),
+                );
+              },
             );
           },
         );
       },
-    );
+    ).whenComplete(() {
+      _commentsSheetSetState = null;
+    });
+  }
+
+  void _refreshCommentsSheet() {
+    final sheetSetState = _commentsSheetSetState;
+    if (sheetSetState == null) return;
+
+    try {
+      sheetSetState(() {});
+    } catch (_) {
+      _commentsSheetSetState = null;
+    }
   }
 
   Future<void> _createCommunityPost() async {
@@ -2841,6 +2849,7 @@ class _HomeScreenState extends State<HomeScreen>
       posts[index] = optimistic;
       _postsVersion++;
     });
+    _refreshCommentsSheet();
     await _persistPostsCache();
 
     try {
@@ -2856,6 +2865,7 @@ class _HomeScreenState extends State<HomeScreen>
         );
         _postsVersion++;
       });
+      _refreshCommentsSheet();
       await _persistPostsCache();
     } catch (_) {
       if (!mounted) return;
@@ -2865,6 +2875,7 @@ class _HomeScreenState extends State<HomeScreen>
           posts[currentIndex] = previous;
           _postsVersion++;
         });
+        _refreshCommentsSheet();
         await _persistPostsCache();
       }
     }

@@ -371,11 +371,14 @@ class _PostScreenState extends State<PostScreen> {
 
   // 🔍 Filtra las respuestas que pertenecen a un comentario principal
   List<Comment> _obtenerRespuestas(Comment parentComment) {
-    return comments.where((c) {
+    final respuestas = comments.where((c) {
       if (!_comentarioVisible(c)) return false;
       if (c.id == parentComment.id) return false;
       return c.parentId != null && c.parentId == parentComment.id;
     }).toList();
+
+    respuestas.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return respuestas;
   }
 
   @override
@@ -383,7 +386,8 @@ class _PostScreenState extends State<PostScreen> {
     final l10n = AppLocalizations.of(context);
     final rootComments = comments
         .where((c) => c.parentId == null && _comentarioVisible(c))
-        .toList();
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return PopScope(
       canPop: false,
