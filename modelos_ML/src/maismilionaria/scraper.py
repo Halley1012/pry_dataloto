@@ -23,6 +23,7 @@ class MaisMilionariaScraper:
             "Accept": "application/json, text/html, */*",
         }
         self.url_caixa = "https://servicebus2.caixa.gov.br/portaldeloterias/api/maismilionaria"
+        self.url_fallback_api = "https://api.megaloterias.com.br/api/inventory/get-last-result/12"
         self.url_fallback = "https://www.megaloterias.com.br/mais-milionaria/resultados"
 
     def _fetch_with_retries(
@@ -43,7 +44,7 @@ class MaisMilionariaScraper:
         last_error = None
         for attempt in range(1, max_retries + 1):
             try:
-                r = requests.get(url, headers=self.headers, timeout=10)
+                r = requests.get(url, headers=self.headers, timeout=(10, 30))
 
                 if r.status_code == 200:
                     return r.json()
@@ -53,7 +54,7 @@ class MaisMilionariaScraper:
 
                 if r.status_code == 403:
                     print(
-                        f"⚠️ [+Milionária] Caixa respondió HTTP 403 para {url}. "
+                        f"⚠️ [+Milionária] La fuente respondió HTTP 403 para {url}. "
                         "Se omiten reintentos y se usará la fuente fallback."
                     )
                     return None
@@ -90,14 +91,81 @@ class MaisMilionariaScraper:
         m_slash = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', text_clean)
         if m_slash:
             day, mon_num, yr = m_slash.groups()
-            return f"{yr}-{mon_num.zfill(2)}-{day.zfill(2)}"
+            return self._validar_fecha_iso(yr, mon_num, day)
             
         m_iso = re.search(r'(\d{4})-(\d{1,2})-(\d{1,2})', text_clean)
         if m_iso:
             yr, mon_num, day = m_iso.groups()
-            return f"{yr}-{mon_num.zfill(2)}-{day.zfill(2)}"
+            return self._validar_fecha_iso(yr, mon_num, day)
             
         return None
+
+    @staticmethod
+    def _validar_fecha_iso(yr, mon_num, day):
+        try:
+            return date(int(yr), int(mon_num), int(day)).isoformat()
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _resultado_valido(balls, trevos):
+        return (
+            len(balls) == 6 and len(set(balls)) == 6
+            and all(1 <= x <= 50 for x in balls)
+            and len(trevos) == 2 and len(set(trevos)) == 2
+            and all(1 <= x <= 6 for x in trevos)
+        )
+
+    def _parsear_api_megaloterias(self, payload):
+        """Lee resultados estructurados; nunca extrae números de premios/rateios."""
+        rows = payload if isinstance(payload, list) else [payload]
+        validos = []
+        for row in rows:
+            try:
+                if not isinstance(row, dict) or row.get("lotteryID") != 12:
+                    continue
+                if row.get("lotterySlug") != "mais-milionaria":
+                    continue
+                concurso = int(row["drawNumber"])
+                fecha_str = self._parse_fecha(row.get("drawDate"))
+                resultado = row["drawResults"][0]["result"]
+                match = re.fullmatch(
+                    r"\s*(\d{1,2}(?:\s+\d{1,2}){5})\s*-\s*"
+                    r"([1-6]\s+[1-6])\s*", resultado
+                )
+                if not match or not fecha_str or concurso <= 0:
+                    continue
+                balls = [int(x) for x in match.group(1).split()]
+                trevos = [int(x) for x in match.group(2).split()]
+                if not self._resultado_valido(balls, trevos):
+                    continue
+                validos.append({
+                    "concurso": concurso, "fecha": fecha_str,
+                    "balotas": balls, "trevos": trevos,
+                    "proxima_fecha": None, "proximo_concurso": concurso + 1,
+                    # estimatedPrize pertenece al concurso obtenido, no al próximo.
+                    "jackpot": None, "raw_data": row,
+                    "fuente": "megaloterias_api",
+                })
+            except (ValueError, TypeError, KeyError, IndexError):
+                continue
+        return max(validos, key=lambda x: (x["concurso"], x["fecha"]), default=None)
+
+    def _extraer_ultimo_sorteo_megaloterias_api(self):
+        print("🔁 [+Milionária] Consultando API pública de MegaLoterias...")
+        payload = self._fetch_with_retries(
+            self.url_fallback_api, max_retries=2, base_delay=1.0
+        )
+        resultado = self._parsear_api_megaloterias(payload)
+        if resultado:
+            print(
+                f"✅ [+Milionária] MegaLoterias API OK: Concurso "
+                f"{resultado['concurso']} ({resultado['fecha']}) -> "
+                f"Números: {resultado['balotas']}, Tréboles: {resultado['trevos']}"
+            )
+        else:
+            print("⚠️ [+Milionária] API MegaLoterias sin resultado completo válido.")
+        return resultado
 
     def _calcular_proximo_sorteo(self, ultima_fecha_real: date) -> date:
         """FALLBACK DE CALENDARIO EXCLUSIVO:
@@ -270,6 +338,10 @@ class MaisMilionariaScraper:
             )
             return None
 
+        if not fecha_str or not self._resultado_valido(balls, trevos):
+            print("⚠️ [+Milionária] Resultado HTML inválido; se descarta.")
+            return None
+
         # El encabezado de la página suele exponer el premio estimado del
         # próximo concurso. Si cambia la estructura, simplemente se deja el
         # valor por defecto del scraper.
@@ -358,7 +430,7 @@ class MaisMilionariaScraper:
                 )
 
                 jackpot_val = data.get("valorEstimadoProximoConcurso")
-                jackpot_str = "R$ 92.000.000,00"
+                jackpot_str = None
                 if jackpot_val:
                     try:
                         jackpot_str = (
@@ -373,8 +445,7 @@ class MaisMilionariaScraper:
                 if (
                     concurso
                     and fecha_str
-                    and len(balls) == 6
-                    and len(tr) == 2
+                    and self._resultado_valido(balls, tr)
                 ):
                     return {
                         "concurso": concurso,
@@ -399,16 +470,18 @@ class MaisMilionariaScraper:
                     f"(+Milionária): {e}"
                 )
 
-        return self._extraer_ultimo_sorteo_megaloterias()
+        return (self._extraer_ultimo_sorteo_megaloterias_api()
+                or self._extraer_ultimo_sorteo_megaloterias())
 
-    def extraer_recientes(self) -> tuple[pd.DataFrame, str, str]:
+    def extraer_recientes(self, fuente_info=None) -> tuple[pd.DataFrame, str, str]:
         """Extrae el sorteo más reciente desde Caixa o desde MegaLoterias como fallback."""
         print(f"➡️ Solicitando resultados recientes de +Milionária...")
         draws = []
-        jackpot_destacado = "R$ 92.000.000,00"
+        jackpot_destacado = None
         proxima_fecha_oficial = None
 
-        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info is None:
+            fuente_info = self.extraer_ultimo_sorteo_fuente()
         if fuente_info and fuente_info.get("balotas") and fuente_info.get("trevos"):
             balls = fuente_info["balotas"]
             tr = fuente_info["trevos"]
@@ -452,9 +525,9 @@ class MaisMilionariaScraper:
                     tr = [int(x) for x in dezenas_ordem[6:8]]
                 else:
                     balls = [int(x) for x in lista_dezenas[:6]] if len(lista_dezenas) >= 6 else []
-                    tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else [1, 2]
+                    tr = [int(x) for x in trevos[:2]] if len(trevos) >= 2 else []
 
-                if fecha_str and len(balls) == 6 and len(tr) == 2:
+                if fecha_str and self._resultado_valido(balls, tr):
                     return {
                         "concurso": num_concurso,
                         "loteria_id": self.loteria_id,
@@ -473,11 +546,12 @@ class MaisMilionariaScraper:
                 print(f"⚠️ Error parseando concurso #{num_concurso} de +Milionária: {e}")
         return None
 
-    def extraer_historico_completo(self) -> pd.DataFrame:
+    def extraer_historico_completo(self, fuente_info=None) -> pd.DataFrame:
         """Descarga todos los sorteos históricos de +Milionária (desde el concurso 1)."""
         print("📚 Iniciando extracción histórica completa de +Milionária...")
         ultimo_sorteo_num = 387
-        fuente_info = self.extraer_ultimo_sorteo_fuente()
+        if fuente_info is None:
+            fuente_info = self.extraer_ultimo_sorteo_fuente()
         if fuente_info and fuente_info.get("concurso"):
             ultimo_sorteo_num = fuente_info["concurso"]
 
@@ -505,7 +579,10 @@ class MaisMilionariaScraper:
 
     def actualizar_jackpot(self, proxima_fecha: str, jackpot_str: str = None):
         """Actualiza el premio de +Milionária en la tabla loterias_jackpots."""
-        jackpot_val = jackpot_str or "R$ 91.000.000,00"
+        if not jackpot_str:
+            print("ℹ️ [+Milionária] Premio próximo no confirmado; se conserva el existente.")
+            return
+        jackpot_val = jackpot_str
         print(f"💰 Actualizando jackpot para +Milionária: {jackpot_val} (Fecha: {proxima_fecha})")
         try:
             with self.engine.connect() as conn:
@@ -571,7 +648,8 @@ class MaisMilionariaScraper:
                     balota1 = 0, balota2 = 0, balota3 = 0,
                     balota4 = 0, balota5 = 0, balota6 = 0,
                     balotaroja = 0, balotaroja2 = 0,
-                    updated_at = CURRENT_TIMESTAMP;
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE resultados_maismilionaria.balota1 = 0;
             """), {
                 "concurso": prox_concurso,
                 "loteria_id": self.loteria_id,
@@ -613,7 +691,7 @@ class MaisMilionariaScraper:
         fuente_info = self.extraer_ultimo_sorteo_fuente()
 
         if not fuente_info and not backfill:
-            raise RuntimeError("❌ No fue posible obtener +Milionária ni desde Caixa ni desde MegaLoterias.")
+            raise RuntimeError("❌ No fue posible obtener +Milionária desde Caixa, la API de MegaLoterias ni su HTML.")
 
         if not backfill and fuente_info and db_ultimo:
             concurso_fuente = fuente_info.get("concurso")
@@ -647,9 +725,9 @@ class MaisMilionariaScraper:
         except Exception:
             pass
 
-        df_recientes, jackpot_reciente, prox_fecha_oficial = self.extraer_recientes()
+        df_recientes, jackpot_reciente, prox_fecha_oficial = self.extraer_recientes(fuente_info)
         if backfill or df_existente.empty or len(df_existente) < 50:
-            df_historico = self.extraer_historico_completo()
+            df_historico = self.extraer_historico_completo(fuente_info)
             df_scraped = pd.concat([df_recientes, df_historico], ignore_index=True)
         else:
             df_scraped = df_recientes
