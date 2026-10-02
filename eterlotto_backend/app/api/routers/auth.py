@@ -82,6 +82,93 @@ async def _delete_profile_avatar(public_url: str):
         )
 
 
+async def _cleanup_profile_avatar_folder(
+    user_id: int,
+    keep_public_url: str | None = None,
+):
+    """
+    Elimina avatares huérfanos del propio usuario en Storage.
+
+    Esto corrige archivos históricos que pudieron quedar cuando un login de
+    Google sobrescribió avatar_url antes de que el backend pudiera borrar la
+    foto personalizada anterior.
+    """
+    supabase_url, secret_key, bucket = _profile_storage_settings()
+    if not supabase_url or not secret_key or not bucket:
+        return
+
+    prefix = f"user_{user_id}/perfil"
+    keep_path = _profile_storage_object_path((keep_public_url or "").strip())
+
+    headers = {
+        "apikey": secret_key,
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+    }
+    list_endpoint = f"{supabase_url}/storage/v1/object/list/{bucket}"
+
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as client:
+            response = await client.post(
+                list_endpoint,
+                headers=headers,
+                json={
+                    "prefix": prefix,
+                    "limit": 100,
+                    "offset": 0,
+                    "sortBy": {"column": "name", "order": "asc"},
+                },
+            )
+
+            if response.status_code != 200:
+                logging.warning(
+                    "[PROFILE_STORAGE] No se pudo listar avatares: %s %s",
+                    response.status_code,
+                    response.text[:300],
+                )
+                return
+
+            objects = response.json()
+            if not isinstance(objects, list):
+                return
+
+            for item in objects:
+                if not isinstance(item, dict):
+                    continue
+
+                name = (item.get("name") or "").strip()
+                if not name or not name.startswith("avatar_"):
+                    continue
+
+                object_path = f"{prefix}/{name}"
+                if keep_path and object_path == keep_path:
+                    continue
+
+                delete_endpoint = (
+                    f"{supabase_url}/storage/v1/object/{bucket}/"
+                    f"{quote(object_path, safe='/')}"
+                )
+                delete_response = await client.delete(
+                    delete_endpoint,
+                    headers={
+                        "apikey": secret_key,
+                        "Authorization": f"Bearer {secret_key}",
+                    },
+                )
+
+                if delete_response.status_code not in (200, 204):
+                    logging.warning(
+                        "[PROFILE_STORAGE] No se pudo limpiar avatar huérfano %s: %s",
+                        object_path,
+                        delete_response.status_code,
+                    )
+    except httpx.HTTPError as exc:
+        logging.warning(
+            "[PROFILE_STORAGE] Error limpiando avatares huérfanos: %s",
+            exc,
+        )
+
+
 async def _upload_profile_avatar(user_id: int, file: UploadFile):
     supabase_url, secret_key, bucket = _profile_storage_settings()
     if not supabase_url or not secret_key or not bucket:
@@ -242,8 +329,18 @@ async def update_user(
         if user_update.avatar_url is not None:
             new_avatar = user_update.avatar_url.strip()
             old_avatar = (previous_avatar or "").strip()
+
             if old_avatar and old_avatar != new_avatar:
                 await _delete_profile_avatar(old_avatar)
+
+            # Limpia también cualquier foto huérfana histórica que haya quedado
+            # dentro de la carpeta de este mismo usuario. Si new_avatar es una
+            # URL externa (por ejemplo Google) o queda vacío, no conserva
+            # archivos viejos del bucket.
+            await _cleanup_profile_avatar_folder(
+                user_id=user_id,
+                keep_public_url=new_avatar,
+            )
 
         return res
     except ValueError as e:
