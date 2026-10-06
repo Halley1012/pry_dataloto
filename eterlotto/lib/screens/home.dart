@@ -94,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _welcomeWaveController;
   late final Animation<double> _welcomeWaveAngle;
   bool _hasPlayedWelcomeWave = false;
+  Timer? _rewardPassTicker;
 
   @override
   void initState() {
@@ -101,6 +102,12 @@ class _HomeScreenState extends State<HomeScreen>
     // App Open sólo queda habilitado una vez que el usuario llegó al Home.
     // Así nunca interrumpe Splash, login, registro ni onboarding.
     AdService.instance.setAppOpenEligibility(true);
+    AdService.instance.rewardPassRevision.addListener(_onRewardPassChanged);
+    _rewardPassTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && AdService.instance.isRewardPassActive) {
+        setState(() {});
+      }
+    });
     _welcomeWaveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
@@ -165,10 +172,295 @@ class _HomeScreenState extends State<HomeScreen>
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );
+    AdService.instance.rewardPassRevision.removeListener(_onRewardPassChanged);
+    _rewardPassTicker?.cancel();
+    _rewardPassTicker = null;
     _flagPositionNotifier.dispose();
     _profilePositionNotifier.dispose();
     _welcomeWaveController.dispose();
     super.dispose();
+  }
+
+  void _onRewardPassChanged() {
+    if (mounted) setState(() {});
+  }
+
+  String _rewardText({
+    required String es,
+    required String en,
+    required String fr,
+    required String pt,
+  }) {
+    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
+    switch (lang) {
+      case 'en':
+        return en;
+      case 'fr':
+        return fr;
+      case 'pt':
+        return pt;
+      default:
+        return es;
+    }
+  }
+
+  String _formatRewardDuration(Duration duration) {
+    final totalMinutes = duration.inMinutes;
+    if (totalMinutes <= 0) return '0m';
+
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+    if (hours > 0) return '${hours}h';
+    return '${minutes}m';
+  }
+
+  String _rewardGiftLabel() {
+    final adService = AdService.instance;
+    if (adService.isRewardPassActive) {
+      return _formatRewardDuration(adService.rewardPassRemaining);
+    }
+    if (adService.rewardBankMinutes > 0) {
+      return _formatRewardDuration(
+        Duration(minutes: adService.rewardBankMinutes),
+      );
+    }
+    return '+15m';
+  }
+
+  Future<void> _openRewardPassDialog() async {
+    final adService = AdService.instance;
+    final active = adService.isRewardPassActive;
+    final remaining = adService.rewardPassRemaining;
+    final bankMinutes = adService.rewardBankMinutes;
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final title = active
+            ? _rewardText(
+                es: 'Pase de recompensa activo',
+                en: 'Reward pass active',
+                fr: 'Pass récompense actif',
+                pt: 'Passe de recompensa ativo',
+              )
+            : _rewardText(
+                es: 'Pase de recompensa',
+                en: 'Reward pass',
+                fr: 'Pass récompense',
+                pt: 'Passe de recompensa',
+              );
+
+        final body = active
+            ? _rewardText(
+                es:
+                    'Te quedan ${_formatRewardDuration(remaining)} sin anuncios y con las funciones recompensadas desbloqueadas.',
+                en:
+                    'You have ${_formatRewardDuration(remaining)} left ad-free with rewarded features unlocked.',
+                fr:
+                    'Il vous reste ${_formatRewardDuration(remaining)} sans publicité avec les fonctions récompensées déverrouillées.',
+                pt:
+                    'Você ainda tem ${_formatRewardDuration(remaining)} sem anúncios e com os recursos recompensados desbloqueados.',
+              )
+            : (bankMinutes > 0
+                  ? _rewardText(
+                      es:
+                          'Tienes ${_formatRewardDuration(Duration(minutes: bankMinutes))} acumulados.',
+                      en:
+                          'You have ${_formatRewardDuration(Duration(minutes: bankMinutes))} saved.',
+                      fr:
+                          'Vous avez accumulé ${_formatRewardDuration(Duration(minutes: bankMinutes))}.',
+                      pt:
+                          'Você tem ${_formatRewardDuration(Duration(minutes: bankMinutes))} acumulados.',
+                    )
+                  : _rewardText(
+                      es:
+                          'Mira videos para acumular tiempo y actívalo cuando quieras.',
+                      en:
+                          'Watch videos to save time and activate it whenever you want.',
+                      fr:
+                          'Regardez des vidéos pour accumuler du temps et activez-le quand vous le souhaitez.',
+                      pt:
+                          'Assista a vídeos para acumular tempo e ative quando quiser.',
+                    ));
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: AppColors.amber.withValues(alpha: 0.28),
+            ),
+          ),
+          title: Row(
+            children: [
+              const Text('🎁', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.h2.copyWith(color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                body,
+                style: const TextStyle(color: Colors.white70, height: 1.4),
+              ),
+              if (!active) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _rewardText(
+                    es: 'Cada video suma 15 min. Máximo acumulable: 2 horas.',
+                    en: 'Each video adds 15 min. Maximum balance: 2 hours.',
+                    fr:
+                        'Chaque vidéo ajoute 15 min. Solde maximum : 2 heures.',
+                    pt:
+                        'Cada vídeo adiciona 15 min. Máximo acumulável: 2 horas.',
+                  ),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.48),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'close'),
+              child: Text(
+                _rewardText(
+                  es: 'Cerrar',
+                  en: 'Close',
+                  fr: 'Fermer',
+                  pt: 'Fechar',
+                ),
+                style: const TextStyle(color: Colors.white54),
+              ),
+            ),
+            if (!active && !adService.isRewardBankFull)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(ctx, 'watch'),
+                icon: const Icon(
+                  Icons.play_circle_outline_rounded,
+                  color: AppColors.amber,
+                  size: 19,
+                ),
+                label: Text(
+                  _rewardText(
+                    es: 'Ver video +15 min',
+                    en: 'Watch video +15 min',
+                    fr: 'Voir une vidéo +15 min',
+                    pt: 'Ver vídeo +15 min',
+                  ),
+                  style: const TextStyle(color: AppColors.amber),
+                ),
+              ),
+            if (!active && bankMinutes > 0)
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(ctx, 'activate'),
+                icon: const Icon(
+                  Icons.bolt_rounded,
+                  color: Color(0xFF121212),
+                  size: 19,
+                ),
+                label: Text(
+                  _rewardText(
+                    es: 'Activar pase',
+                    en: 'Activate pass',
+                    fr: 'Activer le pass',
+                    pt: 'Ativar passe',
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.yellow,
+                  foregroundColor: const Color(0xFF121212),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (action == 'watch') {
+      await adService.showRewardedForPass(context: context);
+    } else if (action == 'activate') {
+      final activated = await adService.activateRewardPass();
+      if (activated && mounted) {
+        final duration = _formatRewardDuration(adService.rewardPassRemaining);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _rewardText(
+                es: '🎁 Pase activo por $duration.',
+                en: '🎁 Reward pass active for $duration.',
+                fr: '🎁 Pass récompense actif pendant $duration.',
+                pt: '🎁 Passe de recompensa ativo por $duration.',
+              ),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildRewardGift(bool isPremium) {
+    if (isPremium) return const SizedBox.shrink();
+
+    final adService = AdService.instance;
+    final active = adService.isRewardPassActive;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _openRewardPassDialog,
+      child: SizedBox(
+        width: 54,
+        height: 44,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            const Text(
+              '🎁',
+              style: TextStyle(fontSize: 27),
+            ),
+            Positioned(
+              bottom: -1,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.yellow
+                      : const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _rewardGiftLabel(),
+                  style: TextStyle(
+                    color: active
+                        ? const Color(0xFF121212)
+                        : Colors.white70,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onDataRefreshNotification() {
@@ -322,6 +614,8 @@ class _HomeScreenState extends State<HomeScreen>
       }
       userIdStr = userIdStr?.trim();
       if (userIdStr?.isEmpty == true) userIdStr = null;
+
+      await AdService.instance.setRewardUser(userIdStr);
 
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
@@ -1931,6 +2225,8 @@ class _HomeScreenState extends State<HomeScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                _buildRewardGift(isPremium),
+                const SizedBox(width: 2),
                 Consumer<NotificationProvider>(
                   builder: (context, provider, child) {
                     return SizedBox(
@@ -1989,7 +2285,7 @@ class _HomeScreenState extends State<HomeScreen>
                     );
                   },
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 _buildHeaderProfileAvatar(isPremium),
               ],
             ),
