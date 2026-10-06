@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../styles/colores.dart';
 import '../screens/subscription_screen.dart';
@@ -10,6 +12,26 @@ import '../screens/subscription_screen.dart';
 class AdService {
   AdService._();
   static final AdService instance = AdService._();
+
+  String _rewardLocalized(
+    BuildContext context, {
+    required String es,
+    required String en,
+    required String fr,
+    required String pt,
+  }) {
+    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
+    switch (lang) {
+      case 'en':
+        return en;
+      case 'fr':
+        return fr;
+      case 'pt':
+        return pt;
+      default:
+        return es;
+    }
+  }
 
   // ⚙️ Configuración: 'true' para Internal Testing / Desarrollo. Cambiar a 'false' SÓLO al enviar a Producción real.
   static const bool isTestMode = true;
@@ -69,6 +91,150 @@ class AdService {
 
   bool _isInitialized = false;
   bool get isInitialized => _isInitialized;
+
+  // ==========================================
+  // 🎁 PASE DE RECOMPENSA GLOBAL
+  // ==========================================
+  // Cada Rewarded completado suma 15 minutos. El usuario decide cuándo
+  // activar el saldo desde el regalo del Home. Máximo acumulable: 2 horas.
+  static const int rewardMinutesPerVideo = 15;
+  static const int maxRewardBankMinutes = 120;
+
+  final ValueNotifier<int> rewardPassRevision = ValueNotifier<int>(0);
+  String? _rewardUserId;
+  int _rewardBankMinutes = 0;
+  DateTime? _rewardPassActiveUntil;
+  Timer? _rewardPassExpiryTimer;
+
+  int get rewardBankMinutes => _rewardBankMinutes;
+
+  bool get isRewardPassActive {
+    final until = _rewardPassActiveUntil;
+    if (until == null) return false;
+    return DateTime.now().isBefore(until);
+  }
+
+  Duration get rewardPassRemaining {
+    final until = _rewardPassActiveUntil;
+    if (until == null) return Duration.zero;
+    final remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  bool get hasRewardBalance => _rewardBankMinutes > 0;
+  bool get isRewardBankFull => _rewardBankMinutes >= maxRewardBankMinutes;
+
+  String _rewardBankKey(String userId) => 'reward_pass_bank_minutes_v1_$userId';
+  String _rewardActiveUntilKey(String userId) =>
+      'reward_pass_active_until_v1_$userId';
+
+  Future<void> setRewardUser(String? userId) async {
+    final normalized = userId?.trim();
+    if (normalized == _rewardUserId) return;
+
+    _rewardPassExpiryTimer?.cancel();
+    _rewardPassExpiryTimer = null;
+    _rewardUserId = normalized;
+    _rewardBankMinutes = 0;
+    _rewardPassActiveUntil = null;
+
+    if (normalized == null || normalized.isEmpty) {
+      _notifyRewardPassChanged();
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    _rewardBankMinutes = prefs.getInt(_rewardBankKey(normalized)) ?? 0;
+    _rewardBankMinutes = _rewardBankMinutes.clamp(0, maxRewardBankMinutes);
+
+    final activeUntilMs = prefs.getInt(_rewardActiveUntilKey(normalized));
+    if (activeUntilMs != null && activeUntilMs > 0) {
+      final candidate = DateTime.fromMillisecondsSinceEpoch(activeUntilMs);
+      if (candidate.isAfter(DateTime.now())) {
+        _rewardPassActiveUntil = candidate;
+        _scheduleRewardPassExpiry();
+      } else {
+        await prefs.remove(_rewardActiveUntilKey(normalized));
+      }
+    }
+
+    _notifyRewardPassChanged();
+  }
+
+  Future<int> addRewardMinutes({
+    int minutes = rewardMinutesPerVideo,
+  }) async {
+    final userId = _rewardUserId;
+    if (userId == null || userId.isEmpty || minutes <= 0) return 0;
+
+    final before = _rewardBankMinutes;
+    _rewardBankMinutes = (_rewardBankMinutes + minutes)
+        .clamp(0, maxRewardBankMinutes);
+    final added = _rewardBankMinutes - before;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_rewardBankKey(userId), _rewardBankMinutes);
+    _notifyRewardPassChanged();
+    return added;
+  }
+
+  Future<bool> activateRewardPass() async {
+    final userId = _rewardUserId;
+    if (userId == null ||
+        userId.isEmpty ||
+        _rewardBankMinutes <= 0 ||
+        isRewardPassActive) {
+      return false;
+    }
+
+    final minutesToActivate = _rewardBankMinutes;
+    _rewardBankMinutes = 0;
+    _rewardPassActiveUntil =
+        DateTime.now().add(Duration(minutes: minutesToActivate));
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_rewardBankKey(userId), 0);
+    await prefs.setInt(
+      _rewardActiveUntilKey(userId),
+      _rewardPassActiveUntil!.millisecondsSinceEpoch,
+    );
+
+    _scheduleRewardPassExpiry();
+    _notifyRewardPassChanged();
+    return true;
+  }
+
+  Future<void> _expireRewardPassIfNeeded() async {
+    final userId = _rewardUserId;
+    if (userId == null || userId.isEmpty || isRewardPassActive) return;
+
+    if (_rewardPassActiveUntil != null) {
+      _rewardPassActiveUntil = null;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_rewardActiveUntilKey(userId));
+      _notifyRewardPassChanged();
+    }
+  }
+
+  void _scheduleRewardPassExpiry() {
+    _rewardPassExpiryTimer?.cancel();
+    final until = _rewardPassActiveUntil;
+    if (until == null) return;
+
+    final delay = until.difference(DateTime.now());
+    if (delay <= Duration.zero) {
+      unawaited(_expireRewardPassIfNeeded());
+      return;
+    }
+
+    _rewardPassExpiryTimer = Timer(delay, () {
+      unawaited(_expireRewardPassIfNeeded());
+    });
+  }
+
+  void _notifyRewardPassChanged() {
+    rewardPassRevision.value++;
+  }
 
   // 🛡️ Variables de Control de Sesión y Reglas de Oro
   DateTime _sessionStartTime = DateTime.now();
@@ -235,6 +401,7 @@ class AdService {
     if (!_appOpenEligible ||
         _appOpenShownThisSession ||
         isPremium ||
+        isRewardPassActive ||
         !_isInitialized ||
         !_canShowAnotherFullScreenAd()) {
       return false;
@@ -351,7 +518,7 @@ class AdService {
     bool isPremium = false,
     VoidCallback? onAdClosed,
   }) {
-    if (isPremium) {
+    if (isPremium || isRewardPassActive) {
       onAdClosed?.call();
       return false;
     }
@@ -377,7 +544,7 @@ class AdService {
     bool ignoreThreshold = false,
     VoidCallback? onAdClosed,
   }) {
-    if (isPremium || !_canShowAnotherFullScreenAd()) {
+    if (isPremium || isRewardPassActive || !_canShowAnotherFullScreenAd()) {
       onAdClosed?.call();
       return false;
     }
@@ -440,6 +607,8 @@ class AdService {
 
   /// Verifica si una función está actualmente desbloqueada por recompensa
   bool isFeatureUnlocked(String featureKey) {
+    if (isRewardPassActive) return true;
+
     final expiresAt = _unlockedFeatures[featureKey];
     if (expiresAt == null) return false;
     if (DateTime.now().isAfter(expiresAt)) {
@@ -485,8 +654,10 @@ class AdService {
     Duration unlockDuration = const Duration(hours: 2),
     required VoidCallback onRewardGranted,
   }) async {
-    // Si el usuario es VIP o ya desbloqueó la función previamente en esta sesión:
-    if (isPremium || (featureKey != null && isFeatureUnlocked(featureKey))) {
+    // VIP y Pase de recompensa activo acceden sin ver otro anuncio.
+    if (isPremium ||
+        isRewardPassActive ||
+        (featureKey != null && isFeatureUnlocked(featureKey))) {
       onRewardGranted();
       return;
     }
@@ -538,6 +709,46 @@ class AdService {
                 ),
               ),
               const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.amber.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.amber.withValues(alpha: 0.18),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.card_giftcard_rounded,
+                      color: AppColors.amber,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _rewardLocalized(
+                          context,
+                          es:
+                              'Al completar el video sumarás $rewardMinutesPerVideo min a tu Pase de recompensa.',
+                          en:
+                              'Completing the video adds $rewardMinutesPerVideo min to your Reward Pass.',
+                          fr:
+                              'Terminer la vidéo ajoute $rewardMinutesPerVideo min à votre Pass récompense.',
+                          pt:
+                              'Ao concluir o vídeo, você adiciona $rewardMinutesPerVideo min ao seu Passe de recompensa.',
+                        ),
+                        style: GoogleFonts.montserrat(
+                          color: Colors.white70,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -619,23 +830,41 @@ class AdService {
         onAdShowedFullScreenContent: (_) {
           _isFullScreenAdShowing = true;
         },
-        onAdDismissedFullScreenContent: (ad) {
+        onAdDismissedFullScreenContent: (ad) async {
           ad.dispose();
           _rewardedAd = null;
           _markFullScreenClosed();
           loadRewardedAd();
           if (userEarnedReward) {
-            if (featureKey != null) {
-              unlockFeature(featureKey, duration: unlockDuration);
-            }
+            final added = await addRewardMinutes();
             onRewardGranted();
+
+            if (context.mounted && added > 0) {
+              final total = rewardBankMinutes;
+              final message = _rewardLocalized(
+                context,
+                es:
+                    '🎁 +$added min. Tienes $total min acumulados para activar.',
+                en:
+                    '🎁 +$added min. You have $total min saved to activate.',
+                fr:
+                    '🎁 +$added min. Vous avez $total min accumulées à activer.',
+                pt:
+                    '🎁 +$added min. Você tem $total min acumulados para ativar.',
+              );
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(content: Text(message)),
+              );
+            }
           } else if (context.mounted) {
             final langCode = Localizations.localeOf(context).languageCode;
             final message = langCode == 'en'
                 ? 'Complete the video to unlock this feature.'
-                : (langCode == 'pt'
-                      ? 'Conclua o vídeo para desbloquear esta função.'
-                      : 'Completa el video para desbloquear esta función.');
+                : (langCode == 'fr'
+                      ? 'Terminez la vidéo pour déverrouiller cette fonction.'
+                      : (langCode == 'pt'
+                            ? 'Conclua o vídeo para desbloquear esta função.'
+                            : 'Completa el video para desbloquear esta función.'));
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
               SnackBar(content: Text(message)),
             );
@@ -650,9 +879,11 @@ class AdService {
             final langCode = Localizations.localeOf(context).languageCode;
             final message = langCode == 'en'
                 ? 'The video could not be shown. Please try again.'
-                : (langCode == 'pt'
-                      ? 'Não foi possível exibir o vídeo. Tente novamente.'
-                      : 'No se pudo mostrar el video. Inténtalo nuevamente.');
+                : (langCode == 'fr'
+                      ? 'La vidéo n’a pas pu être affichée. Réessayez.'
+                      : (langCode == 'pt'
+                            ? 'Não foi possível exibir o vídeo. Tente novamente.'
+                            : 'No se pudo mostrar el video. Inténtalo nuevamente.'));
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
               SnackBar(content: Text(message)),
             );
@@ -674,9 +905,11 @@ class AdService {
         final langCode = Localizations.localeOf(context).languageCode;
         final message = langCode == 'en'
             ? 'No video is available right now. Please try again shortly.'
-            : (langCode == 'pt'
-                  ? 'Nenhum vídeo está disponível agora. Tente novamente em instantes.'
-                  : 'No hay video disponible en este momento. Inténtalo de nuevo en unos instantes.');
+            : (langCode == 'fr'
+                  ? 'Aucune vidéo n’est disponible pour le moment. Réessayez dans quelques instants.'
+                  : (langCode == 'pt'
+                        ? 'Nenhum vídeo está disponível agora. Tente novamente em instantes.'
+                        : 'No hay video disponible en este momento. Inténtalo de nuevo en unos instantes.'));
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(message)),
         );
@@ -684,8 +917,132 @@ class AdService {
     }
   }
 
+  /// Muestra un Rewarded desde el regalo del Home y suma 15 minutos al saldo.
+  Future<void> showRewardedForPass({
+    required BuildContext context,
+  }) async {
+    if (isRewardPassActive) return;
+
+    if (isRewardBankFull) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          const SnackBar(
+            content: Text('Ya alcanzaste el máximo de 2 horas acumuladas.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (_rewardedAd == null) {
+      loadRewardedAd();
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              _rewardLocalized(
+                context,
+                es:
+                    'No hay video disponible en este momento. Inténtalo nuevamente.',
+                en: 'No video is available right now. Please try again.',
+                fr:
+                    'Aucune vidéo n’est disponible pour le moment. Réessayez.',
+                pt:
+                    'Nenhum vídeo está disponível no momento. Tente novamente.',
+              ),
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!_canShowAnotherFullScreenAd()) return;
+
+    bool userEarnedReward = false;
+    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (_) {
+        _isFullScreenAdShowing = true;
+      },
+      onAdDismissedFullScreenContent: (ad) async {
+        ad.dispose();
+        _rewardedAd = null;
+        _markFullScreenClosed();
+        loadRewardedAd();
+
+        if (userEarnedReward) {
+          final added = await addRewardMinutes();
+          if (context.mounted) {
+            final total = rewardBankMinutes;
+            final message = added > 0
+                ? _rewardLocalized(
+                    context,
+                    es: '🎁 +$added min. Saldo acumulado: $total min.',
+                    en: '🎁 +$added min. Saved balance: $total min.',
+                    fr: '🎁 +$added min. Solde accumulé : $total min.',
+                    pt: '🎁 +$added min. Saldo acumulado: $total min.',
+                  )
+                : _rewardLocalized(
+                    context,
+                    es: 'Ya alcanzaste el máximo de 2 horas acumuladas.',
+                    en: 'You have reached the 2-hour maximum balance.',
+                    fr: 'Vous avez atteint le maximum de 2 heures accumulées.',
+                    pt: 'Você atingiu o máximo de 2 horas acumuladas.',
+                  );
+            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+              SnackBar(content: Text(message)),
+            );
+          }
+        } else if (context.mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(
+                _rewardLocalized(
+                  context,
+                  es: 'Completa el video para recibir los 15 minutos.',
+                  en: 'Complete the video to receive the 15 minutes.',
+                  fr: 'Terminez la vidéo pour recevoir les 15 minutes.',
+                  pt: 'Conclua o vídeo para receber os 15 minutos.',
+                ),
+              ),
+            ),
+          );
+        }
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        _rewardedAd = null;
+        _markFullScreenClosed();
+        loadRewardedAd();
+        if (context.mounted) {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(
+                _rewardLocalized(
+                  context,
+                  es: 'No se pudo mostrar el video. Inténtalo nuevamente.',
+                  en: 'The video could not be shown. Please try again.',
+                  fr: 'La vidéo n’a pas pu être affichée. Réessayez.',
+                  pt: 'Não foi possível exibir o vídeo. Tente novamente.',
+                ),
+              ),
+            ),
+          );
+        }
+      },
+    );
+
+    _rewardedAd!.show(
+      onUserEarnedReward: (_, __) {
+        userEarnedReward = true;
+      },
+    );
+  }
+
   /// Liberar recursos
   void dispose() {
+    _rewardPassExpiryTimer?.cancel();
+    _rewardPassExpiryTimer = null;
     _interstitialAd?.dispose();
     _interstitialAd = null;
     _rewardedAd?.dispose();
