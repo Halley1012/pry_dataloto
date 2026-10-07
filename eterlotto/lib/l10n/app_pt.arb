@@ -694,5 +694,286 @@
   "continuarConGoogle": "Continuar com o Google",
   "misLoteriasFilter": "Minhas loterias",
   "sinNotificacionesMisLoterias": "Sem notificações das loterias em que você jogou",
-  "sinNotificacionesInternacionales": "Sem notificações internacionais"
+  "sinNotificacionesInternacionales": "Sem notificações internacionais",
+  "crearCuenta": "Criar conta",
+  "masFrecuentes": "Mais frequentes",
+  "menosFrecuentes": "Menos frequentes",
+  "revancha": "Revancha",
+  "ultimos5ResultadosNombre": "Últimos 5 resultados - {nombre}",
+  "ultimosSorteos": "Últimos sorteios",
+  "reciente": "Recente",
+  "prediccionesNoDisponibles": "As previsões de IA para este sorteio passado não estão disponíveis no histórico.",
+  "insightIACayeron": "Dos {count} números com maior probabilidade gerados pela IA para {loteria}, {hits} coincidiram.",
+  "@insightIACayeron": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "hits": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIANoCoincidencias": "Dos {count} números com maior probabilidade gerados pela IA para {loteria}, não houve coincidências neste sorteio.",
+  "@insightIANoCoincidencias": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "insightIACayeronDual": "Dos {count} números com maior probabilidade gerados pela IA para {loteria}, {bText} e {rText} coincidiram.",
+  "@insightIACayeronDual": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "loteria": {
+        "type": "String"
+      },
+      "bText": {
+        "type": "String"
+      },
+      "rText": {
+        "type": "String"
+      }
+    }
+  },
+  "aciertoIA": "Acerto IA",
+  "balotasPrincipalesTitle": "Bolas principais",
+  "balotasRojasEspeciales": "Bolas vermelhas/especiais",
+  "resultadosLoteria": "Resultados - {loteria}",
+  "@resultadosLoteria": {
+    "placeholders": {
+      "loteria": {
+        "type": "String"
+      }
+    }
+  },
+  "sorteoFechaLabel": "Sorteio: {fecha}",
+  "@sorteoFechaLabel": {
+    "placeholders": {
+      "fecha": {
+        "type": "String"
+      }
+    }
+  },
+  "numerosGanadores": "Números vencedores",
+  "comparacionJugadas": "Comparação Minhas Jogadas vs Resultado",
+  "aciertosLabel": "Acertos",
+  "balotaLabel": "Bola",
+  "sinAciertoLabel": "Sem acerto",
+  "tusJugadasVsGanadores": "Suas jogadas salvas vs números vencedores do sorteio",
+  "noRealizasteJugadas": "Você não fez jogadas para este sorteio.",
+  "cantidadAciertos": "Quantidade de acertos",
+  "@cantidadAciertos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fechaLabel": "Data",
+  "aciertosSimple": "Acertos",
+  "coberturaIndividualDetalle": "Cobertura individual: {hits}/{total}",
+  "@coberturaIndividualDetalle": {
+    "placeholders": {
+      "hits": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "top": {
+        "type": "int"
+      }
+    }
+  },
+  "nEnBaloto": "{count} no Baloto",
+  "ceroEnBaloto": "0 no Baloto",
+  "nEnRevancha": "{count} na Revancha",
+  "ceroEnRevancha": "0 na Revancha",
+  "nNumeros": "{count} números",
+  "@nNumeros": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "errorEnviarCorreo": "Erro: não foi possível enviar o e-mail",
+  "usuarioRequerido": "Usuário obrigatório",
+  "correoInvalido": "E-mail inválido",
+  "contrasenaMinima": "A senha deve ter pelo menos 6 caracteres",
+  "seleccionaPais": "Selecione um país",
+  "seleccionaDepartamento": "Selecione um departamento/estado",
+  "yaTienesCuenta": "Já tem uma conta? Entre",
+  "actualizaTusDatos": "Atualize seus dados",
+  "registroUsuario": "Cadastro de usuário",
+  "modificaInformacion": "Modifique suas informações",
+  "confirmarEliminarCuenta": "Tem certeza de que deseja excluir sua conta?",
+  "error": "Erro",
+  "tarjetaInvalida": "Cartão inválido",
+  "fechaInvalida": "Data inválida",
+  "cvvInvalido": "CVV inválido",
+  "pagar": "Pagar",
+  "pagoExito": "Pagamento realizado com sucesso",
+  "pagarEpayco": "Pagar com ePayco",
+  "errorAnuncios": "Erro ao carregar os anúncios.",
+  "numerosLabel": "Números",
+  "cargarMasSorteos": "Carregar mais 50 ({count} restantes)",
+  "@cargarMasSorteos": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "exploraLoteriasMundoHome": "Explore as loterias mais jogadas no mundo.",
+  "exploraLoteriasPaisHome": "Explore as loterias mais jogadas no país.",
+  "sorteaHoy": "Sorteia hoje",
+  "manana": "Amanhã",
+  "enDias": "Em {count} dias",
+  "@enDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sorteadoAyer": "Sorteado ontem",
+  "sorteadoHaceDias": "Sorteado há {count} dias",
+  "@sorteadoHaceDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "hoyParentesis": "Hoje",
+  "ayerParentesis": "Ontem",
+  "sinLoteriasEncontradas": "Nenhuma loteria encontrada",
+  "intentaOtroTerminoBusqueda": "Tente outro termo de busca.",
+  "sinLoteriasDisponibles": "Nenhuma loteria disponível",
+  "sinLoteriasRegistradasPais": "Não há loterias registradas para {country}",
+  "@sinLoteriasRegistradasPais": {
+    "placeholders": {
+      "country": {}
+    }
+  },
+  "sinLoteriasRegistradasPaisDesc": "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!",
+  "rewardPassActiveTitle": "Passe de recompensa ativo",
+  "rewardPassTitle": "Passe de recompensa",
+  "rewardPassActiveBody": "Você ainda tem {duration} sem anúncios e com os recursos recompensados desbloqueados.",
+  "@rewardPassActiveBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassBankBody": "Você tem {duration} acumulados.",
+  "@rewardPassBankBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassEmptyBody": "Assista a vídeos para acumular tempo e ative quando quiser.",
+  "rewardPassPolicy": "Cada vídeo adiciona {minutes} min. Máximo diário: {maxMinutes} min.",
+  "@rewardPassPolicy": {
+    "placeholders": {
+      "minutes": {},
+      "maxMinutes": {}
+    }
+  },
+  "rewardPassAvailableToday": "Disponível hoje: {minutes} min.",
+  "@rewardPassAvailableToday": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardWatchVideoMinutes": "Ver vídeo +{minutes} min",
+  "@rewardWatchVideoMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardActivatePass": "Ativar passe",
+  "rewardPassActivatedFor": "🎁 Passe de recompensa ativo por {duration}.",
+  "@rewardPassActivatedFor": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardVideoAddsMinutes": "Ao concluir o vídeo, você adiciona {minutes} min ao seu Passe de recompensa.",
+  "@rewardVideoAddsMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBank": "🎁 +{added} min. Você tem {total} min acumulados para ativar.",
+  "@rewardAddedBank": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteToUnlock": "Conclua o vídeo para desbloquear esta função.",
+  "rewardVideoShowError": "Não foi possível exibir o vídeo. Tente novamente.",
+  "rewardNoVideoAvailable": "Nenhum vídeo está disponível no momento. Tente novamente.",
+  "rewardDailyLimitReached": "Você atingiu o limite diário de {minutes} minutos.",
+  "@rewardDailyLimitReached": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBalance": "🎁 +{added} min. Saldo acumulado: {total} min.",
+  "@rewardAddedBalance": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteForMinutes": "Conclua o vídeo para receber os {minutes} minutos.",
+  "@rewardCompleteForMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "sessionExpiredTitle": "Sua sessão expirou",
+  "sessionExpiredMessage": "Por segurança, entre novamente para continuar.",
+  "sessionExpiredButton": "Entrar novamente",
+  "reportar": "Denunciar",
+  "noSeleccionarImagen": "Não foi possível selecionar a imagem.",
+  "maxCuatroFotosAnuncio": "Máximo de 4 fotos por anúncio.",
+  "fotosAgregadasLimite": "Apenas {count} foto(s) foram adicionadas. Máximo total: 4.",
+  "@fotosAgregadasLimite": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "noAbrirGaleria": "Não foi possível abrir a galeria.",
+  "principalLabel": "Principal",
+  "fotosAnuncio": "Fotos do anúncio",
+  "agregarGaleria": "Adicionar galeria",
+  "ayudaFotosAnuncio": "Toque na foto principal ou na galeria para adicionar imagens. Máximo de 4 fotos.",
+  "seleccionaFotoPrincipal": "Selecione a foto principal",
+  "fotoPrincipal": "Foto principal",
+  "galeriaLabel": "Galeria",
+  "camaraLabel": "Câmera",
+  "quitarLabel": "Remover",
+  "galeriaAnuncio": "Galeria do anúncio",
+  "agregarFotos": "Adicionar fotos",
+  "limiteFotosDetalle": "Máximo de 4 fotos: 1 principal + 3 da galeria.",
+  "seleccionaFotoPrincipalPunto": "Selecione uma foto principal.",
+  "sobreNosotros": "Sobre nós",
+  "abierto247": "Aberto 24h",
+  "abiertoAhora": "Aberto agora",
+  "cerradoAhora": "Fechado",
+  "abiertoTodoDia": "Aberto 24 horas, todos os dias",
+  "errorActualizarMeGusta": "Não foi possível atualizar a curtida.",
+  "calificacionGuardada": "Avaliação salva",
+  "errorGuardarCalificacion": "Não foi possível salvar a avaliação.",
+  "horarioAtencion": "Horário de atendimento",
+  "tuCalificacion": "Sua avaliação"
 }

@@ -838,5 +838,146 @@
   "continuarConGoogle": "Continue with Google",
   "misLoteriasFilter": "My lotteries",
   "sinNotificacionesMisLoterias": "No notifications from your played lotteries",
-  "sinNotificacionesInternacionales": "No international notifications"
+  "sinNotificacionesInternacionales": "No international notifications",
+  "exploraLoteriasMundoHome": "Explore the most played lotteries in the world.",
+  "exploraLoteriasPaisHome": "Explore the most played lotteries in the country.",
+  "sorteaHoy": "Draws today",
+  "manana": "Tomorrow",
+  "enDias": "In {count} days",
+  "@enDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sorteadoAyer": "Drew yesterday",
+  "sorteadoHaceDias": "Drew {count} days ago",
+  "@sorteadoHaceDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "hoyParentesis": "Today",
+  "ayerParentesis": "Yesterday",
+  "sinLoteriasEncontradas": "No lotteries found",
+  "intentaOtroTerminoBusqueda": "Try another search term.",
+  "sinLoteriasDisponibles": "No lotteries available",
+  "sinLoteriasRegistradasPais": "No lotteries registered for {country}",
+  "@sinLoteriasRegistradasPais": {
+    "placeholders": {
+      "country": {}
+    }
+  },
+  "sinLoteriasRegistradasPaisDesc": "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!",
+  "rewardPassActiveTitle": "Reward pass active",
+  "rewardPassTitle": "Reward pass",
+  "rewardPassActiveBody": "You have {duration} left ad-free with rewarded features unlocked.",
+  "@rewardPassActiveBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassBankBody": "You have {duration} saved.",
+  "@rewardPassBankBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassEmptyBody": "Watch videos to save time and activate it whenever you want.",
+  "rewardPassPolicy": "Each video adds {minutes} min. Daily maximum: {maxMinutes} min.",
+  "@rewardPassPolicy": {
+    "placeholders": {
+      "minutes": {},
+      "maxMinutes": {}
+    }
+  },
+  "rewardPassAvailableToday": "Available today: {minutes} min.",
+  "@rewardPassAvailableToday": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardWatchVideoMinutes": "Watch video +{minutes} min",
+  "@rewardWatchVideoMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardActivatePass": "Activate pass",
+  "rewardPassActivatedFor": "🎁 Reward pass active for {duration}.",
+  "@rewardPassActivatedFor": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardVideoAddsMinutes": "Completing the video adds {minutes} min to your Reward Pass.",
+  "@rewardVideoAddsMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBank": "🎁 +{added} min. You have {total} min saved to activate.",
+  "@rewardAddedBank": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteToUnlock": "Complete the video to unlock this feature.",
+  "rewardVideoShowError": "The video could not be shown. Please try again.",
+  "rewardNoVideoAvailable": "No video is available right now. Please try again.",
+  "rewardDailyLimitReached": "You have reached today’s {minutes}-minute limit.",
+  "@rewardDailyLimitReached": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBalance": "🎁 +{added} min. Saved balance: {total} min.",
+  "@rewardAddedBalance": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteForMinutes": "Complete the video to receive the {minutes} minutes.",
+  "@rewardCompleteForMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "sessionExpiredTitle": "Your session has expired",
+  "sessionExpiredMessage": "For your security, please sign in again to continue.",
+  "sessionExpiredButton": "Sign in again",
+  "reportar": "Report",
+  "noSeleccionarImagen": "Could not select the image.",
+  "maxCuatroFotosAnuncio": "Maximum 4 photos per ad.",
+  "fotosAgregadasLimite": "Only {count} photo(s) were added. The total maximum is 4.",
+  "@fotosAgregadasLimite": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "noAbrirGaleria": "Could not open the gallery.",
+  "principalLabel": "Main",
+  "fotosAnuncio": "Ad photos",
+  "agregarGaleria": "Add gallery",
+  "ayudaFotosAnuncio": "Tap the main photo or gallery box to add images. Maximum 4 photos.",
+  "seleccionaFotoPrincipal": "Select the main photo",
+  "fotoPrincipal": "Main photo",
+  "galeriaLabel": "Gallery",
+  "camaraLabel": "Camera",
+  "quitarLabel": "Remove",
+  "galeriaAnuncio": "Ad gallery",
+  "agregarFotos": "Add photos",
+  "limiteFotosDetalle": "Maximum 4 photos total: 1 main + 3 gallery photos.",
+  "seleccionaFotoPrincipalPunto": "Select a main photo.",
+  "sobreNosotros": "About us",
+  "abierto247": "Open 24/7",
+  "abiertoAhora": "Open now",
+  "cerradoAhora": "Closed",
+  "abiertoTodoDia": "Open 24 hours, every day",
+  "errorActualizarMeGusta": "Could not update the like.",
+  "calificacionGuardada": "Rating saved",
+  "errorGuardarCalificacion": "Could not save the rating.",
+  "horarioAtencion": "Opening hours",
+  "tuCalificacion": "Your rating"
 }

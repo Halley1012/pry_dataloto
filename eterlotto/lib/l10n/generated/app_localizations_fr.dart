@@ -1596,4 +1596,235 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get sinNotificacionesInternacionales =>
       'Aucune notification internationale';
+
+  @override
+  String get exploraLoteriasMundoHome =>
+      'Découvrez les loteries les plus jouées dans le monde.';
+
+  @override
+  String get exploraLoteriasPaisHome =>
+      'Découvrez les loteries les plus jouées dans le pays.';
+
+  @override
+  String get sorteaHoy => 'Tirage aujourd’hui';
+
+  @override
+  String get manana => 'Demain';
+
+  @override
+  String enDias(Object count) {
+    return 'Dans $count jours';
+  }
+
+  @override
+  String get sorteadoAyer => 'Tirage hier';
+
+  @override
+  String sorteadoHaceDias(Object count) {
+    return 'Tirage il y a $count jours';
+  }
+
+  @override
+  String get hoyParentesis => 'Aujourd’hui';
+
+  @override
+  String get ayerParentesis => 'Hier';
+
+  @override
+  String get sinLoteriasEncontradas => 'Aucune loterie trouvée';
+
+  @override
+  String get intentaOtroTerminoBusqueda =>
+      'Essayez un autre terme de recherche.';
+
+  @override
+  String get sinLoteriasDisponibles => 'Aucune loterie disponible';
+
+  @override
+  String sinLoteriasRegistradasPais(Object country) {
+    return 'Aucune loterie enregistrée pour $country';
+  }
+
+  @override
+  String get sinLoteriasRegistradasPaisDesc =>
+      'Il n’y a actuellement aucune loterie locale pour ce pays. Vous pouvez découvrir ci-dessous les loteries les plus jouées dans le monde !';
+
+  @override
+  String get rewardPassActiveTitle => 'Pass récompense actif';
+
+  @override
+  String get rewardPassTitle => 'Pass récompense';
+
+  @override
+  String rewardPassActiveBody(Object duration) {
+    return 'Il vous reste $duration sans publicité avec les fonctions récompensées déverrouillées.';
+  }
+
+  @override
+  String rewardPassBankBody(Object duration) {
+    return 'Vous avez accumulé $duration.';
+  }
+
+  @override
+  String get rewardPassEmptyBody =>
+      'Regardez des vidéos pour accumuler du temps et activez-le quand vous le souhaitez.';
+
+  @override
+  String rewardPassPolicy(Object minutes, Object maxMinutes) {
+    return 'Chaque vidéo ajoute $minutes min. Maximum quotidien : $maxMinutes min.';
+  }
+
+  @override
+  String rewardPassAvailableToday(Object minutes) {
+    return 'Disponible aujourd’hui : $minutes min.';
+  }
+
+  @override
+  String rewardWatchVideoMinutes(Object minutes) {
+    return 'Voir une vidéo +$minutes min';
+  }
+
+  @override
+  String get rewardActivatePass => 'Activer le pass';
+
+  @override
+  String rewardPassActivatedFor(Object duration) {
+    return '🎁 Pass récompense actif pendant $duration.';
+  }
+
+  @override
+  String rewardVideoAddsMinutes(Object minutes) {
+    return 'Terminer la vidéo ajoute $minutes min à votre Pass récompense.';
+  }
+
+  @override
+  String rewardAddedBank(Object added, Object total) {
+    return '🎁 +$added min. Vous avez $total min accumulées à activer.';
+  }
+
+  @override
+  String get rewardCompleteToUnlock =>
+      'Terminez la vidéo pour déverrouiller cette fonction.';
+
+  @override
+  String get rewardVideoShowError =>
+      'La vidéo n’a pas pu être affichée. Réessayez.';
+
+  @override
+  String get rewardNoVideoAvailable =>
+      'Aucune vidéo n’est disponible pour le moment. Réessayez.';
+
+  @override
+  String rewardDailyLimitReached(Object minutes) {
+    return 'Vous avez atteint la limite quotidienne de $minutes minutes.';
+  }
+
+  @override
+  String rewardAddedBalance(Object added, Object total) {
+    return '🎁 +$added min. Solde accumulé : $total min.';
+  }
+
+  @override
+  String rewardCompleteForMinutes(Object minutes) {
+    return 'Terminez la vidéo pour recevoir les $minutes minutes.';
+  }
+
+  @override
+  String get sessionExpiredTitle => 'Votre session a expiré';
+
+  @override
+  String get sessionExpiredMessage =>
+      'Pour votre sécurité, reconnectez-vous pour continuer.';
+
+  @override
+  String get sessionExpiredButton => 'Se reconnecter';
+
+  @override
+  String get reportar => 'Signaler';
+
+  @override
+  String get noSeleccionarImagen => 'Impossible de sélectionner l’image.';
+
+  @override
+  String get maxCuatroFotosAnuncio => 'Maximum 4 photos par annonce.';
+
+  @override
+  String fotosAgregadasLimite(Object count) {
+    return 'Seulement $count photo(s) ajoutée(s). Maximum total : 4.';
+  }
+
+  @override
+  String get noAbrirGaleria => 'Impossible d’ouvrir la galerie.';
+
+  @override
+  String get principalLabel => 'Principale';
+
+  @override
+  String get fotosAnuncio => 'Photos de l’annonce';
+
+  @override
+  String get agregarGaleria => 'Ajouter galerie';
+
+  @override
+  String get ayudaFotosAnuncio =>
+      'Touchez la photo principale ou la galerie pour ajouter des images. Maximum 4 photos.';
+
+  @override
+  String get seleccionaFotoPrincipal => 'Sélectionnez la photo principale';
+
+  @override
+  String get fotoPrincipal => 'Photo principale';
+
+  @override
+  String get galeriaLabel => 'Galerie';
+
+  @override
+  String get camaraLabel => 'Caméra';
+
+  @override
+  String get quitarLabel => 'Retirer';
+
+  @override
+  String get galeriaAnuncio => 'Galerie de l’annonce';
+
+  @override
+  String get agregarFotos => 'Ajouter des photos';
+
+  @override
+  String get limiteFotosDetalle =>
+      'Maximum 4 photos : 1 principale + 3 de galerie.';
+
+  @override
+  String get seleccionaFotoPrincipalPunto =>
+      'Sélectionnez une photo principale.';
+
+  @override
+  String get sobreNosotros => 'À propos';
+
+  @override
+  String get abierto247 => 'Ouvert 24h/24';
+
+  @override
+  String get abiertoAhora => 'Ouvert';
+
+  @override
+  String get cerradoAhora => 'Fermé';
+
+  @override
+  String get abiertoTodoDia => 'Ouvert 24h/24, tous les jours';
+
+  @override
+  String get errorActualizarMeGusta => 'Impossible de mettre à jour le J’aime.';
+
+  @override
+  String get calificacionGuardada => 'Note enregistrée';
+
+  @override
+  String get errorGuardarCalificacion => 'Impossible d’enregistrer la note.';
+
+  @override
+  String get horarioAtencion => 'Horaires';
+
+  @override
+  String get tuCalificacion => 'Votre note';
 }

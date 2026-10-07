@@ -1566,4 +1566,233 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get sinNotificacionesInternacionales =>
       'No international notifications';
+
+  @override
+  String get exploraLoteriasMundoHome =>
+      'Explore the most played lotteries in the world.';
+
+  @override
+  String get exploraLoteriasPaisHome =>
+      'Explore the most played lotteries in the country.';
+
+  @override
+  String get sorteaHoy => 'Draws today';
+
+  @override
+  String get manana => 'Tomorrow';
+
+  @override
+  String enDias(Object count) {
+    return 'In $count days';
+  }
+
+  @override
+  String get sorteadoAyer => 'Drew yesterday';
+
+  @override
+  String sorteadoHaceDias(Object count) {
+    return 'Drew $count days ago';
+  }
+
+  @override
+  String get hoyParentesis => 'Today';
+
+  @override
+  String get ayerParentesis => 'Yesterday';
+
+  @override
+  String get sinLoteriasEncontradas => 'No lotteries found';
+
+  @override
+  String get intentaOtroTerminoBusqueda => 'Try another search term.';
+
+  @override
+  String get sinLoteriasDisponibles => 'No lotteries available';
+
+  @override
+  String sinLoteriasRegistradasPais(Object country) {
+    return 'No lotteries registered for $country';
+  }
+
+  @override
+  String get sinLoteriasRegistradasPaisDesc =>
+      'Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!';
+
+  @override
+  String get rewardPassActiveTitle => 'Reward pass active';
+
+  @override
+  String get rewardPassTitle => 'Reward pass';
+
+  @override
+  String rewardPassActiveBody(Object duration) {
+    return 'You have $duration left ad-free with rewarded features unlocked.';
+  }
+
+  @override
+  String rewardPassBankBody(Object duration) {
+    return 'You have $duration saved.';
+  }
+
+  @override
+  String get rewardPassEmptyBody =>
+      'Watch videos to save time and activate it whenever you want.';
+
+  @override
+  String rewardPassPolicy(Object minutes, Object maxMinutes) {
+    return 'Each video adds $minutes min. Daily maximum: $maxMinutes min.';
+  }
+
+  @override
+  String rewardPassAvailableToday(Object minutes) {
+    return 'Available today: $minutes min.';
+  }
+
+  @override
+  String rewardWatchVideoMinutes(Object minutes) {
+    return 'Watch video +$minutes min';
+  }
+
+  @override
+  String get rewardActivatePass => 'Activate pass';
+
+  @override
+  String rewardPassActivatedFor(Object duration) {
+    return '🎁 Reward pass active for $duration.';
+  }
+
+  @override
+  String rewardVideoAddsMinutes(Object minutes) {
+    return 'Completing the video adds $minutes min to your Reward Pass.';
+  }
+
+  @override
+  String rewardAddedBank(Object added, Object total) {
+    return '🎁 +$added min. You have $total min saved to activate.';
+  }
+
+  @override
+  String get rewardCompleteToUnlock =>
+      'Complete the video to unlock this feature.';
+
+  @override
+  String get rewardVideoShowError =>
+      'The video could not be shown. Please try again.';
+
+  @override
+  String get rewardNoVideoAvailable =>
+      'No video is available right now. Please try again.';
+
+  @override
+  String rewardDailyLimitReached(Object minutes) {
+    return 'You have reached today’s $minutes-minute limit.';
+  }
+
+  @override
+  String rewardAddedBalance(Object added, Object total) {
+    return '🎁 +$added min. Saved balance: $total min.';
+  }
+
+  @override
+  String rewardCompleteForMinutes(Object minutes) {
+    return 'Complete the video to receive the $minutes minutes.';
+  }
+
+  @override
+  String get sessionExpiredTitle => 'Your session has expired';
+
+  @override
+  String get sessionExpiredMessage =>
+      'For your security, please sign in again to continue.';
+
+  @override
+  String get sessionExpiredButton => 'Sign in again';
+
+  @override
+  String get reportar => 'Report';
+
+  @override
+  String get noSeleccionarImagen => 'Could not select the image.';
+
+  @override
+  String get maxCuatroFotosAnuncio => 'Maximum 4 photos per ad.';
+
+  @override
+  String fotosAgregadasLimite(Object count) {
+    return 'Only $count photo(s) were added. The total maximum is 4.';
+  }
+
+  @override
+  String get noAbrirGaleria => 'Could not open the gallery.';
+
+  @override
+  String get principalLabel => 'Main';
+
+  @override
+  String get fotosAnuncio => 'Ad photos';
+
+  @override
+  String get agregarGaleria => 'Add gallery';
+
+  @override
+  String get ayudaFotosAnuncio =>
+      'Tap the main photo or gallery box to add images. Maximum 4 photos.';
+
+  @override
+  String get seleccionaFotoPrincipal => 'Select the main photo';
+
+  @override
+  String get fotoPrincipal => 'Main photo';
+
+  @override
+  String get galeriaLabel => 'Gallery';
+
+  @override
+  String get camaraLabel => 'Camera';
+
+  @override
+  String get quitarLabel => 'Remove';
+
+  @override
+  String get galeriaAnuncio => 'Ad gallery';
+
+  @override
+  String get agregarFotos => 'Add photos';
+
+  @override
+  String get limiteFotosDetalle =>
+      'Maximum 4 photos total: 1 main + 3 gallery photos.';
+
+  @override
+  String get seleccionaFotoPrincipalPunto => 'Select a main photo.';
+
+  @override
+  String get sobreNosotros => 'About us';
+
+  @override
+  String get abierto247 => 'Open 24/7';
+
+  @override
+  String get abiertoAhora => 'Open now';
+
+  @override
+  String get cerradoAhora => 'Closed';
+
+  @override
+  String get abiertoTodoDia => 'Open 24 hours, every day';
+
+  @override
+  String get errorActualizarMeGusta => 'Could not update the like.';
+
+  @override
+  String get calificacionGuardada => 'Rating saved';
+
+  @override
+  String get errorGuardarCalificacion => 'Could not save the rating.';
+
+  @override
+  String get horarioAtencion => 'Opening hours';
+
+  @override
+  String get tuCalificacion => 'Your rating';
 }

@@ -13,25 +13,6 @@ class AdService {
   AdService._();
   static final AdService instance = AdService._();
 
-  String _rewardLocalized(
-    BuildContext context, {
-    required String es,
-    required String en,
-    required String fr,
-    required String pt,
-  }) {
-    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
-    switch (lang) {
-      case 'en':
-        return en;
-      case 'fr':
-        return fr;
-      case 'pt':
-        return pt;
-      default:
-        return es;
-    }
-  }
 
   // ⚙️ Configuración: 'true' para Internal Testing / Desarrollo. Cambiar a 'false' SÓLO al enviar a Producción real.
   static const bool isTestMode = true;
@@ -95,18 +76,33 @@ class AdService {
   // ==========================================
   // 🎁 PASE DE RECOMPENSA GLOBAL
   // ==========================================
-  // Cada Rewarded completado suma 15 minutos. El usuario decide cuándo
-  // activar el saldo desde el regalo del Home. Máximo acumulable: 2 horas.
-  static const int rewardMinutesPerVideo = 15;
-  static const int maxRewardBankMinutes = 120;
+  // Cada Rewarded completado suma 5 minutos.
+  // Máximo diario: 60 minutos. El saldo no activado se reinicia
+  // al cambiar de día; un pase ya activado puede terminar normalmente.
+  static const int rewardMinutesPerVideo = 5;
+  static const int maxRewardMinutesPerDay = 60;
+  static const int maxRewardBankMinutes = 60;
 
   final ValueNotifier<int> rewardPassRevision = ValueNotifier<int>(0);
   String? _rewardUserId;
   int _rewardBankMinutes = 0;
+  int _rewardEarnedTodayMinutes = 0;
+  String? _rewardDay;
   DateTime? _rewardPassActiveUntil;
   Timer? _rewardPassExpiryTimer;
 
-  int get rewardBankMinutes => _rewardBankMinutes;
+  bool get _isRewardDayCurrent => _rewardDay == _currentRewardDay();
+
+  int get rewardBankMinutes =>
+      _isRewardDayCurrent ? _rewardBankMinutes : 0;
+
+  int get rewardEarnedTodayMinutes =>
+      _isRewardDayCurrent ? _rewardEarnedTodayMinutes : 0;
+
+  int get rewardRemainingTodayMinutes =>
+      (maxRewardMinutesPerDay - rewardEarnedTodayMinutes)
+          .clamp(0, maxRewardMinutesPerDay)
+          .toInt();
 
   bool get isRewardPassActive {
     final until = _rewardPassActiveUntil;
@@ -121,21 +117,59 @@ class AdService {
     return remaining.isNegative ? Duration.zero : remaining;
   }
 
-  bool get hasRewardBalance => _rewardBankMinutes > 0;
-  bool get isRewardBankFull => _rewardBankMinutes >= maxRewardBankMinutes;
+  bool get hasRewardBalance => rewardBankMinutes > 0;
+  bool get isRewardBankFull =>
+      rewardBankMinutes >= maxRewardBankMinutes ||
+      rewardEarnedTodayMinutes >= maxRewardMinutesPerDay;
 
   String _rewardBankKey(String userId) => 'reward_pass_bank_minutes_v1_$userId';
   String _rewardActiveUntilKey(String userId) =>
       'reward_pass_active_until_v1_$userId';
+  String _rewardDayKey(String userId) => 'reward_pass_day_v2_$userId';
+  String _rewardEarnedTodayKey(String userId) =>
+      'reward_pass_earned_today_v2_$userId';
+
+  String _currentRewardDay() {
+    final now = DateTime.now().toLocal();
+    final year = now.year.toString().padLeft(4, '0');
+    final month = now.month.toString().padLeft(2, '0');
+    final day = now.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  Future<void> _ensureRewardDayCurrent() async {
+    final userId = _rewardUserId;
+    if (userId == null || userId.isEmpty) return;
+
+    final today = _currentRewardDay();
+    if (_rewardDay == today) return;
+
+    // Un saldo no activado pertenece al día en que se obtuvo.
+    // El pase ya activo NO se corta al llegar medianoche.
+    _rewardDay = today;
+    _rewardBankMinutes = 0;
+    _rewardEarnedTodayMinutes = 0;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_rewardDayKey(userId), today);
+    await prefs.setInt(_rewardEarnedTodayKey(userId), 0);
+    await prefs.setInt(_rewardBankKey(userId), 0);
+    _notifyRewardPassChanged();
+  }
 
   Future<void> setRewardUser(String? userId) async {
     final normalized = userId?.trim();
-    if (normalized == _rewardUserId) return;
+    if (normalized == _rewardUserId) {
+      await _ensureRewardDayCurrent();
+      return;
+    }
 
     _rewardPassExpiryTimer?.cancel();
     _rewardPassExpiryTimer = null;
     _rewardUserId = normalized;
     _rewardBankMinutes = 0;
+    _rewardEarnedTodayMinutes = 0;
+    _rewardDay = null;
     _rewardPassActiveUntil = null;
 
     if (normalized == null || normalized.isEmpty) {
@@ -144,8 +178,40 @@ class AdService {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    _rewardBankMinutes = prefs.getInt(_rewardBankKey(normalized)) ?? 0;
-    _rewardBankMinutes = _rewardBankMinutes.clamp(0, maxRewardBankMinutes);
+    final today = _currentRewardDay();
+    final storedDay = prefs.getString(_rewardDayKey(normalized));
+    final storedBank = (prefs.getInt(_rewardBankKey(normalized)) ?? 0)
+        .clamp(0, maxRewardBankMinutes)
+        .toInt();
+
+    if (storedDay == today) {
+      _rewardDay = today;
+      _rewardBankMinutes = storedBank;
+      _rewardEarnedTodayMinutes =
+          (prefs.getInt(_rewardEarnedTodayKey(normalized)) ?? storedBank)
+              .clamp(0, maxRewardMinutesPerDay)
+              .toInt();
+    } else if (storedDay == null) {
+      // Migración desde la versión anterior del Pase:
+      // conserva como máximo 60 min y los cuenta dentro del límite de hoy.
+      _rewardDay = today;
+      _rewardBankMinutes = storedBank;
+      _rewardEarnedTodayMinutes = storedBank;
+      await prefs.setString(_rewardDayKey(normalized), today);
+      await prefs.setInt(
+        _rewardEarnedTodayKey(normalized),
+        _rewardEarnedTodayMinutes,
+      );
+      await prefs.setInt(_rewardBankKey(normalized), _rewardBankMinutes);
+    } else {
+      // Día nuevo: el saldo no activado anterior vence.
+      _rewardDay = today;
+      _rewardBankMinutes = 0;
+      _rewardEarnedTodayMinutes = 0;
+      await prefs.setString(_rewardDayKey(normalized), today);
+      await prefs.setInt(_rewardEarnedTodayKey(normalized), 0);
+      await prefs.setInt(_rewardBankKey(normalized), 0);
+    }
 
     final activeUntilMs = prefs.getInt(_rewardActiveUntilKey(normalized));
     if (activeUntilMs != null && activeUntilMs > 0) {
@@ -167,13 +233,28 @@ class AdService {
     final userId = _rewardUserId;
     if (userId == null || userId.isEmpty || minutes <= 0) return 0;
 
-    final before = _rewardBankMinutes;
-    _rewardBankMinutes = (_rewardBankMinutes + minutes)
-        .clamp(0, maxRewardBankMinutes);
-    final added = _rewardBankMinutes - before;
+    await _ensureRewardDayCurrent();
+
+    final remainingToday =
+        maxRewardMinutesPerDay - _rewardEarnedTodayMinutes;
+    final remainingBank = maxRewardBankMinutes - _rewardBankMinutes;
+
+    if (remainingToday <= 0 || remainingBank <= 0) return 0;
+
+    var added = minutes;
+    if (added > remainingToday) added = remainingToday;
+    if (added > remainingBank) added = remainingBank;
+
+    _rewardBankMinutes += added;
+    _rewardEarnedTodayMinutes += added;
 
     final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_rewardDayKey(userId), _currentRewardDay());
     await prefs.setInt(_rewardBankKey(userId), _rewardBankMinutes);
+    await prefs.setInt(
+      _rewardEarnedTodayKey(userId),
+      _rewardEarnedTodayMinutes,
+    );
     _notifyRewardPassChanged();
     return added;
   }
@@ -728,17 +809,7 @@ class AdService {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _rewardLocalized(
-                          context,
-                          es:
-                              'Al completar el video sumarás $rewardMinutesPerVideo min a tu Pase de recompensa.',
-                          en:
-                              'Completing the video adds $rewardMinutesPerVideo min to your Reward Pass.',
-                          fr:
-                              'Terminer la vidéo ajoute $rewardMinutesPerVideo min à votre Pass récompense.',
-                          pt:
-                              'Ao concluir o vídeo, você adiciona $rewardMinutesPerVideo min ao seu Passe de recompensa.',
-                        ),
+                        AppLocalizations.of(context)!.rewardVideoAddsMinutes(rewardMinutesPerVideo),
                         style: GoogleFonts.montserrat(
                           color: Colors.white70,
                           fontSize: 11,
@@ -841,30 +912,13 @@ class AdService {
 
             if (context.mounted && added > 0) {
               final total = rewardBankMinutes;
-              final message = _rewardLocalized(
-                context,
-                es:
-                    '🎁 +$added min. Tienes $total min acumulados para activar.',
-                en:
-                    '🎁 +$added min. You have $total min saved to activate.',
-                fr:
-                    '🎁 +$added min. Vous avez $total min accumulées à activer.',
-                pt:
-                    '🎁 +$added min. Você tem $total min acumulados para ativar.',
-              );
+              final message = AppLocalizations.of(context)!.rewardAddedBank(added, total);
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
                 SnackBar(content: Text(message)),
               );
             }
           } else if (context.mounted) {
-            final langCode = Localizations.localeOf(context).languageCode;
-            final message = langCode == 'en'
-                ? 'Complete the video to unlock this feature.'
-                : (langCode == 'fr'
-                      ? 'Terminez la vidéo pour déverrouiller cette fonction.'
-                      : (langCode == 'pt'
-                            ? 'Conclua o vídeo para desbloquear esta função.'
-                            : 'Completa el video para desbloquear esta función.'));
+            final message = AppLocalizations.of(context)!.rewardCompleteToUnlock;
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
               SnackBar(content: Text(message)),
             );
@@ -876,14 +930,7 @@ class AdService {
           _markFullScreenClosed();
           loadRewardedAd();
           if (context.mounted) {
-            final langCode = Localizations.localeOf(context).languageCode;
-            final message = langCode == 'en'
-                ? 'The video could not be shown. Please try again.'
-                : (langCode == 'fr'
-                      ? 'La vidéo n’a pas pu être affichée. Réessayez.'
-                      : (langCode == 'pt'
-                            ? 'Não foi possível exibir o vídeo. Tente novamente.'
-                            : 'No se pudo mostrar el video. Inténtalo nuevamente.'));
+            final message = AppLocalizations.of(context)!.rewardVideoShowError;
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
               SnackBar(content: Text(message)),
             );
@@ -902,14 +949,7 @@ class AdService {
       // precarga pero no se concede acceso por cortesía.
       loadRewardedAd();
       if (context.mounted) {
-        final langCode = Localizations.localeOf(context).languageCode;
-        final message = langCode == 'en'
-            ? 'No video is available right now. Please try again shortly.'
-            : (langCode == 'fr'
-                  ? 'Aucune vidéo n’est disponible pour le moment. Réessayez dans quelques instants.'
-                  : (langCode == 'pt'
-                        ? 'Nenhum vídeo está disponível agora. Tente novamente em instantes.'
-                        : 'No hay video disponible en este momento. Inténtalo de nuevo en unos instantes.'));
+        final message = AppLocalizations.of(context)!.rewardNoVideoAvailable;
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(content: Text(message)),
         );
@@ -917,7 +957,7 @@ class AdService {
     }
   }
 
-  /// Muestra un Rewarded desde el regalo del Home y suma 15 minutos al saldo.
+  /// Muestra un Rewarded desde el regalo del Home y suma 5 minutos al saldo.
   Future<void> showRewardedForPass({
     required BuildContext context,
   }) async {
@@ -926,8 +966,10 @@ class AdService {
     if (isRewardBankFull) {
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          const SnackBar(
-            content: Text('Ya alcanzaste el máximo de 2 horas acumuladas.'),
+          SnackBar(
+            content: Text(
+              AppLocalizations.of(context)!.rewardDailyLimitReached(maxRewardMinutesPerDay),
+            ),
           ),
         );
       }
@@ -940,16 +982,7 @@ class AdService {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
             content: Text(
-              _rewardLocalized(
-                context,
-                es:
-                    'No hay video disponible en este momento. Inténtalo nuevamente.',
-                en: 'No video is available right now. Please try again.',
-                fr:
-                    'Aucune vidéo n’est disponible pour le moment. Réessayez.',
-                pt:
-                    'Nenhum vídeo está disponível no momento. Tente novamente.',
-              ),
+              AppLocalizations.of(context)!.rewardNoVideoAvailable,
             ),
           ),
         );
@@ -975,20 +1008,8 @@ class AdService {
           if (context.mounted) {
             final total = rewardBankMinutes;
             final message = added > 0
-                ? _rewardLocalized(
-                    context,
-                    es: '🎁 +$added min. Saldo acumulado: $total min.',
-                    en: '🎁 +$added min. Saved balance: $total min.',
-                    fr: '🎁 +$added min. Solde accumulé : $total min.',
-                    pt: '🎁 +$added min. Saldo acumulado: $total min.',
-                  )
-                : _rewardLocalized(
-                    context,
-                    es: 'Ya alcanzaste el máximo de 2 horas acumuladas.',
-                    en: 'You have reached the 2-hour maximum balance.',
-                    fr: 'Vous avez atteint le maximum de 2 heures accumulées.',
-                    pt: 'Você atingiu o máximo de 2 horas acumuladas.',
-                  );
+                ? AppLocalizations.of(context)!.rewardAddedBalance(added, total)
+                : AppLocalizations.of(context)!.rewardDailyLimitReached(maxRewardMinutesPerDay);
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
               SnackBar(content: Text(message)),
             );
@@ -997,13 +1018,7 @@ class AdService {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
             SnackBar(
               content: Text(
-                _rewardLocalized(
-                  context,
-                  es: 'Completa el video para recibir los 15 minutos.',
-                  en: 'Complete the video to receive the 15 minutes.',
-                  fr: 'Terminez la vidéo pour recevoir les 15 minutes.',
-                  pt: 'Conclua o vídeo para receber os 15 minutos.',
-                ),
+                AppLocalizations.of(context)!.rewardCompleteForMinutes(rewardMinutesPerVideo),
               ),
             ),
           );
@@ -1018,13 +1033,7 @@ class AdService {
           ScaffoldMessenger.maybeOf(context)?.showSnackBar(
             SnackBar(
               content: Text(
-                _rewardLocalized(
-                  context,
-                  es: 'No se pudo mostrar el video. Inténtalo nuevamente.',
-                  en: 'The video could not be shown. Please try again.',
-                  fr: 'La vidéo n’a pas pu être affichée. Réessayez.',
-                  pt: 'Não foi possível exibir o vídeo. Tente novamente.',
-                ),
+                AppLocalizations.of(context)!.rewardVideoShowError,
               ),
             ),
           );

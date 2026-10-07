@@ -837,5 +837,146 @@
   "continuarConGoogle": "Continuar con Google",
   "misLoteriasFilter": "Mis loterías",
   "sinNotificacionesMisLoterias": "Sin notificaciones de tus loterías jugadas",
-  "sinNotificacionesInternacionales": "Sin notificaciones internacionales"
+  "sinNotificacionesInternacionales": "Sin notificaciones internacionales",
+  "exploraLoteriasMundoHome": "Explora las loterías más jugadas en el mundo.",
+  "exploraLoteriasPaisHome": "Explora las loterías más jugadas en el país.",
+  "sorteaHoy": "Sortea hoy",
+  "manana": "Mañana",
+  "enDias": "En {count} días",
+  "@enDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sorteadoAyer": "Sorteó ayer",
+  "sorteadoHaceDias": "Sorteó hace {count} días",
+  "@sorteadoHaceDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "hoyParentesis": "Hoy",
+  "ayerParentesis": "Ayer",
+  "sinLoteriasEncontradas": "No se encontraron loterías",
+  "intentaOtroTerminoBusqueda": "Intenta con otro término de búsqueda.",
+  "sinLoteriasDisponibles": "No hay loterías disponibles",
+  "sinLoteriasRegistradasPais": "No hay loterías registradas para {country}",
+  "@sinLoteriasRegistradasPais": {
+    "placeholders": {
+      "country": {}
+    }
+  },
+  "sinLoteriasRegistradasPaisDesc": "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!",
+  "rewardPassActiveTitle": "Pase de recompensa activo",
+  "rewardPassTitle": "Pase de recompensa",
+  "rewardPassActiveBody": "Te quedan {duration} sin anuncios y con las funciones recompensadas desbloqueadas.",
+  "@rewardPassActiveBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassBankBody": "Tienes {duration} acumulados.",
+  "@rewardPassBankBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassEmptyBody": "Mira videos para acumular tiempo y actívalo cuando quieras.",
+  "rewardPassPolicy": "Cada video suma {minutes} min. Máximo diario: {maxMinutes} min.",
+  "@rewardPassPolicy": {
+    "placeholders": {
+      "minutes": {},
+      "maxMinutes": {}
+    }
+  },
+  "rewardPassAvailableToday": "Disponible hoy: {minutes} min.",
+  "@rewardPassAvailableToday": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardWatchVideoMinutes": "Ver video +{minutes} min",
+  "@rewardWatchVideoMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardActivatePass": "Activar pase",
+  "rewardPassActivatedFor": "🎁 Pase activo por {duration}.",
+  "@rewardPassActivatedFor": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardVideoAddsMinutes": "Al completar el video sumarás {minutes} min a tu Pase de recompensa.",
+  "@rewardVideoAddsMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBank": "🎁 +{added} min. Tienes {total} min acumulados para activar.",
+  "@rewardAddedBank": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteToUnlock": "Completa el video para desbloquear esta función.",
+  "rewardVideoShowError": "No se pudo mostrar el video. Inténtalo nuevamente.",
+  "rewardNoVideoAvailable": "No hay video disponible en este momento. Inténtalo nuevamente.",
+  "rewardDailyLimitReached": "Ya alcanzaste el máximo diario de {minutes} minutos.",
+  "@rewardDailyLimitReached": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBalance": "🎁 +{added} min. Saldo acumulado: {total} min.",
+  "@rewardAddedBalance": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteForMinutes": "Completa el video para recibir los {minutes} minutos.",
+  "@rewardCompleteForMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "sessionExpiredTitle": "Tu sesión ha vencido",
+  "sessionExpiredMessage": "Por seguridad, inicia sesión nuevamente para continuar.",
+  "sessionExpiredButton": "Ingresar nuevamente",
+  "reportar": "Reportar",
+  "noSeleccionarImagen": "No fue posible seleccionar la imagen.",
+  "maxCuatroFotosAnuncio": "Máximo 4 fotos por anuncio.",
+  "fotosAgregadasLimite": "Se agregaron sólo {count} foto(s). El máximo total es 4.",
+  "@fotosAgregadasLimite": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "noAbrirGaleria": "No fue posible abrir la galería.",
+  "principalLabel": "Principal",
+  "fotosAnuncio": "Fotos del anuncio",
+  "agregarGaleria": "Agregar galería",
+  "ayudaFotosAnuncio": "Toca la foto principal o el recuadro de galería para agregar imágenes. Máximo 4 fotos.",
+  "seleccionaFotoPrincipal": "Selecciona la foto principal",
+  "fotoPrincipal": "Foto principal",
+  "galeriaLabel": "Galería",
+  "camaraLabel": "Cámara",
+  "quitarLabel": "Quitar",
+  "galeriaAnuncio": "Galería del anuncio",
+  "agregarFotos": "Agregar fotos",
+  "limiteFotosDetalle": "Máximo 4 fotos en total: 1 principal + 3 de galería.",
+  "seleccionaFotoPrincipalPunto": "Selecciona una foto principal.",
+  "sobreNosotros": "Sobre nosotros",
+  "abierto247": "Abierto 24/7",
+  "abiertoAhora": "Abierto ahora",
+  "cerradoAhora": "Cerrado",
+  "abiertoTodoDia": "Abierto 24 horas, todos los días",
+  "errorActualizarMeGusta": "No fue posible actualizar el Me gusta.",
+  "calificacionGuardada": "Calificación guardada",
+  "errorGuardarCalificacion": "No fue posible guardar la calificación.",
+  "horarioAtencion": "Horario de atención",
+  "tuCalificacion": "Tu calificación"
 }

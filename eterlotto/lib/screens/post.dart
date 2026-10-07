@@ -681,9 +681,7 @@ class _PostScreenState extends State<PostScreen> {
                           const Icon(Icons.flag_outlined, color: Colors.amber, size: 16),
                           const SizedBox(width: 8),
                           Text(
-                            Localizations.localeOf(context).languageCode == 'en'
-                                ? 'Report'
-                                : (Localizations.localeOf(context).languageCode == 'pt' ? 'Denunciar' : 'Reportar'),
+                            (AppLocalizations.of(context)?.reportar ?? 'Reportar'),
                             style: const TextStyle(color: Colors.white70, fontSize: 13),
                           ),
                         ],

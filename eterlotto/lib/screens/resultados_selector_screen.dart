@@ -8,6 +8,7 @@ import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/screens/resultados_dashboard_screen.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -792,82 +793,11 @@ class ResultadosSelectorScreenState extends State<ResultadosSelectorScreen> {
   }
 
   String _formatearFechaSimple(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "";
-    try {
-      final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
-      if (parsed == null) return fecha;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en'
-          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt'
-              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-              : (langCode == 'fr'
-                  ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-                  : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]));
-
-      final meses = langCode == 'en'
-          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-          : (langCode == 'pt'
-              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-              : (langCode == 'fr'
-                  ? ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"]
-                  : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]));
-
-      final diaSemana = dias[parsed.weekday - 1];
-      final mes = meses[parsed.month - 1];
-
-      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
-    } catch (_) {
-      return fecha;
-    }
+    return LotteryDateLocalization.formatDate(context, fecha);
   }
 
   String _calcularEstadoSorteo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "";
-    try {
-      final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
-      if (parsed == null) return "";
-
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final target = DateTime(parsed.year, parsed.month, parsed.day);
-      final diff = target.difference(today).inDays;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-
-      if (diff == 0) {
-        if (langCode == 'en') return "Draws today";
-        if (langCode == 'pt') return "Sorteia hoje";
-        if (langCode == 'fr') return "Tirage aujourd’hui";
-        return "Sortea hoy";
-      } else if (diff == 1) {
-        if (langCode == 'en') return "Tomorrow";
-        if (langCode == 'pt') return "Amanhã";
-        if (langCode == 'fr') return "Demain";
-        return "Mañana";
-      } else if (diff > 1) {
-        if (langCode == 'en') return "In $diff days";
-        if (langCode == 'pt') return "Faltam $diff dias";
-        if (langCode == 'fr') return "Dans $diff jours";
-        return "Faltan $diff días";
-      } else if (diff == -1) {
-        if (langCode == 'en') return "Drew yesterday";
-        if (langCode == 'pt') return "Sorteado ontem";
-        if (langCode == 'fr') return "Tiré hier";
-        return "Sorteó ayer";
-      } else {
-        final dias = diff.abs();
-        if (langCode == 'en') return "Drew $dias days ago";
-        if (langCode == 'pt') return "Sorteado há $dias dias";
-        if (langCode == 'fr') return "Tiré il y a $dias jours";
-        return "Sorteó hace $dias días";
-      }
-    } catch (_) {
-      return "";
-    }
+    return LotteryDateLocalization.drawStatus(context, fecha);
   }
 
   Widget _buildLotteryItem(Map<String, dynamic> loteria, AppLocalizations? l10n) {

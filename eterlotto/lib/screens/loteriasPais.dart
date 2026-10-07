@@ -9,6 +9,7 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
@@ -520,13 +521,13 @@ class _LoteriasPaisState extends State<LoteriasPais> {
               const Icon(Icons.search_off_outlined, color: Colors.white24, size: 64),
               const SizedBox(height: 16),
               Text(
-                langCode == 'en' ? "No lotteries found" : (langCode == 'pt' ? "Nenhuma loteria encontrada" : "No se encontraron loterías"),
+                (l10n ?? AppLocalizations.of(context)!).sinLoteriasEncontradas,
                 style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                langCode == 'en' ? "Try another search term." : (langCode == 'pt' ? "Tente outro termo de busca." : "Intenta con otro término de búsqueda."),
+                (l10n ?? AppLocalizations.of(context)!).intentaOtroTerminoBusqueda,
                 style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54, fontSize: 13),
                 textAlign: TextAlign.center,
               ),
@@ -545,7 +546,7 @@ class _LoteriasPaisState extends State<LoteriasPais> {
             const Icon(Icons.casino_outlined, color: Colors.white24, size: 64),
             const SizedBox(height: 16),
             Text(
-              langCode == 'en' ? "No lotteries available" : (langCode == 'pt' ? "Nenhuma loteria disponível" : "No hay loterías disponibles"),
+              (l10n ?? AppLocalizations.of(context)!).sinLoteriasDisponibles,
               style: AppTextStyles.h2.copyWith(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
               textAlign: TextAlign.center,
             ),
@@ -698,63 +699,16 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   }
 
   String _formatearFechaProximo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
-    try {
-      final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
-      if (parsed == null) return fecha;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en' 
-          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt' 
-              ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-              : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
-
-      final meses = langCode == 'en'
-          ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-          : (langCode == 'pt'
-              ? ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-              : ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]);
-
-      final diaSemana = dias[parsed.weekday - 1];
-      final mes = meses[parsed.month - 1];
-
-      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
-    } catch (_) {
-      return fecha;
-    }
+    final l10n = AppLocalizations.of(context)!;
+    return LotteryDateLocalization.formatDate(
+      context,
+      fecha,
+      fallback: l10n.proximoSorteo,
+    );
   }
 
   String _calcularEstadoSorteo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "";
-    try {
-      final clean = fecha.trim();
-      final parsed = DateTime.tryParse(clean) ?? (clean.length >= 10 ? DateTime.tryParse(clean.substring(0, 10)) : null);
-      if (parsed == null) return "";
-
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final target = DateTime(parsed.year, parsed.month, parsed.day);
-      final diff = target.difference(today).inDays;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-
-      if (diff == 0) {
-        return langCode == 'en' ? "Draws today" : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
-      } else if (diff == 1) {
-        return langCode == 'en' ? "Tomorrow" : (langCode == 'pt' ? "Amanhã" : "Mañana");
-      } else if (diff > 1) {
-        return langCode == 'en' ? "In $diff days" : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
-      } else if (diff == -1) {
-        return langCode == 'en' ? "Drew yesterday" : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
-      } else {
-        final dias = diff.abs();
-        return langCode == 'en' ? "Drew $dias days ago" : (langCode == 'pt' ? "Sorteado há $dias dias" : "Sorteó hace $dias días");
-      }
-    } catch (_) {
-      return "";
-    }
+    return LotteryDateLocalization.drawStatus(context, fecha);
   }
 
   String _getPaisNombre(dynamic id) {
