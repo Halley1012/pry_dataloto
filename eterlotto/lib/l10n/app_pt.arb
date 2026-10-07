@@ -975,5 +975,14 @@
   "calificacionGuardada": "Avaliação salva",
   "errorGuardarCalificacion": "Não foi possível salvar a avaliação.",
   "horarioAtencion": "Horário de atendimento",
-  "tuCalificacion": "Sua avaliação"
+  "tuCalificacion": "Sua avaliação",
+  "horarioAtencion24h": "Atendimento 24 horas (24/7)",
+  "horarioAperturaLabel": "Abertura",
+  "horarioCierreLabel": "Fechamento",
+  "horarioDiasAtencionLabel": "Dias de atendimento",
+  "horarioTodosLosDias": "Todos os dias",
+  "horarioLunesASabado": "Segunda a sábado",
+  "horarioLunesAViernes": "Segunda a sexta",
+  "horarioFinesDeSemana": "Fins de semana",
+  "buscarPaisTelefono": "Buscar país ou código"
 }

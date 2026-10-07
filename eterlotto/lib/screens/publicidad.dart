@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/country_picker_dialog.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
 import '../utils/pais_helper.dart';
@@ -64,6 +65,81 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     "Lunes a Viernes",
     "Fines de semana",
   ];
+
+  // Los valores guardados en la BD siguen en español para compatibilidad;
+  // únicamente traducimos las etiquetas que se muestran al usuario.
+  String _etiquetaDiaAtencion(String valor, AppLocalizations l10n) {
+    switch (valor) {
+      case 'Todos los días':
+        return l10n.horarioTodosLosDias;
+      case 'Lunes a Sábado':
+        return l10n.horarioLunesASabado;
+      case 'Lunes a Viernes':
+        return l10n.horarioLunesAViernes;
+      case 'Fines de semana':
+        return l10n.horarioFinesDeSemana;
+      default:
+        return valor;
+    }
+  }
+
+  // Estilo único para los selectores de prefijo de Teléfono y WhatsApp.
+  PickerDialogStyle _estiloSelectorTelefonico(AppLocalizations l10n) {
+    return PickerDialogStyle(
+      backgroundColor: const Color(0xFF17171C),
+      width: 460,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      searchFieldPadding: const EdgeInsets.only(bottom: 4),
+      listTilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 3),
+      countryNameStyle: AppTextStyles.mensajeSecundario.copyWith(
+        color: Colors.white,
+        fontSize: 13.5,
+        fontWeight: FontWeight.w600,
+      ),
+      countryCodeStyle: AppTextStyles.mensajeSecundario.copyWith(
+        color: AppColors.yellow,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+      listTileDivider: Divider(
+        color: Colors.white.withValues(alpha: 0.08),
+        height: 1,
+        thickness: 0.6,
+        indent: 12,
+        endIndent: 12,
+      ),
+      searchFieldCursorColor: AppColors.yellow,
+      searchFieldInputDecoration: InputDecoration(
+        hintText: l10n.buscarPaisTelefono,
+        hintStyle: AppTextStyles.mensajeSecundario.copyWith(
+          color: Colors.white54,
+          fontSize: 13,
+        ),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          color: AppColors.yellow,
+          size: 22,
+        ),
+        filled: true,
+        fillColor: const Color(0xFF25252D),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 16,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(color: Colors.white24),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(18),
+          borderSide: const BorderSide(
+            color: AppColors.yellow,
+            width: 1.5,
+          ),
+        ),
+      ),
+    );
+  }
 
   // --- Variables de selección ---
   int? paisSeleccionado;
@@ -1532,8 +1608,19 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         ).copyWith(errorText: field.errorText),
                         style: AppTextStyles.mensajeSecundario,
                         initialCountryCode: _initialCountryCode,
+                        languageCode: Localizations.localeOf(context).languageCode,
+                        pickerDialogStyle: _estiloSelectorTelefonico(l10n),
                         dropdownTextStyle: AppTextStyles.mensajeSecundario,
+                        dropdownIcon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppColors.yellow,
+                          size: 20,
+                        ),
+                        cursorColor: AppColors.yellow,
                         disableLengthCheck: true,
+                        onCountryChanged: (country) {
+                          _selectedCountryCode = '+${country.dialCode}';
+                        },
                         onChanged: (phone) {
                           _selectedCountryCode = phone.countryCode;
                           field.didChange(phone.number);
@@ -1593,7 +1680,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
 
                     // --- SECCIÓN HORARIOS DE ATENCIÓN ---
                     const SizedBox(height: 24),
-                    Text("Horario de Atención", style: AppTextStyles.caption),
+                    Text(l10n.horarioAtencion, style: AppTextStyles.caption),
                     const SizedBox(height: 12),
                     
                     Container(
@@ -1611,22 +1698,28 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.access_time_filled,
-                                color: _esAtencion24Horas ? const Color(0xFF00E676) : Colors.white54,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                "Atención 24 Horas (24/7)",
-                                style: AppTextStyles.mensajeSecundario.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time_filled,
+                                  color: _esAtencion24Horas
+                                      ? const Color(0xFF00E676)
+                                      : Colors.white54,
+                                  size: 20,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    l10n.horarioAtencion24h,
+                                    style: AppTextStyles.mensajeSecundario.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           Switch(
                             value: _esAtencion24Horas,
@@ -1646,7 +1739,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         children: [
                           Expanded(
                             child: _buildTimePickerTile(
-                              label: "Apertura",
+                              label: l10n.horarioAperturaLabel,
                               time: _horaApertura,
                               onTap: () async {
                                 final picked = await showTimePicker(
@@ -1671,7 +1764,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _buildTimePickerTile(
-                              label: "Cierre",
+                              label: l10n.horarioCierreLabel,
                               time: _horaCierre,
                               onTap: () async {
                                 final picked = await showTimePicker(
@@ -1698,13 +1791,16 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                       const SizedBox(height: 14),
                       DropdownButtonFormField<String>(
                         value: _diasAtencion,
-                        decoration: _inputStyle("Días de atención"),
+                        decoration: _inputStyle(l10n.horarioDiasAtencionLabel),
                         dropdownColor: AppColors.blackfondo,
                         style: AppTextStyles.mensajeSecundario,
                         items: _opcionesDias
                             .map((d) => DropdownMenuItem(
                                   value: d,
-                                  child: Text(d, style: AppTextStyles.mensajeSecundario),
+                                  child: Text(
+                                    _etiquetaDiaAtencion(d, l10n),
+                                    style: AppTextStyles.mensajeSecundario,
+                                  ),
                                 ))
                             .toList(),
                         onChanged: (val) {
@@ -1740,8 +1836,19 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         ).copyWith(errorText: field.errorText),
                         style: AppTextStyles.mensajeSecundario,
                         initialCountryCode: _initialCountryCode,
+                        languageCode: Localizations.localeOf(context).languageCode,
+                        pickerDialogStyle: _estiloSelectorTelefonico(l10n),
                         dropdownTextStyle: AppTextStyles.mensajeSecundario,
+                        dropdownIcon: const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppColors.yellow,
+                          size: 20,
+                        ),
+                        cursorColor: AppColors.yellow,
                         disableLengthCheck: true,
+                        onCountryChanged: (country) {
+                          _selectedWhatsAppCode = '+${country.dialCode}';
+                        },
                         onChanged: (phone) {
                           _selectedWhatsAppCode = phone.countryCode;
                           field.didChange(phone.number);
