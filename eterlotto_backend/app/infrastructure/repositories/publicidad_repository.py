@@ -527,9 +527,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         c.slug,
                         c.icono,
                         c.activa AS activo,
-                        c.orden,
-                        c.created_at,
-                        c.updated_at
+                        c.orden
                     FROM categorias AS c
                     LEFT JOIN categorias_traducciones AS ct
                       ON ct.categoria_id = c.id
