@@ -3280,6 +3280,60 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Tu calificación'**
   String get tuCalificacion;
+
+  /// No description provided for @horarioAtencion24h.
+  ///
+  /// In es, this message translates to:
+  /// **'Atención 24 horas (24/7)'**
+  String get horarioAtencion24h;
+
+  /// No description provided for @horarioAperturaLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Apertura'**
+  String get horarioAperturaLabel;
+
+  /// No description provided for @horarioCierreLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Cierre'**
+  String get horarioCierreLabel;
+
+  /// No description provided for @horarioDiasAtencionLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Días de atención'**
+  String get horarioDiasAtencionLabel;
+
+  /// No description provided for @horarioTodosLosDias.
+  ///
+  /// In es, this message translates to:
+  /// **'Todos los días'**
+  String get horarioTodosLosDias;
+
+  /// No description provided for @horarioLunesASabado.
+  ///
+  /// In es, this message translates to:
+  /// **'Lunes a sábado'**
+  String get horarioLunesASabado;
+
+  /// No description provided for @horarioLunesAViernes.
+  ///
+  /// In es, this message translates to:
+  /// **'Lunes a viernes'**
+  String get horarioLunesAViernes;
+
+  /// No description provided for @horarioFinesDeSemana.
+  ///
+  /// In es, this message translates to:
+  /// **'Fines de semana'**
+  String get horarioFinesDeSemana;
+
+  /// No description provided for @buscarPaisTelefono.
+  ///
+  /// In es, this message translates to:
+  /// **'Buscar país o prefijo'**
+  String get buscarPaisTelefono;
 }
 
 class _AppLocalizationsDelegate

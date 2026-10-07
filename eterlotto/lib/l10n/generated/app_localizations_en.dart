@@ -1795,4 +1795,31 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tuCalificacion => 'Your rating';
+
+  @override
+  String get horarioAtencion24h => 'Open 24 hours (24/7)';
+
+  @override
+  String get horarioAperturaLabel => 'Opens';
+
+  @override
+  String get horarioCierreLabel => 'Closes';
+
+  @override
+  String get horarioDiasAtencionLabel => 'Business days';
+
+  @override
+  String get horarioTodosLosDias => 'Every day';
+
+  @override
+  String get horarioLunesASabado => 'Monday to Saturday';
+
+  @override
+  String get horarioLunesAViernes => 'Monday to Friday';
+
+  @override
+  String get horarioFinesDeSemana => 'Weekends';
+
+  @override
+  String get buscarPaisTelefono => 'Search country or dial code';
 }
