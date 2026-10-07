@@ -273,7 +273,7 @@ class PublicidadRepositoryPort(ABC):
         pass
 
     @abstractmethod
-    def list_categorias(self) -> List[Dict[str, Any]]:
+    def list_categorias(self, lang: str = "es") -> List[Dict[str, Any]]:
         pass
 
     @abstractmethod

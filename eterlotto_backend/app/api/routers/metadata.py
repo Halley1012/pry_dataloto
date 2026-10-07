@@ -2,6 +2,7 @@ from app.core import config
 from fastapi import APIRouter, Depends, Header, HTTPException
 from typing import List, Optional
 import secrets
+import re
 from app.api import schemas, dependencies
 from app.application.publicidad_use_cases import PublicidadUseCases
 from app.core.cache import memory_cache, invalidate_cache, get_data_version, bump_data_version
@@ -9,13 +10,23 @@ from app.core.cache import memory_cache, invalidate_cache, get_data_version, bum
 router = APIRouter()
 
 @router.get("/categorias")
-def listar_categorias(use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases)):
-    cache_key = "metadata:categorias"
+def listar_categorias(
+    lang: str = "es",
+    use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases),
+):
+    normalized_lang = (lang or "es").strip().lower().split("-")[0]
+    if not re.fullmatch(r"[a-z]{2,10}", normalized_lang):
+        normalized_lang = "es"
+
+    # La caché debe ser independiente por idioma. Así un catálogo consultado
+    # primero en español nunca contamina francés, inglés o portugués.
+    cache_key = f"metadata:categorias:v2:{normalized_lang}"
     cached = memory_cache.get(cache_key)
     if cached is not None:
         return cached
+
     try:
-        res = use_cases.listar_categorias()
+        res = use_cases.listar_categorias(lang=normalized_lang)
         if res and res.get("success"):
             memory_cache.set(cache_key, res, ttl=300)
         return res
