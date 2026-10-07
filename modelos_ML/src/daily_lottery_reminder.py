@@ -172,13 +172,28 @@ class DailyLotteryReminder:
         return reminder.time().replace(second=0, microsecond=0)
 
     @staticmethod
-    def _is_reminder_window(local_now: datetime, reminder_time: time) -> bool:
-        """
-        El DAG corre cada hora. La ejecución de HH:00 cubre la ventana
-        [HH:00, HH:59:59]. Así, un recordatorio calculado para 16:30 se
-        procesa en la ejecución de las 16:00, sin perder los minutos.
-        """
-        return local_now.hour == reminder_time.hour
+    def _is_reminder_window(
+        local_now: datetime,
+        reminder_time: time,
+        draw_time: time | str | None,
+    ) -> bool:
+        """Permite recuperar un aviso perdido mientras el sorteo aún no ocurrió."""
+        if draw_time is None:
+            return local_now.hour == reminder_time.hour
+
+        if isinstance(draw_time, str):
+            try:
+                draw_time = time.fromisoformat(draw_time)
+            except ValueError:
+                return local_now.hour == reminder_time.hour
+
+        # Comparación por minutos locales para no mezclar datetime
+        # con timezone (aware) y datetime sin timezone (naive).
+        current_minutes = local_now.hour * 60
+        reminder_minutes = reminder_time.hour * 60
+        draw_minutes = draw_time.hour * 60 + draw_time.minute
+
+        return reminder_minutes <= current_minutes < draw_minutes
 
     def _scheduled_lotteries(self, now_utc: datetime) -> dict[date, list[dict]]:
         """Selecciona las loterías que están en su ventana local de envío."""
@@ -221,7 +236,11 @@ class DailyLotteryReminder:
                 if local_now.date() != local_date:
                     continue
                 reminder_time = self._reminder_time(lottery)
-                if not self._is_reminder_window(local_now, reminder_time):
+                if not self._is_reminder_window(
+                    local_now,
+                    reminder_time,
+                    lottery.get("hora_sorteo"),
+                ):
                     continue
                 lottery["horario_especial"] = True
                 selected[local_date].append(lottery)
@@ -274,7 +293,7 @@ class DailyLotteryReminder:
                 )
                 if schedule_name:
                     print(f"   🏷️ horario: {schedule_name}")
-                print("   ✅ Ventana activa")
+                print("   ✅ Ventana activa / recuperable")
                 total += 1
 
         if total == 0:

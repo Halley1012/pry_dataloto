@@ -29,6 +29,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 import 'package:eterlotto/widgets/premium_header_background.dart';
@@ -94,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _welcomeWaveController;
   late final Animation<double> _welcomeWaveAngle;
   bool _hasPlayedWelcomeWave = false;
+  Timer? _rewardPassTicker;
 
   @override
   void initState() {
@@ -101,6 +103,12 @@ class _HomeScreenState extends State<HomeScreen>
     // App Open sólo queda habilitado una vez que el usuario llegó al Home.
     // Así nunca interrumpe Splash, login, registro ni onboarding.
     AdService.instance.setAppOpenEligibility(true);
+    AdService.instance.rewardPassRevision.addListener(_onRewardPassChanged);
+    _rewardPassTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted && AdService.instance.isRewardPassActive) {
+        setState(() {});
+      }
+    });
     _welcomeWaveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),
@@ -165,10 +173,191 @@ class _HomeScreenState extends State<HomeScreen>
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );
+    AdService.instance.rewardPassRevision.removeListener(_onRewardPassChanged);
+    _rewardPassTicker?.cancel();
+    _rewardPassTicker = null;
     _flagPositionNotifier.dispose();
     _profilePositionNotifier.dispose();
     _welcomeWaveController.dispose();
     super.dispose();
+  }
+
+  void _onRewardPassChanged() {
+    if (mounted) setState(() {});
+  }
+
+  String _formatRewardDuration(Duration duration) {
+    final totalMinutes = duration.inMinutes;
+    if (totalMinutes <= 0) return '0m';
+
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+    if (hours > 0) return '${hours}h';
+    return '${minutes}m';
+  }
+
+  String _rewardGiftLabel() {
+    final adService = AdService.instance;
+    if (adService.isRewardPassActive) {
+      return _formatRewardDuration(adService.rewardPassRemaining);
+    }
+    if (adService.rewardBankMinutes > 0) {
+      return _formatRewardDuration(
+        Duration(minutes: adService.rewardBankMinutes),
+      );
+    }
+    return '+5m';
+  }
+
+  Future<void> _openRewardPassDialog() async {
+    final adService = AdService.instance;
+    final l10n = AppLocalizations.of(context)!;
+    final active = adService.isRewardPassActive;
+    final remaining = adService.rewardPassRemaining;
+    final bankMinutes = adService.rewardBankMinutes;
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final title = active ? l10n.rewardPassActiveTitle : l10n.rewardPassTitle;
+        final body = active
+            ? l10n.rewardPassActiveBody(_formatRewardDuration(remaining))
+            : (bankMinutes > 0
+                  ? l10n.rewardPassBankBody(
+                      _formatRewardDuration(Duration(minutes: bankMinutes)),
+                    )
+                  : l10n.rewardPassEmptyBody);
+
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: AppColors.amber.withValues(alpha: 0.28)),
+          ),
+          title: Row(
+            children: [
+              const Text('🎁', style: TextStyle(fontSize: 26)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(title, style: AppTextStyles.h2.copyWith(color: Colors.white)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(body, style: const TextStyle(color: Colors.white70, height: 1.4)),
+              if (!active) ...[
+                const SizedBox(height: 10),
+                Text(
+                  l10n.rewardPassPolicy(
+                    AdService.rewardMinutesPerVideo,
+                    AdService.maxRewardMinutesPerDay,
+                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.48), fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.rewardPassAvailableToday(adService.rewardRemainingTodayMinutes),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.38), fontSize: 11),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, 'close'),
+              child: Text(l10n.cerrar, style: const TextStyle(color: Colors.white54)),
+            ),
+            if (!active && !adService.isRewardBankFull)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(ctx, 'watch'),
+                icon: const Icon(Icons.play_circle_outline_rounded, color: AppColors.amber, size: 19),
+                label: Text(
+                  l10n.rewardWatchVideoMinutes(AdService.rewardMinutesPerVideo),
+                  style: const TextStyle(color: AppColors.amber),
+                ),
+              ),
+            if (!active && bankMinutes > 0)
+              ElevatedButton.icon(
+                onPressed: () => Navigator.pop(ctx, 'activate'),
+                icon: const Icon(Icons.bolt_rounded, color: Color(0xFF121212), size: 19),
+                label: Text(l10n.rewardActivatePass),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.yellow,
+                  foregroundColor: const Color(0xFF121212),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (action == 'watch') {
+      await adService.showRewardedForPass(context: context);
+    } else if (action == 'activate') {
+      final activated = await adService.activateRewardPass();
+      if (activated && mounted) {
+        final duration = _formatRewardDuration(adService.rewardPassRemaining);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.rewardPassActivatedFor(duration))),
+        );
+      }
+    }
+  }
+
+  Widget _buildRewardGift(bool isPremium) {
+    if (isPremium) return const SizedBox.shrink();
+
+    final adService = AdService.instance;
+    final active = adService.isRewardPassActive;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: _openRewardPassDialog,
+      child: SizedBox(
+        width: 54,
+        height: 44,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            const Text(
+              '🎁',
+              style: TextStyle(fontSize: 27),
+            ),
+            Positioned(
+              bottom: -1,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 5,
+                  vertical: 1,
+                ),
+                decoration: BoxDecoration(
+                  color: active
+                      ? AppColors.yellow
+                      : const Color(0xFF2A2A2A),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  _rewardGiftLabel(),
+                  style: TextStyle(
+                    color: active
+                        ? const Color(0xFF121212)
+                        : Colors.white70,
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _onDataRefreshNotification() {
@@ -322,6 +511,8 @@ class _HomeScreenState extends State<HomeScreen>
       }
       userIdStr = userIdStr?.trim();
       if (userIdStr?.isEmpty == true) userIdStr = null;
+
+      await AdService.instance.setRewardUser(userIdStr);
 
       final rawPaisId = keys[1];
       final paisNombreStr = keys[2];
@@ -667,17 +858,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
     final esInternacional =
         (pais == null || pais == "Internacional" || pais == "Todos");
+    final l10n = AppLocalizations.of(context)!;
     final subtituloPais = esInternacional
-        ? (langCode == 'en'
-              ? "Explore the most played lotteries in the world."
-              : (langCode == 'pt'
-                    ? "Explore as loterias mais jogadas no mundo."
-                    : "Explora las loterías más jugadas en el mundo."))
-        : (langCode == 'en'
-              ? "Explore the most played lotteries in the country."
-              : (langCode == 'pt'
-                    ? "Explore as loterias mais jogadas no país."
-                    : "Explora las loterias más jugadas en el país."));
+        ? l10n.exploraLoteriasMundoHome
+        : l10n.exploraLoteriasPaisHome;
     final backgroundUrl = _currentCountryBackgroundUrl();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 25.0, 16.0, 12.0),
@@ -1183,122 +1367,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _formatearFechaProximo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
-    try {
-      final clean = fecha.trim();
-      final parsed =
-          DateTime.tryParse(clean) ??
-          (clean.length >= 10
-              ? DateTime.tryParse(clean.substring(0, 10))
-              : null);
-      if (parsed == null) return fecha;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en'
-          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt'
-                ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-                : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
-
-      final meses = langCode == 'en'
-          ? [
-              "Jan",
-              "Feb",
-              "Mar",
-              "Apr",
-              "May",
-              "Jun",
-              "Jul",
-              "Aug",
-              "Sep",
-              "Oct",
-              "Nov",
-              "Dec",
-            ]
-          : (langCode == 'pt'
-                ? [
-                    "Jan",
-                    "Fev",
-                    "Mar",
-                    "Abr",
-                    "Mai",
-                    "Jun",
-                    "Jul",
-                    "Ago",
-                    "Set",
-                    "Out",
-                    "Nov",
-                    "Dez",
-                  ]
-                : [
-                    "Ene",
-                    "Feb",
-                    "Mar",
-                    "Abr",
-                    "May",
-                    "Jun",
-                    "Jul",
-                    "Ago",
-                    "Sep",
-                    "Oct",
-                    "Nov",
-                    "Dic",
-                  ]);
-
-      final diaSemana = dias[parsed.weekday - 1];
-      final mes = meses[parsed.month - 1];
-
-      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
-    } catch (_) {
-      return fecha;
-    }
+    final l10n = AppLocalizations.of(context)!;
+    return LotteryDateLocalization.formatDate(
+      context,
+      fecha,
+      fallback: l10n.proximoSorteo,
+    );
   }
 
   String _calcularEstadoSorteo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "";
-    try {
-      final clean = fecha.trim();
-      final parsed =
-          DateTime.tryParse(clean) ??
-          (clean.length >= 10
-              ? DateTime.tryParse(clean.substring(0, 10))
-              : null);
-      if (parsed == null) return "";
-
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final target = DateTime(parsed.year, parsed.month, parsed.day);
-      final diff = target.difference(today).inDays;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-
-      if (diff == 0) {
-        return langCode == 'en'
-            ? "Draws today"
-            : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
-      } else if (diff == 1) {
-        return langCode == 'en'
-            ? "Tomorrow"
-            : (langCode == 'pt' ? "Amanhã" : "Mañana");
-      } else if (diff > 1) {
-        return langCode == 'en'
-            ? "In $diff days"
-            : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
-      } else if (diff == -1) {
-        return langCode == 'en'
-            ? "Drew yesterday"
-            : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
-      } else {
-        final dias = diff.abs();
-        return langCode == 'en'
-            ? "Drew $dias days ago"
-            : (langCode == 'pt'
-                  ? "Sorteado há $dias dias"
-                  : "Sorteó hace $dias días");
-      }
-    } catch (_) {
-      return "";
-    }
+    return LotteryDateLocalization.drawStatus(context, fecha);
   }
 
   String _getPaisNombre(dynamic loteria) {
@@ -1931,6 +2009,8 @@ class _HomeScreenState extends State<HomeScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                _buildRewardGift(isPremium),
+                const SizedBox(width: 2),
                 Consumer<NotificationProvider>(
                   builder: (context, provider, child) {
                     return SizedBox(
@@ -1989,7 +2069,7 @@ class _HomeScreenState extends State<HomeScreen>
                     );
                   },
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 4),
                 _buildHeaderProfileAvatar(isPremium),
               ],
             ),
@@ -2123,17 +2203,9 @@ class _HomeScreenState extends State<HomeScreen>
       langCode,
     );
 
-    final String titleText = langCode == 'en'
-        ? "No lotteries registered for $countryName"
-        : langCode == 'pt'
-        ? "Não há loterias registradas para $countryName"
-        : "No hay loterías registradas para $countryName";
-
-    final String bodyText = langCode == 'en'
-        ? "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!"
-        : langCode == 'pt'
-        ? "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!"
-        : "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!";
+    final l10n = AppLocalizations.of(context)!;
+    final String titleText = l10n.sinLoteriasRegistradasPais(countryName);
+    final String bodyText = l10n.sinLoteriasRegistradasPaisDesc;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),

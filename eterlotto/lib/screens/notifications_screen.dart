@@ -7,6 +7,7 @@ import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/services/api_service.dart';
 import 'package:intl/intl.dart';
 import 'resultados_dashboard_screen.dart';
 
@@ -22,14 +23,17 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   int _selectedFilterIndex = 0;
-  // 0: Mis loterías, 1: Mi País, 2: Internacionales
+  // 0: Mi País, 1: Internacionales.
+  // Dentro de cada sección, las loterías jugadas aparecen primero.
   String? _userPaisId;
+  final Map<String, String> _countryIsoById = <String, String>{};
   final _storage = AppSecureStorage.instance;
 
   @override
   void initState() {
     super.initState();
     _loadUserCountry();
+    _loadCountryCatalog();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final provider = context.read<NotificationProvider>();
       await provider.fetchNotifications();
@@ -45,6 +49,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  Future<void> _loadCountryCatalog() async {
+    try {
+      final countries = await ApiService.getPaises();
+      final map = <String, String>{};
+
+      for (final country in countries) {
+        final id = country['id']?.toString().trim();
+        final iso = country['codigo_iso']?.toString().trim().toUpperCase();
+        if (id == null || id.isEmpty || iso == null || iso.length != 2) {
+          continue;
+        }
+        map[id] = iso;
+      }
+
+      if (!mounted) return;
+      setState(() {
+        _countryIsoById
+          ..clear()
+          ..addAll(map);
+      });
+    } catch (_) {
+      // Si el catálogo no está disponible, la tarjeta conserva la campana.
+    }
+  }
+
+  String? _flagEmojiForCountryId(dynamic paisId) {
+    if (paisId == null) return null;
+    final iso = _countryIsoById[paisId.toString()];
+    if (iso == null || iso.length != 2) return null;
+
+    final first = iso.codeUnitAt(0);
+    final second = iso.codeUnitAt(1);
+    const regionalIndicatorA = 0x1F1E6;
+    const asciiA = 0x41;
+
+    return String.fromCharCodes([
+      regionalIndicatorA + (first - asciiA),
+      regionalIndicatorA + (second - asciiA),
+    ]);
+  }
+
+  Widget _buildCountryNotificationIcon(dynamic notification) {
+    final flag = _flagEmojiForCountryId(notification.paisId);
+
+    if (flag == null) {
+      return Container(
+        width: 42,
+        height: 42,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.yellow.withValues(alpha: 0.10),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.notifications_none_outlined,
+          color: AppColors.yellow,
+          size: 22,
+        ),
+      );
+    }
+
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.06),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Text(
+        flag,
+        style: const TextStyle(fontSize: 24),
+      ),
+    );
+  }
+
   bool _isNational(dynamic notification) {
     if (notification.paisId == null) return false;
     return notification.paisId.toString() == _userPaisId;
@@ -54,27 +137,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return !_isNational(notification);
   }
 
+  bool _wasPlayed(dynamic notification, NotificationProvider provider) {
+    final route = notification.loteriaRoute?.toString().trim().toLowerCase();
+    return route != null &&
+        route.isNotEmpty &&
+        provider.playedLotteryRoutes.contains(route);
+  }
+
+  List<dynamic> _prioritizePlayed(
+    List<dynamic> notifications,
+    NotificationProvider provider,
+  ) {
+    if (!provider.playedRoutesResolved || notifications.length < 2) {
+      return notifications;
+    }
+
+    // Orden estable: sólo subimos las loterías jugadas; entre ellas y entre las
+    // no jugadas se conserva el orden original que ya entrega el backend.
+    final played = <dynamic>[];
+    final others = <dynamic>[];
+
+    for (final notification in notifications) {
+      if (_wasPlayed(notification, provider)) {
+        played.add(notification);
+      } else {
+        others.add(notification);
+      }
+    }
+
+    return <dynamic>[...played, ...others];
+  }
+
   List<dynamic> _getFilteredNotifications(
     List<dynamic> allNotifications,
     NotificationProvider provider,
   ) {
-    if (_selectedFilterIndex == 0) {
-      // Mientras resolvemos las jugadas de la cuenta, no ocultamos alertas
-      // por un instante. En cuanto llegan, este filtro queda exacto.
-      if (!provider.playedRoutesResolved) return allNotifications;
-      return allNotifications.where((notification) {
-        final route = notification.loteriaRoute
-            ?.toString()
-            .trim()
-            .toLowerCase();
-        return route != null && provider.playedLotteryRoutes.contains(route);
-      }).toList();
-    } else if (_selectedFilterIndex == 1) {
-      return allNotifications.where(_isNational).toList();
-    } else if (_selectedFilterIndex == 2) {
-      return allNotifications.where(_isInternational).toList();
-    }
-    return allNotifications;
+    final filtered = _selectedFilterIndex == 0
+        ? allNotifications.where(_isNational).toList()
+        : allNotifications.where(_isInternational).toList();
+
+    return _prioritizePlayed(filtered, provider);
   }
 
   @override
@@ -177,9 +279,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             Text(
                               _selectedFilterIndex == 0
                                   ? AppLocalizations.of(context)!
-                                        .sinNotificacionesMisLoterias
+                                        .sinNotificacionesCategoria
                                   : AppLocalizations.of(context)!
-                                        .sinNotificaciones,
+                                        .sinNotificacionesInternacionales,
                               style: AppTextStyles.mensajeSecundario,
                               textAlign: TextAlign.center,
                             ),
@@ -256,22 +358,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   String _emptyFilterMessage() {
     final l10n = AppLocalizations.of(context)!;
-    switch (_selectedFilterIndex) {
-      case 0:
-        return l10n.sinNotificacionesMisLoterias;
-      case 1:
-        return l10n.sinNotificacionesCategoria;
-      case 2:
-        return l10n.sinNotificacionesInternacionales;
-      default:
-        return l10n.sinNotificaciones;
-    }
+    return _selectedFilterIndex == 0
+        ? l10n.sinNotificacionesCategoria
+        : l10n.sinNotificacionesInternacionales;
   }
 
   Widget _buildFilterChips() {
     final l10n = AppLocalizations.of(context)!;
     final filters = [
-      l10n.misLoteriasFilter,
       l10n.miPaisFilter,
       l10n.internacionalesFilter,
     ];
@@ -361,26 +455,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final DateTime? fechaSorteoMostrar =
         notification.fechaSorteo ?? notification.createdAt;
 
-    IconData icon;
-    Color iconColor;
-
-    switch (notification.tipo) {
-      case 'acierto_directo':
-        icon = Icons.auto_awesome;
-        iconColor = Colors.amber;
-        break;
-      case 'acierto_parcial':
-        icon = Icons.insights;
-        iconColor = Colors.greenAccent;
-        break;
-      case 'precision':
-        icon = Icons.analytics_outlined;
-        iconColor = Colors.blueAccent;
-        break;
-      default:
-        icon = Icons.notifications_none_outlined;
-        iconColor = AppColors.yellow;
-    }
 
     final card = Card(
       color: notification.leido
@@ -404,14 +478,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: iconColor, size: 24),
-              ),
+              _buildCountryNotificationIcon(notification),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

@@ -127,7 +127,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get nombre => 'Nome';
 
   @override
-  String get crearCuenta => 'Crear cuenta';
+  String get crearCuenta => 'Criar conta';
 
   @override
   String get notificaciones => 'Notificações';
@@ -478,10 +478,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get numerosCalientesFrios => 'Números Quentes e Frios 🔥❄️';
 
   @override
-  String get masFrecuentes => 'Más Frecuentes';
+  String get masFrecuentes => 'Mais frequentes';
 
   @override
-  String get menosFrecuentes => 'Menos Frecuentes';
+  String get menosFrecuentes => 'Menos frequentes';
 
   @override
   String get ausenciaSorteosTitle => 'Dias / Sorteios Sem Sair (Ausencia)';
@@ -637,27 +637,27 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String ultimos5ResultadosNombre(Object nombre) {
-    return 'Últimos 5 resultados $nombre';
+    return 'Últimos 5 resultados - $nombre';
   }
 
   @override
-  String get ultimosSorteos => 'Últimos sorteos';
+  String get ultimosSorteos => 'Últimos sorteios';
 
   @override
-  String get reciente => 'Reciente';
+  String get reciente => 'Recente';
 
   @override
   String get prediccionesNoDisponibles =>
-      'Las predicciones de la IA para este sorteo pasado no están disponibles en el historial.';
+      'As previsões de IA para este sorteio passado não estão disponíveis no histórico.';
 
   @override
   String insightIACayeron(int count, String loteria, String hits) {
-    return 'De los $count números con mayor probabilidad generados por la IA para $loteria, cayeron $hits.';
+    return 'Dos $count números com maior probabilidade gerados pela IA para $loteria, $hits coincidiram.';
   }
 
   @override
   String insightIANoCoincidencias(int count, String loteria) {
-    return 'De los $count números con mayor probabilidad generados por la IA para $loteria, no hubo coincidencias en este sorteo.';
+    return 'Dos $count números com maior probabilidade gerados pela IA para $loteria, não houve coincidências neste sorteio.';
   }
 
   @override
@@ -667,17 +667,17 @@ class AppLocalizationsPt extends AppLocalizations {
     String bText,
     String rText,
   ) {
-    return 'De los $count números con mayor probabilidad generados por la IA para $loteria, cayeron $bText y $rText.';
+    return 'Dos $count números com maior probabilidade gerados pela IA para $loteria, $bText e $rText coincidiram.';
   }
 
   @override
-  String get aciertoIA => 'Acierto IA';
+  String get aciertoIA => 'Acerto IA';
 
   @override
-  String get balotasPrincipalesTitle => 'Balotas Principales';
+  String get balotasPrincipalesTitle => 'Bolas principais';
 
   @override
-  String get balotasRojasEspeciales => 'Balotas Rojas / Especiales';
+  String get balotasRojasEspeciales => 'Bolas vermelhas/especiais';
 
   @override
   String resultadosLoteria(String loteria) {
@@ -686,62 +686,62 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String sorteoFechaLabel(String fecha) {
-    return 'Sorteo: $fecha';
+    return 'Sorteio: $fecha';
   }
 
   @override
-  String get numerosGanadores => 'Números ganadores';
+  String get numerosGanadores => 'Números vencedores';
 
   @override
-  String get comparacionJugadas => 'Comparación Mis Jugadas vs Resultado';
+  String get comparacionJugadas => 'Comparação Minhas Jogadas vs Resultado';
 
   @override
-  String get aciertosLabel => 'Aciertos';
+  String get aciertosLabel => 'Acertos';
 
   @override
-  String get balotaLabel => 'Balota';
+  String get balotaLabel => 'Bola';
 
   @override
-  String get sinAciertoLabel => 'Sin acierto';
+  String get sinAciertoLabel => 'Sem acerto';
 
   @override
   String get tusJugadasVsGanadores =>
-      'Tus jugadas guardadas vs Números ganadores del sorteo';
+      'Suas jogadas salvas vs números vencedores do sorteio';
 
   @override
-  String get noRealizasteJugadas => 'No realizaste jugadas para este sorteo.';
+  String get noRealizasteJugadas => 'Você não fez jogadas para este sorteio.';
 
   @override
   String cantidadAciertos(int count) {
-    return '$count acierto(s)';
+    return 'Quantidade de acertos';
   }
 
   @override
-  String get fechaLabel => 'Fecha';
+  String get fechaLabel => 'Data';
 
   @override
-  String get aciertosSimple => 'Aciertos';
+  String get aciertosSimple => 'Acertos';
 
   @override
   String coberturaIndividualDetalle(int hits, int total, int top) {
-    return '$hits de $total números ganadores están en los $top más probables';
+    return 'Cobertura individual: $hits/$total';
   }
 
   @override
   String nEnBaloto(Object count, Object nums) {
-    return '$count en Baloto ($nums)';
+    return '$count no Baloto';
   }
 
   @override
-  String get ceroEnBaloto => '0 en Baloto';
+  String get ceroEnBaloto => '0 no Baloto';
 
   @override
   String nEnRevancha(Object count, Object nums) {
-    return '$count en Revancha ($nums)';
+    return '$count na Revancha';
   }
 
   @override
-  String get ceroEnRevancha => '0 en Revancha';
+  String get ceroEnRevancha => '0 na Revancha';
 
   @override
   String nNumeros(int count) {
@@ -749,41 +749,41 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
-  String get errorEnviarCorreo => 'Error: No se pudo enviar el correo';
+  String get errorEnviarCorreo => 'Erro: não foi possível enviar o e-mail';
 
   @override
-  String get usuarioRequerido => 'Usuario requerido';
+  String get usuarioRequerido => 'Usuário obrigatório';
 
   @override
-  String get correoInvalido => 'Correo inválido';
+  String get correoInvalido => 'E-mail inválido';
 
   @override
-  String get contrasenaMinima => 'Mínimo 6 caracteres';
+  String get contrasenaMinima => 'A senha deve ter pelo menos 6 caracteres';
 
   @override
-  String get seleccionaPais => 'Selecciona un país';
+  String get seleccionaPais => 'Selecione um país';
 
   @override
-  String get seleccionaDepartamento => 'Selecciona un departamento';
+  String get seleccionaDepartamento => 'Selecione um departamento/estado';
 
   @override
-  String get yaTienesCuenta => '¿Ya tienes cuenta? Inicia sesión';
+  String get yaTienesCuenta => 'Já tem uma conta? Entre';
 
   @override
-  String get actualizaTusDatos => 'Actualiza tus datos';
+  String get actualizaTusDatos => 'Atualize seus dados';
 
   @override
-  String get registroUsuario => 'Registro de usuario';
+  String get registroUsuario => 'Cadastro de usuário';
 
   @override
-  String get modificaInformacion => 'Modifica tu información';
+  String get modificaInformacion => 'Modifique suas informações';
 
   @override
   String get confirmarEliminarCuenta =>
-      '¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.';
+      'Tem certeza de que deseja excluir sua conta?';
 
   @override
-  String get error => 'Error';
+  String get error => 'Erro';
 
   @override
   String get sinResultadosAnalisis => 'Nenhum resultado analisado ainda';
@@ -1081,10 +1081,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get ingresaNombre => 'Insira o nome';
 
   @override
-  String get tarjetaInvalida => 'Número de tarjeta inválido';
+  String get tarjetaInvalida => 'Cartão inválido';
 
   @override
-  String get fechaInvalida => 'Fecha inválida';
+  String get fechaInvalida => 'Data inválida';
 
   @override
   String get cvvInvalido => 'CVV inválido';
@@ -1093,13 +1093,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get pagar => 'Pagar';
 
   @override
-  String get pagoExito => '✅ Pago realizado con éxito';
+  String get pagoExito => 'Pagamento realizado com sucesso';
 
   @override
-  String get pagarEpayco => 'Pagar con ePayco';
+  String get pagarEpayco => 'Pagar com ePayco';
 
   @override
-  String get errorAnuncios => 'Error al cargar los anuncios.';
+  String get errorAnuncios => 'Erro ao carregar os anúncios.';
 
   @override
   String get numerosLabel => 'Números';
@@ -1110,7 +1110,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String cargarMasSorteos(int count) {
-    return 'Cargar 50 más ($count restantes)';
+    return 'Carregar mais 50 ($count restantes)';
   }
 
   @override
@@ -1577,4 +1577,233 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get sinNotificacionesInternacionales =>
       'Sem notificações internacionais';
+
+  @override
+  String get exploraLoteriasMundoHome =>
+      'Explore as loterias mais jogadas no mundo.';
+
+  @override
+  String get exploraLoteriasPaisHome =>
+      'Explore as loterias mais jogadas no país.';
+
+  @override
+  String get sorteaHoy => 'Sorteia hoje';
+
+  @override
+  String get manana => 'Amanhã';
+
+  @override
+  String enDias(Object count) {
+    return 'Em $count dias';
+  }
+
+  @override
+  String get sorteadoAyer => 'Sorteado ontem';
+
+  @override
+  String sorteadoHaceDias(Object count) {
+    return 'Sorteado há $count dias';
+  }
+
+  @override
+  String get hoyParentesis => 'Hoje';
+
+  @override
+  String get ayerParentesis => 'Ontem';
+
+  @override
+  String get sinLoteriasEncontradas => 'Nenhuma loteria encontrada';
+
+  @override
+  String get intentaOtroTerminoBusqueda => 'Tente outro termo de busca.';
+
+  @override
+  String get sinLoteriasDisponibles => 'Nenhuma loteria disponível';
+
+  @override
+  String sinLoteriasRegistradasPais(Object country) {
+    return 'Não há loterias registradas para $country';
+  }
+
+  @override
+  String get sinLoteriasRegistradasPaisDesc =>
+      'Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!';
+
+  @override
+  String get rewardPassActiveTitle => 'Passe de recompensa ativo';
+
+  @override
+  String get rewardPassTitle => 'Passe de recompensa';
+
+  @override
+  String rewardPassActiveBody(Object duration) {
+    return 'Você ainda tem $duration sem anúncios e com os recursos recompensados desbloqueados.';
+  }
+
+  @override
+  String rewardPassBankBody(Object duration) {
+    return 'Você tem $duration acumulados.';
+  }
+
+  @override
+  String get rewardPassEmptyBody =>
+      'Assista a vídeos para acumular tempo e ative quando quiser.';
+
+  @override
+  String rewardPassPolicy(Object minutes, Object maxMinutes) {
+    return 'Cada vídeo adiciona $minutes min. Máximo diário: $maxMinutes min.';
+  }
+
+  @override
+  String rewardPassAvailableToday(Object minutes) {
+    return 'Disponível hoje: $minutes min.';
+  }
+
+  @override
+  String rewardWatchVideoMinutes(Object minutes) {
+    return 'Ver vídeo +$minutes min';
+  }
+
+  @override
+  String get rewardActivatePass => 'Ativar passe';
+
+  @override
+  String rewardPassActivatedFor(Object duration) {
+    return '🎁 Passe de recompensa ativo por $duration.';
+  }
+
+  @override
+  String rewardVideoAddsMinutes(Object minutes) {
+    return 'Ao concluir o vídeo, você adiciona $minutes min ao seu Passe de recompensa.';
+  }
+
+  @override
+  String rewardAddedBank(Object added, Object total) {
+    return '🎁 +$added min. Você tem $total min acumulados para ativar.';
+  }
+
+  @override
+  String get rewardCompleteToUnlock =>
+      'Conclua o vídeo para desbloquear esta função.';
+
+  @override
+  String get rewardVideoShowError =>
+      'Não foi possível exibir o vídeo. Tente novamente.';
+
+  @override
+  String get rewardNoVideoAvailable =>
+      'Nenhum vídeo está disponível no momento. Tente novamente.';
+
+  @override
+  String rewardDailyLimitReached(Object minutes) {
+    return 'Você atingiu o limite diário de $minutes minutos.';
+  }
+
+  @override
+  String rewardAddedBalance(Object added, Object total) {
+    return '🎁 +$added min. Saldo acumulado: $total min.';
+  }
+
+  @override
+  String rewardCompleteForMinutes(Object minutes) {
+    return 'Conclua o vídeo para receber os $minutes minutos.';
+  }
+
+  @override
+  String get sessionExpiredTitle => 'Sua sessão expirou';
+
+  @override
+  String get sessionExpiredMessage =>
+      'Por segurança, entre novamente para continuar.';
+
+  @override
+  String get sessionExpiredButton => 'Entrar novamente';
+
+  @override
+  String get reportar => 'Denunciar';
+
+  @override
+  String get noSeleccionarImagen => 'Não foi possível selecionar a imagem.';
+
+  @override
+  String get maxCuatroFotosAnuncio => 'Máximo de 4 fotos por anúncio.';
+
+  @override
+  String fotosAgregadasLimite(Object count) {
+    return 'Apenas $count foto(s) foram adicionadas. Máximo total: 4.';
+  }
+
+  @override
+  String get noAbrirGaleria => 'Não foi possível abrir a galeria.';
+
+  @override
+  String get principalLabel => 'Principal';
+
+  @override
+  String get fotosAnuncio => 'Fotos do anúncio';
+
+  @override
+  String get agregarGaleria => 'Adicionar galeria';
+
+  @override
+  String get ayudaFotosAnuncio =>
+      'Toque na foto principal ou na galeria para adicionar imagens. Máximo de 4 fotos.';
+
+  @override
+  String get seleccionaFotoPrincipal => 'Selecione a foto principal';
+
+  @override
+  String get fotoPrincipal => 'Foto principal';
+
+  @override
+  String get galeriaLabel => 'Galeria';
+
+  @override
+  String get camaraLabel => 'Câmera';
+
+  @override
+  String get quitarLabel => 'Remover';
+
+  @override
+  String get galeriaAnuncio => 'Galeria do anúncio';
+
+  @override
+  String get agregarFotos => 'Adicionar fotos';
+
+  @override
+  String get limiteFotosDetalle =>
+      'Máximo de 4 fotos: 1 principal + 3 da galeria.';
+
+  @override
+  String get seleccionaFotoPrincipalPunto => 'Selecione uma foto principal.';
+
+  @override
+  String get sobreNosotros => 'Sobre nós';
+
+  @override
+  String get abierto247 => 'Aberto 24h';
+
+  @override
+  String get abiertoAhora => 'Aberto agora';
+
+  @override
+  String get cerradoAhora => 'Fechado';
+
+  @override
+  String get abiertoTodoDia => 'Aberto 24 horas, todos os dias';
+
+  @override
+  String get errorActualizarMeGusta => 'Não foi possível atualizar a curtida.';
+
+  @override
+  String get calificacionGuardada => 'Avaliação salva';
+
+  @override
+  String get errorGuardarCalificacion => 'Não foi possível salvar a avaliação.';
+
+  @override
+  String get horarioAtencion => 'Horário de atendimento';
+
+  @override
+  String get tuCalificacion => 'Sua avaliação';
 }

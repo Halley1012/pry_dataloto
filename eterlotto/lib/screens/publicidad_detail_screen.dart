@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:eterlotto/services/api_service.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/styles/app_text_styles.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 
 class PublicidadDetailScreen extends StatefulWidget {
   final Map<String, dynamic> publicidad;
@@ -39,24 +40,6 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
     super.dispose();
   }
 
-  String _tr({
-    required String es,
-    required String en,
-    required String fr,
-    required String pt,
-  }) {
-    final code = Localizations.localeOf(context).languageCode.toLowerCase();
-    switch (code) {
-      case 'en':
-        return en;
-      case 'fr':
-        return fr;
-      case 'pt':
-        return pt;
-      default:
-        return es;
-    }
-  }
 
   int _toInt(dynamic value) {
     if (value is int) return value;
@@ -107,12 +90,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
 
   String _scheduleStatus() {
     if (_asBool(_ad['es_24_7'])) {
-      return _tr(
-        es: 'Abierto 24/7',
-        en: 'Open 24/7',
-        fr: 'Ouvert 24h/24',
-        pt: 'Aberto 24h',
-      );
+      return AppLocalizations.of(context)!.abierto247;
     }
     final open = _ad['hora_apertura']?.toString();
     final close = _ad['hora_cierre']?.toString();
@@ -128,8 +106,8 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
             ? current >= start && current <= end
             : current >= start || current <= end;
         return isOpen
-            ? _tr(es: 'Abierto ahora', en: 'Open now', fr: 'Ouvert', pt: 'Aberto agora')
-            : _tr(es: 'Cerrado', en: 'Closed', fr: 'Fermé', pt: 'Fechado');
+            ? AppLocalizations.of(context)!.abiertoAhora
+            : AppLocalizations.of(context)!.cerradoAhora;
       } catch (_) {}
     }
     return _ad['estado_texto']?.toString() ?? '';
@@ -137,12 +115,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
 
   String _scheduleDetail() {
     if (_asBool(_ad['es_24_7'])) {
-      return _tr(
-        es: 'Abierto 24 horas, todos los días',
-        en: 'Open 24 hours, every day',
-        fr: 'Ouvert 24h/24, tous les jours',
-        pt: 'Aberto 24 horas, todos os dias',
-      );
+      return AppLocalizations.of(context)!.abiertoTodoDia;
     }
     final days = _ad['dias_atencion']?.toString().trim() ?? '';
     final open = _ad['hora_apertura']?.toString().trim() ?? '';
@@ -214,12 +187,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
         _ad['is_favorite'] = oldFav;
         _ad['total_likes'] = oldLikes;
       });
-      _snack(_tr(
-        es: 'No fue posible actualizar el Me gusta.',
-        en: 'Could not update the like.',
-        fr: 'Impossible de mettre à jour le J’aime.',
-        pt: 'Não foi possível atualizar a curtida.',
-      ));
+      _snack(AppLocalizations.of(context)!.errorActualizarMeGusta);
     } finally {
       if (mounted) setState(() => _savingLike = false);
     }
@@ -239,19 +207,9 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
         _ad['total_calificaciones'] = res['total_votos'] ?? _ad['total_calificaciones'];
         if (res['is_destacado'] != null) _ad['is_destacado'] = res['is_destacado'];
       });
-      _snack(_tr(
-        es: 'Calificación guardada',
-        en: 'Rating saved',
-        fr: 'Note enregistrée',
-        pt: 'Avaliação salva',
-      ));
+      _snack(AppLocalizations.of(context)!.calificacionGuardada);
     } catch (_) {
-      _snack(_tr(
-        es: 'No fue posible guardar la calificación.',
-        en: 'Could not save the rating.',
-        fr: 'Impossible d’enregistrer la note.',
-        pt: 'Não foi possível salvar a avaliação.',
-      ));
+      _snack(AppLocalizations.of(context)!.errorGuardarCalificacion);
     } finally {
       if (mounted) setState(() => _savingRating = false);
     }
@@ -300,7 +258,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _tr(es: 'Galería', en: 'Gallery', fr: 'Galerie', pt: 'Galeria'),
+                AppLocalizations.of(context)!.galeriaLabel,
                 style: AppTextStyles.tituloPrincipal.copyWith(fontSize: 20),
               ),
               const SizedBox(height: 16),
@@ -636,7 +594,7 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                       const SizedBox(height: 18),
                       _socialButtons(),
                       const SizedBox(height: 24),
-                      _sectionTitle(Icons.pets, _tr(es: 'Sobre nosotros', en: 'About us', fr: 'À propos', pt: 'Sobre nós')),
+                      _sectionTitle(Icons.pets, AppLocalizations.of(context)!.sobreNosotros),
                       const SizedBox(height: 8),
                       Text(
                         about,
@@ -646,14 +604,14 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _sectionTitle(Icons.schedule, _tr(es: 'Horario de atención', en: 'Opening hours', fr: 'Horaires', pt: 'Horário de atendimento')),
+                      _sectionTitle(Icons.schedule, AppLocalizations.of(context)!.horarioAtencion),
                       const SizedBox(height: 8),
                       Text(
                         _scheduleDetail(),
                         style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
                       ),
                       const SizedBox(height: 24),
-                      _sectionTitle(Icons.star_rate_rounded, _tr(es: 'Tu calificación', en: 'Your rating', fr: 'Votre note', pt: 'Sua avaliação')),
+                      _sectionTitle(Icons.star_rate_rounded, AppLocalizations.of(context)!.tuCalificacion),
                       const SizedBox(height: 8),
                       Row(
                         children: List.generate(5, (index) {
@@ -671,11 +629,11 @@ class _PublicidadDetailScreenState extends State<PublicidadDetailScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            _sectionTitle(Icons.photo_library_outlined, _tr(es: 'Galería', en: 'Gallery', fr: 'Galerie', pt: 'Galeria')),
+                            _sectionTitle(Icons.photo_library_outlined, AppLocalizations.of(context)!.galeriaLabel),
                             TextButton(
                               onPressed: () => _openGallery(images),
                               child: Text(
-                                _tr(es: 'Ver todas', en: 'View all', fr: 'Voir toutes', pt: 'Ver todas'),
+                                AppLocalizations.of(context)!.verTodas,
                                 style: AppTextStyles.caption2.copyWith(
                                   color: AppColors.yellow,
                                   fontWeight: FontWeight.w600,

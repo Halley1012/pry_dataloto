@@ -50,6 +50,7 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
   int? _paisSeleccionadoId;
   int? _departamentoSeleccionadoId;
   int? _categoriaSeleccionadaId;
+  String? _catalogLanguageCode;
 
   Timer? _debounce;
 
@@ -58,18 +59,48 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
     super.initState();
     _paisesFuture = ApiService.getPaises();
     _departamentosFuture = Future.value(<Map<String, dynamic>>[]);
-    _categoriasFuture = ApiService.getCategorias();
+    _categoriasFuture = Future.value(<Map<String, dynamic>>[]);
 
     _scrollController.addListener(_onDirectoryScroll);
-    _inicializarFiltros();
     tituloController.addListener(_onSearchChanged);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _inicializarFiltros();
+      }
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode =
+        Localizations.localeOf(context).languageCode.toLowerCase();
+
+    if (_catalogLanguageCode != null &&
+        _catalogLanguageCode != languageCode) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _inicializarFiltros(forceRefresh: true);
+        }
+      });
+    }
   }
 
   Future<void> _inicializarFiltros({bool forceRefresh = false}) async {
     try {
+      final languageCode =
+          Localizations.localeOf(context).languageCode.toLowerCase();
+
       if (forceRefresh) {
         _paisesFuture = ApiService.getPaises();
-        _categoriasFuture = ApiService.getCategorias();
+      }
+
+      if (_catalogLanguageCode != languageCode || forceRefresh) {
+        _catalogLanguageCode = languageCode;
+        _categoriasFuture = ApiService.getCategorias(
+          languageCode: languageCode,
+        );
       }
 
       final results = await Future.wait([
@@ -167,10 +198,11 @@ class _DirectorioLocalScreenState extends State<DirectorioLocalScreen> {
 
       if (!mounted) return;
 
+      final l10n = AppLocalizations.of(context)!;
       setState(() {
-        paisController.text = matchedPaisNombre ?? "Todos";
-        departamentoController.text = "Todos";
-        categoriaController.text = "Todas las categorías";
+        paisController.text = matchedPaisNombre ?? l10n.todos;
+        departamentoController.text = l10n.todos;
+        categoriaController.text = l10n.todasCategorias;
       });
 
       await buscarAnuncios("");

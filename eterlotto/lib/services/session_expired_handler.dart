@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/config/navigation.dart';
 
 class SessionExpiredHandler {
@@ -23,25 +24,10 @@ class SessionExpiredHandler {
       final context = navigatorKey.currentContext;
       if (context == null) return;
 
-      final languageCode = Localizations.localeOf(context).languageCode;
-      final title = switch (languageCode) {
-        'en' => 'Your session has expired',
-        'pt' => 'Sua sessão expirou',
-        'fr' => 'Votre session a expiré',
-        _ => 'Tu sesión ha vencido',
-      };
-      final message = switch (languageCode) {
-        'en' => 'For your security, please sign in again to continue.',
-        'pt' => 'Por segurança, entre novamente para continuar.',
-        'fr' => 'Pour votre sécurité, reconnectez-vous pour continuer.',
-        _ => 'Por seguridad, inicia sesión nuevamente para continuar.',
-      };
-      final button = switch (languageCode) {
-        'en' => 'Sign in again',
-        'pt' => 'Entrar novamente',
-        'fr' => 'Se reconnecter',
-        _ => 'Ingresar nuevamente',
-      };
+      final l10n = AppLocalizations.of(context)!;
+      final title = l10n.sessionExpiredTitle;
+      final message = l10n.sessionExpiredMessage;
+      final button = l10n.sessionExpiredButton;
 
       await showDialog<void>(
         context: context,

@@ -512,10 +512,31 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
             """, publicidad_id)
             return result == "UPDATE 1"
 
-    def list_categorias(self) -> List[Dict[str, Any]]:
+    def list_categorias(self, lang: str = "es") -> List[Dict[str, Any]]:
+        normalized_lang = (lang or "es").strip().lower().split("-")[0]
+        if not re.fullmatch(r"[a-z]{2,10}", normalized_lang):
+            normalized_lang = "es"
+
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                cur.execute("SELECT * FROM categorias ORDER BY nombre")
+                cur.execute(
+                    """
+                    SELECT
+                        c.id,
+                        COALESCE(ct.nombre, c.nombre) AS nombre,
+                        c.slug,
+                        c.icono,
+                        c.activa AS activo,
+                        c.orden
+                    FROM categorias AS c
+                    LEFT JOIN categorias_traducciones AS ct
+                      ON ct.categoria_id = c.id
+                     AND ct.idioma = %s
+                    WHERE COALESCE(c.activa, TRUE) = TRUE
+                    ORDER BY LOWER(COALESCE(ct.nombre, c.nombre)), c.id
+                    """,
+                    (normalized_lang,),
+                )
                 return cur.fetchall()
 
     def list_paises(self) -> List[Dict[str, Any]]:
