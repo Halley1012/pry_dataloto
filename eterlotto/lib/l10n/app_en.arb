@@ -979,5 +979,14 @@
   "calificacionGuardada": "Rating saved",
   "errorGuardarCalificacion": "Could not save the rating.",
   "horarioAtencion": "Opening hours",
-  "tuCalificacion": "Your rating"
+  "tuCalificacion": "Your rating",
+  "horarioAtencion24h": "Open 24 hours (24/7)",
+  "horarioAperturaLabel": "Opens",
+  "horarioCierreLabel": "Closes",
+  "horarioDiasAtencionLabel": "Business days",
+  "horarioTodosLosDias": "Every day",
+  "horarioLunesASabado": "Monday to Saturday",
+  "horarioLunesAViernes": "Monday to Friday",
+  "horarioFinesDeSemana": "Weekends",
+  "buscarPaisTelefono": "Search country or dial code"
 }

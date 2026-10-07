@@ -978,5 +978,14 @@
   "calificacionGuardada": "Note enregistrée",
   "errorGuardarCalificacion": "Impossible d’enregistrer la note.",
   "horarioAtencion": "Horaires",
-  "tuCalificacion": "Votre note"
+  "tuCalificacion": "Votre note",
+  "horarioAtencion24h": "Ouvert 24h/24 (24/7)",
+  "horarioAperturaLabel": "Ouverture",
+  "horarioCierreLabel": "Fermeture",
+  "horarioDiasAtencionLabel": "Jours d’ouverture",
+  "horarioTodosLosDias": "Tous les jours",
+  "horarioLunesASabado": "Du lundi au samedi",
+  "horarioLunesAViernes": "Du lundi au vendredi",
+  "horarioFinesDeSemana": "Week-ends",
+  "buscarPaisTelefono": "Rechercher un pays ou un indicatif"
 }

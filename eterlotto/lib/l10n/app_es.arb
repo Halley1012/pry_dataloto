@@ -978,5 +978,14 @@
   "calificacionGuardada": "Calificación guardada",
   "errorGuardarCalificacion": "No fue posible guardar la calificación.",
   "horarioAtencion": "Horario de atención",
-  "tuCalificacion": "Tu calificación"
+  "tuCalificacion": "Tu calificación",
+  "horarioAtencion24h": "Atención 24 horas (24/7)",
+  "horarioAperturaLabel": "Apertura",
+  "horarioCierreLabel": "Cierre",
+  "horarioDiasAtencionLabel": "Días de atención",
+  "horarioTodosLosDias": "Todos los días",
+  "horarioLunesASabado": "Lunes a sábado",
+  "horarioLunesAViernes": "Lunes a viernes",
+  "horarioFinesDeSemana": "Fines de semana",
+  "buscarPaisTelefono": "Buscar país o prefijo"
 }

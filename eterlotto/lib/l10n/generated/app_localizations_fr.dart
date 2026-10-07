@@ -1827,4 +1827,31 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tuCalificacion => 'Votre note';
+
+  @override
+  String get horarioAtencion24h => 'Ouvert 24h/24 (24/7)';
+
+  @override
+  String get horarioAperturaLabel => 'Ouverture';
+
+  @override
+  String get horarioCierreLabel => 'Fermeture';
+
+  @override
+  String get horarioDiasAtencionLabel => 'Jours d’ouverture';
+
+  @override
+  String get horarioTodosLosDias => 'Tous les jours';
+
+  @override
+  String get horarioLunesASabado => 'Du lundi au samedi';
+
+  @override
+  String get horarioLunesAViernes => 'Du lundi au vendredi';
+
+  @override
+  String get horarioFinesDeSemana => 'Week-ends';
+
+  @override
+  String get buscarPaisTelefono => 'Rechercher un pays ou un indicatif';
 }
