@@ -19,7 +19,6 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
-import '../../utils/screen_security_helper.dart';
 import 'package:eterlotto/models/loteria_config.dart';
 import '../estadisticas_dashboard_screen.dart';
 import '../resultados_dashboard_screen.dart';
@@ -129,14 +128,12 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
   @override
   void initState() {
     super.initState();
-    ScreenSecurityHelper.enableSecureScreen();
     _cargarConfig();
     _cargarJugadas();
   }
 
   @override
   void dispose() {
-    ScreenSecurityHelper.disableSecureScreen();
     _compareFabPositionNotifier.dispose();
     _drawResultsFabPositionNotifier.dispose();
     for (final position in _toolbarActionPositions.values) {
@@ -1439,6 +1436,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
 
   void _abrirModalComparar() {
     if (_selectedIds.length != 1) return;
+    final l10n = AppLocalizations.of(context)!;
     final id = _selectedIds.first;
     final index = _jugadasList.indexWhere((j) => (j["id"] as int? ?? 0) == id);
     if (index == -1) return;
@@ -1529,7 +1527,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 const SizedBox(height: 14),
                 // Pregunta clara al usuario
                 Text(
-                  "¿Quieres comparar con Estadísticas?",
+                  l10n.compararEstadisticasPregunta,
                   style: GoogleFonts.montserrat(
                     color: Colors.white,
                     fontSize: 18,
@@ -1539,7 +1537,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  "Selecciona la jugada que deseas llevar a la pantalla de estadísticas para analizar su coincidencia con los sorteos pasados.",
+                  l10n.compararEstadisticasDescripcion,
                   style: GoogleFonts.montserrat(
                     color: Colors.white70,
                     fontSize: 12.5,
@@ -1568,7 +1566,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "Jugada #$jugadaIndex",
+                            l10n.jugadaShare(jugadaIndex),
                             style: GoogleFonts.montserrat(
                               color: AppColors.yellow,
                               fontWeight: FontWeight.bold,
@@ -1636,8 +1634,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           ),
                         ),
                         onPressed: () => Navigator.pop(ctx),
-                        child: const Text(
-                          "Cancelar",
+                        child: Text(
+                          l10n.cancelar,
                           style: TextStyle(color: Colors.white70, fontSize: 14),
                         ),
                       ),
@@ -1660,8 +1658,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           size: 20,
                           color: Colors.black,
                         ),
-                        label: const Text(
-                          "Sí, Comparar",
+                        label: Text(
+                          l10n.compararEstadisticasConfirmar,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 14.5,
@@ -1678,15 +1676,15 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           await AdService.instance.showRewardedFeatureGate(
                             context: context,
                             isPremium: isPremium,
-                            featureTitle: "Comparar con Estadísticas",
+                            featureTitle: l10n.compararEstadisticasTitulo,
                             featureActionDescription:
-                                "Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.",
+                                l10n.compararEstadisticasVideoDescripcion,
                             onRewardGranted: () async {
                               final Map<String, dynamic> jugadaComparacionData =
                                   {
                                     "id": id,
                                     "index": jugadaIndex,
-                                    "titulo": "Jugada #$jugadaIndex",
+                                    "titulo": l10n.jugadaShare(jugadaIndex),
                                     "color": rowColor.toARGB32(),
                                     "numeros": whites,
                                     "balota_roja": specials.isNotEmpty

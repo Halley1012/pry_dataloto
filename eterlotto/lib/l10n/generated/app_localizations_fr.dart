@@ -1854,4 +1854,277 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get buscarPaisTelefono => 'Rechercher un pays ou un indicatif';
+
+  @override
+  String get compararEstadisticasPregunta =>
+      'Voulez-vous comparer avec les statistiques ?';
+
+  @override
+  String get compararEstadisticasDescripcion =>
+      'Sélectionnez la grille à analyser dans les statistiques pour voir ses correspondances avec les tirages précédents.';
+
+  @override
+  String get compararEstadisticasConfirmar => 'Oui, comparer';
+
+  @override
+  String get compararEstadisticasTitulo => 'Comparer avec les statistiques';
+
+  @override
+  String get compararEstadisticasVideoDescripcion =>
+      'Regardez une courte vidéo publicitaire pour comparer votre grille aux statistiques.';
+
+  @override
+  String get authSocialLoginFailed => 'Impossible de se connecter avec Google.';
+
+  @override
+  String get googleTokenUnavailable =>
+      'Impossible de récupérer le jeton Google.';
+
+  @override
+  String get accountNotVerified =>
+      'Votre compte n’est pas encore activé. Saisissez le code de vérification envoyé à votre adresse e-mail.';
+
+  @override
+  String get activateAccountTitle => 'Activez votre compte';
+
+  @override
+  String activateAccountInstructions(String email) {
+    return 'Nous avons envoyé un code à 6 chiffres à $email pour vérifier votre adresse e-mail.';
+  }
+
+  @override
+  String get activateAccountButton => 'Activer le compte';
+
+  @override
+  String get authEnterSixDigitCode => 'Saisissez les 6 chiffres du code.';
+
+  @override
+  String get accountActivatedMessage =>
+      'Compte activé ! Bienvenue sur Eterlotto.';
+
+  @override
+  String get authCodeInvalidOrExpired => 'Le code est incorrect ou a expiré.';
+
+  @override
+  String authVerificationCodeResent(String email) {
+    return 'Code renvoyé à $email.';
+  }
+
+  @override
+  String get authResendCode => 'Vous n’avez pas reçu le code ? Renvoyer';
+
+  @override
+  String get authForgotInstructions =>
+      'Saisissez votre adresse e-mail pour recevoir un code de sécurité à 6 chiffres.';
+
+  @override
+  String get authSendResetCode => 'Envoyer le code';
+
+  @override
+  String get authVerifyResetCode => 'Vérifier le code';
+
+  @override
+  String authVerifyResetInstructions(String email) {
+    return 'Saisissez le code à 6 chiffres envoyé à $email.';
+  }
+
+  @override
+  String get authNewPasswordTitle => 'Nouveau mot de passe';
+
+  @override
+  String get authNewPasswordInstructions =>
+      'Code vérifié ✅. Saisissez votre nouveau mot de passe pour terminer.';
+
+  @override
+  String get authSavePassword => 'Enregistrer le mot de passe';
+
+  @override
+  String get authNewPasswordField => 'Nouveau mot de passe';
+
+  @override
+  String get authConfirmPasswordField => 'Confirmer le mot de passe';
+
+  @override
+  String get authInvalidEmail => 'Saisissez une adresse e-mail valide.';
+
+  @override
+  String authResetCodeSent(String email) {
+    return 'Code envoyé avec succès à $email.';
+  }
+
+  @override
+  String authResetCodeResent(String email) {
+    return 'Code renvoyé avec succès à $email.';
+  }
+
+  @override
+  String get authPasswordMinSixChars =>
+      'Le mot de passe doit contenir au moins 6 caractères.';
+
+  @override
+  String get authPasswordsDoNotMatch =>
+      'Les mots de passe ne correspondent pas.';
+
+  @override
+  String get authPasswordUpdated =>
+      'Mot de passe mis à jour ! Vous pouvez maintenant vous connecter.';
+
+  @override
+  String get authResendResetCode => 'Vous n’avez pas reçu le code ? Renvoyer';
+
+  @override
+  String get authRequestCodeFailed => 'Impossible de demander le code.';
+
+  @override
+  String get registroCorreoRequerido => 'L’adresse e-mail est obligatoire.';
+
+  @override
+  String registroSugerenciaCorreo(String domain) {
+    return 'Vouliez-vous dire @$domain ?';
+  }
+
+  @override
+  String get registroActivacionPendiente =>
+      'Votre compte est en attente d’activation. Vous pourrez l’activer lors de votre connexion.';
+
+  @override
+  String get registroDebeSerMayorParaRegistrar =>
+      'Vous devez confirmer avoir au moins 18 ans pour vous inscrire.';
+
+  @override
+  String get registroDebeSerMayorParaContinuar =>
+      'Vous devez confirmer avoir au moins 18 ans pour continuer.';
+
+  @override
+  String registroCodigoActivacionEnviado(String email) {
+    return 'Code d’activation envoyé à $email.';
+  }
+
+  @override
+  String get registroErrorRegistrar => 'Impossible de créer votre compte.';
+
+  @override
+  String get registroDeclaracionMayorEdad =>
+      'Je confirme avoir au moins 18 ans (+18)';
+
+  @override
+  String get statsErrorCargarDatos =>
+      'Impossible de charger les données statistiques.';
+
+  @override
+  String statsComparandoJugada(String jugada) {
+    return 'Comparaison : $jugada';
+  }
+
+  @override
+  String statsDebesSeleccionarBalotas(int cantidad) {
+    return 'Vous devez sélectionner exactement $cantidad boules.';
+  }
+
+  @override
+  String get statsDebesSeleccionarEspecial =>
+      'Vous devez sélectionner une boule spéciale.';
+
+  @override
+  String statsDebesSeleccionarEspeciales(int cantidad) {
+    return 'Vous devez sélectionner exactement $cantidad boules spéciales.';
+  }
+
+  @override
+  String get statsIniciarSesionGuardar =>
+      'Connectez-vous pour enregistrer votre grille.';
+
+  @override
+  String get statsGuardadaActualizada =>
+      'Grille enregistrée et mise à jour avec succès !';
+
+  @override
+  String get statsErrorActualizar =>
+      'Impossible de mettre à jour la grille. Réessayez.';
+
+  @override
+  String statsErrorGuardarDetalle(String detalle) {
+    return 'Erreur lors de l\'enregistrement : $detalle';
+  }
+
+  @override
+  String statsMaximoSeleccion(int cantidad) {
+    return 'Vous avez déjà sélectionné $cantidad boules. Touchez-en une pour la retirer.';
+  }
+
+  @override
+  String get statsBalotaEspecial => 'Boule spéciale';
+
+  @override
+  String get statsBalotasEspeciales => 'Boules spéciales';
+
+  @override
+  String get statsSeleccionaEspecial => 'Sélectionnez 1 numéro spécial.';
+
+  @override
+  String statsSeleccionaEspeciales(int cantidad) {
+    return 'Sélectionnez $cantidad numéros spéciaux.';
+  }
+
+  @override
+  String statsBalotaSalidas(int numero, int cantidad) {
+    return 'Boule $numero\n$cantidad tirages';
+  }
+
+  @override
+  String statsRangoBalotas(int maximo) {
+    return 'Boules 1 - $maximo';
+  }
+
+  @override
+  String get statsEnTuJugada => 'Dans votre grille';
+
+  @override
+  String get statsDistribucionTitulo =>
+      'Répartition : pairs/impairs et bas/élevés';
+
+  @override
+  String get statsPares => 'Pairs';
+
+  @override
+  String get statsImpares => 'Impairs';
+
+  @override
+  String get statsBajos => 'Bas';
+
+  @override
+  String get statsAltos => 'Élevés';
+
+  @override
+  String statsTuJugadaPares(int pares, int impares) {
+    return 'Votre grille : $pares pairs / $impares impairs';
+  }
+
+  @override
+  String statsTuJugadaBajos(int bajos, int altos) {
+    return '• $bajos bas / $altos élevés';
+  }
+
+  @override
+  String statsSumaTuJugada(int suma, String promedio) {
+    return 'Somme de votre grille : $suma (Moyenne historique : $promedio)';
+  }
+
+  @override
+  String get statsAmbos => 'Les deux !';
+
+  @override
+  String get statsUnoEnTuJugada => '1 dans votre grille';
+
+  @override
+  String statsTuJugadaTitulo(String jugada) {
+    return 'Votre $jugada';
+  }
+
+  @override
+  String get statsJugadaActual => 'grille actuelle';
+
+  @override
+  String get profileDeleteFailed =>
+      'Impossible de supprimer le compte. Veuillez réessayer.';
 }

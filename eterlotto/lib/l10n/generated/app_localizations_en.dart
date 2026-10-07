@@ -1822,4 +1822,270 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get buscarPaisTelefono => 'Search country or dial code';
+
+  @override
+  String get compararEstadisticasPregunta =>
+      'Would you like to compare with Statistics?';
+
+  @override
+  String get compararEstadisticasDescripcion =>
+      'Select the play you want to analyze in Statistics to see how it matches previous draws.';
+
+  @override
+  String get compararEstadisticasConfirmar => 'Yes, compare';
+
+  @override
+  String get compararEstadisticasTitulo => 'Compare with Statistics';
+
+  @override
+  String get compararEstadisticasVideoDescripcion =>
+      'Watch a short video ad to compare your play with the statistics.';
+
+  @override
+  String get authSocialLoginFailed => 'Could not sign in with Google.';
+
+  @override
+  String get googleTokenUnavailable => 'Unable to retrieve the Google token.';
+
+  @override
+  String get accountNotVerified =>
+      'Your account is not activated yet. Enter the verification code sent to your email.';
+
+  @override
+  String get activateAccountTitle => 'Activate your account';
+
+  @override
+  String activateAccountInstructions(String email) {
+    return 'We sent a 6-digit code to $email to verify your email address.';
+  }
+
+  @override
+  String get activateAccountButton => 'Activate account';
+
+  @override
+  String get authEnterSixDigitCode => 'Enter all 6 digits of the code.';
+
+  @override
+  String get accountActivatedMessage =>
+      'Account activated! Welcome to Eterlotto.';
+
+  @override
+  String get authCodeInvalidOrExpired =>
+      'The code is incorrect or has expired.';
+
+  @override
+  String authVerificationCodeResent(String email) {
+    return 'Code resent to $email.';
+  }
+
+  @override
+  String get authResendCode => 'Didn\'t receive the code? Resend';
+
+  @override
+  String get authForgotInstructions =>
+      'Enter your email address to receive a 6-digit security code.';
+
+  @override
+  String get authSendResetCode => 'Send code';
+
+  @override
+  String get authVerifyResetCode => 'Verify code';
+
+  @override
+  String authVerifyResetInstructions(String email) {
+    return 'Enter the 6-digit code sent to $email.';
+  }
+
+  @override
+  String get authNewPasswordTitle => 'New password';
+
+  @override
+  String get authNewPasswordInstructions =>
+      'Code verified ✅. Enter your new password to complete the change.';
+
+  @override
+  String get authSavePassword => 'Save password';
+
+  @override
+  String get authNewPasswordField => 'New password';
+
+  @override
+  String get authConfirmPasswordField => 'Confirm password';
+
+  @override
+  String get authInvalidEmail => 'Enter a valid email address.';
+
+  @override
+  String authResetCodeSent(String email) {
+    return 'Code successfully sent to $email.';
+  }
+
+  @override
+  String authResetCodeResent(String email) {
+    return 'Code successfully resent to $email.';
+  }
+
+  @override
+  String get authPasswordMinSixChars =>
+      'The password must contain at least 6 characters.';
+
+  @override
+  String get authPasswordsDoNotMatch => 'Passwords do not match.';
+
+  @override
+  String get authPasswordUpdated => 'Password updated! You can now sign in.';
+
+  @override
+  String get authResendResetCode => 'Didn\'t receive the code? Send again';
+
+  @override
+  String get authRequestCodeFailed => 'Could not request the code.';
+
+  @override
+  String get registroCorreoRequerido => 'Email address is required.';
+
+  @override
+  String registroSugerenciaCorreo(String domain) {
+    return 'Did you mean @$domain?';
+  }
+
+  @override
+  String get registroActivacionPendiente =>
+      'Your account is pending activation. You can activate it when you sign in.';
+
+  @override
+  String get registroDebeSerMayorParaRegistrar =>
+      'You must confirm that you are at least 18 to sign up.';
+
+  @override
+  String get registroDebeSerMayorParaContinuar =>
+      'You must confirm that you are at least 18 to continue.';
+
+  @override
+  String registroCodigoActivacionEnviado(String email) {
+    return 'Activation code sent to $email.';
+  }
+
+  @override
+  String get registroErrorRegistrar => 'Could not create your account.';
+
+  @override
+  String get registroDeclaracionMayorEdad => 'I confirm I am 18 or older (+18)';
+
+  @override
+  String get statsErrorCargarDatos => 'Could not load statistics data.';
+
+  @override
+  String statsComparandoJugada(String jugada) {
+    return 'Comparing $jugada';
+  }
+
+  @override
+  String statsDebesSeleccionarBalotas(int cantidad) {
+    return 'You must select exactly $cantidad balls.';
+  }
+
+  @override
+  String get statsDebesSeleccionarEspecial =>
+      'You must select one special ball.';
+
+  @override
+  String statsDebesSeleccionarEspeciales(int cantidad) {
+    return 'You must select exactly $cantidad special balls.';
+  }
+
+  @override
+  String get statsIniciarSesionGuardar => 'Sign in to save your play.';
+
+  @override
+  String get statsGuardadaActualizada => 'Play successfully saved and updated!';
+
+  @override
+  String get statsErrorActualizar =>
+      'Could not update the play. Please try again.';
+
+  @override
+  String statsErrorGuardarDetalle(String detalle) {
+    return 'Error saving: $detalle';
+  }
+
+  @override
+  String statsMaximoSeleccion(int cantidad) {
+    return 'You have already selected $cantidad balls. Tap one to remove it.';
+  }
+
+  @override
+  String get statsBalotaEspecial => 'Special ball';
+
+  @override
+  String get statsBalotasEspeciales => 'Special balls';
+
+  @override
+  String get statsSeleccionaEspecial => 'Select 1 special number.';
+
+  @override
+  String statsSeleccionaEspeciales(int cantidad) {
+    return 'Select $cantidad special numbers.';
+  }
+
+  @override
+  String statsBalotaSalidas(int numero, int cantidad) {
+    return 'Ball $numero\n$cantidad draws';
+  }
+
+  @override
+  String statsRangoBalotas(int maximo) {
+    return 'Balls 1 - $maximo';
+  }
+
+  @override
+  String get statsEnTuJugada => 'In your play';
+
+  @override
+  String get statsDistribucionTitulo => 'Distribution: Even/Odd and Low/High';
+
+  @override
+  String get statsPares => 'Even';
+
+  @override
+  String get statsImpares => 'Odd';
+
+  @override
+  String get statsBajos => 'Low';
+
+  @override
+  String get statsAltos => 'High';
+
+  @override
+  String statsTuJugadaPares(int pares, int impares) {
+    return 'Your play: $pares even / $impares odd';
+  }
+
+  @override
+  String statsTuJugadaBajos(int bajos, int altos) {
+    return '• $bajos low / $altos high';
+  }
+
+  @override
+  String statsSumaTuJugada(int suma, String promedio) {
+    return 'Sum of your play: $suma (Historical average: $promedio)';
+  }
+
+  @override
+  String get statsAmbos => 'Both!';
+
+  @override
+  String get statsUnoEnTuJugada => '1 in your play';
+
+  @override
+  String statsTuJugadaTitulo(String jugada) {
+    return 'Your $jugada';
+  }
+
+  @override
+  String get statsJugadaActual => 'current play';
+
+  @override
+  String get profileDeleteFailed =>
+      'The account could not be deleted. Please try again.';
 }

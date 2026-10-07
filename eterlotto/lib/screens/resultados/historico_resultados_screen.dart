@@ -13,7 +13,6 @@ import 'package:eterlotto/styles/app_text_styles.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/widgets/custom_app_bar.dart';
 import 'package:eterlotto/services/cache_service.dart';
-import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'widgets/resultados_shared.dart';
 
@@ -161,7 +160,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   @override
   void initState() {
     super.initState();
-    ScreenSecurityHelper.enableSecureScreen();
     _selectedSorteo =
         widget.initialSorteo ??
         (widget.sorteosDisponibles.isNotEmpty
@@ -191,7 +189,6 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
 
   @override
   void dispose() {
-    ScreenSecurityHelper.disableSecureScreen();
     super.dispose();
   }
 

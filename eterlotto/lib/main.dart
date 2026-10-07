@@ -26,6 +26,7 @@ import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
 import 'package:eterlotto/config/navigation.dart';
+import 'package:eterlotto/utils/screen_security_helper.dart';
 
 // Provider de Idioma global. navigatorKey vive en config/navigation.dart
 final LocaleProvider localeProvider = LocaleProvider();
@@ -96,6 +97,7 @@ class EterlottoApp extends StatelessWidget {
           builder: (context, _) {
             return MaterialApp(
             navigatorKey: navigatorKey,
+            navigatorObservers: [ScreenSecurityHelper.navigatorObserver],
             debugShowCheckedModeBanner: false,
             initialRoute: '/splash',
             title: 'Eterlotto',

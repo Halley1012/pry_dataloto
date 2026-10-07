@@ -22,7 +22,6 @@ import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/widgets/premium_crown_badge.dart';
-import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:provider/provider.dart';
 import '../utils/secure_storage_helper.dart';
 import 'package:shimmer/shimmer.dart';
@@ -107,7 +106,6 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   @override
   void initState() {
     super.initState();
-    ScreenSecurityHelper.enableSecureScreen();
     _restoreActionOrder();
     if (widget.loteriaData != null) {
       config = LoteriaConfig.fromJson(
@@ -211,7 +209,6 @@ class _LoteriaScreenState extends State<LoteriaScreen>
 
   @override
   void dispose() {
-    ScreenSecurityHelper.disableSecureScreen();
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );
