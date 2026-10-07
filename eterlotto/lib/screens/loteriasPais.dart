@@ -185,6 +185,8 @@ class _LoteriasPaisState extends State<LoteriasPais> {
   }
 
   void _onSearchChanged(String query) {
+    final langCode = Localizations.localeOf(context).languageCode;
+
     setState(() {
       final q = query.trim().toLowerCase();
       if (q.isEmpty) {
@@ -192,11 +194,28 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       } else {
         _filteredLoterias = _loterias.where((l) {
           final name = (l["nombre"] ?? "").toString().toLowerCase();
-          final pNombre = _getPaisNombre(l["pais_id"]).toLowerCase();
-          return name.contains(q) || pNombre.contains(q);
+          final rawCountry = _getPaisNombre(l["pais_id"]);
+          final translatedCountry =
+              PaisHelper.getNombreTraducido(rawCountry, langCode).toLowerCase();
+          final originalCountry = rawCountry.toLowerCase();
+
+          return name.contains(q) ||
+              originalCountry.contains(q) ||
+              translatedCountry.contains(q);
         }).toList();
       }
     });
+  }
+
+  void _filterByCountry(String country) {
+    final langCode = Localizations.localeOf(context).languageCode;
+    final translatedCountry = PaisHelper.getNombreTraducido(country, langCode);
+
+    _searchController.value = TextEditingValue(
+      text: translatedCountry,
+      selection: TextSelection.collapsed(offset: translatedCountry.length),
+    );
+    _onSearchChanged(translatedCountry);
   }
 
   List<Map<String, dynamic>> _getDisplayList() {
@@ -580,20 +599,40 @@ class _LoteriasPaisState extends State<LoteriasPais> {
       
       sliverItems.add(
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-          child: Row(
-            children: [
-              Text(PaisHelper.getBanderaEmoji(country), style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 8),
-              Text(
-                countryDisplay,
-                style: AppTextStyles.h2.copyWith(
-                  color: AppColors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _filterByCountry(country),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+                child: Row(
+                  children: [
+                    Text(
+                      PaisHelper.getBanderaEmoji(country),
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        countryDisplay,
+                        style: AppTextStyles.h2.copyWith(
+                          color: AppColors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.filter_alt_outlined,
+                      size: 17,
+                      color: AppColors.yellow.withValues(alpha: 0.75),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       );

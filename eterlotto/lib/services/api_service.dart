@@ -514,21 +514,41 @@ class ApiService {
     }
   }
 
+  /// Elimina la cuenta autenticada.
+  ///
+  /// Debe pasar siempre por el DELETE genérico porque allí se agrega el
+  /// Bearer token y se reintenta automáticamente después de refrescarlo
+  /// cuando el access token expiró.
   static Future<Map<String, dynamic>> deleteUser(int userId) async {
-    final url = Uri.parse('$baseUrl/users/$userId'); // 👈 Usa tu backend
+    final response = await delete(
+      '/users/$userId',
+      withAuth: true,
+      timeout: const Duration(seconds: 20),
+    );
 
-    try {
-      final response = await http.delete(url);
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      } else {
-        final error = json.decode(response.body);
-        throw Exception(error['detail'] ?? 'Error al eliminar usuario');
+    Map<String, dynamic> payload = <String, dynamic>{};
+    if (response.body.trim().isNotEmpty) {
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map) {
+          payload = Map<String, dynamic>.from(decoded);
+        }
+      } catch (_) {
+        // El status HTTP sigue siendo la fuente de verdad si el body
+        // no tiene JSON válido.
       }
-    } catch (e) {
-      throw Exception('Error de conexión: $e');
     }
+
+    if (response.statusCode == 200) {
+      return payload;
+    }
+
+    final detail = payload['detail']?.toString().trim();
+    throw Exception(
+      detail != null && detail.isNotEmpty
+          ? detail
+          : 'delete_user_http_${response.statusCode}',
+    );
   }
 
   /// 🔥 Actualizar el token de notificaciones FCM (ID del celular)
