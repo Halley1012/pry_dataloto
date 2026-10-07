@@ -83,6 +83,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   int _catalogRequestId = 0;
   int _departamentosRequestId = 0;
   int _ciudadesRequestId = 0;
+  String? _categoryLanguageCode;
 
   String _selectedCountryCode = '';
   String _selectedWhatsAppCode = '';
@@ -115,6 +116,40 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         _cargarDatosOptimizado();
       }
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final languageCode =
+        Localizations.localeOf(context).languageCode.toLowerCase();
+
+    if (_categoryLanguageCode != null &&
+        _categoryLanguageCode != languageCode) {
+      _categoryLanguageCode = languageCode;
+      _reloadCategoriesForLocale(languageCode);
+    }
+  }
+
+  Future<void> _reloadCategoriesForLocale(String languageCode) async {
+    try {
+      final categorias = await ApiService.getCategorias(
+        languageCode: languageCode,
+      );
+      if (!mounted || _categoryLanguageCode != languageCode) return;
+
+      setState(() {
+        _categorias = categorias;
+        if (categoriaSeleccionada != null &&
+            !_categorias.any(
+              (item) => _toInt(item['id']) == categoriaSeleccionada,
+            )) {
+          categoriaSeleccionada = null;
+        }
+      });
+    } catch (_) {
+      // Si falla el refresco por idioma conservamos el último catálogo visible.
+    }
   }
 
   void _onDescripcionChanged() {
@@ -154,9 +189,13 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
     }
 
     try {
+      final languageCode =
+          Localizations.localeOf(context).languageCode.toLowerCase();
+      _categoryLanguageCode = languageCode;
+
       final results = await Future.wait([
         ApiService.getPaises(),
-        ApiService.getCategorias(),
+        ApiService.getCategorias(languageCode: languageCode),
         _cargarCountriesJson(),
       ]);
 

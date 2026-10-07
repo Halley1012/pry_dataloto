@@ -81,9 +81,9 @@ class PublicidadUseCases:
         return {"success": True, "message": "Anuncio actualizado"}
 
     # Metadata de localización y loterías (métodos síncronos)
-    def listar_categorias(self) -> Dict[str, Any]:
-        data = self.publicidad_repo.list_categorias()
-        return {"success": True, "data": data}
+    def listar_categorias(self, lang: str = "es") -> Dict[str, Any]:
+        data = self.publicidad_repo.list_categorias(lang=lang)
+        return {"success": True, "data": data, "lang": lang}
 
     def listar_paises(self) -> Dict[str, Any]:
         data = self.publicidad_repo.list_paises()

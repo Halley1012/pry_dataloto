@@ -1561,8 +1561,17 @@ class ApiService {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getCategorias() async {
-    const cacheKey = 'categorias_list_cache';
+  static String _normalizeCatalogLanguage(String? languageCode) {
+    final raw = (languageCode ?? 'es').trim().toLowerCase();
+    final base = raw.split(RegExp(r'[-_]')).first;
+    return RegExp(r'^[a-z]{2,10}$').hasMatch(base) ? base : 'es';
+  }
+
+  static Future<List<Map<String, dynamic>>> getCategorias({
+    String? languageCode,
+  }) async {
+    final lang = _normalizeCatalogLanguage(languageCode);
+    final cacheKey = 'categorias_list_cache_v2_$lang';
 
     final fresh = await CacheService.getJson(cacheKey);
     if (fresh is List && fresh.isNotEmpty) {
@@ -1574,22 +1583,25 @@ class ApiService {
 
     final stale = await CacheService.getStaleJson(cacheKey);
     if (stale is List && stale.isNotEmpty) {
-      unawaited(_refreshCategoriasCatalog());
+      unawaited(_refreshCategoriasCatalog(lang));
       return stale
           .whereType<Map>()
           .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
           .toList();
     }
 
-    return _refreshCategoriasCatalog();
+    return _refreshCategoriasCatalog(lang);
   }
 
-  static Future<List<Map<String, dynamic>>> _refreshCategoriasCatalog() async {
-    const cacheKey = 'categorias_list_cache';
+  static Future<List<Map<String, dynamic>>> _refreshCategoriasCatalog(
+    String languageCode,
+  ) async {
+    final lang = _normalizeCatalogLanguage(languageCode);
+    final cacheKey = 'categorias_list_cache_v2_$lang';
 
     try {
       final response = await get(
-        '/categorias',
+        '/categorias?lang=${Uri.encodeQueryComponent(lang)}',
         withAuth: false,
         forceRefresh: true,
         timeout: _requestTimeout,
@@ -1610,7 +1622,10 @@ class ApiService {
                     ? e['id']
                     : int.tryParse(e['id']?.toString() ?? '') ?? 0,
                 "nombre": e['nombre']?.toString() ?? '',
+                "slug": e['slug']?.toString(),
                 "icono": e['icono']?.toString(),
+                "activo": e['activo'],
+                "orden": e['orden'],
               },
             )
             .toList();
