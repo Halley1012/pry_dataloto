@@ -526,7 +526,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                         COALESCE(ct.nombre, c.nombre) AS nombre,
                         c.slug,
                         c.icono,
-                        c.activo,
+                        c.activa AS activo,
                         c.orden,
                         c.created_at,
                         c.updated_at
@@ -534,7 +534,7 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
                     LEFT JOIN categorias_traducciones AS ct
                       ON ct.categoria_id = c.id
                      AND ct.idioma = %s
-                    WHERE COALESCE(c.activo, TRUE) = TRUE
+                    WHERE COALESCE(c.activa, TRUE) = TRUE
                     ORDER BY LOWER(COALESCE(ct.nombre, c.nombre)), c.id
                     """,
                     (normalized_lang,),
