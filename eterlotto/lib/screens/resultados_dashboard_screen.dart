@@ -18,6 +18,7 @@ import 'resultados/widgets/ultimos_sorteos_table.dart';
 import 'resultados/widgets/header_card.dart';
 import 'resultados/widgets/resultados_shared.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:eterlotto/styles/colores.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
@@ -1249,103 +1250,7 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   }
 
   String _formatearFecha(String rawDate) {
-    if (rawDate.isEmpty) return "--";
-    try {
-      final parsed = DateTime.tryParse(rawDate);
-      if (parsed != null) {
-        final langCode = mounted
-            ? Localizations.localeOf(context).languageCode
-            : 'es';
-        final dias = langCode == 'en'
-            ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-            : (langCode == 'pt'
-                  ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-                  : (langCode == 'fr'
-                        ? ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-                        : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]));
-        final meses = langCode == 'en'
-            ? [
-                "Jan",
-                "Feb",
-                "Mar",
-                "Apr",
-                "May",
-                "Jun",
-                "Jul",
-                "Aug",
-                "Sep",
-                "Oct",
-                "Nov",
-                "Dec",
-              ]
-            : (langCode == 'pt'
-                  ? [
-                      "Jan",
-                      "Fev",
-                      "Mar",
-                      "Abr",
-                      "Mai",
-                      "Jun",
-                      "Jul",
-                      "Ago",
-                      "Set",
-                      "Out",
-                      "Nov",
-                      "Dez",
-                    ]
-                  : (langCode == 'fr'
-                        ? [
-                            "Jan",
-                            "Fév",
-                            "Mar",
-                            "Avr",
-                            "Mai",
-                            "Juin",
-                            "Juil",
-                            "Aoû",
-                            "Sep",
-                            "Oct",
-                            "Nov",
-                            "Déc",
-                          ]
-                        : [
-                            "Ene",
-                            "Feb",
-                            "Mar",
-                            "Abr",
-                            "May",
-                            "Jun",
-                            "Jul",
-                            "Ago",
-                            "Sep",
-                            "Oct",
-                            "Nov",
-                            "Dic",
-                          ]));
-        final diaSemana = dias[parsed.weekday - 1];
-        String formatted = "$diaSemana, ${parsed.day} ${meses[parsed.month - 1]} ${parsed.year}";
-
-        final now = DateTime.now();
-        final today = DateTime(now.year, now.month, now.day);
-        final target = DateTime(parsed.year, parsed.month, parsed.day);
-        final diff = target.difference(today).inDays;
-
-        if (diff == 0) {
-          formatted += langCode == 'en' ? " (Today)" : (langCode == 'pt' ? " (Hoje)" : " (Hoy)");
-        } else if (diff == 1) {
-          formatted += langCode == 'en' ? " (Tomorrow)" : (langCode == 'pt' ? " (Amanhã)" : " (Mañana)");
-        } else if (diff == -1) {
-          formatted += langCode == 'en' ? " (Yesterday)" : (langCode == 'pt' ? " (Ontem)" : " (Ayer)");
-        } else if (diff > 1) {
-          formatted += langCode == 'en' ? " (In $diff days)" : (langCode == 'pt' ? " (Em $diff dias)" : " (En $diff días)");
-        } else if (diff < -1) {
-          formatted += langCode == 'en' ? " (${diff.abs()} days ago)" : (langCode == 'pt' ? " (Há ${diff.abs()} dias)" : " (Hace ${diff.abs()} días)");
-        }
-
-        return formatted;
-      }
-    } catch (_) {}
-    return rawDate;
+    return LotteryDateLocalization.formatDateWithRelative(context, rawDate);
   }
 
   String _formatearFechaCorta(String rawDate) {

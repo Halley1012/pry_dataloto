@@ -35,6 +35,25 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   static const Duration _bannerGracePeriod = Duration(seconds: 25);
 
   @override
+  void initState() {
+    super.initState();
+    AdService.instance.rewardPassRevision.addListener(_onRewardPassChanged);
+  }
+
+  void _onRewardPassChanged() {
+    if (!mounted) return;
+
+    if (AdService.instance.isRewardPassActive) {
+      _disposeBanner();
+      setState(() {});
+      return;
+    }
+
+    setState(() {});
+    _scheduleBannerLoad();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (BannerAdWidget.hideBanner) return;
@@ -47,7 +66,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     }
 
     final isSubscribed = subscriptionProvider.isSubscribed;
-    if (!isSubscribed) {
+    if (!isSubscribed && !AdService.instance.isRewardPassActive) {
       _scheduleBannerLoad();
     } else {
       _disposeBanner();
@@ -66,6 +85,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
           final subscriptionProvider = context.read<SubscriptionProvider>();
           if (subscriptionProvider.isSubscriptionStatusResolved &&
               !subscriptionProvider.isSubscribed &&
+              !AdService.instance.isRewardPassActive &&
               _bannerAd == null) {
             _loadBanner();
           }
@@ -81,7 +101,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
     final subscriptionProvider = context.read<SubscriptionProvider>();
     if (!subscriptionProvider.isSubscriptionStatusResolved ||
-        subscriptionProvider.isSubscribed) {
+        subscriptionProvider.isSubscribed ||
+        AdService.instance.isRewardPassActive) {
       return;
     }
 
@@ -122,6 +143,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   void dispose() {
+    AdService.instance.rewardPassRevision.removeListener(_onRewardPassChanged);
     _disposeBanner();
     super.dispose();
   }
@@ -136,6 +158,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     // El anuncio sólo puede mostrarse después de conocer el estado VIP real.
     if (!subscriptionProvider.isSubscriptionStatusResolved ||
         subscriptionProvider.isSubscribed ||
+        AdService.instance.isRewardPassActive ||
         !_isAdLoaded ||
         _bannerAd == null) {
       return const SizedBox.shrink();

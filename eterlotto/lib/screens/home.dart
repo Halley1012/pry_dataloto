@@ -29,6 +29,7 @@ import 'package:provider/provider.dart';
 import 'package:eterlotto/providers/notification_provider.dart';
 import 'package:eterlotto/utils/pais_helper.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
+import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:eterlotto/widgets/banner_ad_widget.dart';
 import 'package:eterlotto/widgets/user_balota_avatar.dart';
 import 'package:eterlotto/widgets/premium_header_background.dart';
@@ -185,25 +186,6 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) setState(() {});
   }
 
-  String _rewardText({
-    required String es,
-    required String en,
-    required String fr,
-    required String pt,
-  }) {
-    final lang = Localizations.localeOf(context).languageCode.toLowerCase();
-    switch (lang) {
-      case 'en':
-        return en;
-      case 'fr':
-        return fr;
-      case 'pt':
-        return pt;
-      default:
-        return es;
-    }
-  }
-
   String _formatRewardDuration(Duration duration) {
     final totalMinutes = duration.inMinutes;
     if (totalMinutes <= 0) return '0m';
@@ -225,11 +207,12 @@ class _HomeScreenState extends State<HomeScreen>
         Duration(minutes: adService.rewardBankMinutes),
       );
     }
-    return '+15m';
+    return '+5m';
   }
 
   Future<void> _openRewardPassDialog() async {
     final adService = AdService.instance;
+    final l10n = AppLocalizations.of(context)!;
     final active = adService.isRewardPassActive;
     final remaining = adService.rewardPassRemaining;
     final bankMinutes = adService.rewardBankMinutes;
@@ -237,70 +220,27 @@ class _HomeScreenState extends State<HomeScreen>
     final action = await showDialog<String>(
       context: context,
       builder: (ctx) {
-        final title = active
-            ? _rewardText(
-                es: 'Pase de recompensa activo',
-                en: 'Reward pass active',
-                fr: 'Pass récompense actif',
-                pt: 'Passe de recompensa ativo',
-              )
-            : _rewardText(
-                es: 'Pase de recompensa',
-                en: 'Reward pass',
-                fr: 'Pass récompense',
-                pt: 'Passe de recompensa',
-              );
-
+        final title = active ? l10n.rewardPassActiveTitle : l10n.rewardPassTitle;
         final body = active
-            ? _rewardText(
-                es:
-                    'Te quedan ${_formatRewardDuration(remaining)} sin anuncios y con las funciones recompensadas desbloqueadas.',
-                en:
-                    'You have ${_formatRewardDuration(remaining)} left ad-free with rewarded features unlocked.',
-                fr:
-                    'Il vous reste ${_formatRewardDuration(remaining)} sans publicité avec les fonctions récompensées déverrouillées.',
-                pt:
-                    'Você ainda tem ${_formatRewardDuration(remaining)} sem anúncios e com os recursos recompensados desbloqueados.',
-              )
+            ? l10n.rewardPassActiveBody(_formatRewardDuration(remaining))
             : (bankMinutes > 0
-                  ? _rewardText(
-                      es:
-                          'Tienes ${_formatRewardDuration(Duration(minutes: bankMinutes))} acumulados.',
-                      en:
-                          'You have ${_formatRewardDuration(Duration(minutes: bankMinutes))} saved.',
-                      fr:
-                          'Vous avez accumulé ${_formatRewardDuration(Duration(minutes: bankMinutes))}.',
-                      pt:
-                          'Você tem ${_formatRewardDuration(Duration(minutes: bankMinutes))} acumulados.',
+                  ? l10n.rewardPassBankBody(
+                      _formatRewardDuration(Duration(minutes: bankMinutes)),
                     )
-                  : _rewardText(
-                      es:
-                          'Mira videos para acumular tiempo y actívalo cuando quieras.',
-                      en:
-                          'Watch videos to save time and activate it whenever you want.',
-                      fr:
-                          'Regardez des vidéos pour accumuler du temps et activez-le quand vous le souhaitez.',
-                      pt:
-                          'Assista a vídeos para acumular tempo e ative quando quiser.',
-                    ));
+                  : l10n.rewardPassEmptyBody);
 
         return AlertDialog(
           backgroundColor: const Color(0xFF1E1E1E),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(
-              color: AppColors.amber.withValues(alpha: 0.28),
-            ),
+            side: BorderSide(color: AppColors.amber.withValues(alpha: 0.28)),
           ),
           title: Row(
             children: [
               const Text('🎁', style: TextStyle(fontSize: 26)),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  title,
-                  style: AppTextStyles.h2.copyWith(color: Colors.white),
-                ),
+                child: Text(title, style: AppTextStyles.h2.copyWith(color: Colors.white)),
               ),
             ],
           ),
@@ -308,25 +248,20 @@ class _HomeScreenState extends State<HomeScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                body,
-                style: const TextStyle(color: Colors.white70, height: 1.4),
-              ),
+              Text(body, style: const TextStyle(color: Colors.white70, height: 1.4)),
               if (!active) ...[
                 const SizedBox(height: 10),
                 Text(
-                  _rewardText(
-                    es: 'Cada video suma 15 min. Máximo acumulable: 2 horas.',
-                    en: 'Each video adds 15 min. Maximum balance: 2 hours.',
-                    fr:
-                        'Chaque vidéo ajoute 15 min. Solde maximum : 2 heures.',
-                    pt:
-                        'Cada vídeo adiciona 15 min. Máximo acumulável: 2 horas.',
+                  l10n.rewardPassPolicy(
+                    AdService.rewardMinutesPerVideo,
+                    AdService.maxRewardMinutesPerDay,
                   ),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.48),
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.48), fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  l10n.rewardPassAvailableToday(adService.rewardRemainingTodayMinutes),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.38), fontSize: 11),
                 ),
               ],
             ],
@@ -334,50 +269,22 @@ class _HomeScreenState extends State<HomeScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, 'close'),
-              child: Text(
-                _rewardText(
-                  es: 'Cerrar',
-                  en: 'Close',
-                  fr: 'Fermer',
-                  pt: 'Fechar',
-                ),
-                style: const TextStyle(color: Colors.white54),
-              ),
+              child: Text(l10n.cerrar, style: const TextStyle(color: Colors.white54)),
             ),
             if (!active && !adService.isRewardBankFull)
               TextButton.icon(
                 onPressed: () => Navigator.pop(ctx, 'watch'),
-                icon: const Icon(
-                  Icons.play_circle_outline_rounded,
-                  color: AppColors.amber,
-                  size: 19,
-                ),
+                icon: const Icon(Icons.play_circle_outline_rounded, color: AppColors.amber, size: 19),
                 label: Text(
-                  _rewardText(
-                    es: 'Ver video +15 min',
-                    en: 'Watch video +15 min',
-                    fr: 'Voir une vidéo +15 min',
-                    pt: 'Ver vídeo +15 min',
-                  ),
+                  l10n.rewardWatchVideoMinutes(AdService.rewardMinutesPerVideo),
                   style: const TextStyle(color: AppColors.amber),
                 ),
               ),
             if (!active && bankMinutes > 0)
               ElevatedButton.icon(
                 onPressed: () => Navigator.pop(ctx, 'activate'),
-                icon: const Icon(
-                  Icons.bolt_rounded,
-                  color: Color(0xFF121212),
-                  size: 19,
-                ),
-                label: Text(
-                  _rewardText(
-                    es: 'Activar pase',
-                    en: 'Activate pass',
-                    fr: 'Activer le pass',
-                    pt: 'Ativar passe',
-                  ),
-                ),
+                icon: const Icon(Icons.bolt_rounded, color: Color(0xFF121212), size: 19),
+                label: Text(l10n.rewardActivatePass),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.yellow,
                   foregroundColor: const Color(0xFF121212),
@@ -389,7 +296,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
 
     if (!mounted) return;
-
     if (action == 'watch') {
       await adService.showRewardedForPass(context: context);
     } else if (action == 'activate') {
@@ -397,16 +303,7 @@ class _HomeScreenState extends State<HomeScreen>
       if (activated && mounted) {
         final duration = _formatRewardDuration(adService.rewardPassRemaining);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _rewardText(
-                es: '🎁 Pase activo por $duration.',
-                en: '🎁 Reward pass active for $duration.',
-                fr: '🎁 Pass récompense actif pendant $duration.',
-                pt: '🎁 Passe de recompensa ativo por $duration.',
-              ),
-            ),
-          ),
+          SnackBar(content: Text(l10n.rewardPassActivatedFor(duration))),
         );
       }
     }
@@ -961,17 +858,10 @@ class _HomeScreenState extends State<HomeScreen>
     );
     final esInternacional =
         (pais == null || pais == "Internacional" || pais == "Todos");
+    final l10n = AppLocalizations.of(context)!;
     final subtituloPais = esInternacional
-        ? (langCode == 'en'
-              ? "Explore the most played lotteries in the world."
-              : (langCode == 'pt'
-                    ? "Explore as loterias mais jogadas no mundo."
-                    : "Explora las loterías más jugadas en el mundo."))
-        : (langCode == 'en'
-              ? "Explore the most played lotteries in the country."
-              : (langCode == 'pt'
-                    ? "Explore as loterias mais jogadas no país."
-                    : "Explora las loterias más jugadas en el país."));
+        ? l10n.exploraLoteriasMundoHome
+        : l10n.exploraLoteriasPaisHome;
     final backgroundUrl = _currentCountryBackgroundUrl();
     return Padding(
       padding: const EdgeInsets.fromLTRB(16.0, 25.0, 16.0, 12.0),
@@ -1477,122 +1367,16 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _formatearFechaProximo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "Próximo sorteo";
-    try {
-      final clean = fecha.trim();
-      final parsed =
-          DateTime.tryParse(clean) ??
-          (clean.length >= 10
-              ? DateTime.tryParse(clean.substring(0, 10))
-              : null);
-      if (parsed == null) return fecha;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-      final dias = langCode == 'en'
-          ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-          : (langCode == 'pt'
-                ? ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
-                : ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]);
-
-      final meses = langCode == 'en'
-          ? [
-              "Jan",
-              "Feb",
-              "Mar",
-              "Apr",
-              "May",
-              "Jun",
-              "Jul",
-              "Aug",
-              "Sep",
-              "Oct",
-              "Nov",
-              "Dec",
-            ]
-          : (langCode == 'pt'
-                ? [
-                    "Jan",
-                    "Fev",
-                    "Mar",
-                    "Abr",
-                    "Mai",
-                    "Jun",
-                    "Jul",
-                    "Ago",
-                    "Set",
-                    "Out",
-                    "Nov",
-                    "Dez",
-                  ]
-                : [
-                    "Ene",
-                    "Feb",
-                    "Mar",
-                    "Abr",
-                    "May",
-                    "Jun",
-                    "Jul",
-                    "Ago",
-                    "Sep",
-                    "Oct",
-                    "Nov",
-                    "Dic",
-                  ]);
-
-      final diaSemana = dias[parsed.weekday - 1];
-      final mes = meses[parsed.month - 1];
-
-      return "$diaSemana, ${parsed.day} $mes ${parsed.year}";
-    } catch (_) {
-      return fecha;
-    }
+    final l10n = AppLocalizations.of(context)!;
+    return LotteryDateLocalization.formatDate(
+      context,
+      fecha,
+      fallback: l10n.proximoSorteo,
+    );
   }
 
   String _calcularEstadoSorteo(String? fecha) {
-    if (fecha == null || fecha.isEmpty) return "";
-    try {
-      final clean = fecha.trim();
-      final parsed =
-          DateTime.tryParse(clean) ??
-          (clean.length >= 10
-              ? DateTime.tryParse(clean.substring(0, 10))
-              : null);
-      if (parsed == null) return "";
-
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final target = DateTime(parsed.year, parsed.month, parsed.day);
-      final diff = target.difference(today).inDays;
-
-      final langCode = Localizations.localeOf(context).languageCode;
-
-      if (diff == 0) {
-        return langCode == 'en'
-            ? "Draws today"
-            : (langCode == 'pt' ? "Sorteia hoje" : "Sortea hoy");
-      } else if (diff == 1) {
-        return langCode == 'en'
-            ? "Tomorrow"
-            : (langCode == 'pt' ? "Amanhã" : "Mañana");
-      } else if (diff > 1) {
-        return langCode == 'en'
-            ? "In $diff days"
-            : (langCode == 'pt' ? "Faltam $diff dias" : "Faltan $diff días");
-      } else if (diff == -1) {
-        return langCode == 'en'
-            ? "Drew yesterday"
-            : (langCode == 'pt' ? "Sorteado ontem" : "Sorteó ayer");
-      } else {
-        final dias = diff.abs();
-        return langCode == 'en'
-            ? "Drew $dias days ago"
-            : (langCode == 'pt'
-                  ? "Sorteado há $dias dias"
-                  : "Sorteó hace $dias días");
-      }
-    } catch (_) {
-      return "";
-    }
+    return LotteryDateLocalization.drawStatus(context, fecha);
   }
 
   String _getPaisNombre(dynamic loteria) {
@@ -2419,17 +2203,9 @@ class _HomeScreenState extends State<HomeScreen>
       langCode,
     );
 
-    final String titleText = langCode == 'en'
-        ? "No lotteries registered for $countryName"
-        : langCode == 'pt'
-        ? "Não há loterias registradas para $countryName"
-        : "No hay loterías registradas para $countryName";
-
-    final String bodyText = langCode == 'en'
-        ? "Currently there are no local lotteries for this country. Below you can explore the most played lotteries in the world!"
-        : langCode == 'pt'
-        ? "Atualmente não há loterias locais para este país. Abaixo você pode explorar as loterias mais jogadas no mundo!"
-        : "Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!";
+    final l10n = AppLocalizations.of(context)!;
+    final String titleText = l10n.sinLoteriasRegistradasPais(countryName);
+    final String bodyText = l10n.sinLoteriasRegistradasPaisDesc;
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),

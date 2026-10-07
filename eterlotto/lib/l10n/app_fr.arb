@@ -837,5 +837,146 @@
   "continuarConGoogle": "Continuer avec Google",
   "misLoteriasFilter": "Mes loteries",
   "sinNotificacionesMisLoterias": "Aucune notification pour les loteries auxquelles vous avez joué",
-  "sinNotificacionesInternacionales": "Aucune notification internationale"
+  "sinNotificacionesInternacionales": "Aucune notification internationale",
+  "exploraLoteriasMundoHome": "Découvrez les loteries les plus jouées dans le monde.",
+  "exploraLoteriasPaisHome": "Découvrez les loteries les plus jouées dans le pays.",
+  "sorteaHoy": "Tirage aujourd’hui",
+  "manana": "Demain",
+  "enDias": "Dans {count} jours",
+  "@enDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "sorteadoAyer": "Tirage hier",
+  "sorteadoHaceDias": "Tirage il y a {count} jours",
+  "@sorteadoHaceDias": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "hoyParentesis": "Aujourd’hui",
+  "ayerParentesis": "Hier",
+  "sinLoteriasEncontradas": "Aucune loterie trouvée",
+  "intentaOtroTerminoBusqueda": "Essayez un autre terme de recherche.",
+  "sinLoteriasDisponibles": "Aucune loterie disponible",
+  "sinLoteriasRegistradasPais": "Aucune loterie enregistrée pour {country}",
+  "@sinLoteriasRegistradasPais": {
+    "placeholders": {
+      "country": {}
+    }
+  },
+  "sinLoteriasRegistradasPaisDesc": "Il n’y a actuellement aucune loterie locale pour ce pays. Vous pouvez découvrir ci-dessous les loteries les plus jouées dans le monde !",
+  "rewardPassActiveTitle": "Pass récompense actif",
+  "rewardPassTitle": "Pass récompense",
+  "rewardPassActiveBody": "Il vous reste {duration} sans publicité avec les fonctions récompensées déverrouillées.",
+  "@rewardPassActiveBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassBankBody": "Vous avez accumulé {duration}.",
+  "@rewardPassBankBody": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardPassEmptyBody": "Regardez des vidéos pour accumuler du temps et activez-le quand vous le souhaitez.",
+  "rewardPassPolicy": "Chaque vidéo ajoute {minutes} min. Maximum quotidien : {maxMinutes} min.",
+  "@rewardPassPolicy": {
+    "placeholders": {
+      "minutes": {},
+      "maxMinutes": {}
+    }
+  },
+  "rewardPassAvailableToday": "Disponible aujourd’hui : {minutes} min.",
+  "@rewardPassAvailableToday": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardWatchVideoMinutes": "Voir une vidéo +{minutes} min",
+  "@rewardWatchVideoMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardActivatePass": "Activer le pass",
+  "rewardPassActivatedFor": "🎁 Pass récompense actif pendant {duration}.",
+  "@rewardPassActivatedFor": {
+    "placeholders": {
+      "duration": {}
+    }
+  },
+  "rewardVideoAddsMinutes": "Terminer la vidéo ajoute {minutes} min à votre Pass récompense.",
+  "@rewardVideoAddsMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBank": "🎁 +{added} min. Vous avez {total} min accumulées à activer.",
+  "@rewardAddedBank": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteToUnlock": "Terminez la vidéo pour déverrouiller cette fonction.",
+  "rewardVideoShowError": "La vidéo n’a pas pu être affichée. Réessayez.",
+  "rewardNoVideoAvailable": "Aucune vidéo n’est disponible pour le moment. Réessayez.",
+  "rewardDailyLimitReached": "Vous avez atteint la limite quotidienne de {minutes} minutes.",
+  "@rewardDailyLimitReached": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "rewardAddedBalance": "🎁 +{added} min. Solde accumulé : {total} min.",
+  "@rewardAddedBalance": {
+    "placeholders": {
+      "added": {},
+      "total": {}
+    }
+  },
+  "rewardCompleteForMinutes": "Terminez la vidéo pour recevoir les {minutes} minutes.",
+  "@rewardCompleteForMinutes": {
+    "placeholders": {
+      "minutes": {}
+    }
+  },
+  "sessionExpiredTitle": "Votre session a expiré",
+  "sessionExpiredMessage": "Pour votre sécurité, reconnectez-vous pour continuer.",
+  "sessionExpiredButton": "Se reconnecter",
+  "reportar": "Signaler",
+  "noSeleccionarImagen": "Impossible de sélectionner l’image.",
+  "maxCuatroFotosAnuncio": "Maximum 4 photos par annonce.",
+  "fotosAgregadasLimite": "Seulement {count} photo(s) ajoutée(s). Maximum total : 4.",
+  "@fotosAgregadasLimite": {
+    "placeholders": {
+      "count": {}
+    }
+  },
+  "noAbrirGaleria": "Impossible d’ouvrir la galerie.",
+  "principalLabel": "Principale",
+  "fotosAnuncio": "Photos de l’annonce",
+  "agregarGaleria": "Ajouter galerie",
+  "ayudaFotosAnuncio": "Touchez la photo principale ou la galerie pour ajouter des images. Maximum 4 photos.",
+  "seleccionaFotoPrincipal": "Sélectionnez la photo principale",
+  "fotoPrincipal": "Photo principale",
+  "galeriaLabel": "Galerie",
+  "camaraLabel": "Caméra",
+  "quitarLabel": "Retirer",
+  "galeriaAnuncio": "Galerie de l’annonce",
+  "agregarFotos": "Ajouter des photos",
+  "limiteFotosDetalle": "Maximum 4 photos : 1 principale + 3 de galerie.",
+  "seleccionaFotoPrincipalPunto": "Sélectionnez une photo principale.",
+  "sobreNosotros": "À propos",
+  "abierto247": "Ouvert 24h/24",
+  "abiertoAhora": "Ouvert",
+  "cerradoAhora": "Fermé",
+  "abiertoTodoDia": "Ouvert 24h/24, tous les jours",
+  "errorActualizarMeGusta": "Impossible de mettre à jour le J’aime.",
+  "calificacionGuardada": "Note enregistrée",
+  "errorGuardarCalificacion": "Impossible d’enregistrer la note.",
+  "horarioAtencion": "Horaires",
+  "tuCalificacion": "Votre note"
 }

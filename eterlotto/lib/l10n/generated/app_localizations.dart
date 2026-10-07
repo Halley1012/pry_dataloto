@@ -2902,6 +2902,384 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Sin notificaciones internacionales'**
   String get sinNotificacionesInternacionales;
+
+  /// No description provided for @exploraLoteriasMundoHome.
+  ///
+  /// In es, this message translates to:
+  /// **'Explora las loterías más jugadas en el mundo.'**
+  String get exploraLoteriasMundoHome;
+
+  /// No description provided for @exploraLoteriasPaisHome.
+  ///
+  /// In es, this message translates to:
+  /// **'Explora las loterías más jugadas en el país.'**
+  String get exploraLoteriasPaisHome;
+
+  /// No description provided for @sorteaHoy.
+  ///
+  /// In es, this message translates to:
+  /// **'Sortea hoy'**
+  String get sorteaHoy;
+
+  /// No description provided for @manana.
+  ///
+  /// In es, this message translates to:
+  /// **'Mañana'**
+  String get manana;
+
+  /// No description provided for @enDias.
+  ///
+  /// In es, this message translates to:
+  /// **'En {count} días'**
+  String enDias(Object count);
+
+  /// No description provided for @sorteadoAyer.
+  ///
+  /// In es, this message translates to:
+  /// **'Sorteó ayer'**
+  String get sorteadoAyer;
+
+  /// No description provided for @sorteadoHaceDias.
+  ///
+  /// In es, this message translates to:
+  /// **'Sorteó hace {count} días'**
+  String sorteadoHaceDias(Object count);
+
+  /// No description provided for @hoyParentesis.
+  ///
+  /// In es, this message translates to:
+  /// **'Hoy'**
+  String get hoyParentesis;
+
+  /// No description provided for @ayerParentesis.
+  ///
+  /// In es, this message translates to:
+  /// **'Ayer'**
+  String get ayerParentesis;
+
+  /// No description provided for @sinLoteriasEncontradas.
+  ///
+  /// In es, this message translates to:
+  /// **'No se encontraron loterías'**
+  String get sinLoteriasEncontradas;
+
+  /// No description provided for @intentaOtroTerminoBusqueda.
+  ///
+  /// In es, this message translates to:
+  /// **'Intenta con otro término de búsqueda.'**
+  String get intentaOtroTerminoBusqueda;
+
+  /// No description provided for @sinLoteriasDisponibles.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay loterías disponibles'**
+  String get sinLoteriasDisponibles;
+
+  /// No description provided for @sinLoteriasRegistradasPais.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay loterías registradas para {country}'**
+  String sinLoteriasRegistradasPais(Object country);
+
+  /// No description provided for @sinLoteriasRegistradasPaisDesc.
+  ///
+  /// In es, this message translates to:
+  /// **'Actualmente no hay loterías locales para este país. ¡A continuación puedes explorar las loterías más jugadas en el mundo!'**
+  String get sinLoteriasRegistradasPaisDesc;
+
+  /// No description provided for @rewardPassActiveTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Pase de recompensa activo'**
+  String get rewardPassActiveTitle;
+
+  /// No description provided for @rewardPassTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Pase de recompensa'**
+  String get rewardPassTitle;
+
+  /// No description provided for @rewardPassActiveBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Te quedan {duration} sin anuncios y con las funciones recompensadas desbloqueadas.'**
+  String rewardPassActiveBody(Object duration);
+
+  /// No description provided for @rewardPassBankBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Tienes {duration} acumulados.'**
+  String rewardPassBankBody(Object duration);
+
+  /// No description provided for @rewardPassEmptyBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira videos para acumular tiempo y actívalo cuando quieras.'**
+  String get rewardPassEmptyBody;
+
+  /// No description provided for @rewardPassPolicy.
+  ///
+  /// In es, this message translates to:
+  /// **'Cada video suma {minutes} min. Máximo diario: {maxMinutes} min.'**
+  String rewardPassPolicy(Object minutes, Object maxMinutes);
+
+  /// No description provided for @rewardPassAvailableToday.
+  ///
+  /// In es, this message translates to:
+  /// **'Disponible hoy: {minutes} min.'**
+  String rewardPassAvailableToday(Object minutes);
+
+  /// No description provided for @rewardWatchVideoMinutes.
+  ///
+  /// In es, this message translates to:
+  /// **'Ver video +{minutes} min'**
+  String rewardWatchVideoMinutes(Object minutes);
+
+  /// No description provided for @rewardActivatePass.
+  ///
+  /// In es, this message translates to:
+  /// **'Activar pase'**
+  String get rewardActivatePass;
+
+  /// No description provided for @rewardPassActivatedFor.
+  ///
+  /// In es, this message translates to:
+  /// **'🎁 Pase activo por {duration}.'**
+  String rewardPassActivatedFor(Object duration);
+
+  /// No description provided for @rewardVideoAddsMinutes.
+  ///
+  /// In es, this message translates to:
+  /// **'Al completar el video sumarás {minutes} min a tu Pase de recompensa.'**
+  String rewardVideoAddsMinutes(Object minutes);
+
+  /// No description provided for @rewardAddedBank.
+  ///
+  /// In es, this message translates to:
+  /// **'🎁 +{added} min. Tienes {total} min acumulados para activar.'**
+  String rewardAddedBank(Object added, Object total);
+
+  /// No description provided for @rewardCompleteToUnlock.
+  ///
+  /// In es, this message translates to:
+  /// **'Completa el video para desbloquear esta función.'**
+  String get rewardCompleteToUnlock;
+
+  /// No description provided for @rewardVideoShowError.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo mostrar el video. Inténtalo nuevamente.'**
+  String get rewardVideoShowError;
+
+  /// No description provided for @rewardNoVideoAvailable.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay video disponible en este momento. Inténtalo nuevamente.'**
+  String get rewardNoVideoAvailable;
+
+  /// No description provided for @rewardDailyLimitReached.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya alcanzaste el máximo diario de {minutes} minutos.'**
+  String rewardDailyLimitReached(Object minutes);
+
+  /// No description provided for @rewardAddedBalance.
+  ///
+  /// In es, this message translates to:
+  /// **'🎁 +{added} min. Saldo acumulado: {total} min.'**
+  String rewardAddedBalance(Object added, Object total);
+
+  /// No description provided for @rewardCompleteForMinutes.
+  ///
+  /// In es, this message translates to:
+  /// **'Completa el video para recibir los {minutes} minutos.'**
+  String rewardCompleteForMinutes(Object minutes);
+
+  /// No description provided for @sessionExpiredTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu sesión ha vencido'**
+  String get sessionExpiredTitle;
+
+  /// No description provided for @sessionExpiredMessage.
+  ///
+  /// In es, this message translates to:
+  /// **'Por seguridad, inicia sesión nuevamente para continuar.'**
+  String get sessionExpiredMessage;
+
+  /// No description provided for @sessionExpiredButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresar nuevamente'**
+  String get sessionExpiredButton;
+
+  /// No description provided for @reportar.
+  ///
+  /// In es, this message translates to:
+  /// **'Reportar'**
+  String get reportar;
+
+  /// No description provided for @noSeleccionarImagen.
+  ///
+  /// In es, this message translates to:
+  /// **'No fue posible seleccionar la imagen.'**
+  String get noSeleccionarImagen;
+
+  /// No description provided for @maxCuatroFotosAnuncio.
+  ///
+  /// In es, this message translates to:
+  /// **'Máximo 4 fotos por anuncio.'**
+  String get maxCuatroFotosAnuncio;
+
+  /// No description provided for @fotosAgregadasLimite.
+  ///
+  /// In es, this message translates to:
+  /// **'Se agregaron sólo {count} foto(s). El máximo total es 4.'**
+  String fotosAgregadasLimite(Object count);
+
+  /// No description provided for @noAbrirGaleria.
+  ///
+  /// In es, this message translates to:
+  /// **'No fue posible abrir la galería.'**
+  String get noAbrirGaleria;
+
+  /// No description provided for @principalLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Principal'**
+  String get principalLabel;
+
+  /// No description provided for @fotosAnuncio.
+  ///
+  /// In es, this message translates to:
+  /// **'Fotos del anuncio'**
+  String get fotosAnuncio;
+
+  /// No description provided for @agregarGaleria.
+  ///
+  /// In es, this message translates to:
+  /// **'Agregar galería'**
+  String get agregarGaleria;
+
+  /// No description provided for @ayudaFotosAnuncio.
+  ///
+  /// In es, this message translates to:
+  /// **'Toca la foto principal o el recuadro de galería para agregar imágenes. Máximo 4 fotos.'**
+  String get ayudaFotosAnuncio;
+
+  /// No description provided for @seleccionaFotoPrincipal.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona la foto principal'**
+  String get seleccionaFotoPrincipal;
+
+  /// No description provided for @fotoPrincipal.
+  ///
+  /// In es, this message translates to:
+  /// **'Foto principal'**
+  String get fotoPrincipal;
+
+  /// No description provided for @galeriaLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Galería'**
+  String get galeriaLabel;
+
+  /// No description provided for @camaraLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Cámara'**
+  String get camaraLabel;
+
+  /// No description provided for @quitarLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Quitar'**
+  String get quitarLabel;
+
+  /// No description provided for @galeriaAnuncio.
+  ///
+  /// In es, this message translates to:
+  /// **'Galería del anuncio'**
+  String get galeriaAnuncio;
+
+  /// No description provided for @agregarFotos.
+  ///
+  /// In es, this message translates to:
+  /// **'Agregar fotos'**
+  String get agregarFotos;
+
+  /// No description provided for @limiteFotosDetalle.
+  ///
+  /// In es, this message translates to:
+  /// **'Máximo 4 fotos en total: 1 principal + 3 de galería.'**
+  String get limiteFotosDetalle;
+
+  /// No description provided for @seleccionaFotoPrincipalPunto.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona una foto principal.'**
+  String get seleccionaFotoPrincipalPunto;
+
+  /// No description provided for @sobreNosotros.
+  ///
+  /// In es, this message translates to:
+  /// **'Sobre nosotros'**
+  String get sobreNosotros;
+
+  /// No description provided for @abierto247.
+  ///
+  /// In es, this message translates to:
+  /// **'Abierto 24/7'**
+  String get abierto247;
+
+  /// No description provided for @abiertoAhora.
+  ///
+  /// In es, this message translates to:
+  /// **'Abierto ahora'**
+  String get abiertoAhora;
+
+  /// No description provided for @cerradoAhora.
+  ///
+  /// In es, this message translates to:
+  /// **'Cerrado'**
+  String get cerradoAhora;
+
+  /// No description provided for @abiertoTodoDia.
+  ///
+  /// In es, this message translates to:
+  /// **'Abierto 24 horas, todos los días'**
+  String get abiertoTodoDia;
+
+  /// No description provided for @errorActualizarMeGusta.
+  ///
+  /// In es, this message translates to:
+  /// **'No fue posible actualizar el Me gusta.'**
+  String get errorActualizarMeGusta;
+
+  /// No description provided for @calificacionGuardada.
+  ///
+  /// In es, this message translates to:
+  /// **'Calificación guardada'**
+  String get calificacionGuardada;
+
+  /// No description provided for @errorGuardarCalificacion.
+  ///
+  /// In es, this message translates to:
+  /// **'No fue posible guardar la calificación.'**
+  String get errorGuardarCalificacion;
+
+  /// No description provided for @horarioAtencion.
+  ///
+  /// In es, this message translates to:
+  /// **'Horario de atención'**
+  String get horarioAtencion;
+
+  /// No description provided for @tuCalificacion.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu calificación'**
+  String get tuCalificacion;
 }
 
 class _AppLocalizationsDelegate

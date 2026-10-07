@@ -598,24 +598,6 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
   // === RESTO DEL CÓDIGO SIN CAMBIOS (enviar, UI, etc.) ===
   // (Todo igual: _enviarFormulario, _buildTextField, etc.)
 
-  String _localizedLabel(
-    BuildContext context, {
-    required String es,
-    required String en,
-    required String fr,
-    required String pt,
-  }) {
-    switch (Localizations.localeOf(context).languageCode.toLowerCase()) {
-      case 'en':
-        return en;
-      case 'fr':
-        return fr;
-      case 'pt':
-        return pt;
-      default:
-        return es;
-    }
-  }
 
   List<String> _parseGalleryUrls(String value) {
     return value
@@ -647,13 +629,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       setState(() => _fotoPrincipalLocal = image);
     } catch (_) {
       _mostrarMensaje(
-        _localizedLabel(
-          context,
-          es: 'No fue posible seleccionar la imagen.',
-          en: 'Could not select the image.',
-          fr: 'Impossible de sélectionner l’image.',
-          pt: 'Não foi possível selecionar a imagem.',
-        ),
+        AppLocalizations.of(context)!.noSeleccionarImagen,
       );
     }
   }
@@ -664,13 +640,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         _galeriaLocal.length;
     if (disponibles <= 0) {
       _mostrarMensaje(
-        _localizedLabel(
-          context,
-          es: 'Máximo 4 fotos por anuncio.',
-          en: 'Maximum 4 photos per ad.',
-          fr: 'Maximum 4 photos par annonce.',
-          pt: 'Máximo de 4 fotos por anúncio.',
-        ),
+        AppLocalizations.of(context)!.maxCuatroFotosAnuncio,
       );
       return;
     }
@@ -686,24 +656,12 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       setState(() => _galeriaLocal.addAll(selected));
       if (images.length > disponibles) {
         _mostrarMensaje(
-          _localizedLabel(
-            context,
-            es: 'Se agregaron sólo $disponibles foto(s). El máximo total es 4.',
-            en: 'Only $disponibles photo(s) were added. The total maximum is 4.',
-            fr: 'Seulement $disponibles photo(s) ajoutée(s). Maximum total : 4.',
-            pt: 'Apenas $disponibles foto(s) foram adicionadas. Máximo total: 4.',
-          ),
+          AppLocalizations.of(context)!.fotosAgregadasLimite(disponibles),
         );
       }
     } catch (_) {
       _mostrarMensaje(
-        _localizedLabel(
-          context,
-          es: 'No fue posible abrir la galería.',
-          en: 'Could not open the gallery.',
-          fr: 'Impossible d’ouvrir la galerie.',
-          pt: 'Não foi possível abrir a galeria.',
-        ),
+        AppLocalizations.of(context)!.noAbrirGaleria,
       );
     }
   }
@@ -803,13 +761,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           ),
           const SizedBox(height: 6),
           Text(
-            _localizedLabel(
-              context,
-              es: 'Principal',
-              en: 'Main',
-              fr: 'Principale',
-              pt: 'Principal',
-            ),
+            AppLocalizations.of(context)!.principalLabel,
             style: AppTextStyles.caption2.copyWith(color: Colors.white70),
           ),
         ],
@@ -823,13 +775,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _localizedLabel(
-                context,
-                es: 'Fotos del anuncio',
-                en: 'Ad photos',
-                fr: 'Photos de l’annonce',
-                pt: 'Fotos do anúncio',
-              ),
+              AppLocalizations.of(context)!.fotosAnuncio,
               style: AppTextStyles.mensajeImportante,
             ),
             Text(
@@ -905,13 +851,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                _localizedLabel(
-                                  context,
-                                  es: 'Agregar galería',
-                                  en: 'Add gallery',
-                                  fr: 'Ajouter galerie',
-                                  pt: 'Adicionar galeria',
-                                ),
+                                AppLocalizations.of(context)!.agregarGaleria,
                                 style: AppTextStyles.caption2.copyWith(
                                   color: Colors.white54,
                                 ),
@@ -939,13 +879,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         const SizedBox(height: 8),
         const SizedBox(height: 6),
         Text(
-          _localizedLabel(
-            context,
-            es: 'Toca la foto principal o el recuadro de galería para agregar imágenes. Máximo 4 fotos.',
-            en: 'Tap the main photo or gallery box to add images. Maximum 4 photos.',
-            fr: 'Touchez la photo principale ou la galerie pour ajouter des images. Maximum 4 photos.',
-            pt: 'Toque na foto principal ou na galeria para adicionar imagens. Máximo de 4 fotos.',
-          ),
+          AppLocalizations.of(context)!.ayudaFotosAnuncio,
           style: AppTextStyles.caption.copyWith(color: Colors.white54),
         ),
       ],
@@ -1058,13 +992,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                 color: AppColors.yellow, size: 42),
             const SizedBox(height: 8),
             Text(
-              _localizedLabel(
-                context,
-                es: 'Selecciona la foto principal',
-                en: 'Select the main photo',
-                fr: 'Sélectionnez la photo principale',
-                pt: 'Selecione a foto principal',
-              ),
+              AppLocalizations.of(context)!.seleccionaFotoPrincipal,
               style: AppTextStyles.mensajeSecundario,
             ),
           ],
@@ -1076,13 +1004,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _localizedLabel(
-            context,
-            es: 'Foto principal',
-            en: 'Main photo',
-            fr: 'Photo principale',
-            pt: 'Foto principal',
-          ),
+          AppLocalizations.of(context)!.fotoPrincipal,
           style: AppTextStyles.mensajeImportante,
         ),
         const SizedBox(height: 8),
@@ -1106,13 +1028,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     : () => _seleccionarPrincipal(ImageSource.gallery),
                 icon: const Icon(Icons.photo_library_outlined, size: 18),
                 label: Text(
-                  _localizedLabel(
-                    context,
-                    es: 'Galería',
-                    en: 'Gallery',
-                    fr: 'Galerie',
-                    pt: 'Galeria',
-                  ),
+                  AppLocalizations.of(context)!.galeriaLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption2.copyWith(
@@ -1131,13 +1047,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     : () => _seleccionarPrincipal(ImageSource.camera),
                 icon: const Icon(Icons.camera_alt_outlined, size: 18),
                 label: Text(
-                  _localizedLabel(
-                    context,
-                    es: 'Cámara',
-                    en: 'Camera',
-                    fr: 'Caméra',
-                    pt: 'Câmera',
-                  ),
+                  AppLocalizations.of(context)!.camaraLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption2.copyWith(
@@ -1159,13 +1069,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                         }),
                 icon: const Icon(Icons.delete_outline, size: 18),
                 label: Text(
-                  _localizedLabel(
-                    context,
-                    es: 'Quitar',
-                    en: 'Remove',
-                    fr: 'Retirer',
-                    pt: 'Remover',
-                  ),
+                  AppLocalizations.of(context)!.quitarLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.caption2.copyWith(
@@ -1190,13 +1094,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              _localizedLabel(
-                context,
-                es: 'Galería del anuncio',
-                en: 'Ad gallery',
-                fr: 'Galerie de l’annonce',
-                pt: 'Galeria do anúncio',
-              ),
+              AppLocalizations.of(context)!.galeriaAnuncio,
               style: AppTextStyles.mensajeImportante,
             ),
             Text(
@@ -1229,13 +1127,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                 : _seleccionarGaleria,
             icon: const Icon(Icons.add_photo_alternate_outlined, size: 18),
             label: Text(
-              _localizedLabel(
-                context,
-                es: 'Agregar fotos',
-                en: 'Add photos',
-                fr: 'Ajouter des photos',
-                pt: 'Adicionar fotos',
-              ),
+              AppLocalizations.of(context)!.agregarFotos,
               style: AppTextStyles.caption2.copyWith(
                 color: AppColors.yellow,
                 fontWeight: FontWeight.w500,
@@ -1245,13 +1137,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         ),
         const SizedBox(height: 4),
         Text(
-          _localizedLabel(
-            context,
-            es: 'Máximo 4 fotos en total: 1 principal + 3 de galería.',
-            en: 'Maximum 4 photos total: 1 main + 3 gallery photos.',
-            fr: 'Maximum 4 photos : 1 principale + 3 de galerie.',
-            pt: 'Máximo de 4 fotos: 1 principal + 3 da galeria.',
-          ),
+          AppLocalizations.of(context)!.limiteFotosDetalle,
           style: AppTextStyles.caption.copyWith(color: Colors.white54),
         ),
       ],
@@ -1350,13 +1236,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
         (_fotoPrincipalRemota?.trim().isNotEmpty ?? false);
     if (!hasPrincipal) {
       _mostrarMensaje(
-        _localizedLabel(
-          context,
-          es: 'Selecciona una foto principal.',
-          en: 'Select a main photo.',
-          fr: 'Sélectionnez une photo principale.',
-          pt: 'Selecione uma foto principal.',
-        ),
+        AppLocalizations.of(context)!.seleccionaFotoPrincipalPunto,
       );
       return;
     }
@@ -1590,13 +1470,7 @@ class _CrearPublicidadFormState extends State<CrearPublicidadForm> {
                     const SizedBox(height: 16),
                     _buildTextField(
                       aboutUsController,
-                      _localizedLabel(
-                        context,
-                        es: "Sobre nosotros",
-                        en: "About us",
-                        fr: "À propos",
-                        pt: "Sobre nós",
-                      ),
+                      AppLocalizations.of(context)!.sobreNosotros,
                       false,
                       l10n,
                       maxLines: 5,
