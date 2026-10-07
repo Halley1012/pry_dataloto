@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
+import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -100,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void initState() {
     super.initState();
+    ScreenSecurityHelper.onHomeTabChanged(0);
     // App Open sólo queda habilitado una vez que el usuario llegó al Home.
     // Así nunca interrumpe Splash, login, registro ni onboarding.
     AdService.instance.setAppOpenEligibility(true);
@@ -1724,6 +1726,8 @@ class _HomeScreenState extends State<HomeScreen>
   void _selectBottomTab(int index) {
     if (!mounted || index == _selectedIndex) return;
 
+    // La protección se actualiza antes de mostrar la pestaña.
+    ScreenSecurityHelper.onHomeTabChanged(index);
     // La navegación ocurre primero: el anuncio nunca bloquea el cambio de tab.
     setState(() {
       _selectedIndex = index;
@@ -2083,6 +2087,7 @@ class _HomeScreenState extends State<HomeScreen>
     Navigator.push(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: '/profile'),
         builder: (_) => ProfileScreen(
           onProfileUpdated: () {
             _loadUserAndData(forceRefresh: true);
@@ -2146,6 +2151,7 @@ class _HomeScreenState extends State<HomeScreen>
 
         // Si el usuario se encuentra en alguna pestaña secundaria del BottomNav, volver a la pestaña Home (0)
         if (_selectedIndex != 0) {
+          ScreenSecurityHelper.onHomeTabChanged(0);
           setState(() {
             _selectedIndex = 0;
           });
@@ -2319,12 +2325,11 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildHomeTab() {
     final subscription = context.watch<SubscriptionProvider>();
-    final isPremium = subscription.isPremium;
-    // El proveedor arranca neutral para no heredar el VIP de otra cuenta. No
-    // debemos representar ese estado transitorio como una cuenta básica: la
-    // cabecera aparece cuando ya conocemos el estado de la sesión actual.
-    final subscriptionStatusResolved =
-        subscription.isSubscriptionStatusResolved;
+    // El estado VIP solo se aplica cuando ya se confirmó para la cuenta
+    // actual. La cabecera y el país son contenido del Home y no deben
+    // desaparecer mientras se consulta Google Play o el backend.
+    final isPremium =
+        subscription.isSubscriptionStatusResolved && subscription.isPremium;
     final showInitialSkeleton = isLoading && _loterias.isEmpty;
     return SafeArea(
       child: LayoutBuilder(
@@ -2351,25 +2356,14 @@ class _HomeScreenState extends State<HomeScreen>
                       if (showInitialSkeleton)
                         SliverToBoxAdapter(child: _buildHomeSkeleton())
                       else ...[
+                        // La información del Home no depende de la respuesta
+                        // del servidor de suscripciones. Mantenerla visible
+                        // evita el hueco negro cuando el estado está pendiente.
                         SliverToBoxAdapter(
-                          child: AnimatedOpacity(
-                            opacity: subscriptionStatusResolved ? 1 : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: IgnorePointer(
-                              ignoring: !subscriptionStatusResolved,
-                              child: _buildTopHeaderSection(context, isPremium),
-                            ),
-                          ),
+                          child: _buildTopHeaderSection(context, isPremium),
                         ),
                         SliverToBoxAdapter(
-                          child: AnimatedOpacity(
-                            opacity: subscriptionStatusResolved ? 1 : 0,
-                            duration: const Duration(milliseconds: 120),
-                            child: IgnorePointer(
-                              ignoring: !subscriptionStatusResolved,
-                              child: _buildCountryHeader(isPremium),
-                            ),
-                          ),
+                          child: _buildCountryHeader(isPremium),
                         ),
                         if (_showingStaleHomeData)
                           SliverToBoxAdapter(child: _buildStaleHomeNotice()),
@@ -2404,10 +2398,8 @@ class _HomeScreenState extends State<HomeScreen>
                     ],
                   ),
                 ),
-                if (subscriptionStatusResolved) ...[
-                  _buildDraggableFlagFab(context, constraints, isPremium),
-                  _buildDraggableProfileFab(context, constraints, isPremium),
-                ],
+                _buildDraggableFlagFab(context, constraints, isPremium),
+                _buildDraggableProfileFab(context, constraints, isPremium),
               ],
             ),
           );

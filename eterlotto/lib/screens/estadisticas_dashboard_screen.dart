@@ -83,6 +83,21 @@ class _EstadisticasDashboardScreenState
     super.dispose();
   }
 
+  // El identificador numérico se mantiene estable mientras el título se
+  // presenta según el idioma actual, incluso para jugadas antiguas.
+  String _tituloJugadaLocalizado(AppLocalizations l10n) {
+    final raw = _tituloComparacion
+        .replaceFirst(RegExp(r'^Comparando\s+', caseSensitive: false), '')
+        .trim();
+    if (raw.isEmpty) return l10n.jugadaShare(1);
+    final match = RegExp(
+      r'^(?:Jugada|Play|Grille|Aposta)\s*(?:#|n°)?\s*(\d+)$',
+      caseSensitive: false,
+    ).firstMatch(raw);
+    final index = int.tryParse(match?.group(1) ?? '');
+    return index != null ? l10n.jugadaShare(index) : raw;
+  }
+
   void _irAEditarJugada() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -148,7 +163,7 @@ class _EstadisticasDashboardScreenState
         .toInt();
     hasRevancha = widget.loteriaData?['has_revancha'] == true;
     nombreSorteoPrincipal = widget.loteriaNombreInicial;
-    nombreSorteoSecundario = "Secundario";
+    nombreSorteoSecundario = "";
 
     if (widget.jugadaComparacion != null) {
       _jugadaId = widget.jugadaComparacion!["id"] as int?;
@@ -184,7 +199,7 @@ class _EstadisticasDashboardScreenState
         }
       }
       final rawTitulo =
-          widget.jugadaComparacion!["titulo"]?.toString() ?? "Jugada #1";
+          widget.jugadaComparacion!["titulo"]?.toString() ?? "";
       _tituloComparacion = rawTitulo
           .replaceAll(RegExp(r'\s*\([^)]*\)'), '')
           .trim();
@@ -495,7 +510,7 @@ class _EstadisticasDashboardScreenState
       if (!_dataRequestFailed) {
         errorMensaje = null;
       } else {
-        errorMensaje = "No se pudieron cargar los datos de estadísticas.";
+        errorMensaje = AppLocalizations.of(context)!.statsErrorCargarDatos;
       }
     });
   }
@@ -520,7 +535,7 @@ class _EstadisticasDashboardScreenState
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
+    final l10n = AppLocalizations.of(context)!;
     final resultadosFiltrados = _filtrarResultados();
     final bool isInitialLoading = cargando && todosResultados.isEmpty;
 
@@ -538,7 +553,7 @@ class _EstadisticasDashboardScreenState
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
-          "${l10n?.estadisticas ?? 'Estadísticas'} - ${widget.loteriaNombreInicial}",
+          "${l10n.estadisticas} - ${widget.loteriaNombreInicial}",
           style: GoogleFonts.montserrat(
             color: Colors.white,
             fontSize: 18,
@@ -654,7 +669,7 @@ class _EstadisticasDashboardScreenState
     );
   }
 
-  Widget _buildDataUnavailableState(AppLocalizations? l10n) {
+  Widget _buildDataUnavailableState(AppLocalizations l10n) {
     return Center(
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -666,10 +681,9 @@ class _EstadisticasDashboardScreenState
               : null,
           retrying: cargando,
           emptyTitle:
-              l10n?.informacionNoDisponible ?? 'Información no disponible',
+              l10n.informacionNoDisponible,
           emptyMessage:
-              l10n?.datosLoteriaNoDisponibles ??
-              'Esta lotería aún no tiene resultados ni predicciones disponibles.',
+              l10n.datosLoteriaNoDisponibles,
           emptyIcon: Icons.insights_outlined,
         ),
       ),
@@ -780,9 +794,9 @@ class _EstadisticasDashboardScreenState
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              _tituloComparacion.startsWith("Comparando")
-                                  ? _tituloComparacion
-                                  : "Comparando ${_tituloComparacion.isNotEmpty ? _tituloComparacion : "Jugada"}",
+                              AppLocalizations.of(context)!.statsComparandoJugada(
+                                _tituloJugadaLocalizado(AppLocalizations.of(context)!),
+                              ),
                               style: GoogleFonts.montserrat(
                                 color: Colors.white,
                                 fontSize: 13.5,
@@ -1118,7 +1132,7 @@ class _EstadisticasDashboardScreenState
     if (_balotasComparacion.length != maxSeleccion) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text("Debes seleccionar exactamente $maxSeleccion balotas."),
+          content: Text(AppLocalizations.of(context)!.statsDebesSeleccionarBalotas(maxSeleccion)),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -1131,8 +1145,8 @@ class _EstadisticasDashboardScreenState
         SnackBar(
           content: Text(
             cantidadEspeciales == 1
-                ? "Debes seleccionar una balota especial."
-                : "Debes seleccionar exactamente $cantidadEspeciales balotas especiales.",
+                ? AppLocalizations.of(context)!.statsDebesSeleccionarEspecial
+                : AppLocalizations.of(context)!.statsDebesSeleccionarEspeciales(cantidadEspeciales),
           ),
           backgroundColor: Colors.redAccent,
         ),
@@ -1145,8 +1159,8 @@ class _EstadisticasDashboardScreenState
     if (userId.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Inicia sesión para guardar tu jugada."),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.statsIniciarSesionGuardar),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -1188,8 +1202,8 @@ class _EstadisticasDashboardScreenState
 
       if (success) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("¡Jugada guardada y actualizada con éxito!"),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.statsGuardadaActualizada),
             backgroundColor: Color(0xFF00E5FF),
           ),
         );
@@ -1197,8 +1211,8 @@ class _EstadisticasDashboardScreenState
         Navigator.pop(context, true);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("No se pudo actualizar la jugada. Intenta de nuevo."),
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.statsErrorActualizar),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -1207,7 +1221,7 @@ class _EstadisticasDashboardScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error al guardar: $e"),
+            content: Text(AppLocalizations.of(context)!.statsErrorGuardarDetalle(e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -1219,7 +1233,7 @@ class _EstadisticasDashboardScreenState
     }
   }
 
-  Widget _buildManualSelectorSection(AppLocalizations? l10n) {
+  Widget _buildManualSelectorSection(AppLocalizations l10n) {
     final probables = _obtenerListaProbables();
     return AppContainer3(
       child: Column(
@@ -1229,7 +1243,7 @@ class _EstadisticasDashboardScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                l10n?.seleccionaNumeros ?? "Selecciona tus números",
+                l10n.seleccionaNumeros,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
@@ -1254,7 +1268,7 @@ class _EstadisticasDashboardScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            "${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."}\n${l10n?.tocaNumeroSeleccionar ?? "Toca un número para seleccionarlo"}",
+            "${l10n.numerosOrdenadosProbabilidad}\n${l10n.tocaNumeroSeleccionar}",
             style: const TextStyle(color: Colors.white38, fontSize: 11),
           ),
           const SizedBox(height: 18),
@@ -1293,7 +1307,7 @@ class _EstadisticasDashboardScreenState
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                "Ya has seleccionado $maxSeleccion balotas. Toca una para quitarla.",
+                                l10n.statsMaximoSeleccion(maxSeleccion),
                               ),
                               duration: const Duration(seconds: 2),
                               behavior: SnackBarBehavior.floating,
@@ -1313,12 +1327,12 @@ class _EstadisticasDashboardScreenState
     );
   }
 
-  Widget _buildRedBallsSection(AppLocalizations? l10n) {
+  Widget _buildRedBallsSection(AppLocalizations l10n) {
     if (maxRoja <= 0 || cantidadEspeciales <= 0) return const SizedBox.shrink();
     final rojas = _obtenerListaBalotaRoja();
     final titulo = cantidadEspeciales == 1
-        ? (l10n?.balotasRojas ?? "Balota especial")
-        : "Balotas especiales";
+        ? l10n.statsBalotaEspecial
+        : l10n.statsBalotasEspeciales;
 
     return AppContainer3(
       child: Column(
@@ -1352,7 +1366,7 @@ class _EstadisticasDashboardScreenState
           ),
           const SizedBox(height: 4),
           Text(
-            "Selecciona $cantidadEspeciales ${cantidadEspeciales == 1 ? 'número especial' : 'números especiales'}. ${l10n?.numerosOrdenadosProbabilidad ?? "Números ordenados de mayor a menor probabilidad."}",
+            "${cantidadEspeciales == 1 ? l10n.statsSeleccionaEspecial : l10n.statsSeleccionaEspeciales(cantidadEspeciales)} ${l10n.numerosOrdenadosProbabilidad}",
             style: const TextStyle(color: Colors.white38, fontSize: 11),
           ),
           const SizedBox(height: 18),
@@ -1399,13 +1413,13 @@ class _EstadisticasDashboardScreenState
     );
   }
 
-  Widget _buildFiltrosBarra(AppLocalizations? l10n) {
+  Widget _buildFiltrosBarra(AppLocalizations l10n) {
     return AppContainer3(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            l10n?.filtrosAnalisis ?? "Filtros de Análisis",
+            l10n.filtrosAnalisis,
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           const SizedBox(height: 12),
@@ -1413,7 +1427,7 @@ class _EstadisticasDashboardScreenState
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(
-                "${l10n?.sorteos ?? "Sorteos"}: ",
+                "${l10n.sorteos}: ",
                 style: AppTextStyles.mensajeSecundario,
               ),
               const SizedBox(width: 8),
@@ -1424,7 +1438,7 @@ class _EstadisticasDashboardScreenState
                   children: [20, 50, 100, 0].map((cant) {
                     final isSel = limiteFiltro == cant;
                     final texto = cant == 0
-                        ? (l10n?.todas ?? "Todos")
+                        ? (l10n.todas)
                         : "$cant";
                     return ChoiceChip(
                       label: Text(texto),
@@ -1456,7 +1470,7 @@ class _EstadisticasDashboardScreenState
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  "${l10n?.tipo ?? "Tipo"}: ",
+                  "${l10n.tipo}: ",
                   style: AppTextStyles.mensajeSecundario,
                 ),
                 const SizedBox(width: 8),
@@ -1498,9 +1512,9 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardResumenGeneral(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
-    final String label3 = l10n?.numerosLabel ?? "Números";
+    final String label3 = l10n.numerosLabel;
     final String value3;
 
     int totalBallsInResults = 0;
@@ -1533,14 +1547,14 @@ class _EstadisticasDashboardScreenState
         children: [
           Expanded(
             child: MetricStat(
-              label: l10n?.sorteosEvaluados ?? "Sorteos Evaluados",
+              label: l10n.sorteosEvaluados,
               value: "${resultados.length}",
             ),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: MetricStat(
-              label: l10n?.rangoBalotas ?? "Rango Balotas",
+              label: l10n.rangoBalotas,
               value: "1 - $maxBalota",
             ),
           ),
@@ -1555,7 +1569,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardCalientesFrios(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final frecs = _calcularFrecuencias(resultados);
 
@@ -1570,7 +1584,7 @@ class _EstadisticasDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "1. ${l10n?.numerosCalientesFrios ?? "Números Calientes y Fríos 🔥❄️"}",
+            "1. ${l10n.numerosCalientesFrios}",
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           const SizedBox(height: 16),
@@ -1582,7 +1596,7 @@ class _EstadisticasDashboardScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "🔥 ${l10n?.masFrecuentes ?? "Más Frecuentes"}",
+                      "🔥 ${l10n.masFrecuentes}",
                       style: AppTextStyles.mensajeImportante.copyWith(
                         color: Colors.amber,
                       ),
@@ -1591,7 +1605,7 @@ class _EstadisticasDashboardScreenState
                     ...calientes.map(
                       (e) => BallBadge(
                         num: e.key,
-                        sub: "${e.value} ${l10n?.veces ?? "veces"}",
+                        sub: "${e.value} ${l10n.veces}",
                         color: Colors.amber,
                         isHighlighted:
                             _mostrarComparacion &&
@@ -1608,7 +1622,7 @@ class _EstadisticasDashboardScreenState
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      "❄️ ${l10n?.menosFrecuentes ?? "Menos Frecuentes"}",
+                      "❄️ ${l10n.menosFrecuentes}",
                       style: AppTextStyles.mensajeImportante.copyWith(
                         color: Colors.lightBlueAccent,
                       ),
@@ -1617,7 +1631,7 @@ class _EstadisticasDashboardScreenState
                     ...frios.map(
                       (e) => BallBadge(
                         num: e.key,
-                        sub: "${e.value} ${l10n?.veces ?? "veces"}",
+                        sub: "${e.value} ${l10n.veces}",
                         color: Colors.lightBlueAccent,
                         isHighlighted:
                             _mostrarComparacion &&
@@ -1637,7 +1651,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardGraficaFrecuencia(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final frecs = _calcularFrecuencias(resultados);
     final List<int> valoresFrec = List.generate(
@@ -1661,8 +1675,8 @@ class _EstadisticasDashboardScreenState
     final double stepY = _calcularPasoEjeY(dynamicMaxY - dynamicMinY, 4);
 
     final titleText =
-        "2. ${l10n?.frecuenciaHistorica ?? "Frecuencia Histórica"} (Balotas 1 - $maxBalota)";
-    final subtitleText = l10n?.tocaParaVerMas ?? "Toca para ver más";
+        "2. ${l10n.frecuenciaHistorica} (${l10n.statsRangoBalotas(maxBalota)})";
+    final subtitleText = l10n.tocaParaVerMas;
 
     Widget buildLineChart({bool isFullScreen = false}) {
       return SizedBox(
@@ -1685,7 +1699,7 @@ class _EstadisticasDashboardScreenState
                       final ball = touchedSpot.x.toInt();
                       final count = touchedSpot.y.toInt();
                       return LineTooltipItem(
-                        "Balota $ball\n$count salidas",
+                        l10n.statsBalotaSalidas(ball, count),
                         const TextStyle(
                           color: Colors.amber,
                           fontWeight: FontWeight.bold,
@@ -1846,7 +1860,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardAusenciaSorteos(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final ausencias = _calcularAusencias(resultados);
     final sortedByAusencia = ausencias.entries.toList()
@@ -1859,13 +1873,12 @@ class _EstadisticasDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "6. ${l10n?.ausenciaSorteosTitle ?? "Días / Sorteos Sin Salir (Ausencia)"}",
+            "6. ${l10n.ausenciaSorteosTitle}",
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           const SizedBox(height: 8),
           Text(
-            l10n?.balotasMayorTiempo ??
-                "Balotas con mayor tiempo sin aparecer:",
+            l10n.balotasMayorTiempo,
             style: AppTextStyles.caption,
           ),
           const SizedBox(height: 12),
@@ -1879,8 +1892,8 @@ class _EstadisticasDashboardScreenState
               final String labelText =
                   (sorteosSinSalir >= resultados.length &&
                       resultados.isNotEmpty)
-                  ? "+$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}"
-                  : "$sorteosSinSalir ${l10n?.sorteos ?? "sorteos"}";
+                  ? "+$sorteosSinSalir ${l10n.sorteos}"
+                  : "$sorteosSinSalir ${l10n.sorteos}";
 
               return Expanded(
                 child: Padding(
@@ -1947,8 +1960,8 @@ class _EstadisticasDashboardScreenState
                               width: 0.8,
                             ),
                           ),
-                          child: const Text(
-                            "En tu jugada",
+                          child: Text(
+                            l10n.statsEnTuJugada,
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 9.0,
@@ -1970,7 +1983,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardDistribuciones(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     // 1. Pares vs Impares
     int pares = 0;
@@ -2008,29 +2021,11 @@ class _EstadisticasDashboardScreenState
     final pctBajos = ((bajos / totalBajosAltos) * 100).toStringAsFixed(1);
     final pctAltos = ((altos / totalBajosAltos) * 100).toStringAsFixed(1);
 
-    final titleText =
-        "3. ${l10n != null ? "${l10n.distribucionAciertosTitulo.split(' ').first}: ${l10n.paresImpares} & ${l10n.bajosAltos}" : "Distribución: Par/Impar y Bajos/Altos"}";
-
-    final String labelPar = l10n != null
-        ? (l10n.localeName == 'en'
-              ? 'Even'
-              : (l10n.localeName == 'pt' ? 'Pares' : 'Pares'))
-        : 'Pares';
-    final String labelImpar = l10n != null
-        ? (l10n.localeName == 'en'
-              ? 'Odd'
-              : (l10n.localeName == 'pt' ? 'Ímpares' : 'Impares'))
-        : 'Impares';
-    final String labelBajos = l10n != null
-        ? (l10n.localeName == 'en'
-              ? 'Low'
-              : (l10n.localeName == 'pt' ? 'Baixos' : 'Bajos'))
-        : 'Bajos';
-    final String labelAltos = l10n != null
-        ? (l10n.localeName == 'en'
-              ? 'High'
-              : (l10n.localeName == 'pt' ? 'Altos' : 'Altos'))
-        : 'Altos';
+    final titleText = "3. ${l10n.statsDistribucionTitulo}";
+    final String labelPar = l10n.statsPares;
+    final String labelImpar = l10n.statsImpares;
+    final String labelBajos = l10n.statsBajos;
+    final String labelAltos = l10n.statsAltos;
 
     Widget buildDonutChart({
       required double val1,
@@ -2117,7 +2112,7 @@ class _EstadisticasDashboardScreenState
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        l10n?.paresImpares ?? "Par vs Impar",
+                        l10n.paresImpares,
                         style: AppTextStyles.h2.copyWith(
                           fontSize: 16,
                           color: Colors.white,
@@ -2165,7 +2160,7 @@ class _EstadisticasDashboardScreenState
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        "${l10n?.bajosAltos ?? "Bajos vs Altos"} (1-$mitad / ${mitad + 1}-$maxBalota)",
+                        "${l10n.bajosAltos} (1-$mitad / ${mitad + 1}-$maxBalota)",
                         style: AppTextStyles.h2.copyWith(
                           fontSize: 16,
                           color: Colors.white,
@@ -2210,7 +2205,7 @@ class _EstadisticasDashboardScreenState
               child: Column(
                 children: [
                   Text(
-                    l10n?.paresImpares ?? "Par vs Impar",
+                    l10n.paresImpares,
                     style: AppTextStyles.h2.copyWith(
                       fontSize: 16,
                       color: Colors.white,
@@ -2249,7 +2244,7 @@ class _EstadisticasDashboardScreenState
                     child: Divider(color: Colors.white12),
                   ),
                   Text(
-                    "${l10n?.bajosAltos ?? "Bajos vs Altos"} (1-$mitad / ${mitad + 1}-$maxBalota)",
+                    "${l10n.bajosAltos} (1-$mitad / ${mitad + 1}-$maxBalota)",
                     style: AppTextStyles.h2.copyWith(
                       fontSize: 16,
                       color: Colors.white,
@@ -2335,7 +2330,7 @@ class _EstadisticasDashboardScreenState
                 child: Column(
                   children: [
                     Text(
-                      l10n?.paresImpares ?? "Par vs Impar",
+                      l10n.paresImpares,
                       style: AppTextStyles.h2.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -2345,7 +2340,7 @@ class _EstadisticasDashboardScreenState
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "(Pares / Impares)",
+                      "(${l10n.statsPares} / ${l10n.statsImpares})",
                       style: AppTextStyles.caption.copyWith(
                         fontSize: 10,
                         color: Colors.white54,
@@ -2397,7 +2392,7 @@ class _EstadisticasDashboardScreenState
                 child: Column(
                   children: [
                     Text(
-                      l10n?.bajosAltos ?? "Bajos vs Altos",
+                      l10n.bajosAltos,
                       style: AppTextStyles.h2.copyWith(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
@@ -2474,7 +2469,10 @@ class _EstadisticasDashboardScreenState
                       runSpacing: 4,
                       children: [
                         Text(
-                          "Tu jugada: ${_balotasComparacion.where((n) => n % 2 == 0).length} Pares / ${_balotasComparacion.where((n) => n % 2 != 0).length} Impares",
+                          l10n.statsTuJugadaPares(
+                            _balotasComparacion.where((n) => n % 2 == 0).length,
+                            _balotasComparacion.where((n) => n % 2 != 0).length,
+                          ),
                           style: AppTextStyles.h2.copyWith(
                             color: Colors.white,
                             fontSize: 12,
@@ -2482,7 +2480,10 @@ class _EstadisticasDashboardScreenState
                           ),
                         ),
                         Text(
-                          "• ${_balotasComparacion.where((n) => n <= mitad).length} Bajos / ${_balotasComparacion.where((n) => n > mitad).length} Altos",
+                          l10n.statsTuJugadaBajos(
+                            _balotasComparacion.where((n) => n <= mitad).length,
+                            _balotasComparacion.where((n) => n > mitad).length,
+                          ),
                           style: AppTextStyles.h2.copyWith(
                             color: Colors.white,
                             fontSize: 12,
@@ -2521,7 +2522,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardSumaCombinaciones(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final sumas = <double>[];
     for (var r in resultados.take(30)) {
@@ -2534,10 +2535,9 @@ class _EstadisticasDashboardScreenState
     final avgSuma = sumas.isEmpty
         ? "150"
         : (sumas.reduce((a, b) => a + b) / sumas.length).toStringAsFixed(0);
-    final titleText = "4. ${l10n?.sumaCombinacion ?? "Suma de la Combinación"}";
+    final titleText = "4. ${l10n.sumaCombinacion}";
     final subtitleText =
-        l10n?.promedioSumaHistorica(avgSuma) ??
-        "Promedio de suma histórica: $avgSuma";
+        l10n.promedioSumaHistorica(avgSuma);
 
     double minVal = reversedSumas.isEmpty ? 50 : reversedSumas.reduce(math.min);
     double maxVal = reversedSumas.isEmpty
@@ -2735,7 +2735,10 @@ class _EstadisticasDashboardScreenState
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Suma de tu jugada: ${_balotasComparacion.fold(0, (acc, n) => acc + n)} (Promedio histórico: $avgSuma)",
+                      l10n.statsSumaTuJugada(
+                        _balotasComparacion.fold(0, (acc, n) => acc + n),
+                        avgSuma,
+                      ),
                       style: AppTextStyles.h2.copyWith(
                         color: Colors.white,
                         fontSize: 13,
@@ -2754,7 +2757,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardParejasYTrios(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final parejas = <String, int>{};
     for (var r in resultados) {
@@ -2777,7 +2780,7 @@ class _EstadisticasDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "5. ${l10n?.parejasFrecuentes ?? "Parejas Más Frecuentes"}",
+            "5. ${l10n.parejasFrecuentes}",
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           const SizedBox(height: 12),
@@ -2851,7 +2854,7 @@ class _EstadisticasDashboardScreenState
               child: Row(
                 children: [
                   Text(
-                    "${l10n?.pareja ?? "Pareja"} ( ",
+                    "${l10n.pareja} ( ",
                     style: AppTextStyles.mensajeImportante,
                   ),
                   buildNumberBadge(n1, n1Matches),
@@ -2882,8 +2885,8 @@ class _EstadisticasDashboardScreenState
                           width: 0.8,
                         ),
                       ),
-                      child: const Text(
-                        "¡Ambos!",
+                      child: Text(
+                        l10n.statsAmbos,
                         style: TextStyle(
                           color: Colors.greenAccent,
                           fontSize: 9.0,
@@ -2903,8 +2906,8 @@ class _EstadisticasDashboardScreenState
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(color: Colors.white30, width: 0.8),
                       ),
-                      child: const Text(
-                        "1 en tu jugada",
+                      child: Text(
+                        l10n.statsUnoEnTuJugada,
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 9.0,
@@ -2915,7 +2918,7 @@ class _EstadisticasDashboardScreenState
                   ],
                   const Spacer(),
                   Text(
-                    "${e.value} ${l10n?.apariciones ?? "apariciones"}",
+                    "${e.value} ${l10n.apariciones}",
                     style: AppTextStyles.caption2.copyWith(
                       color: AppColors.yellow,
                     ),
@@ -3015,7 +3018,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardScoreIA(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final score = _calcularScoreProbabilidadIA(resultados);
     final scoreComparacion =
@@ -3026,16 +3029,13 @@ class _EstadisticasDashboardScreenState
     final String mensajeConsistencia;
     if (score >= 88) {
       mensajeConsistencia =
-          l10n?.altaConsistenciaIA ??
-          "✅ Alta consistencia con patrones históricos par/impar y dispersión de suma.";
+          l10n.altaConsistenciaIA;
     } else if (score >= 76) {
       mensajeConsistencia =
-          l10n?.moderadaConsistenciaIA ??
-          "⚡ Moderada-alta afinidad con frecuencias históricas y dispersión balanceada.";
+          l10n.moderadaConsistenciaIA;
     } else {
       mensajeConsistencia =
-          l10n?.variabilidadConsistenciaIA ??
-          "📊 Comportamiento de alta variabilidad estadística respecto a tendencias previas.";
+          l10n.variabilidadConsistenciaIA;
     }
 
     return AppContainer3(
@@ -3043,7 +3043,7 @@ class _EstadisticasDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "7. ${l10n?.scoreProbabilidadIA ?? "Score de Probabilidad IA"} 🤖",
+            "7. ${l10n.scoreProbabilidadIA} 🤖",
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           if (scoreComparacion != null) ...[
@@ -3064,7 +3064,11 @@ class _EstadisticasDashboardScreenState
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        "Tu ${_tituloComparacion.isNotEmpty ? _tituloComparacion : "Jugada Actual"}",
+                        l10n.statsTuJugadaTitulo(
+                          _tituloComparacion.isNotEmpty
+                              ? _tituloComparacion
+                              : l10n.statsJugadaActual,
+                        ),
                         style: TextStyle(
                           color: _colorComparacion,
                           fontWeight: FontWeight.bold,
@@ -3103,8 +3107,7 @@ class _EstadisticasDashboardScreenState
           ],
           const SizedBox(height: 12),
           Text(
-            l10n?.indiceAfinidadHistorica ??
-                "Índice de afinidad estadística global:",
+            l10n.indiceAfinidadHistorica,
             style: AppTextStyles.caption,
           ),
           const SizedBox(height: 14),
@@ -3141,7 +3144,7 @@ class _EstadisticasDashboardScreenState
 
   Widget _buildCardComparacionIA(
     List<Map<String, dynamic>> resultados,
-    AppLocalizations? l10n,
+    AppLocalizations l10n,
   ) {
     final predNums = prediccionIA != null && prediccionIA!["numeros"] != null
         ? List<int>.from(prediccionIA!["numeros"])
@@ -3159,13 +3162,12 @@ class _EstadisticasDashboardScreenState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "8. ${l10n?.comparacionIA ?? "Comportamiento Histórico vs IA"} ⚡",
+            "8. ${l10n.comparacionIA} ⚡",
             style: AppTextStyles.h2.copyWith(fontSize: 14.5),
           ),
           const SizedBox(height: 12),
           Text(
-            l10n?.numerosMayorTendencia ??
-                "Números de mayor tendencia histórica:",
+            l10n.numerosMayorTendencia,
             style: AppTextStyles.caption,
           ),
           const SizedBox(height: 6),
@@ -3192,8 +3194,7 @@ class _EstadisticasDashboardScreenState
           ),
           const SizedBox(height: 14),
           Text(
-            l10n?.numerosMayorAfinidadHistorica ??
-                "🤖 Números con mayor afinidad histórica:",
+            l10n.numerosMayorAfinidadHistorica,
             style: AppTextStyles.caption.copyWith(
               color: const Color(0xFFC7D2FE),
             ),
@@ -3265,8 +3266,7 @@ class _EstadisticasDashboardScreenState
                 ),
                 Expanded(
                   child: Text(
-                    l10n?.disclaimerAfinidadHistorica ??
-                        "Basado en patrones históricos. No representa una probabilidad real de que el número sea sorteado.",
+                    l10n.disclaimerAfinidadHistorica,
                     style: const TextStyle(
                       fontSize: 11,
                       color: Colors.white70,

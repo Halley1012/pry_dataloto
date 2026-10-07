@@ -142,13 +142,14 @@ class _RegistroPageState extends State<RegistroScreen> {
 
   // Validación de formato de correo y sugerencia de typos
   String? _validateEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return "El correo es requerido";
+    final l10n = AppLocalizations.of(context)!;
+    if (v == null || v.trim().isEmpty) return l10n.registroCorreoRequerido;
     final email = v.trim().toLowerCase();
     final emailRegex = RegExp(
       r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$",
     );
     if (!emailRegex.hasMatch(email)) {
-      return "Ingresa un correo electrónico válido";
+      return l10n.authInvalidEmail;
     }
     final domain = email.contains('@') ? email.split('@').last : '';
     final typos = {
@@ -166,7 +167,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       'yaho.com': 'yahoo.com',
     };
     if (typos.containsKey(domain)) {
-      return "¿Quisiste decir @${typos[domain]}?";
+      return l10n.registroSugerenciaCorreo(typos[domain]!);
     }
     return null;
   }
@@ -177,6 +178,7 @@ class _RegistroPageState extends State<RegistroScreen> {
     String email,
     String name,
   ) {
+    final l10n = AppLocalizations.of(context)!;
     final TextEditingController dialogCodeController = TextEditingController();
     bool dialogLoading = false;
 
@@ -197,13 +199,13 @@ class _RegistroPageState extends State<RegistroScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        "Activa tu Cuenta",
+                        l10n.activateAccountTitle,
                         style: AppTextStyles.tituloPrincipal,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        "Hemos enviado un código de 6 dígitos a $email para verificar tu correo.",
+                        l10n.activateAccountInstructions(email),
                         style: AppTextStyles.mensajeSecundario.copyWith(
                           color: Colors.white70,
                         ),
@@ -267,13 +269,13 @@ class _RegistroPageState extends State<RegistroScreen> {
                         width: double.infinity,
                         child: LoadingButton(
                           isLoading: dialogLoading,
-                          text: "Activar Cuenta",
+                          text: l10n.activateAccountButton,
                           onPressed: () async {
                             final code = dialogCodeController.text.trim();
                             if (code.length != 6) {
                               showEterSnackBar(
                                 context,
-                                message: "Ingresa los 6 dígitos del código",
+                                message: l10n.authEnterSixDigitCode,
                                 isError: true,
                               );
                               return;
@@ -375,7 +377,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                   showEterSnackBar(
                                     context,
                                     message:
-                                        "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                        l10n.accountActivatedMessage,
                                     isSuccess: true,
                                   );
                                   Navigator.pushReplacementNamed(
@@ -385,7 +387,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                 }
                               } else {
                                 String errorMsg =
-                                    "Código incorrecto o expirado";
+                                    l10n.authCodeInvalidOrExpired;
                                 try {
                                   final errData = jsonDecode(res.body);
                                   if (errData['detail'] != null)
@@ -403,7 +405,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                               if (context.mounted)
                                 showEterSnackBar(
                                   context,
-                                  message: "Error de conexión: $e",
+                                  message: '${l10n.errorConexion}: $e',
                                   isError: true,
                                 );
                             }
@@ -422,7 +424,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                     showEterSnackBar(
                                       context,
                                       message:
-                                          "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
+                                          l10n.registroActivacionPendiente,
                                     );
                                     Navigator.pushReplacementNamed(
                                       context,
@@ -430,7 +432,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                     );
                                   },
                             child: Text(
-                              "Cancelar",
+                              l10n.cancelar,
                               style: AppTextStyles.caption.copyWith(
                                 color: Colors.white54,
                               ),
@@ -454,14 +456,14 @@ class _RegistroPageState extends State<RegistroScreen> {
                                       if (context.mounted) {
                                         showEterSnackBar(
                                           context,
-                                          message: "Código reenviado a $email",
+                                          message: l10n.authVerificationCodeResent(email),
                                           isSuccess: true,
                                         );
                                       }
                                     } catch (_) {}
                                   },
                             child: Text(
-                              "¿No recibiste el código? Reenviar",
+                              l10n.authResendCode,
                               style: AppTextStyles.caption.copyWith(
                                 color: AppColors.yellow,
                               ),
@@ -501,7 +503,7 @@ class _RegistroPageState extends State<RegistroScreen> {
     if (!_esMayorEdad) {
       showEterSnackBar(
         context,
-        message: "Debes confirmar que eres mayor de 18 años para registrarte",
+        message: l10n.registroDebeSerMayorParaRegistrar,
         isError: true,
       );
       return;
@@ -543,7 +545,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         showEterSnackBar(
           context,
-          message: "Código de activación enviado a $userEmail",
+          message: l10n.registroCodigoActivacionEnviado(userEmail),
           isSuccess: true,
         );
 
@@ -553,7 +555,7 @@ class _RegistroPageState extends State<RegistroScreen> {
         // Abrir el diálogo para ingresar el código de verificación
         _showEmailVerificationDialog(context, userEmail, userName);
       } else {
-        String errorMsg = "Error al registrar usuario";
+        String errorMsg = l10n.registroErrorRegistrar;
         try {
           final data = jsonDecode(response.body);
           if (data is Map) {
@@ -601,7 +603,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       if (!mounted) return;
       showEterSnackBar(
         context,
-        message: 'No fue posible seleccionar la foto.',
+        message: AppLocalizations.of(context)!.noSeleccionarImagen,
         isError: true,
       );
     }
@@ -733,7 +735,7 @@ class _RegistroPageState extends State<RegistroScreen> {
       showEterSnackBar(
         context,
         message: !_esMayorEdad
-            ? "Debes confirmar que eres mayor de 18 años para continuar"
+            ? l10n.registroDebeSerMayorParaContinuar
             : l10n.debesAceptarTerminos,
         isError: true,
       );
@@ -1173,7 +1175,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                 setState(() => _esMayorEdad = !_esMayorEdad);
                               },
                               child: Text(
-                                "Declaro que soy mayor de 18 años (+18)",
+                                l10n.registroDeclaracionMayorEdad,
                                 style: AppTextStyles.caption.copyWith(
                                   color: Colors.white70,
                                 ),

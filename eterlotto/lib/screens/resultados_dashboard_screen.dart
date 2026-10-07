@@ -20,7 +20,6 @@ import 'resultados/widgets/resultados_shared.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import 'package:eterlotto/utils/lottery_date_localization.dart';
 import 'package:eterlotto/styles/colores.dart';
-import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
 import 'package:provider/provider.dart';
@@ -390,7 +389,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
   @override
   void initState() {
     super.initState();
-    ScreenSecurityHelper.enableSecureScreen();
     _selectedLoteria = widget.loteriaNombreInicial;
     _resolvedLoteriaData = widget.loteriaData == null
         ? null
@@ -403,7 +401,6 @@ class _ResultadosDashboardScreenState extends State<ResultadosDashboardScreen> {
 
   @override
   void dispose() {
-    ScreenSecurityHelper.disableSecureScreen();
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );

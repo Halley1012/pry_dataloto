@@ -987,5 +987,224 @@
   "horarioLunesASabado": "Lunes a sábado",
   "horarioLunesAViernes": "Lunes a viernes",
   "horarioFinesDeSemana": "Fines de semana",
-  "buscarPaisTelefono": "Buscar país o prefijo"
+  "buscarPaisTelefono": "Buscar país o prefijo",
+  "compararEstadisticasPregunta": "¿Quieres comparar con Estadísticas?",
+  "compararEstadisticasDescripcion": "Selecciona la jugada que deseas llevar a la pantalla de estadísticas para analizar su coincidencia con los sorteos pasados.",
+  "compararEstadisticasConfirmar": "Sí, comparar",
+  "compararEstadisticasTitulo": "Comparar con Estadísticas",
+  "compararEstadisticasVideoDescripcion": "Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.",
+  "authSocialLoginFailed": "Error al iniciar sesión con Google.",
+  "googleTokenUnavailable": "No se pudo obtener el token de Google.",
+  "accountNotVerified": "Tu cuenta aún no está activada. Introduce el código de verificación enviado a tu correo.",
+  "activateAccountTitle": "Activa tu cuenta",
+  "activateAccountInstructions": "Enviamos un código de 6 dígitos a {email} para verificar tu correo.",
+  "@activateAccountInstructions": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "activateAccountButton": "Activar cuenta",
+  "authEnterSixDigitCode": "Ingresa los 6 dígitos del código.",
+  "accountActivatedMessage": "¡Cuenta activada! Bienvenido a Eterlotto.",
+  "authCodeInvalidOrExpired": "Código incorrecto o expirado.",
+  "authVerificationCodeResent": "Código reenviado a {email}.",
+  "@authVerificationCodeResent": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authResendCode": "¿No recibiste el código? Reenviar",
+  "authForgotInstructions": "Ingresa tu correo para recibir un código de seguridad de 6 dígitos.",
+  "authSendResetCode": "Enviar código",
+  "authVerifyResetCode": "Verificar código",
+  "authVerifyResetInstructions": "Ingresa el código de 6 dígitos enviado a {email}.",
+  "@authVerifyResetInstructions": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authNewPasswordTitle": "Nueva contraseña",
+  "authNewPasswordInstructions": "Código verificado ✅. Ingresa tu nueva contraseña para completar el cambio.",
+  "authSavePassword": "Guardar contraseña",
+  "authNewPasswordField": "Nueva contraseña",
+  "authConfirmPasswordField": "Confirmar contraseña",
+  "authInvalidEmail": "Ingresa un correo electrónico válido.",
+  "authResetCodeSent": "Código enviado correctamente a {email}.",
+  "@authResetCodeSent": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authResetCodeResent": "Código reenviado correctamente a {email}.",
+  "@authResetCodeResent": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "authPasswordMinSixChars": "La contraseña debe tener al menos 6 caracteres.",
+  "authPasswordsDoNotMatch": "Las contraseñas no coinciden.",
+  "authPasswordUpdated": "¡Contraseña actualizada! Ya puedes iniciar sesión.",
+  "authResendResetCode": "¿No recibiste el código? Volver a enviar",
+  "authRequestCodeFailed": "No se pudo solicitar el código.",
+  "registroCorreoRequerido": "El correo electrónico es obligatorio.",
+  "registroSugerenciaCorreo": "¿Quisiste decir @{domain}?",
+  "@registroSugerenciaCorreo": {
+    "placeholders": {
+      "domain": {
+        "type": "String"
+      }
+    }
+  },
+  "registroActivacionPendiente": "Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.",
+  "registroDebeSerMayorParaRegistrar": "Debes confirmar que tienes 18 años o más para registrarte.",
+  "registroDebeSerMayorParaContinuar": "Debes confirmar que tienes 18 años o más para continuar.",
+  "registroCodigoActivacionEnviado": "Código de activación enviado a {email}.",
+  "@registroCodigoActivacionEnviado": {
+    "placeholders": {
+      "email": {
+        "type": "String"
+      }
+    }
+  },
+  "registroErrorRegistrar": "Error al registrar usuario.",
+  "registroDeclaracionMayorEdad": "Declaro que tengo 18 años o más (+18)",
+  "statsErrorCargarDatos": "No se pudieron cargar los datos de estadísticas.",
+  "statsComparandoJugada": "Comparando {jugada}",
+  "@statsComparandoJugada": {
+    "placeholders": {
+      "jugada": {
+        "type": "String"
+      }
+    }
+  },
+  "statsDebesSeleccionarBalotas": "Debes seleccionar exactamente {cantidad} balotas.",
+  "@statsDebesSeleccionarBalotas": {
+    "placeholders": {
+      "cantidad": {
+        "type": "int"
+      }
+    }
+  },
+  "statsDebesSeleccionarEspecial": "Debes seleccionar una balota especial.",
+  "statsDebesSeleccionarEspeciales": "Debes seleccionar exactamente {cantidad} balotas especiales.",
+  "@statsDebesSeleccionarEspeciales": {
+    "placeholders": {
+      "cantidad": {
+        "type": "int"
+      }
+    }
+  },
+  "statsIniciarSesionGuardar": "Inicia sesión para guardar tu jugada.",
+  "statsGuardadaActualizada": "¡Jugada guardada y actualizada con éxito!",
+  "statsErrorActualizar": "No se pudo actualizar la jugada. Intenta de nuevo.",
+  "statsErrorGuardarDetalle": "Error al guardar: {detalle}",
+  "@statsErrorGuardarDetalle": {
+    "placeholders": {
+      "detalle": {
+        "type": "String"
+      }
+    }
+  },
+  "statsMaximoSeleccion": "Ya has seleccionado {cantidad} balotas. Toca una para quitarla.",
+  "@statsMaximoSeleccion": {
+    "placeholders": {
+      "cantidad": {
+        "type": "int"
+      }
+    }
+  },
+  "statsBalotaEspecial": "Balota especial",
+  "statsBalotasEspeciales": "Balotas especiales",
+  "statsSeleccionaEspecial": "Selecciona 1 número especial.",
+  "statsSeleccionaEspeciales": "Selecciona {cantidad} números especiales.",
+  "@statsSeleccionaEspeciales": {
+    "placeholders": {
+      "cantidad": {
+        "type": "int"
+      }
+    }
+  },
+  "statsBalotaSalidas": "Balota {numero}\n{cantidad} salidas",
+  "@statsBalotaSalidas": {
+    "placeholders": {
+      "numero": {
+        "type": "int"
+      },
+      "cantidad": {
+        "type": "int"
+      }
+    }
+  },
+  "statsRangoBalotas": "Balotas 1 - {maximo}",
+  "@statsRangoBalotas": {
+    "placeholders": {
+      "maximo": {
+        "type": "int"
+      }
+    }
+  },
+  "statsEnTuJugada": "En tu jugada",
+  "statsDistribucionTitulo": "Distribución: Pares/Impares y Bajos/Altos",
+  "statsPares": "Pares",
+  "statsImpares": "Impares",
+  "statsBajos": "Bajos",
+  "statsAltos": "Altos",
+  "statsTuJugadaPares": "Tu jugada: {pares} pares / {impares} impares",
+  "@statsTuJugadaPares": {
+    "placeholders": {
+      "pares": {
+        "type": "int"
+      },
+      "impares": {
+        "type": "int"
+      }
+    }
+  },
+  "statsTuJugadaBajos": "• {bajos} bajos / {altos} altos",
+  "@statsTuJugadaBajos": {
+    "placeholders": {
+      "bajos": {
+        "type": "int"
+      },
+      "altos": {
+        "type": "int"
+      }
+    }
+  },
+  "statsSumaTuJugada": "Suma de tu jugada: {suma} (Promedio histórico: {promedio})",
+  "@statsSumaTuJugada": {
+    "placeholders": {
+      "suma": {
+        "type": "int"
+      },
+      "promedio": {
+        "type": "String"
+      }
+    }
+  },
+  "statsAmbos": "¡Ambos!",
+  "statsUnoEnTuJugada": "1 en tu jugada",
+  "statsTuJugadaTitulo": "Tu {jugada}",
+  "@statsTuJugadaTitulo": {
+    "placeholders": {
+      "jugada": {
+        "type": "String"
+      }
+    }
+  },
+  "statsJugadaActual": "jugada actual",
+  "profileDeleteFailed": "No se pudo eliminar la cuenta. Inténtalo nuevamente.",
+  "@profileDeleteFailed": {
+    "description": "Error genérico al fallar la eliminación de la cuenta."
+  }
 }

@@ -3334,6 +3334,432 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Buscar país o prefijo'**
   String get buscarPaisTelefono;
+
+  /// No description provided for @compararEstadisticasPregunta.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Quieres comparar con Estadísticas?'**
+  String get compararEstadisticasPregunta;
+
+  /// No description provided for @compararEstadisticasDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona la jugada que deseas llevar a la pantalla de estadísticas para analizar su coincidencia con los sorteos pasados.'**
+  String get compararEstadisticasDescripcion;
+
+  /// No description provided for @compararEstadisticasConfirmar.
+  ///
+  /// In es, this message translates to:
+  /// **'Sí, comparar'**
+  String get compararEstadisticasConfirmar;
+
+  /// No description provided for @compararEstadisticasTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Comparar con Estadísticas'**
+  String get compararEstadisticasTitulo;
+
+  /// No description provided for @compararEstadisticasVideoDescripcion.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para acceder y comparar tu jugada con las estadísticas.'**
+  String get compararEstadisticasVideoDescripcion;
+
+  /// No description provided for @authSocialLoginFailed.
+  ///
+  /// In es, this message translates to:
+  /// **'Error al iniciar sesión con Google.'**
+  String get authSocialLoginFailed;
+
+  /// No description provided for @googleTokenUnavailable.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo obtener el token de Google.'**
+  String get googleTokenUnavailable;
+
+  /// No description provided for @accountNotVerified.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu cuenta aún no está activada. Introduce el código de verificación enviado a tu correo.'**
+  String get accountNotVerified;
+
+  /// No description provided for @activateAccountTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Activa tu cuenta'**
+  String get activateAccountTitle;
+
+  /// No description provided for @activateAccountInstructions.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviamos un código de 6 dígitos a {email} para verificar tu correo.'**
+  String activateAccountInstructions(String email);
+
+  /// No description provided for @activateAccountButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Activar cuenta'**
+  String get activateAccountButton;
+
+  /// No description provided for @authEnterSixDigitCode.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa los 6 dígitos del código.'**
+  String get authEnterSixDigitCode;
+
+  /// No description provided for @accountActivatedMessage.
+  ///
+  /// In es, this message translates to:
+  /// **'¡Cuenta activada! Bienvenido a Eterlotto.'**
+  String get accountActivatedMessage;
+
+  /// No description provided for @authCodeInvalidOrExpired.
+  ///
+  /// In es, this message translates to:
+  /// **'Código incorrecto o expirado.'**
+  String get authCodeInvalidOrExpired;
+
+  /// No description provided for @authVerificationCodeResent.
+  ///
+  /// In es, this message translates to:
+  /// **'Código reenviado a {email}.'**
+  String authVerificationCodeResent(String email);
+
+  /// No description provided for @authResendCode.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No recibiste el código? Reenviar'**
+  String get authResendCode;
+
+  /// No description provided for @authForgotInstructions.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa tu correo para recibir un código de seguridad de 6 dígitos.'**
+  String get authForgotInstructions;
+
+  /// No description provided for @authSendResetCode.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviar código'**
+  String get authSendResetCode;
+
+  /// No description provided for @authVerifyResetCode.
+  ///
+  /// In es, this message translates to:
+  /// **'Verificar código'**
+  String get authVerifyResetCode;
+
+  /// No description provided for @authVerifyResetInstructions.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa el código de 6 dígitos enviado a {email}.'**
+  String authVerifyResetInstructions(String email);
+
+  /// No description provided for @authNewPasswordTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Nueva contraseña'**
+  String get authNewPasswordTitle;
+
+  /// No description provided for @authNewPasswordInstructions.
+  ///
+  /// In es, this message translates to:
+  /// **'Código verificado ✅. Ingresa tu nueva contraseña para completar el cambio.'**
+  String get authNewPasswordInstructions;
+
+  /// No description provided for @authSavePassword.
+  ///
+  /// In es, this message translates to:
+  /// **'Guardar contraseña'**
+  String get authSavePassword;
+
+  /// No description provided for @authNewPasswordField.
+  ///
+  /// In es, this message translates to:
+  /// **'Nueva contraseña'**
+  String get authNewPasswordField;
+
+  /// No description provided for @authConfirmPasswordField.
+  ///
+  /// In es, this message translates to:
+  /// **'Confirmar contraseña'**
+  String get authConfirmPasswordField;
+
+  /// No description provided for @authInvalidEmail.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa un correo electrónico válido.'**
+  String get authInvalidEmail;
+
+  /// No description provided for @authResetCodeSent.
+  ///
+  /// In es, this message translates to:
+  /// **'Código enviado correctamente a {email}.'**
+  String authResetCodeSent(String email);
+
+  /// No description provided for @authResetCodeResent.
+  ///
+  /// In es, this message translates to:
+  /// **'Código reenviado correctamente a {email}.'**
+  String authResetCodeResent(String email);
+
+  /// No description provided for @authPasswordMinSixChars.
+  ///
+  /// In es, this message translates to:
+  /// **'La contraseña debe tener al menos 6 caracteres.'**
+  String get authPasswordMinSixChars;
+
+  /// No description provided for @authPasswordsDoNotMatch.
+  ///
+  /// In es, this message translates to:
+  /// **'Las contraseñas no coinciden.'**
+  String get authPasswordsDoNotMatch;
+
+  /// No description provided for @authPasswordUpdated.
+  ///
+  /// In es, this message translates to:
+  /// **'¡Contraseña actualizada! Ya puedes iniciar sesión.'**
+  String get authPasswordUpdated;
+
+  /// No description provided for @authResendResetCode.
+  ///
+  /// In es, this message translates to:
+  /// **'¿No recibiste el código? Volver a enviar'**
+  String get authResendResetCode;
+
+  /// No description provided for @authRequestCodeFailed.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo solicitar el código.'**
+  String get authRequestCodeFailed;
+
+  /// No description provided for @registroCorreoRequerido.
+  ///
+  /// In es, this message translates to:
+  /// **'El correo electrónico es obligatorio.'**
+  String get registroCorreoRequerido;
+
+  /// No description provided for @registroSugerenciaCorreo.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Quisiste decir @{domain}?'**
+  String registroSugerenciaCorreo(String domain);
+
+  /// No description provided for @registroActivacionPendiente.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu cuenta quedó pendiente de activación. Podrás activarla al iniciar sesión.'**
+  String get registroActivacionPendiente;
+
+  /// No description provided for @registroDebeSerMayorParaRegistrar.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes confirmar que tienes 18 años o más para registrarte.'**
+  String get registroDebeSerMayorParaRegistrar;
+
+  /// No description provided for @registroDebeSerMayorParaContinuar.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes confirmar que tienes 18 años o más para continuar.'**
+  String get registroDebeSerMayorParaContinuar;
+
+  /// No description provided for @registroCodigoActivacionEnviado.
+  ///
+  /// In es, this message translates to:
+  /// **'Código de activación enviado a {email}.'**
+  String registroCodigoActivacionEnviado(String email);
+
+  /// No description provided for @registroErrorRegistrar.
+  ///
+  /// In es, this message translates to:
+  /// **'Error al registrar usuario.'**
+  String get registroErrorRegistrar;
+
+  /// No description provided for @registroDeclaracionMayorEdad.
+  ///
+  /// In es, this message translates to:
+  /// **'Declaro que tengo 18 años o más (+18)'**
+  String get registroDeclaracionMayorEdad;
+
+  /// No description provided for @statsErrorCargarDatos.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudieron cargar los datos de estadísticas.'**
+  String get statsErrorCargarDatos;
+
+  /// No description provided for @statsComparandoJugada.
+  ///
+  /// In es, this message translates to:
+  /// **'Comparando {jugada}'**
+  String statsComparandoJugada(String jugada);
+
+  /// No description provided for @statsDebesSeleccionarBalotas.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes seleccionar exactamente {cantidad} balotas.'**
+  String statsDebesSeleccionarBalotas(int cantidad);
+
+  /// No description provided for @statsDebesSeleccionarEspecial.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes seleccionar una balota especial.'**
+  String get statsDebesSeleccionarEspecial;
+
+  /// No description provided for @statsDebesSeleccionarEspeciales.
+  ///
+  /// In es, this message translates to:
+  /// **'Debes seleccionar exactamente {cantidad} balotas especiales.'**
+  String statsDebesSeleccionarEspeciales(int cantidad);
+
+  /// No description provided for @statsIniciarSesionGuardar.
+  ///
+  /// In es, this message translates to:
+  /// **'Inicia sesión para guardar tu jugada.'**
+  String get statsIniciarSesionGuardar;
+
+  /// No description provided for @statsGuardadaActualizada.
+  ///
+  /// In es, this message translates to:
+  /// **'¡Jugada guardada y actualizada con éxito!'**
+  String get statsGuardadaActualizada;
+
+  /// No description provided for @statsErrorActualizar.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo actualizar la jugada. Intenta de nuevo.'**
+  String get statsErrorActualizar;
+
+  /// No description provided for @statsErrorGuardarDetalle.
+  ///
+  /// In es, this message translates to:
+  /// **'Error al guardar: {detalle}'**
+  String statsErrorGuardarDetalle(String detalle);
+
+  /// No description provided for @statsMaximoSeleccion.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya has seleccionado {cantidad} balotas. Toca una para quitarla.'**
+  String statsMaximoSeleccion(int cantidad);
+
+  /// No description provided for @statsBalotaEspecial.
+  ///
+  /// In es, this message translates to:
+  /// **'Balota especial'**
+  String get statsBalotaEspecial;
+
+  /// No description provided for @statsBalotasEspeciales.
+  ///
+  /// In es, this message translates to:
+  /// **'Balotas especiales'**
+  String get statsBalotasEspeciales;
+
+  /// No description provided for @statsSeleccionaEspecial.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona 1 número especial.'**
+  String get statsSeleccionaEspecial;
+
+  /// No description provided for @statsSeleccionaEspeciales.
+  ///
+  /// In es, this message translates to:
+  /// **'Selecciona {cantidad} números especiales.'**
+  String statsSeleccionaEspeciales(int cantidad);
+
+  /// No description provided for @statsBalotaSalidas.
+  ///
+  /// In es, this message translates to:
+  /// **'Balota {numero}\n{cantidad} salidas'**
+  String statsBalotaSalidas(int numero, int cantidad);
+
+  /// No description provided for @statsRangoBalotas.
+  ///
+  /// In es, this message translates to:
+  /// **'Balotas 1 - {maximo}'**
+  String statsRangoBalotas(int maximo);
+
+  /// No description provided for @statsEnTuJugada.
+  ///
+  /// In es, this message translates to:
+  /// **'En tu jugada'**
+  String get statsEnTuJugada;
+
+  /// No description provided for @statsDistribucionTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Distribución: Pares/Impares y Bajos/Altos'**
+  String get statsDistribucionTitulo;
+
+  /// No description provided for @statsPares.
+  ///
+  /// In es, this message translates to:
+  /// **'Pares'**
+  String get statsPares;
+
+  /// No description provided for @statsImpares.
+  ///
+  /// In es, this message translates to:
+  /// **'Impares'**
+  String get statsImpares;
+
+  /// No description provided for @statsBajos.
+  ///
+  /// In es, this message translates to:
+  /// **'Bajos'**
+  String get statsBajos;
+
+  /// No description provided for @statsAltos.
+  ///
+  /// In es, this message translates to:
+  /// **'Altos'**
+  String get statsAltos;
+
+  /// No description provided for @statsTuJugadaPares.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu jugada: {pares} pares / {impares} impares'**
+  String statsTuJugadaPares(int pares, int impares);
+
+  /// No description provided for @statsTuJugadaBajos.
+  ///
+  /// In es, this message translates to:
+  /// **'• {bajos} bajos / {altos} altos'**
+  String statsTuJugadaBajos(int bajos, int altos);
+
+  /// No description provided for @statsSumaTuJugada.
+  ///
+  /// In es, this message translates to:
+  /// **'Suma de tu jugada: {suma} (Promedio histórico: {promedio})'**
+  String statsSumaTuJugada(int suma, String promedio);
+
+  /// No description provided for @statsAmbos.
+  ///
+  /// In es, this message translates to:
+  /// **'¡Ambos!'**
+  String get statsAmbos;
+
+  /// No description provided for @statsUnoEnTuJugada.
+  ///
+  /// In es, this message translates to:
+  /// **'1 en tu jugada'**
+  String get statsUnoEnTuJugada;
+
+  /// No description provided for @statsTuJugadaTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Tu {jugada}'**
+  String statsTuJugadaTitulo(String jugada);
+
+  /// No description provided for @statsJugadaActual.
+  ///
+  /// In es, this message translates to:
+  /// **'jugada actual'**
+  String get statsJugadaActual;
+
+  /// Error genérico al fallar la eliminación de la cuenta.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo eliminar la cuenta. Inténtalo nuevamente.'**
+  String get profileDeleteFailed;
 }
 
 class _AppLocalizationsDelegate

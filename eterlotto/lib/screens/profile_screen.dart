@@ -587,15 +587,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showConfigMenu() {
+  Future<void> _showConfigMenu() async {
     final l10n = AppLocalizations.of(context)!;
-    showModalBottomSheet(
+
+    // Primero cerramos el bottom sheet. Nunca abrimos un segundo modal
+    // usando el BuildContext de una ruta que acabamos de cerrar.
+    final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (context) => Column(
+      builder: (sheetContext) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 10),
@@ -605,10 +608,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               "Idioma / Language / Idioma",
               style: TextStyle(color: Colors.white),
             ),
-            onTap: () {
-              Navigator.pop(context);
-              _showLanguageDialog(context);
-            },
+            onTap: () => Navigator.of(sheetContext).pop('language'),
           ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
@@ -616,15 +616,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
               l10n.eliminarCuenta,
               style: const TextStyle(color: Colors.white),
             ),
-            onTap: () {
-              Navigator.pop(context);
-              _eliminarCuenta(context);
-            },
+            onTap: () => Navigator.of(sheetContext).pop('delete'),
           ),
           const SizedBox(height: 20),
         ],
       ),
     );
+
+    if (!mounted) return;
+    switch (action) {
+      case 'language':
+        _showLanguageDialog(context);
+        break;
+      case 'delete':
+        await _eliminarCuenta(context);
+        break;
+    }
   }
 
   void _showLanguageDialog(BuildContext context) {
@@ -754,19 +761,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final l10n = AppLocalizations.of(context)!;
     final confirm = await showDialog<bool>(
       context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.delete_forever, color: Colors.redAccent, size: 24),
             const SizedBox(width: 10),
-            Text(
-              l10n.eliminarCuenta,
-              style: AppTextStyles.h2.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: Text(
+                l10n.eliminarCuenta,
+                style: AppTextStyles.h2.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -779,14 +789,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            // El contexto correcto es el del diálogo, no el de Perfil
+            // ni el del bottom sheet ya cerrado.
+            onPressed: () => Navigator.of(
+              dialogContext,
+              rootNavigator: true,
+            ).pop(false),
             child: Text(
               l10n.cancelar,
-              style: const TextStyle(color: Colors.amber),
+              style: const TextStyle(color: AppColors.yellow),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.of(
+              dialogContext,
+              rootNavigator: true,
+            ).pop(true),
             child: Text(
               l10n.eliminar,
               style: const TextStyle(color: Colors.redAccent),
@@ -796,46 +814,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
 
-    if (confirm != true) return;
+    // Cancelar solo cierra el cuadro; no llama al backend.
+    if (!mounted || confirm != true) return;
 
+    final accountId = int.tryParse(userId ?? '');
+    if (accountId == null) {
+      showJustifiedDialog(context, l10n.error, l10n.profileDeleteFailed);
+      return;
+    }
+
+    bool loadingDialogOpen = false;
     try {
-      if (userId == null) return;
-      if (!mounted) return;
-
-      showDialog(
+      showDialog<void>(
         context: context,
+        useRootNavigator: true,
         barrierDismissible: false,
         builder: (_) => const Center(
           child: CircularProgressIndicator(color: AppColors.yellow),
         ),
       );
+      loadingDialogOpen = true;
 
-      await PushNotificationService.unregisterToken();
-      await ApiService.deleteUser(int.parse(userId!));
+      await ApiService.deleteUser(accountId);
 
       if (!mounted) return;
-      Navigator.pop(context); // Cerrar loader
+      if (loadingDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
+        loadingDialogOpen = false;
+      }
+
+      AdService.instance.setAppOpenEligibility(false);
+      context.read<SubscriptionProvider>().reset();
+      await AdService.instance.setRewardUser(null);
 
       await storage.deleteAll();
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
 
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
+        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const WelcomeScreen()),
           (route) => false,
         );
       }
-    } catch (e) {
-      if (mounted) {
-        Navigator.pop(context); // Cerrar loader si falló
-        showJustifiedDialog(
-          context,
-          l10n.error,
-          "No se pudo eliminar la cuenta: $e",
-        );
+    } catch (error) {
+      debugPrint('[PROFILE] Error eliminando cuenta: $error');
+      if (!mounted) return;
+      if (loadingDialogOpen) {
+        Navigator.of(context, rootNavigator: true).pop();
       }
+      showJustifiedDialog(context, l10n.error, l10n.profileDeleteFailed);
     }
   }
 

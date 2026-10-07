@@ -68,7 +68,7 @@ class _LoginPageState extends State<LoginPage> {
       if (idToken == null) {
         setState(() => isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error al obtener token de Google")),
+          SnackBar(content: Text(l10n.googleTokenUnavailable)),
         );
         return;
       }
@@ -127,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
         }
       } else {
         if (!mounted) return;
-        final errorMsg = response['error'] ?? "Error en inicio de sesión social";
+        final errorMsg = response['error'] ?? l10n.authSocialLoginFailed;
         showEterSnackBar(
           context,
           message: errorMsg.toString(),
@@ -212,7 +212,7 @@ class _LoginPageState extends State<LoginPage> {
         if (errorMsg.contains("EMAIL_NOT_VERIFIED")) {
           showEterSnackBar(
             context,
-            message: "Tu cuenta no ha sido activada. Ingresa el código de activación enviado a tu correo.",
+            message: l10n.accountNotVerified,
             isError: true,
           );
           _showEmailVerificationDialog(context, _emailController.text.trim());
@@ -231,7 +231,7 @@ class _LoginPageState extends State<LoginPage> {
       if (errorStr.contains("EMAIL_NOT_VERIFIED")) {
         showEterSnackBar(
           context,
-          message: "Tu cuenta no ha sido activada. Ingresa el código de activación enviado a tu correo.",
+          message: l10n.accountNotVerified,
           isError: true,
         );
         _showEmailVerificationDialog(context, _emailController.text.trim());
@@ -247,6 +247,7 @@ class _LoginPageState extends State<LoginPage> {
 
   // Diálogo interactivo para activar cuenta si no ha sido verificada
   void _showEmailVerificationDialog(BuildContext context, String email) {
+    final l10n = AppLocalizations.of(context)!;
     final TextEditingController dialogCodeController = TextEditingController();
     bool dialogLoading = false;
 
@@ -267,13 +268,13 @@ class _LoginPageState extends State<LoginPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        "Activa tu Cuenta",
+                        l10n.activateAccountTitle,
                         style: AppTextStyles.tituloPrincipal,
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        "Hemos enviado un código de 6 dígitos a $email para verificar tu correo.",
+                        l10n.activateAccountInstructions(email),
                         style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white70),
                         textAlign: TextAlign.center,
                       ),
@@ -327,7 +328,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               onPressed: dialogLoading ? null : () => Navigator.pop(dialogCtx),
                               child: Text(
-                                "Cancelar",
+                                l10n.cancelarButton,
                                 style: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white54),
                               ),
                             ),
@@ -337,11 +338,11 @@ class _LoginPageState extends State<LoginPage> {
                             flex: 2,
                             child: LoadingButton(
                               isLoading: dialogLoading,
-                              text: "Activar Cuenta",
+                              text: l10n.activateAccountButton,
                               onPressed: () async {
                                 final code = dialogCodeController.text.trim();
                                 if (code.length != 6) {
-                                  showEterSnackBar(context, message: "Ingresa los 6 dígitos del código", isError: true);
+                                  showEterSnackBar(context, message: l10n.authEnterSixDigitCode, isError: true);
                                   return;
                                 }
 
@@ -380,13 +381,13 @@ class _LoginPageState extends State<LoginPage> {
                                       Navigator.pop(dialogCtx);
                                       showEterSnackBar(
                                         context,
-                                        message: "¡Cuenta activada con éxito! Bienvenido a Eterlotto.",
+                                        message: l10n.accountActivatedMessage,
                                         isSuccess: true,
                                       );
                                       Navigator.pushReplacementNamed(context, '/home');
                                     }
                                   } else {
-                                    String errorMsg = "Código incorrecto o expirado";
+                                    String errorMsg = l10n.authCodeInvalidOrExpired;
                                     try {
                                       final errData = jsonDecode(res.body);
                                       if (errData['detail'] != null) errorMsg = errData['detail'].toString();
@@ -395,7 +396,7 @@ class _LoginPageState extends State<LoginPage> {
                                   }
                                 } catch (e) {
                                   setDialogState(() => dialogLoading = false);
-                                  if (context.mounted) showEterSnackBar(context, message: "Error de conexión: $e", isError: true);
+                                  if (context.mounted) showEterSnackBar(context, message: "${l10n.errorConexion}: $e", isError: true);
                                 }
                               },
                             ),
@@ -415,12 +416,12 @@ class _LoginPageState extends State<LoginPage> {
                                     body: jsonEncode({'email': email}),
                                   );
                                   if (context.mounted) {
-                                    showEterSnackBar(context, message: "Código reenviado a $email", isSuccess: true);
+                                    showEterSnackBar(context, message: l10n.authVerificationCodeResent(email), isSuccess: true);
                                   }
                                 } catch (_) {}
                               },
                         child: Text(
-                          "¿No recibiste el código? Reenviar",
+                          l10n.authResendCode,
                           style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
                         ),
                       ),
@@ -457,17 +458,17 @@ class _LoginPageState extends State<LoginPage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             String titleText = l10n.recuperarContrasena;
-            String subtitleText = "Ingresa tu correo para recibir un código de seguridad de 6 dígitos.";
-            String buttonText = "Enviar Código";
+            String subtitleText = l10n.authForgotInstructions;
+            String buttonText = l10n.authSendResetCode;
 
             if (step == 2) {
-              titleText = "Verificar Código";
-              subtitleText = "Ingresa el código de 6 dígitos enviado a ${dialogEmailController.text.trim()}";
-              buttonText = "Verificar Código";
+              titleText = l10n.authVerifyResetCode;
+              subtitleText = l10n.authVerifyResetInstructions(dialogEmailController.text.trim());
+              buttonText = l10n.authVerifyResetCode;
             } else if (step == 3) {
-              titleText = "Nueva Contraseña";
-              subtitleText = "Código verificado ✅. Ingresa tu nueva contraseña para completar el cambio.";
-              buttonText = "Guardar Contraseña";
+              titleText = l10n.authNewPasswordTitle;
+              subtitleText = l10n.authNewPasswordInstructions;
+              buttonText = l10n.authSavePassword;
             }
 
             return Dialog(
@@ -638,7 +639,7 @@ class _LoginPageState extends State<LoginPage> {
                             decorationColor: Colors.transparent,
                           ),
                           decoration: InputDecoration(
-                            labelText: "Nueva contraseña",
+                            labelText: l10n.authNewPasswordField,
                             labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
                             floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.yellow),
@@ -684,7 +685,7 @@ class _LoginPageState extends State<LoginPage> {
                             decorationColor: Colors.transparent,
                           ),
                           decoration: InputDecoration(
-                            labelText: "Confirmar contraseña",
+                            labelText: l10n.authConfirmPasswordField,
                             labelStyle: AppTextStyles.mensajeSecundario.copyWith(color: Colors.white60),
                             floatingLabelStyle: AppTextStyles.mensajeSecundario.copyWith(color: AppColors.yellow),
                             prefixIcon: const Icon(Icons.lock_outline, color: AppColors.yellow),
@@ -745,7 +746,7 @@ class _LoginPageState extends State<LoginPage> {
                                 if (step == 1) {
                                   if (email.isEmpty || !email.contains('@')) {
                                     setDialogState(() {
-                                      dialogNotice = "Ingresa un correo electrónico válido";
+                                      dialogNotice = l10n.authInvalidEmail;
                                       dialogNoticeIsError = true;
                                     });
                                     return;
@@ -761,7 +762,7 @@ class _LoginPageState extends State<LoginPage> {
                                     FocusManager.instance.primaryFocus?.unfocus();
                                     setDialogState(() {
                                       step = 2;
-                                      dialogNotice = "Código enviado correctamente a $email";
+                                      dialogNotice = l10n.authResetCodeSent(email);
                                       dialogNoticeIsError = false;
                                     });
                                   } else {
@@ -776,7 +777,7 @@ class _LoginPageState extends State<LoginPage> {
                                   final code = dialogCodeController.text.trim();
                                   if (code.length != 6) {
                                     setDialogState(() {
-                                      dialogNotice = "Ingresa los 6 dígitos del código";
+                                      dialogNotice = l10n.authEnterSixDigitCode;
                                       dialogNoticeIsError = true;
                                     });
                                     return;
@@ -810,14 +811,14 @@ class _LoginPageState extends State<LoginPage> {
 
                                   if (newPwd.length < 6) {
                                     setDialogState(() {
-                                      dialogNotice = "La contraseña debe tener al menos 6 caracteres";
+                                      dialogNotice = l10n.authPasswordMinSixChars;
                                       dialogNoticeIsError = true;
                                     });
                                     return;
                                   }
                                   if (newPwd != confirmPwd) {
                                     setDialogState(() {
-                                      dialogNotice = "Las contraseñas no coinciden";
+                                      dialogNotice = l10n.authPasswordsDoNotMatch;
                                       dialogNoticeIsError = true;
                                     });
                                     return;
@@ -838,7 +839,7 @@ class _LoginPageState extends State<LoginPage> {
                                     if (mounted) {
                                       showEterSnackBar(
                                         this.context,
-                                        message: "¡Contraseña actualizada! Ya puedes iniciar sesión.",
+                                        message: l10n.authPasswordUpdated,
                                         isSuccess: true,
                                       );
                                     }
@@ -872,7 +873,7 @@ class _LoginPageState extends State<LoginPage> {
                                   setDialogState(() {
                                     dialogLoading = false;
                                     if (error == null) {
-                                      dialogNotice = "Código reenviado correctamente a $email";
+                                      dialogNotice = l10n.authResetCodeResent(email);
                                       dialogNoticeIsError = false;
                                     } else {
                                       dialogNotice = error;
@@ -881,7 +882,7 @@ class _LoginPageState extends State<LoginPage> {
                                   });
                                 },
                           child: Text(
-                            "¿No recibiste el código? Volver a enviar",
+                            l10n.authResendResetCode,
                             style: AppTextStyles.caption.copyWith(color: AppColors.yellow),
                           ),
                         ),
@@ -901,6 +902,7 @@ class _LoginPageState extends State<LoginPage> {
   // Retorna null si fue correcto; si falla, retorna el mensaje para mostrar
   // dentro del mismo diálogo (evita SnackBars detrás del modal).
   Future<String?> _verifyResetCode(String email, String code) async {
+    final l10n = AppLocalizations.of(context)!;
     final url = Uri.parse('${ApiService.baseUrl}/auth/verify-reset-code');
     try {
       final response = await http.post(
@@ -916,20 +918,21 @@ class _LoginPageState extends State<LoginPage> {
         return null;
       }
 
-      String errorMsg = "Código incorrecto o expirado";
+      String errorMsg = l10n.authCodeInvalidOrExpired;
       try {
         final data = jsonDecode(response.body);
         if (data['detail'] != null) errorMsg = data['detail'].toString();
       } catch (_) {}
       return errorMsg;
     } catch (e) {
-      return "Error de conexión: $e";
+      return "${l10n.errorConexion}: $e";
     }
   }
 
   // Solicitar código PIN de recuperación.
   // Retorna null si fue enviado; si falla, retorna el mensaje para el modal.
   Future<String?> _requestResetCode(String email) async {
+    final l10n = AppLocalizations.of(context)!;
     final url = Uri.parse('${ApiService.baseUrl}/auth/forgot-password');
     try {
       final response = await http.post(
@@ -942,20 +945,21 @@ class _LoginPageState extends State<LoginPage> {
         return null;
       }
 
-      String errorMsg = "Error al solicitar código";
+      String errorMsg = l10n.authRequestCodeFailed;
       try {
         final data = jsonDecode(response.body);
         if (data['detail'] != null) errorMsg = data['detail'].toString();
       } catch (_) {}
       return errorMsg;
     } catch (e) {
-      return "Error de conexión: $e";
+      return "${l10n.errorConexion}: $e";
     }
   }
 
   // Restablecer contraseña con código PIN.
   // Retorna null si fue correcto; si falla, retorna el mensaje para el modal.
   Future<String?> _submitNewPassword(String email, String code, String newPassword) async {
+    final l10n = AppLocalizations.of(context)!;
     final url = Uri.parse('${ApiService.baseUrl}/auth/reset-password');
     try {
       final response = await http.post(
@@ -972,14 +976,14 @@ class _LoginPageState extends State<LoginPage> {
         return null;
       }
 
-      String errorMsg = "Código inválido o expirado";
+      String errorMsg = l10n.authCodeInvalidOrExpired;
       try {
         final data = jsonDecode(response.body);
         if (data['detail'] != null) errorMsg = data['detail'].toString();
       } catch (_) {}
       return errorMsg;
     } catch (e) {
-      return "Error de conexión: $e";
+      return "${l10n.errorConexion}: $e";
     }
   }
 
