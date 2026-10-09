@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_ganadiario',
     default_args=default_args,
     description='Ejecuta scraping y predicción diaria de Gana Diario usando main_ganadiario.py',
-    schedule='0 3 * * *', # Diario a las 3:00 AM (tras sorteo nocturno)
+    schedule=None, # Diario a las 3:00 AM (tras sorteo nocturno)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ganadiario', 'peru', 'pe', 'ml']

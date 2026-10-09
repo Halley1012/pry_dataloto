@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_quina',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Quina usando main_quina.py',
-    schedule='0 3 * * *', # De Lunes a Sábado a las 3:00 AM (tras los sorteos nocturnos)
+    schedule=None, # De Lunes a Sábado a las 3:00 AM (tras los sorteos nocturnos)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'quina', 'brasil', 'br', 'ml']

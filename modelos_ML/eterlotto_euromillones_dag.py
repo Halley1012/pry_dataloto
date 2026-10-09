@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_euromillones',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Euromillones usando main_euromillones.py',
-    schedule='0 3 * * *', # Miércoles y Sábados a las 3:00 AM (tras sorteos de Martes y Viernes)
+    schedule=None, # Miércoles y Sábados a las 3:00 AM (tras sorteos de Martes y Viernes)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'euromillones', 'spain', 'ml']

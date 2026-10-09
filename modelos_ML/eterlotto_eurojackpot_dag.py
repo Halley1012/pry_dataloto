@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_eurojackpot',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Eurojackpot (Alemania) usando main_eurojackpot.py',
-    schedule='0 3 * * 3,6', # Miércoles y Sábados a las 3:00 AM (tras sorteos de Martes y Viernes)
+    schedule=None, # Miércoles y Sábados a las 3:00 AM (tras sorteos de Martes y Viernes)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'eurojackpot', 'germany', 'de', 'ml']

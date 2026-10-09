@@ -49,7 +49,7 @@ with DAG(
     'eterlotto_ejecucion_totoloto',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Totoloto (Portugal) usando main_totoloto.py',
-    schedule='0 3 * * 4,0',  # Jueves y Domingos a las 3:00 AM (tras sorteos de Miércoles y Sábados)
+    schedule=None,  # Jueves y Domingos a las 3:00 AM (tras sorteos de Miércoles y Sábados)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'totoloto', 'portugal', 'scml', 'ml']
