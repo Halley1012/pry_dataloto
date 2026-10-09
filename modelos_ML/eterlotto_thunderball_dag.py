@@ -49,7 +49,7 @@ with DAG(
     'eterlotto_ejecucion_thunderball',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Thunderball (Reino Unido) usando main_thunderball.py',
-    schedule='0 3 * * 3,4,6,0',  # Miércoles, Jueves, Sábados y Domingos a las 3:00 AM UTC
+    schedule=None,  # Miércoles, Jueves, Sábados y Domingos a las 3:00 AM UTC
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'thunderball', 'uk', 'national_lottery', 'ml']

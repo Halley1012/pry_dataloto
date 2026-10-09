@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_el_gordo',
     default_args=default_args,
     description='Ejecuta scraping y predicción de El Gordo de la Primitiva usando main_el_gordo.py',
-    schedule='0 3 * * *', # Lunes a las 3:00 AM (tras sorteo de Domingos)
+    schedule=None, # Lunes a las 3:00 AM (tras sorteo de Domingos)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'el_gordo', 'spain', 'ml']

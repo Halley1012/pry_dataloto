@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_lotto_cr',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Lotto Costa Rica usando main_lotto_cr.py',
-    schedule='0 3 * * *', # Domingos, Martes y Jueves a las 3:00 AM (tras sorteos de Sábados, Lunes y Miércoles)
+    schedule=None, # Domingos, Martes y Jueves a las 3:00 AM (tras sorteos de Sábados, Lunes y Miércoles)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'lotto_cr', 'costa_rica', 'cr', 'ml']

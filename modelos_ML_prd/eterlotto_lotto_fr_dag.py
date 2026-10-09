@@ -49,7 +49,7 @@ with DAG(
     'eterlotto_ejecucion_lotto_fr',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Loto Francia (FDJ) usando main_lotto_fr.py',
-    schedule='0 3 * * 2,4,0',  # Martes, Jueves y Domingos a las 3:00 AM (tras sorteos de Lunes, Miércoles y Sábados)
+    schedule=None,  # Martes, Jueves y Domingos a las 3:00 AM (tras sorteos de Lunes, Miércoles y Sábados)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'lotto_fr', 'france', 'fdj', 'ml']
