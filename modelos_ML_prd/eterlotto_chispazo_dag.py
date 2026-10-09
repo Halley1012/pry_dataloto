@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_chispazo',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Chispazo dos veces al día',
-    schedule='0 16,22 * * *', # Ejecución dual diaria: 16:00 (tras Chispazo de las Tres) y 22:00 (tras Chispazo Clásico)
+    schedule=None, # Ejecución dual diaria: 16:00 (tras Chispazo de las Tres) y 22:00 (tras Chispazo Clásico)
     start_date=datetime(2025, 1, 1),
     catchup=False,
     tags=['eterlotto', 'chispazo', 'mexico', 'mx', 'ml']

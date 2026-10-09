@@ -45,7 +45,7 @@ with DAG(
     'eterlotto_ejecucion_millionaire_life',
     default_args=default_args,
     description='Ejecuta scraping y predicción de Millionaire for Life usando main_millionaire_life.py',
-    schedule='0 3 * * *', # Diario a las 3:00 AM
+    schedule=None, # Diario a las 3:00 AM
     start_date=datetime(2023, 1, 1),
     catchup=False,
     tags=['eterlotto', 'ml', 'millionaire_life'],
