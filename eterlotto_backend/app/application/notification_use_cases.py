@@ -69,9 +69,14 @@ class NotificationUseCases:
         # Solo detecta placeholders simples del catálogo: {lottery}, {total_hits}, etc.
         return bool(re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", value or ""))
 
-    def _localize_notification(self, item: Dict[str, Any]) -> Dict[str, Any]:
+    def _localize_notification(
+        self,
+        item: Dict[str, Any],
+        locale_override: Optional[str] = None,
+    ) -> Dict[str, Any]:
         result = dict(item)
-        locale = result.pop("usuario_idioma", None)
+        user_locale = result.pop("usuario_idioma", None)
+        locale = locale_override or user_locale
         key = result.get("message_key")
         params = self._params(result.get("message_params"))
         stored_message = str(result.get("mensaje") or "").strip()
@@ -100,10 +105,19 @@ class NotificationUseCases:
 
     async def obtener_notificaciones(
         self,
-        user_id: Optional[int] = None,
+        user_id: int,
+        locale: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         rows = await self.notification_repo.list_notifications(user_id)
-        return [self._localize_notification(row) for row in rows]
+        resolved_locale = (
+            notification_i18n.resolve_locale(locale)
+            if locale
+            else None
+        )
+        return [
+            self._localize_notification(row, resolved_locale)
+            for row in rows
+        ]
 
     async def marcar_como_leida(
         self,

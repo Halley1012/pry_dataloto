@@ -1,10 +1,16 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:eterlotto/models/notification_model.dart';
 import 'package:eterlotto/services/api_service.dart';
 
 class NotificationService {
-  static Future<List<NotificationModel>> getNotifications() async {
-    final response = await ApiService.get("/notifications/");
+  static Future<List<NotificationModel>> getNotifications({
+    required String languageCode,
+  }) async {
+    final lang = Uri.encodeQueryComponent(languageCode);
+    final response = await ApiService.get(
+      "/notifications/?lang=$lang",
+      forceRefresh: true,
+    );
     
     if (response.statusCode == 200) {
       final List<dynamic> data = jsonDecode(response.body);

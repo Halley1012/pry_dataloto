@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:ui';
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:flutter/material.dart';
 import 'package:eterlotto/models/notification_model.dart';
@@ -11,6 +14,7 @@ class NotificationProvider with ChangeNotifier {
   List<NotificationModel> _notifications = [];
   bool _isLoading = false;
   String? _activeUserId;
+  String? _activeLanguageCode;
   bool _userContextInitialized = false;
   bool _hasCachedSnapshot = false;
   bool _showingStaleData = false;
@@ -45,17 +49,34 @@ class NotificationProvider with ChangeNotifier {
     );
   }
 
-  String _cacheKey(String? userId) =>
-      CacheService.notificacionesUsuarioKey(userId);
+  Future<String> _currentLanguageCode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('language_code')?.trim().toLowerCase();
+    final device = PlatformDispatcher.instance.locale.languageCode
+        .trim()
+        .toLowerCase();
+    final candidate = (saved == null || saved.isEmpty) ? device : saved;
+    const supported = {'es', 'en', 'fr', 'pt'};
+    return supported.contains(candidate) ? candidate : 'es';
+  }
+
+  String _cacheKey(String? userId, String languageCode) =>
+      '${CacheService.notificacionesUsuarioKey(userId)}_$languageCode';
 
   /// Las notificaciones contienen estado privado (leída/eliminada), por eso la
   /// caché debe cambiar inmediatamente al cambiar de cuenta en el dispositivo.
   Future<void> _ensureUserContext() async {
     final userId = (await ApiService.getUserId())?.toString();
-    if (_userContextInitialized && _activeUserId == userId) return;
+    final languageCode = await _currentLanguageCode();
+    if (_userContextInitialized &&
+        _activeUserId == userId &&
+        _activeLanguageCode == languageCode) {
+      return;
+    }
 
     _userContextInitialized = true;
     _activeUserId = userId;
+    _activeLanguageCode = languageCode;
     _notifications = [];
     _hasCachedSnapshot = false;
     _showingStaleData = false;
@@ -68,7 +89,7 @@ class NotificationProvider with ChangeNotifier {
     // eventual entrada legacy `anon` aparezca antes del próximo login.
     if (userId == null) return;
     await Future.wait([
-      _loadFromCache(userId),
+      _loadFromCache(userId, languageCode),
       _loadPlayedRoutesFromCache(userId),
     ]);
   }
@@ -144,11 +165,18 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _loadFromCache([String? userId]) async {
+  Future<void> _loadFromCache(
+    String? userId,
+    String languageCode,
+  ) async {
     final cacheUserId = userId ?? _activeUserId;
-    final fresh = await CacheService.getJson(_cacheKey(cacheUserId));
-    final cached =
-        fresh ?? await CacheService.getStaleJson(_cacheKey(cacheUserId));
+    final fresh = await CacheService.getJson(
+      _cacheKey(cacheUserId, languageCode),
+    );
+    final cached = fresh ??
+        await CacheService.getStaleJson(
+          _cacheKey(cacheUserId, languageCode),
+        );
     if (cached is List && await _isCurrentUser(cacheUserId)) {
       try {
         final loaded = cached
@@ -169,9 +197,14 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> _saveCache(String? userId, List<NotificationModel> snapshot) {
-    return CacheService.setJson(
-      _cacheKey(userId),
+  Future<void> _saveCache(
+    String? userId,
+    List<NotificationModel> snapshot,
+  ) async {
+    final languageCode =
+        _activeLanguageCode ?? await _currentLanguageCode();
+    await CacheService.setJson(
+      _cacheKey(userId, languageCode),
       snapshot.map((notification) => notification.toJson()).toList(),
     );
   }
@@ -209,8 +242,15 @@ class NotificationProvider with ChangeNotifier {
     unawaited(_refreshPlayedRoutesForUser(userId));
 
     try {
-      final fresh = await NotificationService.getNotifications();
-      if (!await _isCurrentUser(userId)) return;
+      final languageCode =
+          _activeLanguageCode ?? await _currentLanguageCode();
+      final fresh = await NotificationService.getNotifications(
+        languageCode: languageCode,
+      );
+      if (!await _isCurrentUser(userId) ||
+          _activeLanguageCode != languageCode) {
+        return;
+      }
       _notifications = _withoutDiagnosticNotifications(fresh);
       _hasCachedSnapshot = true;
       _showingStaleData = false;
