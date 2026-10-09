@@ -13,16 +13,16 @@ router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
 @router.get("/")
 async def list_notifications(
-    current_user: Optional[dict] = Depends(dependencies.get_optional_current_user),
+    lang: Optional[str] = None,
+    current_user: dict = Depends(dependencies.get_current_user),
     use_cases: NotificationUseCases = Depends(dependencies.get_notification_use_cases),
 ):
     try:
-        user_id = (
-            int(current_user["user_id"])
-            if current_user and current_user.get("user_id")
-            else None
+        user_id = int(current_user["user_id"])
+        return await use_cases.obtener_notificaciones(
+            user_id,
+            locale=lang,
         )
-        return await use_cases.obtener_notificaciones(user_id)
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(

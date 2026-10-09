@@ -179,7 +179,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
     async def list_notifications(
         self,
         user_id: Optional[int] = None,
-        limit: int = 50,
+        limit: int = 200,
     ) -> List[Dict[str, Any]]:
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
@@ -202,21 +202,7 @@ class PostgresNotificationRepository(NotificationRepositoryPort):
                   AND COALESCE(s.eliminado, FALSE) = FALSE
                   AND (
                     n.usuario_id = $1
-                    OR (
-                      n.usuario_id IS NULL
-                      AND COALESCE(u.notificaciones_activas, TRUE) = TRUE
-                      AND (
-                        n.loteria_id IS NULL
-                        OR l.pais_id = u.pais_id
-                        OR EXISTS (
-                          SELECT 1 FROM jugadas j
-                          WHERE j.user_id = $1
-                            AND j.loteria_id = n.loteria_id
-                            AND n.fecha_sorteo IS NOT NULL
-                            AND COALESCE(j.fecha_sorteo, j.fecha_guardado::date) = n.fecha_sorteo::date
-                        )
-                      )
-                    )
+                    OR n.usuario_id IS NULL
                   )
                 ORDER BY n.created_at DESC LIMIT $2
             """
