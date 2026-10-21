@@ -60,8 +60,8 @@ void main() {
       // Inicializar Notificaciones Push y Firebase en segundo plano
       unawaited(PushNotificationService.initialize());
 
-      // Inicializar Google Mobile Ads en segundo plano
-      unawaited(AdService.instance.initialize());
+      // El consentimiento UMP y la inicialización de anuncios se solicitan
+      // al entrar al Home (sesión autenticada), no durante Splash/Login.
     },
     (error, stackTrace) {
       // Los 401 se resuelven de forma centralizada en ApiService:

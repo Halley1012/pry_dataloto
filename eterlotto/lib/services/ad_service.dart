@@ -15,13 +15,40 @@ class AdService {
 
 
   // ⚙️ Configuración: 'true' para Internal Testing / Desarrollo. Cambiar a 'false' SÓLO al enviar a Producción real.
-  static const bool isTestMode = true;
+  static const bool _forceTestAds = bool.fromEnvironment(
+    'ADS_USE_TEST_IDS',
+    defaultValue: false,
+  );
+
+  // Debug siempre usa IDs oficiales de prueba.
+  // Release usa AdMob real salvo que se compile con:
+  // --dart-define=ADS_USE_TEST_IDS=true
+  static bool get isTestMode => kDebugMode || _forceTestAds;
+
+  // 🛡️ Simulación GDPR europea ÚNICAMENTE para compilaciones de prueba.
+  // No se habilita en un release normal, aunque alguien configure UMP_DEBUG_EEA.
+  // El hash UMP no es el identificador de ADB ni el ID de prueba de AdMob.
+  static const bool _umpDebugEea = bool.fromEnvironment(
+    'UMP_DEBUG_EEA',
+    defaultValue: false,
+  );
+  static const String _umpTestDeviceId = String.fromEnvironment(
+    'UMP_TEST_DEVICE_ID',
+    defaultValue: '',
+  );
+  static const bool _umpResetConsent = bool.fromEnvironment(
+    'UMP_RESET_CONSENT',
+    defaultValue: false,
+  );
+
+  static bool get _isUmpEeaTestEnabled =>
+      isTestMode && _umpDebugEea && _umpTestDeviceId.trim().isNotEmpty;
 
   // 🔹 IDs de Producción (Reemplazar cuando crees los bloques en Google AdMob)
-  static const String _prodAndroidBannerId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
-  static const String _prodAndroidInterstitialId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
-  static const String _prodAndroidRewardedId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
-  static const String _prodAndroidAppOpenId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
+  static const String _prodAndroidBannerId = 'ca-app-pub-9637733995937134/9568888277';
+  static const String _prodAndroidInterstitialId = 'ca-app-pub-9637733995937134/1039661568';
+  static const String _prodAndroidRewardedId = 'ca-app-pub-9637733995937134/4124989907';
+  static const String _prodAndroidAppOpenId = 'ca-app-pub-9637733995937134/6920517519';
   static const String _prodIosBannerId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodIosInterstitialId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
   static const String _prodIosRewardedId = 'ca-app-pub-XXXXXXXXXXXXXXXX/XXXXXXXXXX';
@@ -71,7 +98,75 @@ class AdService {
   }
 
   bool _isInitialized = false;
+  bool _canRequestAds = false;
+  // La solicitud de consentimiento ocurre una sola vez por ejecución,
+  // incluso si el Home se vuelve a crear tras navegar o iniciar sesión.
+  Future<void>? _initializationFuture;
   bool get isInitialized => _isInitialized;
+  bool get canRequestAds => _isInitialized && _canRequestAds;
+
+  // El Banner escucha este notifier para cargarse sólo cuando UMP ya permite
+  // solicitar anuncios.
+  final ValueNotifier<int> adsReadyRevision = ValueNotifier<int>(0);
+
+  Future<bool> _requestConsentAndCheckAdsPermission() async {
+    final completer = Completer<void>();
+
+    // En pruebas: simula EEE sólo en un dispositivo registrado en UMP.
+    // UMP decide el idioma de su formulario según el idioma del DISPOSITIVO;
+    // los textos de Eterlotto mantienen AppLocalizations (ES/EN/FR/PT).
+    // En producción se conserva ConsentRequestParameters sin depuración.
+    if (_isUmpEeaTestEnabled && _umpResetConsent) {
+      // Simula una primera apertura; jamás se ejecuta en un release normal.
+      await ConsentInformation.instance.reset();
+    }
+
+    final params = ConsentRequestParameters(
+      consentDebugSettings: _isUmpEeaTestEnabled
+          ? ConsentDebugSettings(
+              debugGeography: DebugGeography.debugGeographyEea,
+              testIdentifiers: <String>[_umpTestDeviceId.trim()],
+            )
+          : null,
+    );
+
+    ConsentInformation.instance.requestConsentInfoUpdate(
+      params,
+      () {
+        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+          if (!completer.isCompleted) {
+            completer.complete();
+          }
+        });
+      },
+      (formError) {
+        // Si falla la actualización, UMP puede conservar una decisión válida
+        // de una sesión anterior. canRequestAds() resolverá el estado final.
+        if (!completer.isCompleted) {
+          completer.complete();
+        }
+      },
+    );
+
+    await completer.future;
+    return ConsentInformation.instance.canRequestAds();
+  }
+
+  Future<bool> isPrivacyOptionsRequired() async {
+    final status = await ConsentInformation.instance
+        .getPrivacyOptionsRequirementStatus();
+    return status == PrivacyOptionsRequirementStatus.required;
+  }
+
+  Future<void> showPrivacyOptionsForm() async {
+    final completer = Completer<void>();
+    ConsentForm.showPrivacyOptionsForm((formError) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    });
+    await completer.future;
+  }
 
   // ==========================================
   // 🎁 PASE DE RECOMPENSA GLOBAL
@@ -166,6 +261,7 @@ class AdService {
 
     _rewardPassExpiryTimer?.cancel();
     _rewardPassExpiryTimer = null;
+    _featureAccessUntil.clear();
     _rewardUserId = normalized;
     _rewardBankMinutes = 0;
     _rewardEarnedTodayMinutes = 0;
@@ -222,6 +318,20 @@ class AdService {
       } else {
         await prefs.remove(_rewardActiveUntilKey(normalized));
       }
+    }
+
+    // Recuperar desbloqueos de funciones no vencidos para este usuario.
+    // No alterar el tiempo de su pase global ni el saldo acumulado.
+    final prefix = _featureAccessStoragePrefix(normalized);
+    for (final key in prefs.getKeys().where((key) => key.startsWith(prefix))) {
+      final expiryMs = prefs.getInt(key);
+      if (expiryMs == null ||
+          expiryMs <= DateTime.now().millisecondsSinceEpoch) {
+        await prefs.remove(key);
+        continue;
+      }
+      _featureAccessUntil[key.substring(prefix.length)] =
+          DateTime.fromMillisecondsSinceEpoch(expiryMs);
     }
 
     _notifyRewardPassChanged();
@@ -356,22 +466,43 @@ class AdService {
   bool _isAppOpenLoading = false;
   DateTime? _appOpenLoadedAt;
 
-  /// Inicializar el SDK de Mobile Ads
-  Future<void> initialize() async {
+  /// Inicializa privacidad + Google Mobile Ads una vez por ejecución.
+  /// Nunca solicita anuncios antes de que UMP lo permita.
+  Future<void> initialize() {
+    return _initializationFuture ??= _initializeOnce();
+  }
+
+  Future<void> _initializeOnce() async {
     _sessionStartTime = DateTime.now();
     _sessionInterstitialShownCount = 0;
     _actionCounter = 0;
     _lastInterstitialShownAt = null;
 
-    if (_isInitialized) return;
+    if (_isInitialized && _canRequestAds) return;
+
     try {
-      await MobileAds.instance.initialize();
-      _isInitialized = true;
-      // Precargar anuncios
+      _canRequestAds = await _requestConsentAndCheckAdsPermission();
+
+      if (!_canRequestAds) {
+        adsReadyRevision.value++;
+        return;
+      }
+
+      if (!_isInitialized) {
+        await MobileAds.instance.initialize();
+        _isInitialized = true;
+      }
+
+      adsReadyRevision.value++;
+
+      // Precargar anuncios sólo cuando ya se pueden solicitar.
       loadInterstitialAd();
       loadRewardedAd();
       loadAppOpenAd();
-    } catch (_) {}
+    } catch (_) {
+      _canRequestAds = false;
+      adsReadyRevision.value++;
+    }
   }
 
   // ==========================================
@@ -457,7 +588,7 @@ class AdService {
   }
 
   void loadAppOpenAd() {
-    if (!_isInitialized || _appOpenAd != null || _isAppOpenLoading) return;
+    if (!canRequestAds || _appOpenAd != null || _isAppOpenLoading) return;
     _isAppOpenLoading = true;
 
     AppOpenAd.load(
@@ -541,6 +672,7 @@ class AdService {
 
   /// Precargar anuncio intersticial en segundo plano
   void loadInterstitialAd() {
+    if (!canRequestAds) return;
     if (_interstitialAd != null || _isInterstitialLoading) return;
     _isInterstitialLoading = true;
 
@@ -683,29 +815,48 @@ class AdService {
   // 🎁 ANUNCIOS RECOMPENSADOS (REWARDED ADS)
   // ==========================================
 
-  // Registro de funciones desbloqueadas temporalmente en la sesión (ej. 2 horas o toda la sesión)
-  final Map<String, DateTime> _unlockedFeatures = {};
+  // Cada vídeo suma cinco minutos al banco. Una acción protegida también
+  // obtiene cinco minutos para esa función, sin activar el pase global.
+  bool _rewardedGateDialogOpen = false;
 
-  /// Verifica si una función está actualmente desbloqueada por recompensa
+  // El vídeo de una función NO activa el pase global: suma saldo y habilita
+  // únicamente esa función durante 5 minutos. Esto evita exigir otro vídeo
+  // nada más regresar a la misma pantalla, sin regalar dos horas de acceso.
+  static const Duration _featureAccessDuration = Duration(minutes: 5);
+  final Map<String, DateTime> _featureAccessUntil = <String, DateTime>{};
+
+  String _featureAccessStoragePrefix(String userId) =>
+      'reward_feature_until_v1_${userId}_';
+
   bool isFeatureUnlocked(String featureKey) {
     if (isRewardPassActive) return true;
-
-    final expiresAt = _unlockedFeatures[featureKey];
-    if (expiresAt == null) return false;
-    if (DateTime.now().isAfter(expiresAt)) {
-      _unlockedFeatures.remove(featureKey);
-      return false;
-    }
-    return true;
+    final until = _featureAccessUntil[featureKey];
+    if (until == null) return false;
+    if (DateTime.now().isBefore(until)) return true;
+    _featureAccessUntil.remove(featureKey);
+    return false;
   }
 
-  /// Desbloquea una función por una duración determinada (por defecto 2 horas)
-  void unlockFeature(String featureKey, {Duration duration = const Duration(hours: 2)}) {
-    _unlockedFeatures[featureKey] = DateTime.now().add(duration);
+  Future<void> _grantFeatureAccess(String? featureKey) async {
+    final userId = _rewardUserId;
+    if (featureKey == null || featureKey.isEmpty ||
+        userId == null || userId.isEmpty) return;
+    final until = DateTime.now().add(_featureAccessDuration);
+    _featureAccessUntil[featureKey] = until;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(
+        '${_featureAccessStoragePrefix(userId)}$featureKey',
+        until.millisecondsSinceEpoch,
+      );
+    } catch (error) {
+      debugPrint('[ADS] No se pudo conservar el acceso a la función: $error');
+    }
   }
 
   /// Precargar anuncio recompensado en segundo plano
   void loadRewardedAd() {
+    if (!canRequestAds) return;
     if (_rewardedAd != null || _isRewardedLoading) return;
     _isRewardedLoading = true;
 
@@ -732,19 +883,39 @@ class AdService {
     required String featureTitle,
     required String featureActionDescription,
     String? featureKey,
-    Duration unlockDuration = const Duration(hours: 2),
     required VoidCallback onRewardGranted,
   }) async {
-    // VIP y Pase de recompensa activo acceden sin ver otro anuncio.
-    if (isPremium ||
-        isRewardPassActive ||
+    // El pase global desbloquea todas las funciones; el vídeo de esta
+    // función permite volver a ella durante cinco minutos sin otro anuncio.
+    if (isPremium || isRewardPassActive ||
         (featureKey != null && isFeatureUnlocked(featureKey))) {
-      onRewardGranted();
+      if (context.mounted) onRewardGranted();
       return;
     }
 
+    // Sin usuario identificado no se puede guardar el tiempo. Evitamos que
+    // vea y complete un vídeo sin poder recibir su recompensa.
+    if (_rewardUserId == null || _rewardUserId!.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.iniciaSesionParaContinuar),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Evitar diálogos duplicados al pulsar varias veces el mismo botón.
+    if (!context.mounted || _rewardedGateDialogOpen || _isFullScreenAdShowing) {
+      return;
+    }
+    _rewardedGateDialogOpen = true;
+
     // Mostrar diálogo explicativo al usuario
-    final bool? proceed = await showDialog<bool>(
+    bool? proceed;
+    try {
+      proceed = await showDialog<bool>(
       context: context,
       builder: (ctx) {
         final l10n = AppLocalizations.of(ctx);
@@ -886,35 +1057,75 @@ class AdService {
           ],
         );
       },
-    );
+      );
+    } finally {
+      _rewardedGateDialogOpen = false;
+    }
 
-    if (proceed != true) return;
+    if (!context.mounted || proceed != true) return;
+
+    // Otra operación pudo haber activado el pase mientras el diálogo estaba abierto.
+    if (isRewardPassActive) {
+      onRewardGranted();
+      return;
+    }
+
+    if (rewardRemainingTodayMinutes <= 0) {
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!
+                .rewardDailyLimitReached(maxRewardMinutesPerDay),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Rewarded se muestra por decisión explícita del usuario: no aplicar
+    // el cooldown de anuncios automáticos (Interstitial/App Open).
+    if (_isFullScreenAdShowing) return;
 
     // Ejecutar el anuncio recompensado
     if (_rewardedAd != null) {
-      if (!_canShowAnotherFullScreenAd()) {
-        return;
-      }
       bool userEarnedReward = false;
+      final ad = _rewardedAd!;
+      _rewardedAd = null;
+      _isFullScreenAdShowing = true;
 
-      _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+      ad.fullScreenContentCallback = FullScreenContentCallback(
         onAdShowedFullScreenContent: (_) {
           _isFullScreenAdShowing = true;
         },
         onAdDismissedFullScreenContent: (ad) async {
           ad.dispose();
-          _rewardedAd = null;
           _markFullScreenClosed();
           loadRewardedAd();
           if (userEarnedReward) {
+            // Sumar el tiempo al banco sin activar el pase global.
+            // Además esta misma función queda disponible por cinco minutos.
             final added = await addRewardMinutes();
-            onRewardGranted();
-
-            if (context.mounted && added > 0) {
-              final total = rewardBankMinutes;
-              final message = AppLocalizations.of(context)!.rewardAddedBank(added, total);
+            if (added > 0) await _grantFeatureAccess(featureKey);
+            if (!context.mounted) return;
+            if (added > 0) {
+              onRewardGranted();
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(content: Text(message)),
+                SnackBar(
+                  content: Text(
+                    AppLocalizations.of(context)!.rewardAddedBank(
+                      added, rewardBankMinutes,
+                    ),
+                  ),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                SnackBar(
+                  content: Text(
+                    AppLocalizations.of(context)!
+                        .rewardDailyLimitReached(maxRewardMinutesPerDay),
+                  ),
+                ),
               );
             }
           } else if (context.mounted) {
@@ -926,7 +1137,6 @@ class AdService {
         },
         onAdFailedToShowFullScreenContent: (ad, _) {
           ad.dispose();
-          _rewardedAd = null;
           _markFullScreenClosed();
           loadRewardedAd();
           if (context.mounted) {
@@ -938,7 +1148,7 @@ class AdService {
         },
       );
 
-      _rewardedAd!.show(
+      ad.show(
         onUserEarnedReward: (_, __) {
           userEarnedReward = true;
         },
@@ -961,7 +1171,18 @@ class AdService {
   Future<void> showRewardedForPass({
     required BuildContext context,
   }) async {
-    if (isRewardPassActive) return;
+    // Desde el regalo sí se puede acumular tiempo incluso con un pase activo.
+    // Ese saldo queda guardado para activarlo cuando venza el pase actual.
+    if (_rewardUserId == null || _rewardUserId!.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.iniciaSesionParaContinuar),
+          ),
+        );
+      }
+      return;
+    }
 
     if (isRewardBankFull) {
       if (context.mounted) {
@@ -990,9 +1211,12 @@ class AdService {
       return;
     }
 
-    if (!_canShowAnotherFullScreenAd()) return;
+    // Los vídeos solicitados voluntariamente no tienen el cooldown de
+    // Interstitial/App Open; sólo se impide solapar dos pantallas completas.
+    if (_isFullScreenAdShowing) return;
 
     bool userEarnedReward = false;
+    _isFullScreenAdShowing = true;
     _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (_) {
         _isFullScreenAdShowing = true;
@@ -1060,5 +1284,6 @@ class AdService {
     _appOpenAd = null;
     _appOpenLoadedAt = null;
     _currentOnClosedCallback = null;
+    _rewardedGateDialogOpen = false;
   }
 }

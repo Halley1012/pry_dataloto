@@ -14,10 +14,10 @@
         android:allowBackup="false"
         android:fullBackupContent="false">
 
-        <!-- Google AdMob App ID de prueba. Sustituir por el ID real en PRD. -->
+        <!-- Google AdMob App ID de producción -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="ca-app-pub-9637733995937134~5741323909"/>
 
         <!-- Canal de notificaciones FCM por defecto -->
         <meta-data

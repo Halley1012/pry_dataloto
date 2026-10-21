@@ -1206,5 +1206,7 @@
   "profileDeleteFailed": "Impossible de supprimer le compte. Veuillez réessayer.",
   "@profileDeleteFailed": {
     "description": "Error genérico al fallar la eliminación de la cuenta."
-  }
+  },
+  "privacyOptions": "Options de confidentialité",
+  "privacyOptionsError": "Impossible d’ouvrir les options de confidentialité. Veuillez réessayer."
 }
