@@ -38,6 +38,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   void initState() {
     super.initState();
     AdService.instance.rewardPassRevision.addListener(_onRewardPassChanged);
+    AdService.instance.adsReadyRevision.addListener(_onAdsReadyChanged);
   }
 
   void _onRewardPassChanged() {
@@ -51,6 +52,16 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
     setState(() {});
     _scheduleBannerLoad();
+  }
+
+  void _onAdsReadyChanged() {
+    if (!mounted) return;
+    if (AdService.instance.canRequestAds) {
+      _scheduleBannerLoad();
+    } else {
+      _disposeBanner();
+    }
+    setState(() {});
   }
 
   @override
@@ -74,7 +85,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _scheduleBannerLoad() {
-    if (BannerAdWidget.hideBanner) return;
+    if (BannerAdWidget.hideBanner || !AdService.instance.canRequestAds) return;
     if (_bannerAd != null || _isAdLoaded) return;
 
     final sessionElapsed = AdService.instance.sessionDuration;
@@ -97,7 +108,11 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   }
 
   void _loadBanner() {
-    if (_bannerAd != null || !mounted) return;
+    if (_bannerAd != null ||
+        !mounted ||
+        !AdService.instance.canRequestAds) {
+      return;
+    }
 
     final subscriptionProvider = context.read<SubscriptionProvider>();
     if (!subscriptionProvider.isSubscriptionStatusResolved ||
@@ -144,6 +159,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void dispose() {
     AdService.instance.rewardPassRevision.removeListener(_onRewardPassChanged);
+    AdService.instance.adsReadyRevision.removeListener(_onAdsReadyChanged);
     _disposeBanner();
     super.dispose();
   }

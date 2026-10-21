@@ -2104,4 +2104,11 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get profileDeleteFailed =>
       'Não foi possível excluir a conta. Tente novamente.';
+
+  @override
+  String get privacyOptions => 'Opções de privacidade';
+
+  @override
+  String get privacyOptionsError =>
+      'Não foi possível abrir as opções de privacidade. Tente novamente.';
 }

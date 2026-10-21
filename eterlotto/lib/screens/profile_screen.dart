@@ -590,6 +590,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _showConfigMenu() async {
     final l10n = AppLocalizations.of(context)!;
 
+    bool showPrivacyOptions = false;
+    try {
+      showPrivacyOptions = await AdService.instance.isPrivacyOptionsRequired();
+    } catch (_) {
+      showPrivacyOptions = false;
+    }
+    if (!mounted) return;
+
     // Primero cerramos el bottom sheet. Nunca abrimos un segundo modal
     // usando el BuildContext de una ruta que acabamos de cerrar.
     final action = await showModalBottomSheet<String>(
@@ -610,6 +618,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             onTap: () => Navigator.of(sheetContext).pop('language'),
           ),
+          if (showPrivacyOptions)
+            ListTile(
+              leading: const Icon(Icons.privacy_tip_outlined, color: Colors.amber),
+              title: Text(
+                l10n.privacyOptions,
+                style: const TextStyle(color: Colors.white),
+              ),
+              onTap: () => Navigator.of(sheetContext).pop('privacy'),
+            ),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
             title: Text(
@@ -627,6 +644,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     switch (action) {
       case 'language':
         _showLanguageDialog(context);
+        break;
+      case 'privacy':
+        try {
+          await AdService.instance.showPrivacyOptionsForm();
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(l10n.privacyOptionsError)),
+          );
+        }
         break;
       case 'delete':
         await _eliminarCuenta(context);

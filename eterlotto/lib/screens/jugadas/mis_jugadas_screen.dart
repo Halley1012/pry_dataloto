@@ -453,6 +453,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     await AdService.instance.showRewardedFeatureGate(
       context: context,
       isPremium: isPremium,
+      featureKey: "mis_jugadas_share_whatsapp",
       featureTitle: "Compartir por WhatsApp",
       featureActionDescription:
           "Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.",
@@ -523,6 +524,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
     await AdService.instance.showRewardedFeatureGate(
       context: context,
       isPremium: isPremium,
+      featureKey: "mis_jugadas_export_pdf",
       featureTitle: "Exportar Tiquete en PDF",
       featureActionDescription:
           "Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.",
@@ -1676,6 +1678,7 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
                           await AdService.instance.showRewardedFeatureGate(
                             context: context,
                             isPremium: isPremium,
+                            featureKey: "mis_jugadas_comparar_estadisticas",
                             featureTitle: l10n.compararEstadisticasTitulo,
                             featureActionDescription:
                                 l10n.compararEstadisticasVideoDescripcion,

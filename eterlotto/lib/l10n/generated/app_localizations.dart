@@ -3760,6 +3760,18 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'No se pudo eliminar la cuenta. Inténtalo nuevamente.'**
   String get profileDeleteFailed;
+
+  /// No description provided for @privacyOptions.
+  ///
+  /// In es, this message translates to:
+  /// **'Opciones de privacidad'**
+  String get privacyOptions;
+
+  /// No description provided for @privacyOptionsError.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudieron abrir las opciones de privacidad. Inténtalo nuevamente.'**
+  String get privacyOptionsError;
 }
 
 class _AppLocalizationsDelegate

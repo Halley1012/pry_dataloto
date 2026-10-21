@@ -2127,4 +2127,11 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get profileDeleteFailed =>
       'Impossible de supprimer le compte. Veuillez réessayer.';
+
+  @override
+  String get privacyOptions => 'Options de confidentialité';
+
+  @override
+  String get privacyOptionsError =>
+      'Impossible d’ouvrir les options de confidentialité. Veuillez réessayer.';
 }
