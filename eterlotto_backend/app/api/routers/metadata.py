@@ -2,12 +2,21 @@ from app.core import config
 from fastapi import APIRouter, Depends, Header, HTTPException
 from typing import List, Optional
 import secrets
+import logging
+from threading import Lock
 import re
 from app.api import schemas, dependencies
 from app.application.publicidad_use_cases import PublicidadUseCases
 from app.core.cache import memory_cache, invalidate_cache, get_data_version, bump_data_version
 
 router = APIRouter()
+
+# Un solo catálogo compartido para /loterias y /loterias?pais_id=...
+# Protege los misses de caché de accesos simultáneos (singleflight por worker).
+_LOTERIAS_CACHE_KEY = 'metadata:loterias:all:v3'
+_loterias_refresh_lock = Lock()
+_loterias_last_good = None
+
 
 @router.get("/categorias")
 def listar_categorias(
@@ -106,43 +115,45 @@ def listar_ciudades(departamento_id: Optional[int] = None, use_cases: Publicidad
 def listar_loterias(
     pais_id: Optional[int] = None,
     force_refresh: bool = False,
-    use_cases: PublicidadUseCases = Depends(
-        dependencies.get_publicidad_use_cases
-        ),
-    ):
-    cache_key = f"metadata:loterias:{pais_id or 'all'}"
+    use_cases: PublicidadUseCases = Depends(dependencies.get_publicidad_use_cases),
+):
+    """Catálogo seguro frente a reintentos masivos del Home.
 
-    # Navegación normal:
-    # usar caché backend si todavía está disponible.
-    #
-    # Pull-to-refresh:
-    # force_refresh=True ignora la caché y consulta nuevamente la BD.
-    if not force_refresh:
-        cached = memory_cache.get(cache_key)
-        if cached is not None:
-            return cached
+    `force_refresh` se conserva por compatibilidad con Flutter, pero desde una
+    llamada pública NO evita la caché ni dispara consultas duplicadas.
+    Airflow actualiza los datos mediante /internal/cache/invalidate autenticado.
+    """
+    global _loterias_last_good
 
-    try:
-        res = use_cases.listar_loterias(pais_id)
+    # Se construye siempre el catálogo completo; el filtrado por país se hace
+    # en memoria. Dos solicitudes paralelas del Home comparten la misma carga.
+    all_loterias = memory_cache.get(_LOTERIAS_CACHE_KEY)
+    if all_loterias is None:
+        with _loterias_refresh_lock:
+            all_loterias = memory_cache.get(_LOTERIAS_CACHE_KEY)
+            if all_loterias is None:
+                try:
+                    # Capturar la versión evita dar por fresca una reconstrucción
+                    # cuya fuente fue invalidada durante la consulta.
+                    version_at_start = get_data_version()
+                    all_loterias = use_cases.listar_loterias(None)
+                    if all_loterias is not None:
+                        if get_data_version() == version_at_start:
+                            memory_cache.set(_LOTERIAS_CACHE_KEY, all_loterias, ttl=300)
+                        _loterias_last_good = all_loterias
+                except Exception:
+                    logging.exception('Error reconstruyendo el catálogo de loterías')
+                    if _loterias_last_good is not None:
+                        logging.warning('Sirviendo último catálogo válido por fallo temporal de BD')
+                        all_loterias = _loterias_last_good
+                    else:
+                        raise HTTPException(
+                            status_code=500, detail='Error interno del servidor'
+                        )
 
-        # Tanto una consulta normal como un force_refresh exitoso
-        # reemplazan la caché con los datos más recientes de la BD.
-        if res is not None:
-            memory_cache.set(cache_key, res, ttl=300)
-
-        return res
-
-    except Exception as e:
-        import logging
-
-        logging.error(
-            f"Error listando loterías "
-            f"(pais_id={pais_id}, force_refresh={force_refresh}): {e}"
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="Error interno del servidor",
-        )
+    if pais_id is None:
+        return all_loterias
+    return [lot for lot in all_loterias if lot.get('pais_id') == pais_id]
 
 
 @router.get("/metadata/data-version")
@@ -173,8 +184,10 @@ def invalidate_dynamic_cache(
     # poco frecuentes. Limpiar la caché RAM completa aquí evita
     # inconsistencias entre catálogo, imágenes de país, resultados,
     # predicciones y jackpot; se vuelve a poblar de forma natural.
-    invalidate_cache()
+    # Publicar primero la nueva versión: evita carreras con lectores que
+    # estén reconstruyendo el catálogo mientras llega la invalidación.
     version = bump_data_version()
+    invalidate_cache()
     return {
         "success": True,
         "version": version,

@@ -1207,5 +1207,7 @@
   "profileDeleteFailed": "The account could not be deleted. Please try again.",
   "@profileDeleteFailed": {
     "description": "Error genérico al fallar la eliminación de la cuenta."
-  }
+  },
+  "privacyOptions": "Privacy options",
+  "privacyOptionsError": "Privacy options could not be opened. Please try again."
 }

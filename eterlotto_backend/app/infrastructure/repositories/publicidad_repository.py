@@ -2,6 +2,7 @@ import logging
 import re
 import psycopg2
 import psycopg2.extras
+from psycopg2 import sql as pg_sql
 from typing import List, Optional, Tuple, Dict, Any
 from app.domain.ports import PublicidadRepositoryPort
 from app.infrastructure import db_connection
@@ -587,142 +588,225 @@ class PostgresPublicidadRepository(PublicidadRepositoryPort):
         return self.list_loterias_by_pais(None)
 
     def list_loterias_by_pais(self, pais_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Catálogo sin consultas SQL por lotería (evita el patrón N+1).
+
+        El cálculo de las fechas conserva la selección anterior de tablas:
+        route/nombre y sus sufijos numéricos, ordenadas por fecha máxima.
+        Las lecturas de tablas de resultados se agrupan en un solo UNION ALL.
+        """
         with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-                sql = """
+                query = """
                     SELECT id, nombre, tipo, pais_id, route,
                            max_seleccion, max_balotas_blancas, max_balotas_rojas,
                            superbalota_nombre, has_revancha, total_balotas_sorteo,
                            tiene_complementario, tiene_reintegro, top_probables_count
                     FROM loterias
-                    WHERE activa = true
+                    WHERE activa = TRUE
                 """
                 params = []
                 if pais_id is not None:
-                    sql += " AND pais_id = %s"
+                    query += " AND pais_id = %s"
                     params.append(pais_id)
-                sql += " ORDER BY nombre"
-                cur.execute(sql, tuple(params))
+                query += " ORDER BY nombre"
+                cur.execute(query, tuple(params))
                 loterias = cur.fetchall()
+                if not loterias:
+                    return loterias
 
-                # ⚡ 1. Precargar todas las tablas de resultados existentes en 1 sola consulta
-                existing_tables = set()
+                # Una consulta al esquema, no una consulta por cada tabla/lotería.
+                # Conservamos ordinal_position para priorizar numero o la primera balota.
+                table_columns: Dict[str, List[Tuple[str, str]]] = {}
                 try:
                     cur.execute("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_schema = 'public' AND table_name LIKE 'resultados_%';
+                        SELECT table_name, column_name, data_type
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND LEFT(table_name, 11) = 'resultados_'
+                        ORDER BY table_name, ordinal_position
                     """)
-                    for t_row in cur.fetchall():
-                        t_name = t_row['table_name'] if isinstance(t_row, dict) else t_row[0]
-                        if t_name:
-                            existing_tables.add(t_name.lower())
-                except Exception as et:
-                    try:
-                        conn.rollback()
-                    except Exception as e:
-                        logging.getLogger(__name__).error(f'Error capturado: {e}')
-                        pass
-                    logger.debug(f"Error precargando tablas de resultados: {et}")
-
-                # ⚡ 2. Precargar los jackpots más recientes en 1 sola consulta
-                jackpot_map = {}
-                try:
-                    cur.execute("""
-                        SELECT DISTINCT ON (LOWER(TRIM(loteria))) LOWER(TRIM(loteria)) AS lot, jackpot
-                        FROM loterias_jackpots
-                        ORDER BY LOWER(TRIM(loteria)), fecha DESC;
-                    """)
-                    for j_row in cur.fetchall():
-                        lot_k = j_row['lot'] if isinstance(j_row, dict) else j_row[0]
-                        j_val = j_row['jackpot'] if isinstance(j_row, dict) else j_row[1]
-                        if lot_k and j_val:
-                            s_val = str(j_val)
-                            jackpot_map[lot_k] = s_val
-                            jackpot_map[lot_k.replace('_', ' ')] = s_val
-                            jackpot_map[lot_k.replace(' ', '_')] = s_val
-                except Exception as ej:
-                    try:
-                        conn.rollback()
-                    except Exception as e:
-                        logging.getLogger(__name__).error(f'Error capturado: {e}')
-                        pass
-                    logger.debug(f"Error precargando jackpots: {ej}")
-
-                # ⚡ 3. Enriquecer cada lotería desde el catálogo y el esquema real,
-                # sin condiciones por nombre de juego.
-                for lot in loterias:
-                    route = self._normalize_identity(lot.get("route"))
-                    nombre = str(lot.get("nombre") or "").strip()
-
-                    if route:
-                        tabla = self._resolve_result_table(
-                            cur, existing_tables, route, nombre
+                    for item in cur.fetchall():
+                        table_columns.setdefault(item['table_name'], []).append(
+                            (item['column_name'].lower(), item['data_type'].lower())
                         )
-                        if tabla:
-                            try:
-                                proximo, ultimo = self._get_result_dates(cur, tabla)
-                                if proximo:
-                                    lot["proximo_sorteo"] = proximo
-                                if ultimo:
-                                    lot["ultimo_sorteo"] = ultimo
-                            except Exception as exc:
-                                logger.debug(
-                                    "No se pudieron resolver fechas para %s (%s): %s",
-                                    route,
-                                    tabla,
-                                    exc,
-                                )
-                                try:
-                                    conn.rollback()
-                                except Exception:
-                                    pass
+                except Exception:
+                    conn.rollback()
+                    logger.exception('No se pudo leer esquema de tablas resultados')
 
-                    # Fallback genérico a la tabla global de predicciones.
-                    if not lot.get("proximo_sorteo") and route:
-                        aliases = {
-                            route,
-                            self._normalize_identity(nombre),
-                        }
-                        aliases.discard("")
-                        if aliases:
+                # Solo se consultan tablas candidatas realmente utilizadas.
+                candidate_tables: set[str] = set()
+                lots_with_candidates = []
+                for lot in loterias:
+                    route = self._normalize_identity(lot.get('route'))
+                    nombre = self._normalize_identity(lot.get('nombre'))
+                    aliases = {route, nombre} - {''}
+                    bases = [f'resultados_{alias}' for alias in aliases]
+                    # La implementación original solo buscaba resultados si
+                    # la lotería tenía una route válida.
+                    matches = [
+                        table for table in table_columns
+                        if route and any(
+                            table == base or re.fullmatch(re.escape(base) + r'\d+', table)
+                            for base in bases
+                        )
+                    ]
+                    lots_with_candidates.append((lot, route, nombre, matches))
+                    candidate_tables.update(matches)
+
+                # MAX(fecha) determina la tabla de mayor vigencia, mientras que
+                # numero/balota identifica sorteos futuros (0) y realizados (>0).
+                # pg_sql.Identifier impide interpolación insegura de identificadores.
+                result_dates: Dict[str, Tuple[Any, Optional[str], Optional[str]]] = {}
+                numeric_types = {
+                    'smallint', 'integer', 'bigint', 'numeric', 'decimal',
+                    'real', 'double precision',
+                }
+                parts = []
+                for table in sorted(candidate_tables):
+                    columns = dict(table_columns[table])
+                    if 'fecha' not in columns:
+                        continue
+                    main_cols = sorted(
+                        (column for column in columns
+                         if re.fullmatch(r'balota\d+', column)),
+                        key=lambda column: int(column.replace('balota', '')),
+                    )
+                    marker = (
+                        'numero' if 'numero' in columns
+                        else (main_cols[0] if main_cols else None)
+                    )
+                    # Si el marcador no es numérico, no es posible calcular
+                    # las fechas filtradas (igual que en la versión anterior).
+                    if marker is not None and columns.get(marker) in numeric_types:
+                        next_expr = pg_sql.SQL(
+                            '(MAX({fecha}) FILTER (WHERE {marker} = 0))::text'
+                        ).format(fecha=pg_sql.Identifier('fecha'), marker=pg_sql.Identifier(marker))
+                        last_expr = pg_sql.SQL(
+                            '(MAX({fecha}) FILTER (WHERE {marker} > 0))::text'
+                        ).format(fecha=pg_sql.Identifier('fecha'), marker=pg_sql.Identifier(marker))
+                    else:
+                        next_expr = pg_sql.SQL('NULL')
+                        last_expr = pg_sql.SQL('NULL')
+                    parts.append(pg_sql.SQL("""
+                        SELECT {name} AS table_name,
+                               MAX({fecha})::text AS max_fecha,
+                               {next} AS proximo_sorteo,
+                               {last} AS ultimo_sorteo
+                        FROM {table}
+                    """).format(
+                        name=pg_sql.Literal(table),
+                        fecha=pg_sql.Identifier('fecha'),
+                        next=next_expr,
+                        last=last_expr,
+                        table=pg_sql.Identifier('public', table),
+                    ))
+
+                if parts:
+                    try:
+                        cur.execute(pg_sql.SQL(' UNION ALL ').join(parts))
+                        for item in cur.fetchall():
+                            proximo = item['proximo_sorteo']
+                            ultimo = item['ultimo_sorteo']
+                            result_dates[item['table_name']] = (
+                                item['max_fecha'],
+                                str(proximo) if proximo else None,
+                                str(ultimo) if ultimo else None,
+                            )
+                    except Exception:
+                        # No permitir que una tabla irregular rompa todo el catálogo.
+                        # La ruta de respaldo mantiene las reglas anteriores.
+                        conn.rollback()
+                        logger.exception('Fallo en consulta agrupada de fechas de resultados')
+                        for table in sorted(candidate_tables):
                             try:
                                 cur.execute(
-                                    """
-                                    SELECT MAX(fecha) AS p_fecha
-                                    FROM predicciones
-                                    WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
-                                    """,
-                                    (sorted(aliases),),
-                                )
-                                p_res = cur.fetchone()
-                                if p_res:
-                                    p_fecha = (
-                                        p_res.get("p_fecha")
-                                        if isinstance(p_res, dict)
-                                        else p_res[0]
+                                    pg_sql.SQL('SELECT MAX(fecha) AS max_fecha FROM {}').format(
+                                        pg_sql.Identifier('public', table)
                                     )
-                                    if p_fecha:
-                                        lot["proximo_sorteo"] = str(p_fecha)
-                            except Exception as exc:
-                                logger.debug(
-                                    "No se pudo resolver próximo sorteo desde predicciones para %s: %s",
-                                    route,
-                                    exc,
                                 )
-                                try:
-                                    conn.rollback()
-                                except Exception:
-                                    pass
+                                max_date = cur.fetchone()['max_fecha']
+                                proximo, ultimo = self._get_result_dates(cur, table)
+                                result_dates[table] = (max_date, proximo, ultimo)
+                            except Exception:
+                                conn.rollback()
+                                logger.warning('Sin fechas legibles en %s', table)
 
-                    # Jackpot por route o nombre normalizados; el catálogo decide la identidad.
-                    nombre_norm = self._normalize_identity(nombre)
-                    jackpot_keys = [route, nombre_norm]
-                    j_val = next(
-                        (jackpot_map.get(key) for key in jackpot_keys if key and jackpot_map.get(key)),
+                # Resolver cada lotería a partir del resultado compartido.
+                # El criterio coincide con _resolve_result_table original.
+                pending_predictions: set[str] = set()
+                for lot, route, nombre, matches in lots_with_candidates:
+                    ranked = [
+                        (result_dates[table][0] is not None,
+                         result_dates[table][0],
+                         table == f'resultados_{route}', table)
+                        for table in matches if table in result_dates
+                    ]
+                    if ranked:
+                        ranked.sort(reverse=True)
+                        selected = ranked[0][3]
+                        _, proximo, ultimo = result_dates[selected]
+                        if proximo:
+                            lot['proximo_sorteo'] = proximo
+                        if ultimo:
+                            lot['ultimo_sorteo'] = ultimo
+                    if route and not lot.get('proximo_sorteo'):
+                        pending_predictions.update({route, nombre} - {''})
+
+                # Una única agrupación en predicciones, en lugar de una por juego.
+                prediction_dates: Dict[str, Any] = {}
+                if pending_predictions:
+                    normalized_route = "LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_'))"
+                    try:
+                        cur.execute(f"""
+                            SELECT {normalized_route} AS route_key, MAX(fecha) AS p_fecha
+                            FROM predicciones
+                            WHERE {normalized_route} = ANY(%s)
+                            GROUP BY {normalized_route}
+                        """, (sorted(pending_predictions),))
+                        prediction_dates = {
+                            item['route_key']: item['p_fecha'] for item in cur.fetchall()
+                        }
+                    except Exception:
+                        conn.rollback()
+                        logger.exception('No se pudo agrupar próximas fechas desde predicciones')
+
+                # También se leen los jackpots en una sola consulta.
+                jackpot_map: Dict[str, str] = {}
+                try:
+                    cur.execute("""
+                        SELECT DISTINCT ON (LOWER(TRIM(loteria)))
+                               LOWER(TRIM(loteria)) AS lot, jackpot
+                        FROM loterias_jackpots
+                        ORDER BY LOWER(TRIM(loteria)), fecha DESC
+                    """)
+                    for item in cur.fetchall():
+                        lot_key = item['lot']
+                        jackpot = item['jackpot']
+                        if lot_key and jackpot:
+                            val = str(jackpot)
+                            jackpot_map[lot_key] = val
+                            jackpot_map[lot_key.replace('_', ' ')] = val
+                            jackpot_map[lot_key.replace(' ', '_')] = val
+                except Exception:
+                    conn.rollback()
+                    logger.exception('No se pudieron cargar los jackpots')
+
+                for lot, route, nombre, _ in lots_with_candidates:
+                    if route and not lot.get('proximo_sorteo'):
+                        p_fecha = max(
+                            (prediction_dates[key] for key in {route, nombre} - {''}
+                             if prediction_dates.get(key) is not None),
+                            default=None,
+                        )
+                        if p_fecha:
+                            lot['proximo_sorteo'] = str(p_fecha)
+
+                    jackpot = next(
+                        (jackpot_map.get(k) for k in (route, nombre)
+                         if k and jackpot_map.get(k)),
                         None,
                     )
-                    if j_val:
-                        lot["jackpot"] = j_val
+                    if jackpot:
+                        lot['jackpot'] = jackpot
 
                 return loterias

@@ -87,6 +87,8 @@ class _HomeScreenState extends State<HomeScreen>
       ValueNotifier<Offset?>(null);
   final GlobalKey _homeTabStackKey = GlobalKey();
   Future<void>? _homeLoadFuture;
+  Completer<void>? _queuedHomeRetry;
+  bool _homeLoadIsForced = false;
   String? _activeHomeControlId;
   int? _activeHomePointer;
   Offset? _activeHomePointerStart;
@@ -165,6 +167,10 @@ class _HomeScreenState extends State<HomeScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        // Mostrar el consentimiento sólo después de llegar al Home.
+        // AdService impide repetir la solicitud dentro de esta ejecución.
+        // Los anuncios siguen bloqueados hasta que UMP los autorice.
+        unawaited(AdService.instance.initialize());
         context.read<NotificationProvider>().fetchNotifications();
       }
     });
@@ -223,14 +229,6 @@ class _HomeScreenState extends State<HomeScreen>
       context: context,
       builder: (ctx) {
         final title = active ? l10n.rewardPassActiveTitle : l10n.rewardPassTitle;
-        final body = active
-            ? l10n.rewardPassActiveBody(_formatRewardDuration(remaining))
-            : (bankMinutes > 0
-                  ? l10n.rewardPassBankBody(
-                      _formatRewardDuration(Duration(minutes: bankMinutes)),
-                    )
-                  : l10n.rewardPassEmptyBody);
-
         return AlertDialog(
           backgroundColor: const Color(0xFF1E1E1E),
           shape: RoundedRectangleBorder(
@@ -250,8 +248,36 @@ class _HomeScreenState extends State<HomeScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(body, style: const TextStyle(color: Colors.white70, height: 1.4)),
-              if (!active) ...[
+              Text.rich(
+                TextSpan(
+                  children: [
+                    if (active)
+                      TextSpan(
+                        text: l10n.rewardPassActiveBody(
+                          _formatRewardDuration(remaining),
+                        ),
+                      ),
+                    if (bankMinutes > 0) ...[
+                      if (active) const TextSpan(text: '\n\n'),
+                      TextSpan(
+                        text: l10n.rewardPassBankBody(
+                          _formatRewardDuration(
+                            Duration(minutes: bankMinutes),
+                          ),
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFF86D9A2),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (!active && bankMinutes == 0)
+                      TextSpan(text: l10n.rewardPassEmptyBody),
+                  ],
+                ),
+                style: const TextStyle(color: Colors.white70, height: 1.4),
+              ),
+              if (!adService.isRewardBankFull) ...[
                 const SizedBox(height: 10),
                 Text(
                   l10n.rewardPassPolicy(
@@ -273,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen>
               onPressed: () => Navigator.pop(ctx, 'close'),
               child: Text(l10n.cerrar, style: const TextStyle(color: Colors.white54)),
             ),
-            if (!active && !adService.isRewardBankFull)
+            if (!adService.isRewardBankFull)
               TextButton.icon(
                 onPressed: () => Navigator.pop(ctx, 'watch'),
                 icon: const Icon(Icons.play_circle_outline_rounded, color: AppColors.amber, size: 19),
@@ -481,12 +507,38 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadUserAndData({bool forceRefresh = false}) {
     final inFlight = _homeLoadFuture;
-    if (inFlight != null) return inFlight;
+    if (inFlight != null) {
+      // El primer toque en Reintentar no debe perderse si la carga inicial
+      // sigue en curso. Encolamos un único refresco forzado para cuando termine.
+      if (!forceRefresh || _homeLoadIsForced) return inFlight;
+      final queued = _queuedHomeRetry;
+      if (queued != null) return queued.future;
+      final retry = Completer<void>();
+      _queuedHomeRetry = retry;
+      if (mounted) setState(() {});
+      return retry.future;
+    }
 
+    _homeLoadIsForced = forceRefresh;
     final future = _loadUserAndDataInternal(forceRefresh: forceRefresh);
     _homeLoadFuture = future;
     return future.whenComplete(() {
-      if (identical(_homeLoadFuture, future)) _homeLoadFuture = null;
+      if (!identical(_homeLoadFuture, future)) return;
+      _homeLoadFuture = null;
+      _homeLoadIsForced = false;
+
+      final queued = _queuedHomeRetry;
+      if (queued == null) return;
+      _queuedHomeRetry = null;
+      if (!mounted) {
+        queued.complete();
+        return;
+      }
+      _loadUserAndData(forceRefresh: true).then(
+        (_) => queued.complete(),
+        onError: (Object error, StackTrace stackTrace) =>
+            queued.completeError(error, stackTrace),
+      );
     });
   }
 
@@ -2456,7 +2508,7 @@ class _HomeScreenState extends State<HomeScreen>
     return AppDataStateCard(
       isConnectionError: true,
       onRetry: () => _loadUserAndData(forceRefresh: true),
-      retrying: isLoading,
+      retrying: isLoading || _queuedHomeRetry != null || _homeLoadIsForced,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }
