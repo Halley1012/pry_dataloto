@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -8,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../styles/colores.dart';
 import '../screens/subscription_screen.dart';
+import '../utils/secure_storage_helper.dart';
 
 class AdService {
   AdService._();
@@ -111,6 +113,7 @@ class AdService {
 
   Future<bool> _requestConsentAndCheckAdsPermission() async {
     final completer = Completer<void>();
+    bool hadConsentError = false;
 
     // En pruebas: simula EEE sólo en un dispositivo registrado en UMP.
     // UMP decide el idioma de su formulario según el idioma del DISPOSITIVO;
@@ -130,26 +133,54 @@ class AdService {
           : null,
     );
 
-    ConsentInformation.instance.requestConsentInfoUpdate(
-      params,
-      () {
-        ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+    try {
+      ConsentInformation.instance.requestConsentInfoUpdate(
+        params,
+        () {
+          ConsentForm.loadAndShowConsentFormIfRequired((formError) {
+            if (formError != null) {
+              hadConsentError = true;
+            }
+            if (!completer.isCompleted) {
+              completer.complete();
+            }
+          });
+        },
+        (formError) {
+          // Si no hay mensaje GDPR configurado en AdMob Console o hay un fallo
+          // de red temporal en UMP, canRequestAds() devuelve false en una
+          // instalación limpia aunque el usuario no esté sujeto a GDPR.
+          hadConsentError = true;
           if (!completer.isCompleted) {
             completer.complete();
           }
-        });
-      },
-      (formError) {
-        // Si falla la actualización, UMP puede conservar una decisión válida
-        // de una sesión anterior. canRequestAds() resolverá el estado final.
-        if (!completer.isCompleted) {
-          completer.complete();
-        }
-      },
-    );
+        },
+      );
 
-    await completer.future;
-    return ConsentInformation.instance.canRequestAds();
+      await completer.future.timeout(
+        const Duration(seconds: 6),
+        onTimeout: () {
+          hadConsentError = true;
+        },
+      );
+    } catch (_) {
+      hadConsentError = true;
+    }
+
+    try {
+      final canRequest = await ConsentInformation.instance.canRequestAds();
+      if (canRequest) return true;
+
+      final status = await ConsentInformation.instance.getConsentStatus();
+      // Si UMP falló por configuración/red o el consentimiento no es requerido
+      // en la región del usuario, permitimos inicializar AdMob normalmente.
+      if (hadConsentError || status != ConsentStatus.required) {
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return true;
+    }
   }
 
   Future<bool> isPrivacyOptionsRequired() async {
@@ -179,12 +210,14 @@ class AdService {
   static const int maxRewardBankMinutes = 60;
 
   final ValueNotifier<int> rewardPassRevision = ValueNotifier<int>(0);
+  static const String _lastRewardUserStorageKey = 'reward_pass_last_user_id_v1';
   String? _rewardUserId;
   int _rewardBankMinutes = 0;
   int _rewardEarnedTodayMinutes = 0;
   String? _rewardDay;
   DateTime? _rewardPassActiveUntil;
   Timer? _rewardPassExpiryTimer;
+  Future<void>? _setRewardUserFuture;
 
   bool get _isRewardDayCurrent => _rewardDay == _currentRewardDay();
 
@@ -224,6 +257,16 @@ class AdService {
   String _rewardEarnedTodayKey(String userId) =>
       'reward_pass_earned_today_v2_$userId';
 
+  String? _normalizeRewardUserId(String? userId) {
+    final trimmed = userId?.trim();
+    if (trimmed == null ||
+        trimmed.isEmpty ||
+        trimmed.toLowerCase() == 'null') {
+      return null;
+    }
+    return trimmed;
+  }
+
   String _currentRewardDay() {
     final now = DateTime.now().toLocal();
     final year = now.year.toString().padLeft(4, '0');
@@ -239,22 +282,141 @@ class AdService {
     final today = _currentRewardDay();
     if (_rewardDay == today) return;
 
+    final prefs = await SharedPreferences.getInstance();
+    final storedDay = prefs.getString(_rewardDayKey(userId));
+    if (storedDay == today) {
+      // Si _rewardDay estaba en null por una lectura en curso pero el disco ya
+      // pertenece a hoy, restauramos el saldo guardado sin reiniciarlo a 0.
+      _rewardDay = today;
+      _rewardBankMinutes = (prefs.getInt(_rewardBankKey(userId)) ?? 0)
+          .clamp(0, maxRewardBankMinutes)
+          .toInt();
+      _rewardEarnedTodayMinutes =
+          (prefs.getInt(_rewardEarnedTodayKey(userId)) ?? _rewardBankMinutes)
+              .clamp(0, maxRewardMinutesPerDay)
+              .toInt();
+      _notifyRewardPassChanged();
+      return;
+    }
+
     // Un saldo no activado pertenece al día en que se obtuvo.
     // El pase ya activo NO se corta al llegar medianoche.
     _rewardDay = today;
     _rewardBankMinutes = 0;
     _rewardEarnedTodayMinutes = 0;
 
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_rewardDayKey(userId), today);
     await prefs.setInt(_rewardEarnedTodayKey(userId), 0);
     await prefs.setInt(_rewardBankKey(userId), 0);
     _notifyRewardPassChanged();
   }
 
-  Future<void> setRewardUser(String? userId) async {
-    final normalized = userId?.trim();
-    if (normalized == _rewardUserId) {
+  Future<void> clearRewardUser() async {
+    final previous = _setRewardUserFuture;
+    if (previous != null) {
+      try {
+        await previous;
+      } catch (_) {}
+    }
+    _rewardPassExpiryTimer?.cancel();
+    _rewardPassExpiryTimer = null;
+    _featureAccessUntil.clear();
+    _rewardUserId = null;
+    _rewardBankMinutes = 0;
+    _rewardEarnedTodayMinutes = 0;
+    _rewardDay = null;
+    _rewardPassActiveUntil = null;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastRewardUserStorageKey);
+    } catch (_) {}
+    _notifyRewardPassChanged();
+  }
+
+  String? _extractUserIdFromJwt(String? token) {
+    final trimmed = token?.trim();
+    if (trimmed == null || trimmed.isEmpty) return null;
+    try {
+      final parts = trimmed.split('.');
+      if (parts.length < 2) return null;
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized)));
+      if (payload is Map) {
+        final raw = payload['sub'] ?? payload['user_id'] ?? payload['id'];
+        return _normalizeRewardUserId(raw?.toString());
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<String?> _resolveActiveSessionUserId(SharedPreferences prefs) async {
+    final fromPrefs = _normalizeRewardUserId(
+      prefs.getString(_lastRewardUserStorageKey),
+    );
+    if (fromPrefs != null) return fromPrefs;
+
+    final storage = AppSecureStorage.instance;
+    try {
+      final storedUserId = _normalizeRewardUserId(
+        await storage.read(key: 'user_id'),
+      );
+      if (storedUserId != null) return storedUserId;
+
+      final authToken = await storage.read(key: 'auth_token');
+      final refreshToken = await storage.read(key: 'refresh_token');
+      final fromJwt = _extractUserIdFromJwt(authToken) ??
+          _extractUserIdFromJwt(refreshToken);
+      if (fromJwt != null) {
+        await storage.write(key: 'user_id', value: fromJwt);
+        return fromJwt;
+      }
+
+      final email = _normalizeRewardUserId(await storage.read(key: 'email'));
+      if (email != null) return email;
+
+      final name = _normalizeRewardUserId(await storage.read(key: 'name'));
+      if (name != null) return name;
+
+      final hasToken = (authToken != null && authToken.trim().isNotEmpty) ||
+          (refreshToken != null && refreshToken.trim().isNotEmpty);
+      if (hasToken) {
+        return 'active_session_user';
+      }
+    } catch (_) {}
+
+    final fromUsername = _normalizeRewardUserId(prefs.getString('username'));
+    if (fromUsername != null) return fromUsername;
+
+    return null;
+  }
+
+  Future<void> setRewardUser(String? userId) {
+    final prev = _setRewardUserFuture;
+    final next = (prev == null
+            ? _setRewardUserInternal(userId)
+            : prev.then((_) => _setRewardUserInternal(userId)))
+        .catchError((_) {});
+    _setRewardUserFuture = next;
+    return next;
+  }
+
+  Future<void> _setRewardUserInternal(String? userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    String? normalized = _normalizeRewardUserId(userId) ??
+        _normalizeRewardUserId(_rewardUserId);
+    // Si durante el arranque o tras onboarding aún no teníamos userId en
+    // memoria, resolvemos desde SharedPreferences, SecureStorage o el JWT.
+    normalized ??= await _resolveActiveSessionUserId(prefs);
+
+    if (normalized != null) {
+      try {
+        await prefs.setString(_lastRewardUserStorageKey, normalized);
+      } catch (_) {}
+    }
+
+    if (normalized != null &&
+        normalized == _rewardUserId &&
+        _rewardDay != null) {
       await _ensureRewardDayCurrent();
       return;
     }
@@ -262,86 +424,133 @@ class AdService {
     _rewardPassExpiryTimer?.cancel();
     _rewardPassExpiryTimer = null;
     _featureAccessUntil.clear();
-    _rewardUserId = normalized;
-    _rewardBankMinutes = 0;
-    _rewardEarnedTodayMinutes = 0;
-    _rewardDay = null;
-    _rewardPassActiveUntil = null;
 
-    if (normalized == null || normalized.isEmpty) {
+    if (normalized == null) {
+      _rewardUserId = null;
+      _rewardBankMinutes = 0;
+      _rewardEarnedTodayMinutes = 0;
+      _rewardDay = null;
+      _rewardPassActiveUntil = null;
       _notifyRewardPassChanged();
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
+    // Asignamos el usuario inmediatamente para que ningún fallo posterior de
+    // lectura de preferencias deje _rewardUserId en null con sesión activa.
     final today = _currentRewardDay();
-    final storedDay = prefs.getString(_rewardDayKey(normalized));
-    final storedBank = (prefs.getInt(_rewardBankKey(normalized)) ?? 0)
-        .clamp(0, maxRewardBankMinutes)
-        .toInt();
+    _rewardUserId = normalized;
+    _rewardDay = today;
 
-    if (storedDay == today) {
-      _rewardDay = today;
-      _rewardBankMinutes = storedBank;
-      _rewardEarnedTodayMinutes =
-          (prefs.getInt(_rewardEarnedTodayKey(normalized)) ?? storedBank)
-              .clamp(0, maxRewardMinutesPerDay)
-              .toInt();
-    } else if (storedDay == null) {
-      // Migración desde la versión anterior del Pase:
-      // conserva como máximo 60 min y los cuenta dentro del límite de hoy.
-      _rewardDay = today;
-      _rewardBankMinutes = storedBank;
-      _rewardEarnedTodayMinutes = storedBank;
-      await prefs.setString(_rewardDayKey(normalized), today);
-      await prefs.setInt(
-        _rewardEarnedTodayKey(normalized),
-        _rewardEarnedTodayMinutes,
-      );
-      await prefs.setInt(_rewardBankKey(normalized), _rewardBankMinutes);
-    } else {
-      // Día nuevo: el saldo no activado anterior vence.
-      _rewardDay = today;
-      _rewardBankMinutes = 0;
-      _rewardEarnedTodayMinutes = 0;
-      await prefs.setString(_rewardDayKey(normalized), today);
-      await prefs.setInt(_rewardEarnedTodayKey(normalized), 0);
-      await prefs.setInt(_rewardBankKey(normalized), 0);
-    }
+    int storedBank = 0;
+    String? storedDay;
+    try {
+      storedDay = prefs.getString(_rewardDayKey(normalized));
+      storedBank = (prefs.getInt(_rewardBankKey(normalized)) ?? 0)
+          .clamp(0, maxRewardBankMinutes)
+          .toInt();
+    } catch (_) {}
 
-    final activeUntilMs = prefs.getInt(_rewardActiveUntilKey(normalized));
-    if (activeUntilMs != null && activeUntilMs > 0) {
-      final candidate = DateTime.fromMillisecondsSinceEpoch(activeUntilMs);
-      if (candidate.isAfter(DateTime.now())) {
-        _rewardPassActiveUntil = candidate;
-        _scheduleRewardPassExpiry();
+    int nextBank = 0;
+    int nextEarned = 0;
+
+    try {
+      if (storedDay == today) {
+        nextBank = storedBank;
+        nextEarned =
+            (prefs.getInt(_rewardEarnedTodayKey(normalized)) ?? storedBank)
+                .clamp(0, maxRewardMinutesPerDay)
+                .toInt();
+      } else if (storedDay == null) {
+        // Migración desde la versión anterior del Pase:
+        // conserva como máximo 60 min y los cuenta dentro del límite de hoy.
+        nextBank = storedBank;
+        nextEarned = storedBank;
+        await prefs.setString(_rewardDayKey(normalized), today);
+        await prefs.setInt(
+          _rewardEarnedTodayKey(normalized),
+          nextEarned,
+        );
+        await prefs.setInt(_rewardBankKey(normalized), nextBank);
       } else {
-        await prefs.remove(_rewardActiveUntilKey(normalized));
+        // Día nuevo: el saldo no activado anterior vence.
+        nextBank = 0;
+        nextEarned = 0;
+        await prefs.setString(_rewardDayKey(normalized), today);
+        await prefs.setInt(_rewardEarnedTodayKey(normalized), 0);
+        await prefs.setInt(_rewardBankKey(normalized), 0);
       }
-    }
+    } catch (_) {}
+
+    DateTime? nextActiveUntil;
+    try {
+      final activeUntilMs = prefs.getInt(_rewardActiveUntilKey(normalized));
+      if (activeUntilMs != null && activeUntilMs > 0) {
+        final candidate = DateTime.fromMillisecondsSinceEpoch(activeUntilMs);
+        if (candidate.isAfter(DateTime.now())) {
+          nextActiveUntil = candidate;
+        } else {
+          await prefs.remove(_rewardActiveUntilKey(normalized));
+        }
+      }
+    } catch (_) {}
 
     // Recuperar desbloqueos de funciones no vencidos para este usuario.
-    // No alterar el tiempo de su pase global ni el saldo acumulado.
-    final prefix = _featureAccessStoragePrefix(normalized);
-    for (final key in prefs.getKeys().where((key) => key.startsWith(prefix))) {
-      final expiryMs = prefs.getInt(key);
-      if (expiryMs == null ||
-          expiryMs <= DateTime.now().millisecondsSinceEpoch) {
-        await prefs.remove(key);
-        continue;
+    // Copiamos la lista de claves antes de remover para evitar ConcurrentModificationError.
+    try {
+      final prefix = _featureAccessStoragePrefix(normalized);
+      final matchingKeys =
+          prefs.getKeys().where((key) => key.startsWith(prefix)).toList();
+      for (final key in matchingKeys) {
+        final expiryMs = prefs.getInt(key);
+        if (expiryMs == null ||
+            expiryMs <= DateTime.now().millisecondsSinceEpoch) {
+          await prefs.remove(key);
+          continue;
+        }
+        _featureAccessUntil[key.substring(prefix.length)] =
+            DateTime.fromMillisecondsSinceEpoch(expiryMs);
       }
-      _featureAccessUntil[key.substring(prefix.length)] =
-          DateTime.fromMillisecondsSinceEpoch(expiryMs);
+    } catch (_) {}
+
+    _rewardUserId = normalized;
+    _rewardDay = today;
+    _rewardBankMinutes = nextBank;
+    _rewardEarnedTodayMinutes = nextEarned;
+    _rewardPassActiveUntil = nextActiveUntil;
+    if (nextActiveUntil != null) {
+      _scheduleRewardPassExpiry();
     }
 
     _notifyRewardPassChanged();
   }
 
+  Future<String> _ensureAuthenticatedRewardUserId() async {
+    final pendingUser = _setRewardUserFuture;
+    if (pendingUser != null) {
+      try {
+        await pendingUser;
+      } catch (_) {}
+    }
+    if (_rewardUserId != null && _rewardUserId!.isNotEmpty) {
+      return _rewardUserId!;
+    }
+    await setRewardUser(null);
+    if (_rewardUserId != null && _rewardUserId!.isNotEmpty) {
+      return _rewardUserId!;
+    }
+    // Si el usuario ya está dentro de una pantalla autenticada pero el
+    // almacenamiento seguro del dispositivo falló, usamos un identificador
+    // de sesión local para no bloquearle las recompensas.
+    await setRewardUser('active_session_user');
+    return _rewardUserId ?? 'active_session_user';
+  }
+
   Future<int> addRewardMinutes({
     int minutes = rewardMinutesPerVideo,
   }) async {
-    final userId = _rewardUserId;
-    if (userId == null || userId.isEmpty || minutes <= 0) return 0;
+    if (minutes <= 0) return 0;
+    final userId = await _ensureAuthenticatedRewardUserId();
+    if (userId.isEmpty) return 0;
 
     await _ensureRewardDayCurrent();
 
@@ -370,9 +579,8 @@ class AdService {
   }
 
   Future<bool> activateRewardPass() async {
-    final userId = _rewardUserId;
-    if (userId == null ||
-        userId.isEmpty ||
+    final userId = await _ensureAuthenticatedRewardUserId();
+    if (userId.isEmpty ||
         _rewardBankMinutes <= 0 ||
         isRewardPassActive) {
       return false;
@@ -469,7 +677,19 @@ class AdService {
   /// Inicializa privacidad + Google Mobile Ads una vez por ejecución.
   /// Nunca solicita anuncios antes de que UMP lo permita.
   Future<void> initialize() {
-    return _initializationFuture ??= _initializeOnce();
+    if (_isInitialized && _canRequestAds && _initializationFuture != null) {
+      return _initializationFuture!;
+    }
+    final inFlight = _initializationFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = _initializeOnce();
+    _initializationFuture = future;
+    return future.whenComplete(() {
+      if (!_isInitialized || !_canRequestAds) {
+        _initializationFuture = null;
+      }
+    });
   }
 
   Future<void> _initializeOnce() async {
@@ -500,8 +720,20 @@ class AdService {
       loadRewardedAd();
       loadAppOpenAd();
     } catch (_) {
-      _canRequestAds = false;
-      adsReadyRevision.value++;
+      try {
+        if (!_isInitialized) {
+          await MobileAds.instance.initialize();
+          _isInitialized = true;
+        }
+        _canRequestAds = true;
+        adsReadyRevision.value++;
+        loadInterstitialAd();
+        loadRewardedAd();
+        loadAppOpenAd();
+      } catch (_) {
+        _canRequestAds = false;
+        adsReadyRevision.value++;
+      }
     }
   }
 
@@ -838,9 +1070,9 @@ class AdService {
   }
 
   Future<void> _grantFeatureAccess(String? featureKey) async {
-    final userId = _rewardUserId;
-    if (featureKey == null || featureKey.isEmpty ||
-        userId == null || userId.isEmpty) return;
+    if (featureKey == null || featureKey.isEmpty) return;
+    final userId = await _ensureAuthenticatedRewardUserId();
+    if (userId.isEmpty) return;
     final until = DateTime.now().add(_featureAccessDuration);
     _featureAccessUntil[featureKey] = until;
     try {
@@ -854,11 +1086,18 @@ class AdService {
     }
   }
 
+  Completer<RewardedAd?>? _rewardedLoadCompleter;
+  Timer? _rewardedRetryTimer;
+
   /// Precargar anuncio recompensado en segundo plano
   void loadRewardedAd() {
     if (!canRequestAds) return;
     if (_rewardedAd != null || _isRewardedLoading) return;
+    _rewardedRetryTimer?.cancel();
+    _rewardedRetryTimer = null;
     _isRewardedLoading = true;
+    final completer = Completer<RewardedAd?>();
+    _rewardedLoadCompleter = completer;
 
     RewardedAd.load(
       adUnitId: rewardedAdUnitId,
@@ -867,13 +1106,101 @@ class AdService {
         onAdLoaded: (ad) {
           _rewardedAd = ad;
           _isRewardedLoading = false;
+          if (!completer.isCompleted) {
+            completer.complete(ad);
+          }
+          if (identical(_rewardedLoadCompleter, completer)) {
+            _rewardedLoadCompleter = null;
+          }
         },
         onAdFailedToLoad: (_) {
           _isRewardedLoading = false;
           _rewardedAd = null;
+          if (!completer.isCompleted) {
+            completer.complete(null);
+          }
+          if (identical(_rewardedLoadCompleter, completer)) {
+            _rewardedLoadCompleter = null;
+          }
+          // En producción el inventario real puede tardar o fallar de forma
+          // intermitente al iniciar o entre vídeos consecutivos; reintentamos
+          // en segundo plano para tener el siguiente vídeo listo.
+          _rewardedRetryTimer?.cancel();
+          _rewardedRetryTimer = Timer(const Duration(seconds: 5), () {
+            if (_rewardedAd == null && !_isRewardedLoading && canRequestAds) {
+              loadRewardedAd();
+            }
+          });
         },
       ),
     );
+  }
+
+  /// Espera brevemente a que AdMob termine de inicializar o de cargar el vídeo
+  /// en curso cuando el usuario solicita ver un anuncio en Producción.
+  Future<RewardedAd?> _ensureRewardedAdReady(BuildContext context) async {
+    if (_rewardedAd != null) return _rewardedAd;
+
+    BuildContext? loadingDialogContext;
+    bool dialogShown = false;
+
+    void closeLoadingDialog() {
+      if (!dialogShown) return;
+      dialogShown = false;
+      final dCtx = loadingDialogContext;
+      loadingDialogContext = null;
+      if (dCtx != null && dCtx.mounted) {
+        Navigator.of(dCtx).pop();
+      }
+    }
+
+    if (context.mounted) {
+      dialogShown = true;
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dCtx) {
+            loadingDialogContext = dCtx;
+            return const PopScope(
+              canPop: false,
+              child: Center(
+                child: CircularProgressIndicator(color: AppColors.yellow),
+              ),
+            );
+          },
+        ),
+      );
+    }
+
+    try {
+      if (!_isInitialized || !_canRequestAds) {
+        await initialize().timeout(
+          const Duration(seconds: 6),
+          onTimeout: () {},
+        );
+      }
+
+      if (_rewardedAd != null) return _rewardedAd;
+
+      if (!_isRewardedLoading) {
+        loadRewardedAd();
+      }
+
+      final inFlight = _rewardedLoadCompleter?.future;
+      if (inFlight != null) {
+        await inFlight.timeout(
+          const Duration(seconds: 6),
+          onTimeout: () => null,
+        );
+      }
+
+      return _rewardedAd;
+    } finally {
+      // Dar un microtask por si showDialog acaba de montar su ruta.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      closeLoadingDialog();
+    }
   }
 
   /// Mostrar diálogo y flujo de anuncio recompensado para funciones especiales
@@ -885,6 +1212,12 @@ class AdService {
     String? featureKey,
     required VoidCallback onRewardGranted,
   }) async {
+    // Aseguramos haber resuelto el usuario de la sesión activa antes de
+    // evaluar isRewardPassActive o isFeatureUnlocked.
+    if (_rewardUserId == null || _rewardUserId!.isEmpty) {
+      await _ensureAuthenticatedRewardUserId();
+    }
+
     // El pase global desbloquea todas las funciones; el vídeo de esta
     // función permite volver a ella durante cinco minutos sin otro anuncio.
     if (isPremium || isRewardPassActive ||
@@ -893,24 +1226,17 @@ class AdService {
       return;
     }
 
-    // Sin usuario identificado no se puede guardar el tiempo. Evitamos que
-    // vea y complete un vídeo sin poder recibir su recompensa.
-    if (_rewardUserId == null || _rewardUserId!.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.iniciaSesionParaContinuar),
-          ),
-        );
-      }
-      return;
-    }
-
     // Evitar diálogos duplicados al pulsar varias veces el mismo botón.
     if (!context.mounted || _rewardedGateDialogOpen || _isFullScreenAdShowing) {
       return;
     }
     _rewardedGateDialogOpen = true;
+
+    // Si aún no hay vídeo precargado, iniciamos la carga mientras el usuario
+    // lee el diálogo.
+    if (_rewardedAd == null && !_isRewardedLoading) {
+      loadRewardedAd();
+    }
 
     // Mostrar diálogo explicativo al usuario
     bool? proceed;
@@ -1086,12 +1412,56 @@ class AdService {
     // el cooldown de anuncios automáticos (Interstitial/App Open).
     if (_isFullScreenAdShowing) return;
 
+    final ad = await _ensureRewardedAdReady(context);
+    if (!context.mounted) return;
+
     // Ejecutar el anuncio recompensado
-    if (_rewardedAd != null) {
-      bool userEarnedReward = false;
-      final ad = _rewardedAd!;
+    if (ad != null) {
       _rewardedAd = null;
       _isFullScreenAdShowing = true;
+      bool userEarnedReward = false;
+      bool adDismissed = false;
+      bool rewardHandledInUi = false;
+      Future<int>? rewardGrantFuture;
+
+      Future<int> ensureRewardSaved() {
+        return rewardGrantFuture ??= (() async {
+          final added = await addRewardMinutes();
+          if (added > 0) {
+            await _grantFeatureAccess(featureKey);
+          }
+          return added;
+        })();
+      }
+
+      Future<void> completeUiAfterReward() async {
+        if (rewardHandledInUi || !adDismissed || !userEarnedReward) return;
+        rewardHandledInUi = true;
+        final added = await ensureRewardSaved();
+        if (!context.mounted) return;
+        if (added > 0) {
+          onRewardGranted();
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)!.rewardAddedBank(
+                  added,
+                  rewardBankMinutes,
+                ),
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+            SnackBar(
+              content: Text(
+                AppLocalizations.of(context)!
+                    .rewardDailyLimitReached(maxRewardMinutesPerDay),
+              ),
+            ),
+          );
+        }
+      }
 
       ad.fullScreenContentCallback = FullScreenContentCallback(
         onAdShowedFullScreenContent: (_) {
@@ -1101,38 +1471,22 @@ class AdService {
           ad.dispose();
           _markFullScreenClosed();
           loadRewardedAd();
+          adDismissed = true;
           if (userEarnedReward) {
-            // Sumar el tiempo al banco sin activar el pase global.
-            // Además esta misma función queda disponible por cinco minutos.
-            final added = await addRewardMinutes();
-            if (added > 0) await _grantFeatureAccess(featureKey);
-            if (!context.mounted) return;
-            if (added > 0) {
-              onRewardGranted();
+            await completeUiAfterReward();
+          } else {
+            // En producción algunos formatos envían onUserEarnedReward pocos
+            // milisegundos después de onAdDismissedFullScreenContent.
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            if (userEarnedReward) {
+              await completeUiAfterReward();
+            } else if (context.mounted) {
+              final message =
+                  AppLocalizations.of(context)!.rewardCompleteToUnlock;
               ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    AppLocalizations.of(context)!.rewardAddedBank(
-                      added, rewardBankMinutes,
-                    ),
-                  ),
-                ),
-              );
-            } else {
-              ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    AppLocalizations.of(context)!
-                        .rewardDailyLimitReached(maxRewardMinutesPerDay),
-                  ),
-                ),
+                SnackBar(content: Text(message)),
               );
             }
-          } else if (context.mounted) {
-            final message = AppLocalizations.of(context)!.rewardCompleteToUnlock;
-            ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-              SnackBar(content: Text(message)),
-            );
           }
         },
         onAdFailedToShowFullScreenContent: (ad, _) {
@@ -1151,12 +1505,16 @@ class AdService {
       ad.show(
         onUserEarnedReward: (_, __) {
           userEarnedReward = true;
+          // Persistimos de inmediato apenas se gana la recompensa, sin esperar
+          // a que se cierre el anuncio, para que nunca se pierda si el usuario
+          // cierra la app o si el callback llega después del cierre.
+          unawaited(ensureRewardSaved());
+          if (adDismissed) {
+            unawaited(completeUiAfterReward());
+          }
         },
       );
     } else {
-      // Para usuarios no VIP la función sólo se desbloquea tras completar
-      // realmente el video. Si no hay anuncio disponible, se reintenta la
-      // precarga pero no se concede acceso por cortesía.
       loadRewardedAd();
       if (context.mounted) {
         final message = AppLocalizations.of(context)!.rewardNoVideoAvailable;
@@ -1171,17 +1529,8 @@ class AdService {
   Future<void> showRewardedForPass({
     required BuildContext context,
   }) async {
-    // Desde el regalo sí se puede acumular tiempo incluso con un pase activo.
-    // Ese saldo queda guardado para activarlo cuando venza el pase actual.
     if (_rewardUserId == null || _rewardUserId!.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context)!.iniciaSesionParaContinuar),
-          ),
-        );
-      }
-      return;
+      await _ensureAuthenticatedRewardUserId();
     }
 
     if (isRewardBankFull) {
@@ -1197,60 +1546,81 @@ class AdService {
       return;
     }
 
-    if (_rewardedAd == null) {
+    // Los vídeos solicitados voluntariamente no tienen el cooldown de
+    // Interstitial/App Open; sólo se impide solapar dos pantallas completas.
+    if (!context.mounted || _isFullScreenAdShowing) return;
+
+    final ad = await _ensureRewardedAdReady(context);
+    if (!context.mounted) return;
+
+    if (ad == null) {
       loadRewardedAd();
-      if (context.mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.rewardNoVideoAvailable,
-            ),
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(
+          content: Text(
+            AppLocalizations.of(context)!.rewardNoVideoAvailable,
           ),
-        );
-      }
+        ),
+      );
       return;
     }
 
-    // Los vídeos solicitados voluntariamente no tienen el cooldown de
-    // Interstitial/App Open; sólo se impide solapar dos pantallas completas.
-    if (_isFullScreenAdShowing) return;
-
-    bool userEarnedReward = false;
+    _rewardedAd = null;
     _isFullScreenAdShowing = true;
-    _rewardedAd!.fullScreenContentCallback = FullScreenContentCallback(
+    bool userEarnedReward = false;
+    bool adDismissed = false;
+    bool rewardHandledInUi = false;
+    Future<int>? rewardGrantFuture;
+
+    Future<int> ensureRewardSaved() {
+      return rewardGrantFuture ??= addRewardMinutes();
+    }
+
+    Future<void> completeUiAfterReward() async {
+      if (rewardHandledInUi || !adDismissed || !userEarnedReward) return;
+      rewardHandledInUi = true;
+      final added = await ensureRewardSaved();
+      if (!context.mounted) return;
+      final total = rewardBankMinutes;
+      final message = added > 0
+          ? AppLocalizations.of(context)!.rewardAddedBalance(added, total)
+          : AppLocalizations.of(context)!
+              .rewardDailyLimitReached(maxRewardMinutesPerDay);
+      ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdShowedFullScreenContent: (_) {
         _isFullScreenAdShowing = true;
       },
       onAdDismissedFullScreenContent: (ad) async {
         ad.dispose();
-        _rewardedAd = null;
         _markFullScreenClosed();
         loadRewardedAd();
+        adDismissed = true;
 
         if (userEarnedReward) {
-          final added = await addRewardMinutes();
-          if (context.mounted) {
-            final total = rewardBankMinutes;
-            final message = added > 0
-                ? AppLocalizations.of(context)!.rewardAddedBalance(added, total)
-                : AppLocalizations.of(context)!.rewardDailyLimitReached(maxRewardMinutesPerDay);
+          await completeUiAfterReward();
+        } else {
+          await Future<void>.delayed(const Duration(milliseconds: 250));
+          if (userEarnedReward) {
+            await completeUiAfterReward();
+          } else if (context.mounted) {
             ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-              SnackBar(content: Text(message)),
+              SnackBar(
+                content: Text(
+                  AppLocalizations.of(context)!
+                      .rewardCompleteForMinutes(rewardMinutesPerVideo),
+                ),
+              ),
             );
           }
-        } else if (context.mounted) {
-          ScaffoldMessenger.maybeOf(context)?.showSnackBar(
-            SnackBar(
-              content: Text(
-                AppLocalizations.of(context)!.rewardCompleteForMinutes(rewardMinutesPerVideo),
-              ),
-            ),
-          );
         }
       },
       onAdFailedToShowFullScreenContent: (ad, _) {
         ad.dispose();
-        _rewardedAd = null;
         _markFullScreenClosed();
         loadRewardedAd();
         if (context.mounted) {
@@ -1265,9 +1635,13 @@ class AdService {
       },
     );
 
-    _rewardedAd!.show(
+    ad.show(
       onUserEarnedReward: (_, __) {
         userEarnedReward = true;
+        unawaited(ensureRewardSaved());
+        if (adDismissed) {
+          unawaited(completeUiAfterReward());
+        }
       },
     );
   }

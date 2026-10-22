@@ -7,6 +7,7 @@ import 'package:eterlotto/models/comment.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:eterlotto/services/session_expired_handler.dart';
+import 'package:eterlotto/services/ad_service.dart';
 
 import '../utils/secure_storage_helper.dart';
 import '../config/app_config.dart';
@@ -21,6 +22,7 @@ class ApiService {
   static const Duration _refreshTimeout = Duration(seconds: 6);
   static Future<_TokenRefreshResult>? _refreshFuture;
   static Future<void>? _sessionExpiryFuture;
+  static bool _isLoggingOut = false;
   static final Map<String, Future<List<dynamic>>> _loteriasInFlight = {};
   static final Map<String, Future<Map<String, Map<String, dynamic>>>>
       _jugadasInfoInFlight = {};
@@ -165,6 +167,7 @@ class ApiService {
             await _storage.write(key: "idioma", value: idioma.toString());
           }
           await _cacheProfileForUser(userId, user);
+          unawaited(AdService.instance.setRewardUser(userId?.toString()));
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -301,6 +304,7 @@ class ApiService {
             value: authProvider.toString(),
           );
           await _cacheProfileForUser(userId, user);
+          unawaited(AdService.instance.setRewardUser(userId?.toString()));
 
           // 🔥 Sincronizar token FCM con el usuario autenticado
           PushNotificationService.syncToken();
@@ -332,29 +336,41 @@ class ApiService {
 
   /// 🔓 LOGOUT
   static Future<void> logout() async {
-    final activeUserId = (await _storage.read(key: 'user_id'))?.trim();
-    if (activeUserId != null && activeUserId.isNotEmpty) {
-      // Eliminar sólo datos privados de la cuenta actual. Catálogos,
-      // resultados y demás cachés públicas se conservan para uso offline.
-      await CacheService.invalidarCachesDeJugadas(userId: activeUserId);
-      for (final key in [
-        CacheService.perfilUsuarioKey(activeUserId),
-        CacheService.subscriptionStatusKey(activeUserId),
-        CacheService.notificacionesUsuarioKey(activeUserId),
-        CacheService.favoritosPublicidadKey(activeUserId),
-        CacheService.misAnunciosKey(activeUserId),
-      ]) {
-        await CacheService.removeJson(key);
+    _isLoggingOut = true;
+    try {
+      final activeUserId = (await _storage.read(key: 'user_id'))?.trim();
+      if (activeUserId != null && activeUserId.isNotEmpty) {
+        // Eliminar sólo datos privados de la cuenta actual. Catálogos,
+        // resultados y demás cachés públicas se conservan para uso offline.
+        await CacheService.invalidarCachesDeJugadas(userId: activeUserId);
+        await Future.wait([
+          for (final key in [
+            CacheService.perfilUsuarioKey(activeUserId),
+            CacheService.subscriptionStatusKey(activeUserId),
+            CacheService.notificacionesUsuarioKey(activeUserId),
+            CacheService.favoritosPublicidadKey(activeUserId),
+            CacheService.misAnunciosKey(activeUserId),
+          ])
+            CacheService.removeJson(key),
+        ]);
       }
-    }
 
-    for (final key in [
-      'auth_token',
-      'refresh_token',
-      'user_id',
-      ..._profileStorageKeys,
-    ]) {
-      await _storage.delete(key: key);
+      await Future.wait([
+        AdService.instance.clearRewardUser(),
+        for (final key in [
+          'auth_token',
+          'refresh_token',
+          'user_id',
+          ..._profileStorageKeys,
+        ])
+          _storage.delete(key: key),
+      ]);
+    } finally {
+      // Mantiene la protección unos instantes por si alguna petición en vuelo
+      // termina justo después de limpiar el almacenamiento local.
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        _isLoggingOut = false;
+      });
     }
   }
 
@@ -370,14 +386,16 @@ class ApiService {
   /// - refresh vencido/revocado: limpia la sesión y muestra ingreso nuevamente.
   /// - timeout/5xx: NO expulsa al usuario; se trata como fallo temporal.
   static Future<bool> refreshAccessToken() async {
+    if (_isLoggingOut) return false;
     final result = await _refreshAccessTokenOutcome();
-    if (result == _TokenRefreshResult.expired) {
+    if (result == _TokenRefreshResult.expired && !_isLoggingOut) {
       await _handleExpiredSession();
     }
     return result == _TokenRefreshResult.success;
   }
 
   static Future<_TokenRefreshResult> _refreshAccessTokenOutcome() async {
+    if (_isLoggingOut) return _TokenRefreshResult.temporaryFailure;
     final inFlight = _refreshFuture;
     if (inFlight != null) return inFlight;
 
@@ -391,7 +409,22 @@ class ApiService {
   }
 
   static Future<_TokenRefreshResult> _refreshAccessTokenInternal() async {
-    final refreshToken = await _storage.read(key: "refresh_token");
+    if (_isLoggingOut) return _TokenRefreshResult.temporaryFailure;
+
+    final tokens = await Future.wait([
+      _storage.read(key: "auth_token"),
+      _storage.read(key: "refresh_token"),
+    ]);
+    final accessToken = tokens[0]?.trim();
+    final refreshToken = tokens[1]?.trim();
+
+    // Si ya no hay tokens en almacenamiento local es porque la sesión ya fue
+    // cerrada manualmente; no debe mostrarse el diálogo de "sesión caducada".
+    if ((accessToken == null || accessToken.isEmpty) &&
+        (refreshToken == null || refreshToken.isEmpty)) {
+      return _TokenRefreshResult.temporaryFailure;
+    }
+
     if (refreshToken == null || refreshToken.isEmpty) {
       return _TokenRefreshResult.expired;
     }
@@ -405,13 +438,19 @@ class ApiService {
           )
           .timeout(_refreshTimeout);
 
-      if (response.statusCode == 400 ||
-          response.statusCode == 401 ||
-          response.statusCode == 403) {
+      if (_isLoggingOut) {
+        return _TokenRefreshResult.temporaryFailure;
+      }
+
+      if (response.statusCode == 401 || response.statusCode == 403) {
+        final currentRefresh = (await _storage.read(key: "refresh_token"))?.trim();
+        if (currentRefresh == null || currentRefresh.isEmpty) {
+          return _TokenRefreshResult.temporaryFailure;
+        }
         return _TokenRefreshResult.expired;
       }
 
-      // Un 5xx, 404 accidental durante deploy o cualquier respuesta temporal
+      // Un 5xx, 400/404 accidental o cualquier respuesta temporal
       // no debe cerrar la sesión del usuario.
       if (response.statusCode != 200) {
         return _TokenRefreshResult.temporaryFailure;
@@ -458,6 +497,7 @@ class ApiService {
   }
 
   static Future<void> _handleExpiredSession() async {
+    if (_isLoggingOut) return;
     final inFlight = _sessionExpiryFuture;
     if (inFlight != null) return inFlight;
 
@@ -473,6 +513,7 @@ class ApiService {
   }
 
   static Future<void> _expireSessionInternal() async {
+    if (_isLoggingOut) return;
     await logout();
     await SessionExpiredHandler.show();
   }
@@ -568,9 +609,22 @@ class ApiService {
     }
   }
 
-  static Future<bool> clearFCMToken() async {
+  static Future<bool> clearFCMToken({String? accessToken}) async {
     try {
-      final response = await delete("/users/fcm_token");
+      final token = accessToken?.trim().isNotEmpty == true
+          ? accessToken!.trim()
+          : (await getToken())?.trim();
+      if (token == null || token.isEmpty) return false;
+
+      final response = await http
+          .delete(
+            Uri.parse("$baseUrl/users/fcm_token"),
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": "Bearer $token",
+            },
+          )
+          .timeout(const Duration(seconds: 5));
       return response.statusCode == 200;
     } catch (e) {
       debugPrint('[FCM] token clear failed: ${e.runtimeType}');
