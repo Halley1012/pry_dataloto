@@ -371,6 +371,7 @@ class _RegistroPageState extends State<RegistroScreen> {
                                 final prefs =
                                     await SharedPreferences.getInstance();
                                 await prefs.setString("username", finalName);
+                                await AdService.instance.setRewardUser(userMap?['id']?.toString());
 
                                 if (dialogCtx.mounted) {
                                   Navigator.pop(dialogCtx);
@@ -788,6 +789,11 @@ class _RegistroPageState extends State<RegistroScreen> {
       final storage = AppSecureStorage.instance;
 
       if (updatedUser != null) {
+        final resolvedId = (updatedUser['id'] ?? widget.userId)?.toString();
+        if (resolvedId != null && resolvedId.isNotEmpty) {
+          await storage.write(key: 'user_id', value: resolvedId);
+          await AdService.instance.setRewardUser(resolvedId);
+        }
         await storage.write(key: 'name', value: updatedUser['name']);
         await storage.write(key: 'email', value: updatedUser['email']);
         await storage.write(

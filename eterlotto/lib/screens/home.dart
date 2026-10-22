@@ -36,6 +36,7 @@ import 'package:eterlotto/widgets/user_balota_avatar.dart';
 import 'package:eterlotto/widgets/premium_header_background.dart';
 import 'package:eterlotto/widgets/premium_crown_badge.dart';
 import 'package:eterlotto/services/data_refresh_manager.dart';
+import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:shimmer/shimmer.dart';
 import '../providers/subscription_provider.dart';
 import '../utils/secure_storage_helper.dart';
@@ -88,7 +89,9 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _homeTabStackKey = GlobalKey();
   Future<void>? _homeLoadFuture;
   Completer<void>? _queuedHomeRetry;
+  bool _queuedRetryForceRefresh = false;
   bool _homeLoadIsForced = false;
+  bool _isRetryingHome = false;
   String? _activeHomeControlId;
   int? _activeHomePointer;
   Offset? _activeHomePointerStart;
@@ -171,7 +174,13 @@ class _HomeScreenState extends State<HomeScreen>
         // AdService impide repetir la solicitud dentro de esta ejecución.
         // Los anuncios siguen bloqueados hasta que UMP los autorice.
         unawaited(AdService.instance.initialize());
+        unawaited(
+          context
+              .read<SubscriptionProvider>()
+              .hydrateAndRefreshSubscriptionStatus(),
+        );
         context.read<NotificationProvider>().fetchNotifications();
+        PushNotificationService.consumePendingNotificationNavigation();
       }
     });
   }
@@ -505,21 +514,47 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<void> _loadUserAndData({bool forceRefresh = false}) {
+  String? _cleanStorageString(String? value) {
+    final trimmed = value?.trim();
+    if (trimmed == null ||
+        trimmed.isEmpty ||
+        trimmed.toLowerCase() == 'null') {
+      return null;
+    }
+    return trimmed;
+  }
+
+  List<Map<String, dynamic>> _safeMapList(dynamic raw) {
+    if (raw is! List) return <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map>()
+        .map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
+
+  Future<void> _loadUserAndData({
+    bool forceRefresh = false,
+    bool userInitiatedRetry = false,
+  }) {
     final inFlight = _homeLoadFuture;
     if (inFlight != null) {
-      // El primer toque en Reintentar no debe perderse si la carga inicial
-      // sigue en curso. Encolamos un único refresco forzado para cuando termine.
-      if (!forceRefresh || _homeLoadIsForced) return inFlight;
+      // Si el usuario pulsa Reintentar o hace pull-to-refresh mientras la carga
+      // inicial sigue en curso, encolamos una única pasada adicional sin perder
+      // el toque ni saturar al servidor.
+      if (!forceRefresh && !userInitiatedRetry) return inFlight;
+      _queuedRetryForceRefresh = _queuedRetryForceRefresh || forceRefresh;
       final queued = _queuedHomeRetry;
       if (queued != null) return queued.future;
       final retry = Completer<void>();
       _queuedHomeRetry = retry;
-      if (mounted) setState(() {});
+      if (mounted) setState(() => _isRetryingHome = true);
       return retry.future;
     }
 
     _homeLoadIsForced = forceRefresh;
+    if (userInitiatedRetry && mounted) {
+      setState(() => _isRetryingHome = true);
+    }
     final future = _loadUserAndDataInternal(forceRefresh: forceRefresh);
     _homeLoadFuture = future;
     return future.whenComplete(() {
@@ -528,13 +563,23 @@ class _HomeScreenState extends State<HomeScreen>
       _homeLoadIsForced = false;
 
       final queued = _queuedHomeRetry;
-      if (queued == null) return;
+      final nextForce = _queuedRetryForceRefresh;
       _queuedHomeRetry = null;
+      _queuedRetryForceRefresh = false;
+      if (queued == null) {
+        if (mounted && _isRetryingHome) {
+          setState(() => _isRetryingHome = false);
+        }
+        return;
+      }
       if (!mounted) {
         queued.complete();
         return;
       }
-      _loadUserAndData(forceRefresh: true).then(
+      _loadUserAndData(
+        forceRefresh: nextForce,
+        userInitiatedRetry: true,
+      ).then(
         (_) => queued.complete(),
         onError: (Object error, StackTrace stackTrace) =>
             queued.completeError(error, stackTrace),
@@ -551,54 +596,64 @@ class _HomeScreenState extends State<HomeScreen>
       // SubscriptionProvider hidrata y valida el plan por cuenta al iniciar y
       // tras login. Home no dispara una segunda consulta redundante.
 
-      // 1. Resolver la sesión antes de leer o aplicar cualquier dato privado.
+      // 1. Resolver la sesión y recuperar nombre, avatar y país desde el
+      // almacenamiento local para presentarlos inmediatamente sin depender de red.
       final keys = await Future.wait([
         storage.read(key: 'user_id'),
         storage.read(key: 'pais_id'),
         storage.read(key: 'pais_nombre'),
+        storage.read(key: 'name'),
+        storage.read(key: 'avatar_url'),
       ]);
 
-      String? userIdStr = keys[0];
-      if (userIdStr == null || userIdStr.isEmpty) {
+      String? userIdStr = _cleanStorageString(keys[0]);
+      if (userIdStr == null) {
         final uid = await ApiService.getUserId();
-        userIdStr = uid?.toString();
+        userIdStr = _cleanStorageString(uid?.toString());
       }
-      userIdStr = userIdStr?.trim();
-      if (userIdStr?.isEmpty == true) userIdStr = null;
 
       await AdService.instance.setRewardUser(userIdStr);
 
-      final rawPaisId = keys[1];
-      final paisNombreStr = keys[2];
+      String? paisIdStr = _cleanStorageString(keys[1]);
+      String? paisNombreStr = _cleanStorageString(keys[2]);
+      final String? storageName = _cleanStorageString(keys[3]);
+      final String? storageAvatar = _cleanStorageString(keys[4]);
 
-      String? paisIdStr =
-          (rawPaisId != null && rawPaisId != 'null' && rawPaisId.isNotEmpty)
-          ? rawPaisId
-          : null;
-
-      // Si una sesión antigua sólo conservó el nombre del país, resolvemos su
-      // ID desde el catálogo. Nunca asumimos IDs concretos por nombre.
-      if ((paisIdStr == null || paisIdStr.isEmpty) &&
-          paisNombreStr != null &&
-          paisNombreStr.trim().isNotEmpty) {
-        try {
-          final paisesCatalogo = await ApiService.getPaises();
-          _indexCountryCatalog(paisesCatalogo);
-          final target = paisNombreStr.trim().toLowerCase();
-          for (final p in paisesCatalogo) {
-            final nombre = p['nombre']?.toString().trim().toLowerCase() ?? '';
-            if (nombre == target) {
-              final resolvedId = int.tryParse(p['id']?.toString() ?? '');
-              if (resolvedId != null) {
-                paisIdStr = resolvedId.toString();
-                await storage.write(key: 'pais_id', value: paisIdStr);
+      // Si sólo existe el nombre o sólo el ID del país en almacenamiento local,
+      // completamos el par desde el catálogo de países.
+      if ((paisIdStr == null && paisNombreStr != null) ||
+          (paisIdStr != null && paisNombreStr == null)) {
+        if (paisIdStr != null && _paisNombrePorId[paisIdStr] != null) {
+          paisNombreStr = _paisNombrePorId[paisIdStr];
+        } else {
+          try {
+            final paisesCatalogo = await ApiService.getPaises();
+            _indexCountryCatalog(paisesCatalogo);
+            if (paisIdStr == null && paisNombreStr != null) {
+              final target = paisNombreStr.toLowerCase();
+              for (final p in paisesCatalogo) {
+                final nombre =
+                    p['nombre']?.toString().trim().toLowerCase() ?? '';
+                if (nombre == target) {
+                  final resolvedId = int.tryParse(p['id']?.toString() ?? '');
+                  if (resolvedId != null) {
+                    paisIdStr = resolvedId.toString();
+                    await storage.write(key: 'pais_id', value: paisIdStr);
+                  }
+                  break;
+                }
               }
-              break;
+            } else if (paisIdStr != null && paisNombreStr == null) {
+              final resolvedName = _paisNombrePorId[paisIdStr];
+              if (resolvedName != null && resolvedName.isNotEmpty) {
+                paisNombreStr = resolvedName;
+                await storage.write(key: 'pais_nombre', value: paisNombreStr);
+              }
             }
+          } catch (_) {
+            // Si el catálogo aún no está en caché ni en red, se resolverá en el
+            // paso de red en paralelo sin bloquear el pintado local.
           }
-        } catch (_) {
-          // El país queda sin filtrar hasta que el catálogo vuelva a estar
-          // disponible; es preferible a asignar un país incorrecto.
         }
       }
 
@@ -606,25 +661,34 @@ class _HomeScreenState extends State<HomeScreen>
       final cacheKeySuffix = paisIdStr ?? "global";
       final profileKey = CacheService.perfilUsuarioKey(userIdStr);
 
-      // Si cambió la cuenta, se limpia inmediatamente el perfil anterior.
-      // Los catálogos públicos pueden conservarse mientras llega la nueva red.
-      if (mounted && currentUserId != userIdStr) {
+      // Pintamos de inmediato los datos locales del usuario (nombre, avatar y
+      // país) para que nunca queden en "Usuario" / "?" / "Internacional" si
+      // existen en AppSecureStorage.
+      if (mounted) {
+        final accountChanged =
+            currentUserId != null &&
+            userIdStr != null &&
+            currentUserId != userIdStr;
         setState(() {
           currentUserId = userIdStr;
-          userName = null;
-          avatarUrl = null;
-          pais = paisNombreStr ?? 'Internacional';
+          userName = storageName ?? (accountChanged ? null : userName);
+          avatarUrl = storageAvatar ?? (accountChanged ? null : avatarUrl);
+          pais =
+              paisNombreStr ??
+              (paisIdStr != null ? _paisNombrePorId[paisIdStr] : null) ??
+              (accountChanged ? null : _cleanStorageString(pais)) ??
+              'Internacional';
           _paisId = paisIdStr;
         });
       }
 
       // 2. Cache-first/SWR: primero se intenta la entrada fresca; si venció se
-      // usa el último valor conocido sin borrar la UI mientras la red actualiza.
-      dynamic cachedLoterias;
-      dynamic cachedAnuncios;
-      dynamic cachedGlobal;
-      dynamic cachedPosts;
-      dynamic cachedProfile;
+      // usa el último valor conocido (incluyendo el catálogo compartido de
+      // ApiService) sin borrar la UI mientras la red actualiza.
+      final apiLoteriaCacheKey = paisIdStr != null && paisIdStr.isNotEmpty
+          ? 'loterias_mapeadas_$paisIdStr'
+          : CacheService.catalogoLoteriasKey;
+
       final freshValues = await Future.wait([
         CacheService.getJson('home_loterias_$cacheKeySuffix'),
         CacheService.getJson('home_anuncios_$cacheKeySuffix'),
@@ -648,30 +712,56 @@ class _HomeScreenState extends State<HomeScreen>
         freshValues[4] != null
             ? Future.value(freshValues[4])
             : CacheService.getStaleJson(profileKey),
+        CacheService.getStaleJson(apiLoteriaCacheKey),
+        CacheService.getStaleJson(CacheService.catalogoLoteriasKey),
       ]);
-      cachedLoterias = staleValues[0];
-      cachedAnuncios = staleValues[1];
-      cachedGlobal = staleValues[2];
-      cachedPosts = staleValues[3];
-      cachedProfile = staleValues[4];
+
+      dynamic cachedLoterias =
+          (staleValues[0] is List && (staleValues[0] as List).isNotEmpty)
+          ? staleValues[0]
+          : staleValues[5];
+      dynamic cachedAnuncios = staleValues[1];
+      dynamic cachedGlobal =
+          (staleValues[2] is List && (staleValues[2] as List).isNotEmpty)
+          ? staleValues[2]
+          : staleValues[6];
+      dynamic cachedPosts = staleValues[3];
+      dynamic cachedProfile = staleValues[4];
+
       if (!await _isCurrentHomeSession(userIdStr)) return;
       final postsCache = _postsFromCache(cachedPosts);
       final profileMap = cachedProfile is Map
           ? Map<String, dynamic>.from(cachedProfile)
           : const <String, dynamic>{};
 
+      final cachedName =
+          _cleanStorageString(profileMap['name']?.toString()) ??
+          storageName ??
+          _cleanStorageString(userName);
+      final cachedAvatar =
+          _cleanStorageString(profileMap['avatar_url']?.toString()) ??
+          storageAvatar ??
+          _cleanStorageString(avatarUrl);
+      final cachedPaisNombre =
+          paisNombreStr ??
+          (paisIdStr != null ? _paisNombrePorId[paisIdStr] : null) ??
+          _cleanStorageString(profileMap['pais_nombre']?.toString());
+
       if (mounted &&
           (cachedLoterias is List ||
               cachedAnuncios is List ||
               cachedGlobal is List ||
               postsCache.isNotEmpty ||
-              profileMap.isNotEmpty)) {
+              profileMap.isNotEmpty ||
+              storageName != null ||
+              storageAvatar != null ||
+              cachedPaisNombre != null)) {
         setState(() {
           currentUserId = userIdStr;
-          pais = paisNombreStr ?? "Internacional";
+          pais = cachedPaisNombre ?? "Internacional";
           _paisId = paisIdStr;
-          userName = profileMap['name']?.toString();
-          avatarUrl = profileMap['avatar_url']?.toString();
+          userName = cachedName;
+          avatarUrl = cachedAvatar;
           if (cachedLoterias is List) {
             _loterias = List<dynamic>.from(cachedLoterias);
           }
@@ -680,10 +770,10 @@ class _HomeScreenState extends State<HomeScreen>
             _globalLoterias = List<dynamic>.from(cachedGlobal);
           }
           if (cachedAnuncios is List) {
-            anuncios = List<Map<String, dynamic>>.from(cachedAnuncios);
+            anuncios = _safeMapList(cachedAnuncios);
           }
           if (postsCache.isNotEmpty) posts = postsCache;
-          isLoading = cachedLoterias is! List && cachedGlobal is! List;
+          isLoading = _loterias.isEmpty && _globalLoterias.isEmpty;
           // El dato stale es una fase normal de SWR; no mostramos una alerta
           // hasta confirmar que el refresco remoto falló.
           _showingStaleHomeData = false;
@@ -691,7 +781,9 @@ class _HomeScreenState extends State<HomeScreen>
         });
       }
 
-      if (_loterias.isEmpty) setState(() => isLoading = true);
+      if (_loterias.isEmpty && _globalLoterias.isEmpty && mounted) {
+        setState(() => isLoading = true);
+      }
 
       // 3. Refresco de red en paralelo. El catálogo global se refresca siempre
       // por su propio TTL, aun cuando el país tenga loterías disponibles.
@@ -731,11 +823,22 @@ class _HomeScreenState extends State<HomeScreen>
       final networkAnuncios = resultados[1] as List<Map<String, dynamic>>?;
       final networkLoterias = resultados[2] as List<dynamic>?;
       final networkGlobal = resultados[3] as List<dynamic>?;
-      final networkProfile = resultados[4] as Map<String, dynamic>?;
+      Map<String, dynamic>? networkProfile =
+          resultados[4] as Map<String, dynamic>?;
       final networkPaises = resultados[5] as List<Map<String, dynamic>>?;
       if (networkPaises != null) {
         _indexCountryCatalog(networkPaises);
       }
+
+      // Si user_id no estaba disponible al principio pero ensureValidSession()
+      // lo restauró al renovar el token, lo adoptamos y cargamos su perfil.
+      if (userIdStr == null) {
+        userIdStr = _cleanStorageString(await storage.read(key: 'user_id'));
+        if (userIdStr != null && networkProfile == null) {
+          networkProfile = await _fetchProfile(userIdStr);
+        }
+      }
+
       final refreshedFromNetwork =
           networkPosts != null ||
           networkAnuncios != null ||
@@ -754,34 +857,63 @@ class _HomeScreenState extends State<HomeScreen>
       final cachedProfileMap = cachedProfile is Map
           ? Map<String, dynamic>.from(cachedProfile)
           : const <String, dynamic>{};
+
+      userIdStr ??=
+          _cleanStorageString(networkProfile?['id']?.toString()) ??
+          _cleanStorageString(cachedProfileMap['id']?.toString());
+      if (userIdStr != null) {
+        await AdService.instance.setRewardUser(userIdStr);
+      }
+
       final finalName =
-          networkProfile?['name']?.toString() ??
-          cachedProfileMap['name']?.toString();
+          _cleanStorageString(networkProfile?['name']?.toString()) ??
+          _cleanStorageString(cachedProfileMap['name']?.toString()) ??
+          storageName ??
+          _cleanStorageString(userName);
       final finalAvatar =
-          networkProfile?['avatar_url']?.toString() ??
-          cachedProfileMap['avatar_url']?.toString();
+          _cleanStorageString(networkProfile?['avatar_url']?.toString()) ??
+          _cleanStorageString(cachedProfileMap['avatar_url']?.toString()) ??
+          storageAvatar ??
+          _cleanStorageString(avatarUrl);
+      final finalPaisId =
+          paisIdStr ??
+          _cleanStorageString(networkProfile?['pais_id']?.toString()) ??
+          _cleanStorageString(cachedProfileMap['pais_id']?.toString()) ??
+          _cleanStorageString(_paisId);
+      final finalPaisNombre =
+          paisNombreStr ??
+          (finalPaisId != null ? _paisNombrePorId[finalPaisId] : null) ??
+          _cleanStorageString(networkProfile?['pais_nombre']?.toString()) ??
+          _cleanStorageString(cachedProfileMap['pais_nombre']?.toString()) ??
+          _cleanStorageString(pais);
 
       if (!await _isCurrentHomeSession(userIdStr)) return;
 
       final hasLotteryData = loteriasRes.isNotEmpty || globalRes.isNotEmpty;
       final hasStaleLotteryData =
-          cachedLoterias is List ||
-          cachedGlobal is List ||
-          _loterias.isNotEmpty;
+          (cachedLoterias is List && cachedLoterias.isNotEmpty) ||
+          (cachedGlobal is List && cachedGlobal.isNotEmpty) ||
+          _loterias.isNotEmpty ||
+          _globalLoterias.isNotEmpty;
       final staleCatalogInUse =
-          (networkLoterias == null && cachedLoterias is List) ||
+          (networkLoterias == null &&
+              cachedLoterias is List &&
+              cachedLoterias.isNotEmpty) ||
           (loteriasRes.isEmpty &&
               networkGlobal == null &&
-              cachedGlobal is List);
+              cachedGlobal is List &&
+              cachedGlobal.isNotEmpty);
+
+      final effectiveProfileKey = CacheService.perfilUsuarioKey(userIdStr);
 
       setState(() {
         currentUserId = userIdStr;
-        pais = paisNombreStr ?? "Internacional";
-        _paisId = paisIdStr;
+        pais = finalPaisNombre ?? "Internacional";
+        _paisId = finalPaisId;
         userName = finalName;
         avatarUrl = finalAvatar;
         posts = rawPosts;
-        anuncios = List<Map<String, dynamic>>.from(anunciosRes);
+        anuncios = _safeMapList(anunciosRes);
         _loterias = loteriasRes;
         _filteredLoterias = List<dynamic>.from(_loterias);
         _globalLoterias = globalRes;
@@ -802,7 +934,8 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         if (networkGlobal != null)
           CacheService.setJson('home_loterias_globales', networkGlobal),
-        if ((paisIdStr == null || paisIdStr.isEmpty) && networkLoterias != null)
+        if ((finalPaisId == null || finalPaisId.isEmpty) &&
+            networkLoterias != null)
           CacheService.setJson('home_loterias_globales', networkLoterias),
         if (networkAnuncios != null)
           CacheService.setJson(
@@ -815,7 +948,20 @@ class _HomeScreenState extends State<HomeScreen>
             networkPosts.map((post) => post.toJson()).toList(),
           ),
         if (networkProfile != null && userIdStr != null)
-          CacheService.setJson(profileKey, networkProfile),
+          CacheService.setJson(
+            effectiveProfileKey,
+            CacheService.sanitizeProfileCacheData(networkProfile),
+          ),
+        if (finalName != null && storageName != finalName)
+          storage.write(key: 'name', value: finalName),
+        if (finalAvatar != null && storageAvatar != finalAvatar)
+          storage.write(key: 'avatar_url', value: finalAvatar),
+        if (finalPaisId != null && paisIdStr != finalPaisId)
+          storage.write(key: 'pais_id', value: finalPaisId),
+        if (finalPaisNombre != null &&
+            finalPaisNombre != 'Internacional' &&
+            paisNombreStr != finalPaisNombre)
+          storage.write(key: 'pais_nombre', value: finalPaisNombre),
       ]);
       if (refreshedFromNetwork) {
         DataRefreshManager.instance.markUpdated(RefreshModules.home);
@@ -1253,19 +1399,29 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<bool> _isCurrentHomeSession(String? expectedUserId) async {
     if (!mounted) return false;
-    final current = (await storage.read(key: 'user_id'))?.trim();
-    return (current?.isNotEmpty == true ? current : null) == expectedUserId;
+    final current = _cleanStorageString(await storage.read(key: 'user_id'));
+    final expected = _cleanStorageString(expectedUserId);
+    if (expected == null && current != null) {
+      return true;
+    }
+    return current == expected;
   }
 
   Future<Map<String, dynamic>?> _fetchProfile(String? userId) async {
-    if (userId == null || userId.isEmpty) return null;
+    final cleanId = _cleanStorageString(userId);
+    if (cleanId == null) return null;
     try {
-      final response = await ApiService.get('/users/$userId');
+      final response = await ApiService.get('/users/$cleanId');
       if (response.statusCode != 200) return null;
       final decoded = jsonDecode(response.body);
-      return decoded is Map<String, dynamic>
-          ? decoded
-          : (decoded is Map ? Map<String, dynamic>.from(decoded) : null);
+      if (decoded is Map) {
+        final map = Map<String, dynamic>.from(decoded);
+        if (map['user'] is Map) {
+          return Map<String, dynamic>.from(map['user'] as Map);
+        }
+        return map;
+      }
+      return null;
     } catch (_) {
       return null;
     }
@@ -2382,7 +2538,8 @@ class _HomeScreenState extends State<HomeScreen>
     // desaparecer mientras se consulta Google Play o el backend.
     final isPremium =
         subscription.isSubscriptionStatusResolved && subscription.isPremium;
-    final showInitialSkeleton = isLoading && _loterias.isEmpty;
+    final showInitialSkeleton =
+        isLoading && _loterias.isEmpty && _globalLoterias.isEmpty;
     return SafeArea(
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -2507,8 +2664,15 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildHomeUnavailableState() {
     return AppDataStateCard(
       isConnectionError: true,
-      onRetry: () => _loadUserAndData(forceRefresh: true),
-      retrying: isLoading || _queuedHomeRetry != null || _homeLoadIsForced,
+      onRetry: () => _loadUserAndData(
+        forceRefresh: false,
+        userInitiatedRetry: true,
+      ),
+      retrying:
+          isLoading ||
+          _isRetryingHome ||
+          _queuedHomeRetry != null ||
+          _homeLoadIsForced,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
     );
   }

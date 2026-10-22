@@ -376,6 +376,7 @@ class _LoginPageState extends State<LoginPage> {
                                       if (userMap['departamento_nombre'] != null) await storage.write(key: "departamento_nombre", value: userMap['departamento_nombre'].toString());
                                       if (userMap['avatar_url'] != null) await storage.write(key: "avatar_url", value: userMap['avatar_url'].toString());
                                     }
+                                    await AdService.instance.setRewardUser(userMap?['id']?.toString());
 
                                     if (dialogCtx.mounted) {
                                       Navigator.pop(dialogCtx);
