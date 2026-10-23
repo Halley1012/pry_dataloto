@@ -96,6 +96,24 @@ async def get_reward_status(user_id: int) -> dict:
     }
 
 
+async def get_video_session_status(user_id: int, session_id: UUID) -> dict | None:
+    """Read only this account's session; counters cannot confirm a specific ad."""
+    pool = get_pool()
+    async with pool.acquire() as connection:
+        row = await connection.fetchrow(
+            """SELECT estado, expira_en <= NOW() AS expired
+               FROM public.recompensa_sesiones WHERE id=$1 AND user_id=$2""",
+            session_id, user_id,
+        )
+    if row is None:
+        return None
+    state = row["estado"]
+    if state == "pendiente" and row["expired"]:
+        state = "vencida"
+    return {"session_id": str(session_id), "state": state,
+            "verified": state == "verificada"}
+
+
 async def activate_pass(user_id: int) -> dict:
     pool = get_pool()
     async with pool.acquire() as connection:

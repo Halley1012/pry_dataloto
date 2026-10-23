@@ -10,6 +10,8 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../styles/colores.dart';
 import '../screens/subscription_screen.dart';
 import '../utils/secure_storage_helper.dart';
+import 'reward_backend_service.dart';
+import 'reward_verification.dart';
 
 class AdService {
   AdService._();
@@ -26,6 +28,21 @@ class AdService {
   // Release usa AdMob real salvo que se compile con:
   // --dart-define=ADS_USE_TEST_IDS=true
   static bool get isTestMode => kDebugMode || _forceTestAds;
+
+  // DEV SSV: a unit owned by this app, requested ONLY on registered test devices.
+  // Shared Google demo units have no callback URL configurable for our server.
+  static const String _ssvDevAdUnitId = String.fromEnvironment(
+    'REWARDS_SSV_DEV_AD_UNIT_ID', defaultValue: '',
+  );
+  static const String _adMobTestDeviceIds = String.fromEnvironment(
+    'ADMOB_TEST_DEVICE_IDS', defaultValue: '',
+  );
+  static List<String> get _testDeviceIds => _adMobTestDeviceIds.split(',')
+      .map((id) => id.trim()).where((id) => id.isNotEmpty).toList();
+  static bool get _useSsvDevAdUnit => useBackendRewards &&
+      _ssvDevAdUnitId.trim().isNotEmpty && _testDeviceIds.isNotEmpty;
+  static bool get backendUsesDemoAds => rewardedAdUnitId
+      .startsWith('ca-app-pub-3940256099942544/');
 
   // 🛡️ Simulación GDPR europea ÚNICAMENTE para compilaciones de prueba.
   // No se habilita en un release normal, aunque alguien configure UMP_DEBUG_EEA.
@@ -84,6 +101,10 @@ class AdService {
 
   /// ID de Anuncio Recompensado según plataforma y modo
   static String get rewardedAdUnitId {
+    if (useBackendRewards) {
+      if (_useSsvDevAdUnit) return _ssvDevAdUnitId.trim();
+      return Platform.isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
+    }
     if (isTestMode || kDebugMode) {
       return Platform.isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
     }
@@ -209,6 +230,63 @@ class AdService {
   static const int maxRewardMinutesPerDay = 60;
   static const int maxRewardBankMinutes = 60;
 
+  // Integración aislada: solo DEV con --dart-define=REWARDS_BACKEND_ENABLED=true.
+  // Sin esa opción, el código y los anuncios publicados siguen intactos.
+  static bool get useBackendRewards => RewardBackendService.enabled;
+  RewardBackendStatus? _backendRewardStatus;
+  String? _backendRewardIdentity;
+  DateTime? _backendRewardStatusAt;
+  Future<bool>? _backendStatusFuture;
+  int _rewardAccountRevision = 0;
+  bool _backendRewardPreparing = false;
+  RewardBackendStatus? get backendRewardStatus => _backendRewardStatus;
+  int get backendVideosCompleted => _backendRewardStatus?.videosCompleted ?? 0;
+  int get backendVideosRequired => _backendRewardStatus?.videosRequired ?? 7;
+  int get backendPassesAvailable => _backendRewardStatus?.passesAvailable ?? 0;
+  DateTime? get backendChallengeExpiresAt => _backendRewardStatus?.challengeExpiresAt;
+
+  Future<bool> refreshBackendRewardStatus({bool force = false}) {
+    if (!useBackendRewards) return Future.value(false);
+    final inFlight = _backendStatusFuture;
+    if (inFlight != null) return inFlight;
+    final updatedAt = _backendRewardStatusAt;
+    if (!force && _backendRewardStatus != null && updatedAt != null &&
+        DateTime.now().difference(updatedAt) < const Duration(seconds: 15)) {
+      return Future.value(true);
+    }
+    final request = _fetchBackendRewardStatus();
+    _backendStatusFuture = request;
+    unawaited(request.whenComplete(() {
+      if (identical(_backendStatusFuture, request)) _backendStatusFuture = null;
+    }));
+    return request;
+  }
+
+  Future<bool> _fetchBackendRewardStatus() async {
+    if (!useBackendRewards) return false;
+    final identity = _rewardUserId;
+    final accountRevision = _rewardAccountRevision;
+    // Evita publicar una respuesta de una cuenta después de un logout/login.
+    if (identity == null || int.tryParse(identity) == null) return false;
+    try {
+      final status = await RewardBackendService.getStatus();
+      if (_rewardUserId != identity || _rewardAccountRevision != accountRevision) return false;
+      _backendRewardStatus = status;
+      _backendRewardIdentity = identity;
+      _backendRewardStatusAt = DateTime.now();
+      _rewardPassExpiryTimer?.cancel();
+      _rewardPassExpiryTimer = status.passActive ? Timer(status.remaining, () {
+        _notifyRewardPassChanged();
+        unawaited(refreshBackendRewardStatus(force: true));
+      }) : null;
+      _notifyRewardPassChanged();
+      return true;
+    } catch (e) {
+      debugPrint('[REWARDS] status DEV falló: $e');
+      return false;
+    }
+  }
+
   final ValueNotifier<int> rewardPassRevision = ValueNotifier<int>(0);
   static const String _lastRewardUserStorageKey = 'reward_pass_last_user_id_v1';
   String? _rewardUserId;
@@ -233,12 +311,14 @@ class AdService {
           .toInt();
 
   bool get isRewardPassActive {
+    if (useBackendRewards) return _backendRewardStatus?.passActive ?? false;
     final until = _rewardPassActiveUntil;
     if (until == null) return false;
     return DateTime.now().isBefore(until);
   }
 
   Duration get rewardPassRemaining {
+    if (useBackendRewards) return _backendRewardStatus?.remaining ?? Duration.zero;
     final until = _rewardPassActiveUntil;
     if (until == null) return Duration.zero;
     final remaining = until.difference(DateTime.now());
@@ -322,6 +402,11 @@ class AdService {
     _rewardPassExpiryTimer = null;
     _featureAccessUntil.clear();
     _rewardUserId = null;
+    _rewardAccountRevision++;
+    _backendStatusFuture = null;
+    _backendRewardStatusAt = null;
+    _backendRewardStatus = null;
+    _backendRewardIdentity = null;
     _rewardBankMinutes = 0;
     _rewardEarnedTodayMinutes = 0;
     _rewardDay = null;
@@ -418,9 +503,19 @@ class AdService {
         normalized == _rewardUserId &&
         _rewardDay != null) {
       await _ensureRewardDayCurrent();
+      if (useBackendRewards && _backendRewardStatus == null) {
+        unawaited(refreshBackendRewardStatus());
+      }
       return;
     }
 
+    if (useBackendRewards && _backendRewardIdentity != normalized) {
+      _rewardAccountRevision++;
+      _backendStatusFuture = null;
+      _backendRewardStatusAt = null;
+      _backendRewardStatus = null;
+      _backendRewardIdentity = normalized;
+    }
     _rewardPassExpiryTimer?.cancel();
     _rewardPassExpiryTimer = null;
     _featureAccessUntil.clear();
@@ -522,6 +617,9 @@ class AdService {
     }
 
     _notifyRewardPassChanged();
+    if (useBackendRewards) {
+      unawaited(refreshBackendRewardStatus());
+    }
   }
 
   Future<String> _ensureAuthenticatedRewardUserId() async {
@@ -579,6 +677,17 @@ class AdService {
   }
 
   Future<bool> activateRewardPass() async {
+    if (useBackendRewards) {
+      try {
+        await RewardBackendService.activatePass();
+        // Finish any earlier read, then fetch the result of this mutation.
+        await _backendStatusFuture;
+        return await refreshBackendRewardStatus(force: true);
+      } catch (e) {
+        debugPrint('[REWARDS] activate DEV: $e');
+        return false;
+      }
+    }
     final userId = await _ensureAuthenticatedRewardUserId();
     if (userId.isEmpty ||
         _rewardBankMinutes <= 0 ||
@@ -699,6 +808,12 @@ class AdService {
     _lastInterstitialShownAt = null;
 
     if (_isInitialized && _canRequestAds) return;
+
+    if (_useSsvDevAdUnit) {
+      await MobileAds.instance.updateRequestConfiguration(
+        RequestConfiguration(testDeviceIds: _testDeviceIds),
+      );
+    }
 
     try {
       _canRequestAds = await _requestConsentAndCheckAdsPermission();
@@ -1061,6 +1176,9 @@ class AdService {
       'reward_feature_until_v1_${userId}_';
 
   bool isFeatureUnlocked(String featureKey) {
+    if (useBackendRewards) {
+      return _backendRewardStatus?.isFeatureUnlocked(featureKey) ?? false;
+    }
     if (isRewardPassActive) return true;
     final until = _featureAccessUntil[featureKey];
     if (until == null) return false;
@@ -1140,67 +1258,35 @@ class AdService {
   /// en curso cuando el usuario solicita ver un anuncio en Producción.
   Future<RewardedAd?> _ensureRewardedAdReady(BuildContext context) async {
     if (_rewardedAd != null) return _rewardedAd;
+    return _withRewardLoading(context, _waitForRewardedAd);
+  }
 
-    BuildContext? loadingDialogContext;
-    bool dialogShown = false;
-
-    void closeLoadingDialog() {
-      if (!dialogShown) return;
-      dialogShown = false;
-      final dCtx = loadingDialogContext;
-      loadingDialogContext = null;
-      if (dCtx != null && dCtx.mounted) {
-        Navigator.of(dCtx).pop();
-      }
-    }
-
-    if (context.mounted) {
-      dialogShown = true;
-      unawaited(
-        showDialog<void>(
-          context: context,
-          barrierDismissible: false,
-          builder: (dCtx) {
-            loadingDialogContext = dCtx;
-            return const PopScope(
-              canPop: false,
-              child: Center(
-                child: CircularProgressIndicator(color: AppColors.yellow),
-              ),
-            );
-          },
-        ),
-      );
-    }
-
+  Future<T> _withRewardLoading<T>(BuildContext context, Future<T> Function() action) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final route = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator(color: AppColors.yellow)),
+      ),
+    );
+    unawaited(navigator.push(route));
     try {
-      if (!_isInitialized || !_canRequestAds) {
-        await initialize().timeout(
-          const Duration(seconds: 6),
-          onTimeout: () {},
-        );
-      }
-
-      if (_rewardedAd != null) return _rewardedAd;
-
-      if (!_isRewardedLoading) {
-        loadRewardedAd();
-      }
-
-      final inFlight = _rewardedLoadCompleter?.future;
-      if (inFlight != null) {
-        await inFlight.timeout(
-          const Duration(seconds: 6),
-          onTimeout: () => null,
-        );
-      }
-
-      return _rewardedAd;
+      return await action();
     } finally {
-      // Dar un microtask por si showDialog acaba de montar su ruta.
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      closeLoadingDialog();
+      if (navigator.mounted && route.isActive) navigator.removeRoute(route);
     }
+  }
+
+  Future<RewardedAd?> _waitForRewardedAd() async {
+    Future<RewardedAd?> load() async {
+      if (!canRequestAds) await initialize();
+      if (_rewardedAd != null) return _rewardedAd;
+      loadRewardedAd();
+      return await _rewardedLoadCompleter?.future;
+    }
+    return load().timeout(const Duration(seconds: 6), onTimeout: () => null);
   }
 
   /// Mostrar diálogo y flujo de anuncio recompensado para funciones especiales
@@ -1212,6 +1298,17 @@ class AdService {
     String? featureKey,
     required VoidCallback onRewardGranted,
   }) async {
+    if (useBackendRewards) {
+      await _showBackendFeatureGate(
+        context: context,
+        isPremium: isPremium,
+        featureTitle: featureTitle,
+        featureActionDescription: featureActionDescription,
+        featureKey: featureKey,
+        onRewardGranted: onRewardGranted,
+      );
+      return;
+    }
     // Aseguramos haber resuelto el usuario de la sesión activa antes de
     // evaluar isRewardPassActive o isFeatureUnlocked.
     if (_rewardUserId == null || _rewardUserId!.isEmpty) {
@@ -1529,6 +1626,10 @@ class AdService {
   Future<void> showRewardedForPass({
     required BuildContext context,
   }) async {
+    if (useBackendRewards) {
+      await _showBackendRewarded(context: context, origin: 'regalo');
+      return;
+    }
     if (_rewardUserId == null || _rewardUserId!.isEmpty) {
       await _ensureAuthenticatedRewardUserId();
     }
@@ -1646,8 +1747,205 @@ class AdService {
     );
   }
 
+  /// Flujo nuevo exclusivo de DEV: la recompensa se confirma SOLO desde SSV.
+  /// No altera ninguna ruta publicitaria del sistema original.
+  Future<void> _showBackendFeatureGate({
+    required BuildContext context,
+    required bool isPremium,
+    required String featureTitle,
+    required String featureActionDescription,
+    required String? featureKey,
+    required VoidCallback onRewardGranted,
+  }) async {
+    if (isPremium) {
+      if (context.mounted) onRewardGranted();
+      return;
+    }
+    await refreshBackendRewardStatus();
+    if (isRewardPassActive ||
+        (featureKey != null && isFeatureUnlocked(featureKey))) {
+      if (context.mounted) onRewardGranted();
+      return;
+    }
+    if (!context.mounted || _rewardedGateDialogOpen || _isFullScreenAdShowing) return;
+    _rewardedGateDialogOpen = true;
+    bool? accepted;
+    try {
+      final text = RewardBackendTexts(Localizations.localeOf(context).languageCode);
+      accepted = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: Text(featureTitle, style: const TextStyle(color: Colors.white)),
+          content: Text('$featureActionDescription\n\n${text.featureInfo}',
+            style: const TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text(AppLocalizations.of(ctx)!.cancelar)),
+            TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: Text(AppLocalizations.of(ctx)!.verVideo)),
+          ],
+        ),
+      );
+    } finally {
+      _rewardedGateDialogOpen = false;
+    }
+    if (!context.mounted || accepted != true) return;
+    await _showBackendRewarded(
+      context: context,
+      origin: 'funcion',
+      featureKey: featureKey ?? featureTitle,
+      onVerified: onRewardGranted,
+    );
+  }
+
+  Future<void> _showBackendRewarded({
+    required BuildContext context,
+    required String origin,
+    String? featureKey,
+    VoidCallback? onVerified,
+  }) async {
+    if (!context.mounted || _isFullScreenAdShowing || _backendRewardPreparing) return;
+    _backendRewardPreparing = true;
+    try {
+      await _withRewardLoading(context, () => _prepareAndShowBackendRewarded(
+          context: context, origin: origin, featureKey: featureKey,
+          onVerified: onVerified,
+        ));
+    } finally {
+      _backendRewardPreparing = false;
+    }
+  }
+
+  Future<void> _prepareAndShowBackendRewarded({
+    required BuildContext context,
+    required String origin,
+    String? featureKey,
+    VoidCallback? onVerified,
+  }) async {
+    final lang = Localizations.localeOf(context).languageCode;
+    final strings = RewardBackendTexts(lang);
+    void message(String value) {
+      if (context.mounted) {
+        final messenger = ScaffoldMessenger.maybeOf(context);
+        messenger?.hideCurrentSnackBar();
+        messenger?.showSnackBar(SnackBar(content: Text(value)));
+      }
+    }
+
+    if (backendUsesDemoAds) {
+      message(strings.testAdsNeedSsv);
+      return;
+    }
+    if (_rewardUserId == null) await setRewardUser(null);
+    if (!context.mounted || _rewardUserId == null) return;
+    final identity = _rewardUserId;
+    final accountRevision = _rewardAccountRevision;
+    bool isCurrentUser() => _rewardUserId == identity &&
+        _rewardAccountRevision == accountRevision;
+
+    // Preloading continues while the server creates the SSV session.
+    loadRewardedAd();
+
+    // Crear sesión ANTES del anuncio. Si no hay backend, no pedir al usuario
+    // que vea un video que no podemos asociar a su cuenta.
+    RewardVideoSession session;
+    RewardedAd? ad;
+    try {
+      final prepared = await Future.wait<Object?>([
+        RewardBackendService.startVideo(
+          origin: origin, featureKey: featureKey, adUnitId: rewardedAdUnitId,
+        ),
+        _waitForRewardedAd(),
+      ]);
+      session = prepared[0] as RewardVideoSession;
+      ad = prepared[1] as RewardedAd?;
+    } catch (e) {
+      debugPrint('[REWARDS] video-session DEV: $e');
+      message(e is RewardBackendException && e.code == 'SSV_AD_UNIT_NOT_CONFIGURED'
+          ? strings.ssvNotConfigured : strings.unavailable);
+      return;
+    }
+    if (!context.mounted || !isCurrentUser()) return;
+    // Do not replace the active account with an old HTTP response after logout.
+    if (session.userId != identity) {
+      message(strings.unavailable);
+      return;
+    }
+    if (ad == null) {
+      message(AppLocalizations.of(context)!.rewardNoVideoAvailable);
+      return;
+    }
+    try {
+      await ad.setServerSideOptions(ServerSideVerificationOptions(
+        userId: session.userId,
+        customData: session.customData,
+      ));
+    } catch (e) {
+      debugPrint('[REWARDS] no pudo configurar SSV: $e');
+      _rewardedAd = null;
+      ad.dispose();
+      loadRewardedAd();
+      message(strings.unavailable);
+      return;
+    }
+    if (!context.mounted || !isCurrentUser()) return;
+    _rewardedAd = null;
+    _isFullScreenAdShowing = true;
+    final verification = RewardVerification(
+      isCurrentUser: isCurrentUser,
+      checkVerified: () async {
+        if (!await RewardBackendService.isVideoVerified(session.id)) return false;
+        if (!isCurrentUser()) return false;
+        await _backendStatusFuture;
+        return isCurrentUser() && await refreshBackendRewardStatus(force: true);
+      },
+      onPending: () => message(strings.verifying),
+      onVerified: () {
+        message(strings.confirmed);
+        if (origin == 'funcion' && context.mounted) onVerified?.call();
+      },
+    );
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (shown) {
+        shown.dispose();
+        _markFullScreenClosed();
+        loadRewardedAd();
+        verification.dismissed();
+        // Some adapters deliver the reward callback just AFTER dismissal.
+        Timer(const Duration(milliseconds: 600), () {
+          if (!verification.earned && isCurrentUser()) message(strings.canceled);
+        });
+      },
+      onAdFailedToShowFullScreenContent: (shown, error) {
+        shown.dispose();
+        _markFullScreenClosed();
+        loadRewardedAd();
+        debugPrint('[REWARDS] video no mostrado: $error');
+        if (context.mounted) {
+          message(AppLocalizations.of(context)!.rewardVideoShowError);
+        }
+      },
+    );
+    try {
+      await ad.show(onUserEarnedReward: (_, __) {
+        unawaited(verification.rewardEarned());
+      });
+    } catch (e) {
+      ad.dispose();
+      _markFullScreenClosed();
+      loadRewardedAd();
+      if (context.mounted) message(AppLocalizations.of(context)!.rewardVideoShowError);
+    }
+  }
+
   /// Liberar recursos
   void dispose() {
+    _rewardAccountRevision++;
+    _backendStatusFuture = null;
+    _rewardedRetryTimer?.cancel();
+    _rewardedRetryTimer = null;
     _rewardPassExpiryTimer?.cancel();
     _rewardPassExpiryTimer = null;
     _interstitialAd?.dispose();

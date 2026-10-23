@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:eterlotto/services/cache_service.dart';
 import 'package:eterlotto/services/ad_service.dart';
+import 'package:eterlotto/services/reward_backend_service.dart';
 import 'package:eterlotto/screens/directorioLocal.dart';
 import 'package:eterlotto/screens/loteriasPais.dart';
 import 'package:eterlotto/widgets/lottery_avatar_3d.dart';
@@ -50,7 +51,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final storage = AppSecureStorage.instance;
   List<Map<String, dynamic>> anuncios = [];
   bool isLoading = true;
@@ -102,10 +103,12 @@ class _HomeScreenState extends State<HomeScreen>
   late final Animation<double> _welcomeWaveAngle;
   bool _hasPlayedWelcomeWave = false;
   Timer? _rewardPassTicker;
+  bool _backendRewardDialogOpen = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     ScreenSecurityHelper.onHomeTabChanged(0);
     // App Open sólo queda habilitado una vez que el usuario llegó al Home.
     // Así nunca interrumpe Splash, login, registro ni onboarding.
@@ -187,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     DataRefreshManager.instance.refreshNotifier.removeListener(
       _onDataRefreshNotification,
     );
@@ -203,6 +207,13 @@ class _HomeScreenState extends State<HomeScreen>
     if (mounted) setState(() {});
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && AdService.useBackendRewards) {
+      unawaited(AdService.instance.refreshBackendRewardStatus(force: true));
+    }
+  }
+
   String _formatRewardDuration(Duration duration) {
     final totalMinutes = duration.inMinutes;
     if (totalMinutes <= 0) return '0m';
@@ -215,6 +226,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String _rewardGiftLabel() {
+    if (AdService.useBackendRewards) {
+      final ads = AdService.instance;
+      if (ads.isRewardPassActive) {
+        return _formatRewardDuration(ads.rewardPassRemaining);
+      }
+      if (ads.backendPassesAvailable > 0) return '✓';
+      return '${ads.backendVideosCompleted}/${ads.backendVideosRequired}';
+    }
     final adService = AdService.instance;
     if (adService.isRewardPassActive) {
       return _formatRewardDuration(adService.rewardPassRemaining);
@@ -228,6 +247,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _openRewardPassDialog() async {
+    if (AdService.useBackendRewards) {
+      await _openBackendRewardDialog();
+      return;
+    }
     final adService = AdService.instance;
     final l10n = AppLocalizations.of(context)!;
     final active = adService.isRewardPassActive;
@@ -341,6 +364,188 @@ class _HomeScreenState extends State<HomeScreen>
         final duration = _formatRewardDuration(adService.rewardPassRemaining);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(l10n.rewardPassActivatedFor(duration))),
+        );
+      }
+    }
+  }
+
+  /// Vista del nuevo reto (solo DEV con bandera de compilación).
+  /// No sustituye el regalo actual cuando el módulo nuevo está desactivado.
+  Future<void> _openBackendRewardDialog() async {
+    if (_backendRewardDialogOpen) return;
+    _backendRewardDialogOpen = true;
+    try {
+      await _showBackendRewardDialog();
+    } finally {
+      _backendRewardDialogOpen = false;
+    }
+  }
+
+  Future<void> _showBackendRewardDialog() async {
+    final ads = AdService.instance;
+    final strings = RewardBackendTexts(
+      Localizations.localeOf(context).languageCode,
+    );
+    final refresh = ads.refreshBackendRewardStatus(force: true);
+    ads.loadRewardedAd();
+
+    final action = await showDialog<String>(
+      context: context,
+      builder: (ctx) => FutureBuilder<bool>(
+        future: refresh,
+        builder: (ctx, snapshot) => ValueListenableBuilder<int>(
+          valueListenable: ads.rewardPassRevision,
+          builder: (ctx, _, child) {
+            final status = ads.backendRewardStatus;
+            final active = status?.passActive ?? false;
+            final available = status?.passesAvailable ?? 0;
+            final expiry = status?.challengeExpiresAt;
+            final expiryText = expiry == null
+                ? null
+                : '${expiry.day.toString().padLeft(2, '0')}/'
+                      '${expiry.month.toString().padLeft(2, '0')}/${expiry.year}';
+            return AlertDialog(
+              backgroundColor: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(
+                  color: AppColors.amber.withValues(alpha: 0.28),
+                ),
+              ),
+              title: Row(
+                children: [
+                  const Text('🎁', style: TextStyle(fontSize: 26)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      strings.title,
+                      style: AppTextStyles.h2.copyWith(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (snapshot.connectionState != ConnectionState.done)
+                      const LinearProgressIndicator(color: AppColors.amber),
+                    if (snapshot.connectionState == ConnectionState.done &&
+                        snapshot.data != true)
+                      Text(
+                        strings.unavailable,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                    if (AdService.backendUsesDemoAds) ...[
+                      Text(
+                        strings.testAdsNeedSsv,
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    if (status != null) ...[
+                      Text(
+                        strings.progress(
+                          status.videosCompleted,
+                          status.videosRequired,
+                        ),
+                        style: const TextStyle(
+                          color: Color(0xFF86D9A2),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      LinearProgressIndicator(
+                        value: status.videosRequired <= 0
+                            ? 0
+                            : status.videosCompleted / status.videosRequired,
+                        color: const Color(0xFF86D9A2),
+                        backgroundColor: Colors.white24,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        strings.continueChallenge,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          height: 1.4,
+                        ),
+                      ),
+                      if (expiryText != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          strings.deadline(expiryText),
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                      if (available > 0) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          strings.ready,
+                          style: const TextStyle(color: Color(0xFF86D9A2)),
+                        ),
+                      ],
+                      if (active) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          strings.active,
+                          style: const TextStyle(color: Color(0xFF86D9A2)),
+                        ),
+                        Text(
+                          strings.remaining(
+                            _formatRewardDuration(status.remaining),
+                          ),
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, 'close'),
+                  child: Text(AppLocalizations.of(ctx)!.cerrar),
+                ),
+                // El regalo permite ganar más créditos incluso con un pase activo.
+                TextButton.icon(
+                  onPressed: status == null || AdService.backendUsesDemoAds
+                      ? null
+                      : () => Navigator.pop(ctx, 'watch'),
+                  icon: const Icon(
+                    Icons.play_circle_outline_rounded,
+                    color: AppColors.amber,
+                  ),
+                  label: Text(
+                    strings.watch,
+                    style: const TextStyle(color: AppColors.amber),
+                  ),
+                ),
+                if (!active && available > 0)
+                  ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, 'activate'),
+                    child: Text(strings.activate),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (action == 'watch') {
+      await ads.showRewardedForPass(context: context);
+    } else if (action == 'activate') {
+      final activated = await ads.activateRewardPass();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(activated ? strings.active : strings.unavailable),
+          ),
         );
       }
     }

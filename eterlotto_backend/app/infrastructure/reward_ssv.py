@@ -96,7 +96,7 @@ async def verify_admob_callback(raw_query: bytes, allowed_units: set[str]) -> di
         raise HTTPException(status_code=403, detail="Firma SSV inválida")
 
     # Only interpret parameters *after* cryptographically verifying the raw bytes.
-    unit = params.get("ad_unit", "")
+    unit = params.get("ad_unit", "").split("/")[-1]
     if not unit or unit not in allowed_units:
         _logger.warning("[REWARDS] SSV unexpected ad unit")
         raise HTTPException(status_code=403, detail="Unidad publicitaria no autorizada")
