@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import Literal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -16,7 +17,7 @@ from pydantic import BaseModel, Field
 from app.api.dependencies import get_current_user
 from app.infrastructure.reward_repository import (
     RewardRejected, activate_pass, credit_verified_video,
-    get_reward_status, start_video_session,
+    get_reward_status, get_video_session_status, start_video_session,
 )
 from app.infrastructure.reward_ssv import verify_admob_callback
 
@@ -27,6 +28,13 @@ _logger = logging.getLogger(__name__)
 class RewardVideoSessionRequest(BaseModel):
     origen: Literal["regalo", "funcion"]
     funcion_clave: str | None = Field(default=None, max_length=128)
+    ad_unit_id: str | None = Field(default=None, max_length=128)
+
+
+def _allowed_ssv_units() -> set[str]:
+    return {unit.strip().split("/")[-1]
+            for unit in os.getenv("REWARDS_SSV_AD_UNIT_IDS", "").split(",")
+            if unit.strip()}
 
 
 @router.get("/status")
@@ -44,10 +52,29 @@ async def video_session(
         payload.origen == "regalo" and feature is not None
     ):
         raise HTTPException(status_code=422, detail="Origen o función inválida")
+    # New clients check the actual unit BEFORE asking the user to watch.
+    # Google's shared demo units cannot be configured with our callback URL.
+    if payload.ad_unit_id and payload.ad_unit_id.startswith("ca-app-pub-3940256099942544/"):
+        raise HTTPException(status_code=409, detail="SSV_DEMO_AD_UNIT")
+    units = _allowed_ssv_units()
+    if not units or (payload.ad_unit_id is not None
+                     and payload.ad_unit_id.split("/")[-1] not in units):
+        raise HTTPException(status_code=503, detail="SSV_AD_UNIT_NOT_CONFIGURED")
     try:
         return await start_video_session(int(current_user["user_id"]), payload.origen, feature)
     except RewardRejected as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/video-session/{session_id}")
+async def video_session_status(
+    session_id: UUID,
+    current_user: dict = Depends(get_current_user),
+):
+    result = await get_video_session_status(int(current_user["user_id"]), session_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    return result
 
 
 @router.post("/pass/activate")
@@ -62,8 +89,7 @@ async def pass_activate(current_user: dict = Depends(get_current_user)):
 async def admob_ssv(request: Request):
     # Set REWARDS_SSV_AD_UNIT_IDS explicitly per environment: e.g. numeric
     # suffix of the PRD rewarded unit. Unconfigured backend fails CLOSED.
-    raw = os.getenv("REWARDS_SSV_AD_UNIT_IDS", "")
-    units = {u.strip().split("/")[-1] for u in raw.split(",") if u.strip()}
+    units = _allowed_ssv_units()
     if not units:
         raise HTTPException(status_code=503, detail="SSV no configurado")
     verified = await verify_admob_callback(request.scope["query_string"], units)
