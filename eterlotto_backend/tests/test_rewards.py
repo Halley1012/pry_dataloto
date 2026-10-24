@@ -239,6 +239,21 @@ class AdMobUrlVerificationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(self.credit.await_args.kwargs["user_id"], 42)
                 self.assertEqual(self.credit.await_args.kwargs["ad_unit"], "1080827469")
 
+    async def test_prd_configuration_accepts_its_unit_and_rejects_dev(self):
+        session_id = uuid4()
+        with patch.dict(os.environ, {
+            "APP_ENV": "prd",
+            "REWARDS_SSV_AD_UNIT_IDS": "4124989907",
+            "REWARDS_SSV_ACCEPT_VERIFY_TEST": "false",
+        }):
+            raw = self.signed_callback("4124989907", user_id=42, custom_data=str(session_id))
+            self.assertTrue((await self.callback(raw))["credited"])
+            self.credit.assert_awaited_once()
+            self.assertEqual(self.credit.await_args.kwargs["ad_unit"], "4124989907")
+            self.credit.reset_mock()
+            wrong_environment = self.signed_callback("1080827469", user_id=42, custom_data=str(session_id))
+            await self.assert_rejected(403, wrong_environment)
+
     async def test_unsigned_probe_is_rejected(self):
         await self.assert_rejected(400, b"ad_unit=1234567890")
 
@@ -250,13 +265,21 @@ class AdMobUrlVerificationTests(unittest.IsolatedAsyncioTestCase):
         with patch.dict(os.environ, {"REWARDS_SSV_ACCEPT_VERIFY_TEST": "false"}):
             await self.assert_rejected(403)
 
-    async def test_probe_is_disabled_in_all_production_aliases_even_with_flag(self):
+    async def test_production_console_setup_verifies_signature_but_never_credits(self):
         for environment in ("prd", "prod", "production"):
             with patch.dict(os.environ, {"APP_ENV": environment}):
-                await self.assert_rejected(403)
+                self.assertEqual(await self.callback(), {"ok": True, "verification_test": True})
+                self.credit.assert_not_awaited()
+                await self.assert_rejected(400, b"ad_unit=1234567890")
+                modified = self.signed_callback().replace(b"reward_amount=1", b"reward_amount=2")
+                await self.assert_rejected(403, modified)
+                with patch.dict(os.environ, {"REWARDS_SSV_ACCEPT_VERIFY_TEST": "false"}):
+                    await self.assert_rejected(403)
 
-    async def test_probe_requires_explicit_dev_environment(self):
+    async def test_probe_requires_explicit_known_environment(self):
         with patch.dict(os.environ, {"APP_ENV": ""}):
+            await self.assert_rejected(403)
+        with patch.dict(os.environ, {"APP_ENV": "prdd"}):
             await self.assert_rejected(403)
 
     async def test_synthetic_unit_cannot_substitute_for_real_unit_configuration(self):

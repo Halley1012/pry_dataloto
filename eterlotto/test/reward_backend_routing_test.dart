@@ -1,30 +1,47 @@
 import 'package:eterlotto/services/ad_service.dart';
 import 'package:eterlotto/services/reward_backend_service.dart';
+import 'package:eterlotto/config/app_config.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.android);
+  tearDown(() => debugDefaultTargetPlatformOverride = null);
   // Override expected routing for the explicit PRD / rollback test runs.
   const expectedBackend = bool.fromEnvironment(
     'TEST_EXPECT_BACKEND_REWARDS',
     defaultValue: true,
   );
-  const expectedRewardedUnit = String.fromEnvironment(
+  const expectedDevUnit = String.fromEnvironment(
     'TEST_EXPECT_REWARDED_AD_UNIT_ID',
-    defaultValue: '',
+    defaultValue: 'ca-app-pub-9637733995937134/1080827469',
   );
 
-  test(
-    'rewarded ads select the configured DEV unit only in the backend flow',
-    () {
-      if (expectedRewardedUnit.isNotEmpty) {
-        expect(AdService.rewardedAdUnitId, expectedRewardedUnit);
-        expect(AdService.backendUsesDemoAds, isFalse);
-      } else {
-        expect(AdService.backendUsesDemoAds, isTrue);
-      }
-    },
-  );
+  test('backend rewards select the unit for their environment', () {
+    if (expectedBackend) {
+      expect(
+        AdService.rewardedAdUnitId,
+        AppConfig.isProduction
+            ? 'ca-app-pub-9637733995937134/4124989907'
+            : expectedDevUnit,
+      );
+      expect(AdService.backendUsesDemoAds, isFalse);
+    } else {
+      expect(AdService.backendUsesDemoAds, isTrue);
+    }
+  });
+
+  test('normal DEV launch registers the connected AdMob test device', () {
+    if (AppConfig.isProduction) {
+      expect(AdService.rewardedTestDeviceIds, isEmpty);
+      return;
+    }
+    expect(
+      AdService.rewardedTestDeviceIds,
+      contains('946343FC3F891EC0159FC883850B7850'),
+    );
+  });
 
   test(
     'normal DEV launches select account-backed credits instead of local minutes',

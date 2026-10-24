@@ -34,15 +34,21 @@ Para el botón «Verificar URL» de AdMob, configurar temporalmente en Render DE
 en `REWARDS_SSV_AD_UNIT_IDS=1080827469`. La comprobación firmada de la consola usa
 la unidad sintética `1234567890`; devuelve HTTP 200 con `verification_test=true`
 sin crear sesiones, créditos, pases ni desbloqueos. No requiere `user_id` ni
-`custom_data`. Después de verificar la URL, desactivar la bandera. En PRD y si
-`APP_ENV` no está definido, esta excepción permanece deshabilitada. La unidad
+`custom_data`. Después de verificar la URL, desactivar la bandera. Sin `APP_ENV`
+explícito esta excepción permanece deshabilitada. PRD permite la misma prueba
+firmada solo con la bandera temporal; ver `rewards_prd.md`. La unidad
 sintética nunca se acepta como un video real ni debe añadirse a la lista de
 unidades reales. Verificar la URL no reemplaza la prueba de un video completo.
 
 La configuración de Flutter para este equipo está en
 `eterlotto/config/rewards.dev.local.json` (ignorada por Git). El archivo de ejemplo
-versionado contiene el bloque DEV y un marcador para el hash. Desde la raíz del
-repositorio ejecutar:
+versionado contiene el bloque DEV y un marcador para el hash. Además, la app
+incluye valores predeterminados de DEV para el bloque `1080827469` y el hash
+AdMob del teléfono de pruebas actual: una ejecución normal desde el IDE o con
+`flutter run` ya selecciona este bloque y registra ese teléfono como dispositivo
+de prueba. Ambos valores siguen pudiendo sustituirse con `--dart-define`.
+El guard de ambiente impide que estos valores seleccionen el bloque DEV en PRD.
+Para utilizar explícitamente el archivo local, desde la raíz del repositorio:
 
 ```powershell
 .\eterlotto\run_dev.ps1 -DeviceId R5CX15EQ88L
@@ -82,8 +88,9 @@ Mantener este teléfono como dispositivo de prueba al usar el bloque propio.
    con un callback firmado recibido en el servidor, usando la herramienta SSV
    de AdMob cuando corresponda; el callback local del SDK no sustituye SSV.
 
-El nuevo sistema sigue limitado a DEV; un release PRD conserva el comportamiento
-publicado hasta concluir QA y autorizar su sustitución. Para volver explícitamente
+DEV activa el nuevo sistema por defecto; PRD permite activarlo explícitamente
+con `REWARDS_BACKEND_ENABLED=true` y la configuración de `rewards_prd.md`.
+Un release sin esa opción conserva el comportamiento publicado. Para volver explícitamente
 al sistema antiguo en DEV puede compilarse con `REWARDS_BACKEND_ENABLED=false`.
 Cambiar estas opciones requiere detener y volver a ejecutar Flutter; hot reload
 no vuelve a aplicar las opciones de compilación. Los minutos locales anteriores
@@ -111,6 +118,11 @@ proyecto Supabase que se está consultando.
   servidor, incluyendo confirmaciones recibidas mientras el diálogo está abierto.
 - La carga del anuncio y la creación de sesión ocurren en paralelo. No se hacen
   consultas de saldo redundantes antes de cada video.
+- Las funciones muestran su diálogo sin esperar la consulta de recompensas.
+  El anuncio se precarga mientras se lee el diálogo. Si el servidor confirma un
+  pase o desbloqueo ya existente, el diálogo se cierra y abre esa función sin
+  pedir otro video. Un acceso vigente en memoria abre inmediatamente, incluso
+  si hay una actualización pendiente. Cancelar no crea una sesión publicitaria.
 - La preparación tiene un indicador visible y evita solicitudes por doble toque.
 - El callback local inicia consultas de la sesión exacta durante hasta 2 minutos,
   con aviso de pendiente al cerrar el video. Solo un SSV verificado actualiza el
@@ -128,7 +140,7 @@ proyecto Supabase que se está consultando.
 python -m unittest discover -s tests -p test_rewards.py -v
 
 # Desde eterlotto:
-flutter test --no-pub test/reward_verification_test.dart test/reward_backend_status_test.dart
+flutter test --no-pub test/reward_verification_test.dart test/reward_backend_status_test.dart test/reward_backend_routing_test.dart test/reward_feature_gate_test.dart
 ```
 
 QA DEV pendiente: callback firmado real/de prueba de consola; cancelación;
