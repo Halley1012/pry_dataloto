@@ -18,11 +18,14 @@ RLS y revoca acceso directo a los roles móviles. FastAPI escribe mediante su
 conexión PostgreSQL de servidor. Los créditos y pases DEV no se copian a PRD.
 
 El SQL de recompensas es **manual**, fuera de `supabase/migrations`.
-Hacer merge en Git no lo ejecuta. Se corrigió el workflow PRD, que apuntaba a
-DEV. Los secretos de GitHub del environment `production`
-(`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`) deben corresponder a PRD.
-Antes del merge, revisar el historial y `supabase db push --dry-run` en un
-checkout vinculado a PRD: el workflow aplica **todas** las migraciones
+Hacer merge en Git no lo ejecuta. El workflow PRD conserva la configuración
+actualizada de `dev`: CLI `2.117.0` y conexión directa mediante el secreto
+`SUPABASE_DB_URL` del environment `production`. Ese secreto debe apuntar a PRD;
+el environment `development` usa su propia conexión DEV con el mismo nombre.
+No se requieren `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` ni `supabase link`
+para estos workflows. Antes del merge, revisar el historial y el plan con
+`supabase db push --db-url "$SUPABASE_DB_URL" --dry-run`, usando la URL PRD
+como variable local secreta: el workflow aplica **todas** las migraciones
 pendientes del repositorio. Su paso de preview muestra el plan y después
 continúa automáticamente. No reparar el historial a ciegas si la base ya tiene
 el baseline existente.
