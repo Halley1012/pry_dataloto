@@ -280,11 +280,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     unawaited(_refreshProfileInBackground(activeUserId));
   }
 
+  bool _isLoggingOut = false;
+
   void _showLogoutDialog() {
+    if (_isLoggingOut) return;
     final l10n = AppLocalizations.of(context)!;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
@@ -300,7 +303,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: Text(
               l10n.cancelar,
               style: const TextStyle(color: AppColors.yellow),
@@ -308,19 +311,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () async {
+              if (_isLoggingOut) return;
+              _isLoggingOut = true;
+              Navigator.of(dialogContext).pop();
+
               AdService.instance.setAppOpenEligibility(false);
-              context.read<SubscriptionProvider>().reset();
-              await PushNotificationService.unregisterToken();
-              await storage.deleteAll();
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.clear();
+              PushNotificationService.clearPendingNotificationNavigation();
               if (mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (_) => const LoginPage()),
-                  (route) => false,
-                );
+                context.read<SubscriptionProvider>().reset();
               }
+
+              final currentToken = await storage.read(key: 'auth_token');
+              unawaited(
+                PushNotificationService.unregisterToken(
+                  accessToken: currentToken,
+                ),
+              );
+
+              await ApiService.logout();
+
+              if (!mounted) return;
+              Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginPage()),
+                (route) => false,
+              );
             },
             child: Text(
               l10n.cerrarSesion,

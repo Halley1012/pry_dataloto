@@ -29,16 +29,27 @@ class BannerAdWidget extends StatefulWidget {
 class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  bool _isAdLoading = false;
   Timer? _delayTimer;
+  Timer? _retryTimer;
+  int _retryAttempt = 0;
 
-  // ⏱️ Periodo de gracia para el banner inferior (25 segundos sin publicidad al inicio)
-  static const Duration _bannerGracePeriod = Duration(seconds: 25);
+  // ⏱️ Breve margen inicial para que la pantalla pinte su primer frame antes del banner
+  static const Duration _bannerGracePeriod = Duration(seconds: 3);
 
   @override
   void initState() {
     super.initState();
     AdService.instance.rewardPassRevision.addListener(_onRewardPassChanged);
     AdService.instance.adsReadyRevision.addListener(_onAdsReadyChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!AdService.instance.canRequestAds) {
+        unawaited(AdService.instance.initialize());
+      } else {
+        _scheduleBannerLoad();
+      }
+    });
   }
 
   void _onRewardPassChanged() {
@@ -86,7 +97,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   void _scheduleBannerLoad() {
     if (BannerAdWidget.hideBanner || !AdService.instance.canRequestAds) return;
-    if (_bannerAd != null || _isAdLoaded) return;
+    if (_bannerAd != null || _isAdLoaded || _isAdLoading) return;
 
     final sessionElapsed = AdService.instance.sessionDuration;
     if (sessionElapsed < _bannerGracePeriod) {
@@ -109,6 +120,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   void _loadBanner() {
     if (_bannerAd != null ||
+        _isAdLoading ||
         !mounted ||
         !AdService.instance.canRequestAds) {
       return;
@@ -121,36 +133,65 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       return;
     }
 
-    _bannerAd = BannerAd(
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _isAdLoading = true;
+
+    final banner = BannerAd(
       adUnitId: AdService.bannerAdUnitId,
       size: widget.adSize,
       request: const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (ad) {
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = true;
-            });
+          _isAdLoading = false;
+          _retryAttempt = 0;
+          if (!mounted) {
+            ad.dispose();
+            return;
           }
+          setState(() {
+            _bannerAd = ad as BannerAd;
+            _isAdLoaded = true;
+          });
         },
         onAdFailedToLoad: (ad, _) {
           ad.dispose();
-          if (mounted) {
-            setState(() {
-              _isAdLoaded = false;
-              _bannerAd = null;
-            });
-          }
+          _isAdLoading = false;
+          if (!mounted) return;
+          setState(() {
+            _isAdLoaded = false;
+            _bannerAd = null;
+          });
+          _scheduleRetry();
         },
       ),
     );
 
-    _bannerAd?.load();
+    _bannerAd = banner;
+    banner.load();
+  }
+
+  void _scheduleRetry() {
+    if (!mounted ||
+        BannerAdWidget.hideBanner ||
+        AdService.instance.isRewardPassActive) {
+      return;
+    }
+    _retryTimer?.cancel();
+    _retryAttempt = (_retryAttempt + 1).clamp(1, 4);
+    final delaySeconds = 8 * _retryAttempt;
+    _retryTimer = Timer(Duration(seconds: delaySeconds), () {
+      if (!mounted) return;
+      _scheduleBannerLoad();
+    });
   }
 
   void _disposeBanner() {
     _delayTimer?.cancel();
     _delayTimer = null;
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _isAdLoading = false;
     _bannerAd?.dispose();
     _bannerAd = null;
     _isAdLoaded = false;

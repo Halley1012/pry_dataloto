@@ -101,9 +101,14 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
     if (userId != null) {
       final userKey = userId.toString();
       _beginSubscriptionStatusForUser(userKey);
-      final cached = await CacheService.getStaleJson(
+      var cached = await CacheService.getStaleJson(
         CacheService.subscriptionStatusKey(userKey),
       );
+      if (cached is! Map) {
+        cached = await CacheService.getStaleJson(
+          CacheService.perfilUsuarioKey(userKey),
+        );
+      }
 
       // Una hidratación iniciada para otra cuenta no puede tocar el estado
       // que el usuario actual está viendo.
@@ -170,8 +175,19 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
         userId: userId,
       );
       // Timeout, falta de Internet, 5xx o payload inválido. Conservamos la
-      // última decisión conocida (incluida la caché) y no escribimos `false`.
-      if (subscriptionStatus['success'] != true) return;
+      // última decisión conocida (incluida la caché). Si aún no había ninguna
+      // decisión resuelta, asumimos Basic temporalmente para no bloquear la UI
+      // ni los banners durante toda la sesión.
+      if (subscriptionStatus['success'] != true) {
+        if (!_isSubscriptionStatusResolved &&
+            await ApiService.getUserId() == userId) {
+          _isSubscribed = false;
+          _canRestoreCanceledSubscription = false;
+          _isSubscriptionStatusResolved = true;
+          notifyListeners();
+        }
+        return;
+      }
       final backendPremium = subscriptionStatus['is_premium'] == true;
       final canRestore =
           backendPremium &&
@@ -197,9 +213,13 @@ class SubscriptionProvider extends ChangeNotifier with WidgetsBindingObserver {
         }),
       );
     } catch (_) {
-      // Estado desconocido: no se altera ni se persiste el último estado
-      // conocido. La UI puede seguir mostrando "Verificando plan…" si no hay
-      // caché, o el último estado por cuenta si sí la hay.
+      if (!_isSubscriptionStatusResolved &&
+          await ApiService.getUserId() == userId) {
+        _isSubscribed = false;
+        _canRestoreCanceledSubscription = false;
+        _isSubscriptionStatusResolved = true;
+        notifyListeners();
+      }
     }
   }
 

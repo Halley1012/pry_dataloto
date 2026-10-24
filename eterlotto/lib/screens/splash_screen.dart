@@ -86,6 +86,8 @@ class _SplashScreenState extends State<SplashScreen> {
         return;
       }
 
+      unawaited(AdService.instance.setRewardUser(userId));
+
       // Para una sesión existente hacemos el trabajo útil DURANTE el splash:
       // validar/renovar sesión, precalentar catálogo, loterías, publicidad,
       // posts, perfil y reglas del generador. Home encontrará esos datos en
@@ -108,6 +110,26 @@ class _SplashScreenState extends State<SplashScreen> {
       ]);
 
       if (!mounted) return;
+
+      // Si durante el precalentamiento el refresh_token fue rechazado
+      // definitivamente y logout() limpió la sesión, no debemos navegar a /home
+      // con el almacenamiento vacío.
+      final postWarmupTokens = await Future.wait([
+        storage.read(key: 'auth_token'),
+        storage.read(key: 'refresh_token'),
+      ]).timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => <String?>[accessToken, refreshToken],
+      );
+      if (!mounted) return;
+      final stillHasSession =
+          (postWarmupTokens[0] != null && postWarmupTokens[0]!.isNotEmpty) ||
+          (postWarmupTokens[1] != null && postWarmupTokens[1]!.isNotEmpty);
+      if (!stillHasSession) {
+        PushNotificationService.clearPendingNotificationNavigation();
+        _navigateToWelcome();
+        return;
+      }
 
       // FCM no necesita bloquear la navegación una vez preparado el Home.
       unawaited(PushNotificationService.syncToken());
@@ -132,6 +154,7 @@ class _SplashScreenState extends State<SplashScreen> {
       final paisId = values[2];
 
       if (!hasToken) {
+        PushNotificationService.clearPendingNotificationNavigation();
         _navigateToWelcome();
         return;
       }
@@ -167,11 +190,16 @@ class _SplashScreenState extends State<SplashScreen> {
     );
 
     String? resolvedUserId = userId?.trim();
-    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+    if (resolvedUserId == null ||
+        resolvedUserId.isEmpty ||
+        resolvedUserId == 'null') {
       final id = await _valueOrNull(
         ApiService.getUserId().timeout(const Duration(seconds: 2)),
       );
       resolvedUserId = id?.toString();
+    }
+    if (resolvedUserId != null && resolvedUserId.isNotEmpty) {
+      unawaited(AdService.instance.setRewardUser(resolvedUserId));
     }
 
     final cleanPaisId = paisId.trim();
@@ -211,6 +239,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final anuncios = results[1];
     final loterias = results[2];
     final globales = results[3];
+    final paises = results[4];
     final profile = results[5];
 
     final writes = <Future<void>>[];
@@ -251,23 +280,64 @@ class _SplashScreenState extends State<SplashScreen> {
     if (globales != null) {
       writes.add(
         CacheService.setJson('home_loterias_globales', globales),
-      );
+        );
     }
 
-    if (profile != null && resolvedUserId?.isNotEmpty == true) {
+    String? resolvedPaisNombre =
+        (paisNombre != null &&
+            paisNombre.trim().isNotEmpty &&
+            paisNombre.trim() != 'null')
+        ? paisNombre.trim()
+        : null;
+
+    if (resolvedPaisNombre == null &&
+        cleanPaisId.isNotEmpty &&
+        paises is List) {
+      for (final p in paises) {
+        if (p is Map && p['id']?.toString().trim() == cleanPaisId) {
+          final candidate = p['nombre']?.toString().trim();
+          if (candidate != null && candidate.isNotEmpty) {
+            resolvedPaisNombre = candidate;
+            break;
+          }
+        }
+      }
+    }
+
+    if (profile is Map && resolvedUserId?.isNotEmpty == true) {
       writes.add(
         CacheService.setJson(
           CacheService.perfilUsuarioKey(resolvedUserId),
-          CacheService.sanitizeProfileCacheData(profile),
+          CacheService.sanitizeProfileCacheData(
+            Map<String, dynamic>.from(profile),
+          ),
         ),
       );
+      final profileName = profile['name']?.toString().trim();
+      if (profileName != null &&
+          profileName.isNotEmpty &&
+          profileName != 'null') {
+        writes.add(storage.write(key: 'name', value: profileName));
+      }
+      final profileAvatar = profile['avatar_url']?.toString().trim();
+      if (profileAvatar != null &&
+          profileAvatar.isNotEmpty &&
+          profileAvatar != 'null') {
+        writes.add(storage.write(key: 'avatar_url', value: profileAvatar));
+      }
+      if (resolvedPaisNombre == null) {
+        final profilePais = profile['pais_nombre']?.toString().trim();
+        if (profilePais != null &&
+            profilePais.isNotEmpty &&
+            profilePais != 'null') {
+          resolvedPaisNombre = profilePais;
+        }
+      }
     }
 
-    // Conservamos nombre/ID de país tal como ya los maneja la sesión. No
-    // inventamos ni reasignamos países durante el precalentamiento.
-    if (paisNombre != null && paisNombre.trim().isNotEmpty) {
-      unawaited(
-        storage.write(key: 'pais_nombre', value: paisNombre.trim()),
+    if (resolvedPaisNombre != null && resolvedPaisNombre.isNotEmpty) {
+      writes.add(
+        storage.write(key: 'pais_nombre', value: resolvedPaisNombre),
       );
     }
 

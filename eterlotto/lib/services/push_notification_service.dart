@@ -189,18 +189,21 @@ class PushNotificationService {
     }
   }
 
-  static Future<void> unregisterToken() async {
+  static Future<void> unregisterToken({String? accessToken}) async {
     try {
       // Primero desvinculamos la cuenta actual del backend. No llamamos
       // deleteToken(): el mismo dispositivo puede iniciar otra cuenta y
       // Firebase puede reutilizar/renovar su token normalmente.
-      final cleared = await ApiService.clearFCMToken()
-          .timeout(const Duration(seconds: 8));
+      final cleared = await ApiService.clearFCMToken(accessToken: accessToken)
+          .timeout(const Duration(seconds: 6));
       _log('backend token cleared=$cleared');
     } catch (e) {
       _log('backend token clear failed: ${e.runtimeType}');
     }
   }
+
+  static bool _pendingNotificationOpen = false;
+  static bool _homeReadyForNotifications = false;
 
   static Future<void> _handleInitialMessage() async {
     try {
@@ -208,13 +211,31 @@ class PushNotificationService {
           await FirebaseMessaging.instance.getInitialMessage();
       if (initial == null) return;
 
-      // runApp ya fue ejecutado, pero damos un frame para que exista Navigator.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _openNotifications(coldStart: true);
-      });
+      _pendingNotificationOpen = true;
+      if (_homeReadyForNotifications) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          consumePendingNotificationNavigation();
+        });
+      }
     } catch (e) {
       _log('initial message failed: ${e.runtimeType}');
     }
+  }
+
+  /// Llamado por HomeScreen cuando ya montó con una sesión válida.
+  /// Garantiza la pila Home -> Notificaciones sin interrumpir SplashScreen.
+  static void consumePendingNotificationNavigation() {
+    _homeReadyForNotifications = true;
+    if (!_pendingNotificationOpen) return;
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+    _pendingNotificationOpen = false;
+    navigator.pushNamed('/notifications');
+  }
+
+  static void clearPendingNotificationNavigation() {
+    _homeReadyForNotifications = false;
+    _pendingNotificationOpen = false;
   }
 
   static Future<void> _handleForegroundMessage(
@@ -257,26 +278,20 @@ class PushNotificationService {
   }
 
   static void _openNotifications({bool coldStart = false}) {
+    if (coldStart || !_homeReadyForNotifications) {
+      _pendingNotificationOpen = true;
+      if (_homeReadyForNotifications) {
+        consumePendingNotificationNavigation();
+      }
+      return;
+    }
+
     final navigator = navigatorKey.currentState;
     if (navigator == null) {
-      Future<void>.delayed(const Duration(milliseconds: 350), () {
-        _openNotifications(coldStart: coldStart);
-      });
+      _pendingNotificationOpen = true;
       return;
     }
 
-    if (!coldStart) {
-      navigator.pushNamed('/notifications');
-      return;
-    }
-
-    // Si Eterlotto fue abierto desde una notificación con la app terminada,
-    // reconstruimos una pila estable: Home -> Notificaciones. De esta forma,
-    // el botón Atrás vuelve a Home en lugar de cerrar la aplicación y el Home
-    // queda como raíz de la tarea para las siguientes aperturas.
-    navigator.pushNamedAndRemoveUntil('/home', (route) => false);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      navigatorKey.currentState?.pushNamed('/notifications');
-    });
+    navigator.pushNamed('/notifications');
   }
 }
