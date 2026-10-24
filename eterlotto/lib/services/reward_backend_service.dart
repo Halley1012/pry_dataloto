@@ -3,14 +3,14 @@ import 'dart:convert';
 import '../config/app_config.dart';
 import 'api_service.dart';
 
-/// La nueva monetización se activa SOLO al solicitarla explícitamente en DEV.
+/// DEV usa créditos y pases por defecto, también con `flutter run` sin opciones.
 /// Producción mantiene el sistema anterior hasta completar SSV y QA.
 class RewardBackendService {
   RewardBackendService._();
 
   static const bool _requested = bool.fromEnvironment(
     'REWARDS_BACKEND_ENABLED',
-    defaultValue: false,
+    defaultValue: true,
   );
 
   static bool get enabled => _requested && AppConfig.isDevelopment;

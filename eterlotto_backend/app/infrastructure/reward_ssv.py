@@ -21,6 +21,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 
 KEYS_URL = "https://www.gstatic.com/admob/reward/verifier-keys.json"
+ADMOB_URL_VERIFICATION_UNIT = "1234567890"
 PUBLIC_KEY_CACHE_SECONDS = 6 * 60 * 60  # Google's maximum is 24h.
 _cache: dict[int, ec.EllipticCurvePublicKey] = {}
 _cache_expires_at: float = 0.0
@@ -82,7 +83,9 @@ def _parse_signed_query(raw_query: bytes) -> tuple[bytes, bytes, int, dict[str, 
     return signed_data, signature, int(key_id_text), params
 
 
-async def verify_admob_callback(raw_query: bytes, allowed_units: set[str]) -> dict:
+async def verify_admob_callback(
+    raw_query: bytes, allowed_units: set[str], *, allow_verification_test: bool = False,
+) -> dict:
     signed_data, signature, key_id, params = _parse_signed_query(raw_query)
     keys = await _fetch_google_keys()
     if key_id not in keys:
@@ -100,6 +103,12 @@ async def verify_admob_callback(raw_query: bytes, allowed_units: set[str]) -> di
     if not unit or unit not in allowed_units:
         _logger.warning("[REWARDS] SSV unexpected ad unit")
         raise HTTPException(status_code=403, detail="Unidad publicitaria no autorizada")
+    # The console's signed URL probe is not a watched video and may omit both
+    # user_id and custom_data. Never turn it into a creditable reward payload.
+    if unit == ADMOB_URL_VERIFICATION_UNIT:
+        if not allow_verification_test:
+            raise HTTPException(status_code=403, detail="Prueba SSV no habilitada")
+        return {"ad_unit": unit, "verification_test": True}
     try:
         session_id = UUID(params["custom_data"])
         user_id = int(params["user_id"])

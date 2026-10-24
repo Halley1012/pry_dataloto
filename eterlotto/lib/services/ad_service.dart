@@ -230,8 +230,8 @@ class AdService {
   static const int maxRewardMinutesPerDay = 60;
   static const int maxRewardBankMinutes = 60;
 
-  // Integración aislada: solo DEV con --dart-define=REWARDS_BACKEND_ENABLED=true.
-  // Sin esa opción, el código y los anuncios publicados siguen intactos.
+  // Créditos y pases por defecto en DEV. El guard de ambiente conserva PRD.
+  // REWARDS_BACKEND_ENABLED=false permite volver explícitamente al flujo antiguo.
   static bool get useBackendRewards => RewardBackendService.enabled;
   RewardBackendStatus? _backendRewardStatus;
   String? _backendRewardIdentity;
