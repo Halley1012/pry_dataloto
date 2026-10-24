@@ -11,7 +11,7 @@ os.environ.setdefault("SECRET_KEY", "rewards-unit-test-only")
 
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from app.infrastructure import reward_repository as repo
 from app.infrastructure import reward_ssv as ssv
@@ -178,6 +178,98 @@ class RewardRouteTests(unittest.IsolatedAsyncioTestCase):
                 ), {"user_id": "42"})
                 self.assertEqual(result["session_id"], "new")
                 start.assert_awaited_once_with(42, "funcion", "statistics")
+
+class AdMobUrlVerificationTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.key = ec.generate_private_key(ec.SECP256R1())
+        for patcher in (
+            patch.dict(os.environ, {
+                "APP_ENV": "dev",
+                "REWARDS_SSV_AD_UNIT_IDS": "1080827469",
+                "REWARDS_SSV_ACCEPT_VERIFY_TEST": "true",
+            }),
+            patch.object(ssv, "_fetch_google_keys", AsyncMock(
+                return_value={7: self.key.public_key()},
+            )),
+        ):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        patcher = patch.object(routes, "credit_verified_video", AsyncMock(
+            return_value={"status": "credited", "credited": True},
+        ))
+        self.credit = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def signed_callback(self, unit="1234567890", **extra):
+        query = urlencode({
+            "ad_network": "5450213213286189855", "ad_unit": unit,
+            "reward_amount": 1, "reward_item": "credit",
+            "timestamp": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "transaction_id": "123456789", **extra,
+        }).encode()
+        signature = self.key.sign(query, ec.ECDSA(hashes.SHA256()))
+        return query + b"&signature=" + base64.urlsafe_b64encode(signature).rstrip(b"=") + b"&key_id=7"
+
+    async def callback(self, raw=None):
+        return await routes.admob_ssv(Request({
+            "type": "http",
+            "query_string": raw if raw is not None else self.signed_callback(),
+        }))
+
+    async def assert_rejected(self, expected_status, raw=None):
+        with self.assertRaises(HTTPException) as error:
+            await self.callback(raw)
+        self.assertEqual(error.exception.status_code, expected_status)
+        self.credit.assert_not_awaited()
+
+    async def test_signed_console_probe_needs_no_user_or_session_and_never_credits(self):
+        result = await self.callback()
+        self.assertEqual(result, {"ok": True, "verification_test": True})
+        self.credit.assert_not_awaited()
+
+    async def test_real_dev_unit_still_credits_verified_video_in_dev_and_prd(self):
+        session_id = uuid4()
+        raw = self.signed_callback("1080827469", user_id=42, custom_data=str(session_id))
+        for environment in ("dev", "prd"):
+            with patch.dict(os.environ, {"APP_ENV": environment}):
+                self.credit.reset_mock()
+                self.assertTrue((await self.callback(raw))["credited"])
+                self.credit.assert_awaited_once()
+                self.assertEqual(self.credit.await_args.kwargs["session_id"], session_id)
+                self.assertEqual(self.credit.await_args.kwargs["user_id"], 42)
+                self.assertEqual(self.credit.await_args.kwargs["ad_unit"], "1080827469")
+
+    async def test_unsigned_probe_is_rejected(self):
+        await self.assert_rejected(400, b"ad_unit=1234567890")
+
+    async def test_modified_probe_signature_is_rejected(self):
+        raw = self.signed_callback().replace(b"reward_amount=1", b"reward_amount=2")
+        await self.assert_rejected(403, raw)
+
+    async def test_probe_is_disabled_without_explicit_flag(self):
+        with patch.dict(os.environ, {"REWARDS_SSV_ACCEPT_VERIFY_TEST": "false"}):
+            await self.assert_rejected(403)
+
+    async def test_probe_is_disabled_in_all_production_aliases_even_with_flag(self):
+        for environment in ("prd", "prod", "production"):
+            with patch.dict(os.environ, {"APP_ENV": environment}):
+                await self.assert_rejected(403)
+
+    async def test_probe_requires_explicit_dev_environment(self):
+        with patch.dict(os.environ, {"APP_ENV": ""}):
+            await self.assert_rejected(403)
+
+    async def test_synthetic_unit_cannot_substitute_for_real_unit_configuration(self):
+        with patch.dict(os.environ, {"REWARDS_SSV_AD_UNIT_IDS": "1234567890"}):
+            await self.assert_rejected(503)
+
+    async def test_listing_synthetic_unit_cannot_enable_it_without_flag(self):
+        with patch.dict(os.environ, {
+            "REWARDS_SSV_AD_UNIT_IDS": "1080827469,1234567890",
+            "REWARDS_SSV_ACCEPT_VERIFY_TEST": "false",
+        }):
+            await self.assert_rejected(403)
+
 
 if __name__ == "__main__":
     unittest.main()

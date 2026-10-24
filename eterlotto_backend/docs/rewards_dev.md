@@ -21,6 +21,38 @@ la conexión PostgreSQL; no se necesitan RPC con permisos de escritura para Flut
 
 ## Configurar SSV
 
+Bloque DEV proporcionado: `ca-app-pub-9637733995937134/1080827469`.
+Variable del servicio FastAPI DEV en Render:
+`REWARDS_SSV_AD_UNIT_IDS=1080827469`.
+Callback SSV de este bloque:
+`https://pry-dataloto.onrender.com/rewards/admob/ssv`.
+Guardar la variable en un `.env` local no la publica en Render; ambas
+configuraciones son independientes. El bloque publicado de PRD no se sustituye.
+
+Para el botón «Verificar URL» de AdMob, configurar temporalmente en Render DEV
+`APP_ENV=dev` y `REWARDS_SSV_ACCEPT_VERIFY_TEST=true`, conservando la unidad real
+en `REWARDS_SSV_AD_UNIT_IDS=1080827469`. La comprobación firmada de la consola usa
+la unidad sintética `1234567890`; devuelve HTTP 200 con `verification_test=true`
+sin crear sesiones, créditos, pases ni desbloqueos. No requiere `user_id` ni
+`custom_data`. Después de verificar la URL, desactivar la bandera. En PRD y si
+`APP_ENV` no está definido, esta excepción permanece deshabilitada. La unidad
+sintética nunca se acepta como un video real ni debe añadirse a la lista de
+unidades reales. Verificar la URL no reemplaza la prueba de un video completo.
+
+La configuración de Flutter para este equipo está en
+`eterlotto/config/rewards.dev.local.json` (ignorada por Git). El archivo de ejemplo
+versionado contiene el bloque DEV y un marcador para el hash. Desde la raíz del
+repositorio ejecutar:
+
+```powershell
+.\eterlotto\run_dev.ps1 -DeviceId R5CX15EQ88L
+```
+
+El script valida el ambiente y los dispositivos de prueba antes de iniciar
+Flutter. `-CheckOnly` valida la configuración sin iniciar ni instalar la app.
+Detener primero la ejecución anterior de Flutter para reemplazar sus opciones.
+Mantener este teléfono como dispositivo de prueba al usar el bloque propio.
+
 1. Crear un bloque recompensado propio para DEV en AdMob. Los IDs compartidos de
    demostración de Google no permiten configurar nuestra URL SSV; ver un anuncio
    con ellos no prueba la acreditación en Supabase.
@@ -35,7 +67,8 @@ la conexión PostgreSQL; no se necesitan RPC con permisos de escritura para Flut
 4. Desplegar el backend actualizado: el cliente consulta también
    `GET /rewards/video-session/{uuid}` con autenticación. Solo el propietario
    puede consultar la sesión. Este endpoint no concede recompensas.
-5. Para usar el bloque propio desde una compilación de prueba, registrar el
+5. DEV usa créditos y pases por defecto, incluso con `flutter run` sin opciones.
+   Para usar el bloque propio desde una compilación de prueba, registrar el
    dispositivo y compilar con los valores correspondientes:
 
    ```powershell
@@ -49,8 +82,28 @@ la conexión PostgreSQL; no se necesitan RPC con permisos de escritura para Flut
    con un callback firmado recibido en el servidor, usando la herramienta SSV
    de AdMob cuando corresponda; el callback local del SDK no sustituye SSV.
 
-La bandera nueva de recompensas sigue limitada a DEV; un release PRD conserva
-el comportamiento publicado hasta concluir QA y autorizar su sustitución.
+El nuevo sistema sigue limitado a DEV; un release PRD conserva el comportamiento
+publicado hasta concluir QA y autorizar su sustitución. Para volver explícitamente
+al sistema antiguo en DEV puede compilarse con `REWARDS_BACKEND_ENABLED=false`.
+Cambiar estas opciones requiere detener y volver a ejecutar Flutter; hot reload
+no vuelve a aplicar las opciones de compilación. Los minutos locales anteriores
+no se convierten en créditos SSV ni se importan a Supabase.
+
+## Qué debe guardarse por cada video
+
+| Tabla | Momento de escritura |
+| --- | --- |
+| `recompensa_sesiones` | Antes de abrir un video, sesión pendiente; al recibir SSV, pasa a verificada. |
+| `recompensa_retos` | Al confirmar SSV, se crea o incrementa el reto de créditos. |
+| `recompensa_pases` | Solo al completar 7 créditos verificados, pase disponible para activación manual. |
+| `recompensa_desbloqueos` | Solo si el video se abrió desde una función; no desde el regalo. |
+
+Si el diálogo dice «Tienes 10m acumulados» o «Ver video +5 min», se está usando
+el flujo antiguo, que escribe en SharedPreferences y no crea sesiones FastAPI.
+En DEV el diálogo correcto dice «Pase de 12 horas» y muestra créditos de 0 a 7.
+Si la sesión no llega a crearse, no se muestra el video ni se concede crédito
+local como sustituto. Revisar que la app use DEV y que Render apunte al mismo
+proyecto Supabase que se está consultando.
 
 ## Correcciones de latencia y confirmación
 

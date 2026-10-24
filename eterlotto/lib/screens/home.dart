@@ -369,8 +369,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  /// Vista del nuevo reto (solo DEV con bandera de compilación).
-  /// No sustituye el regalo actual cuando el módulo nuevo está desactivado.
+  /// Reto de créditos y pases usado por defecto en DEV.
   Future<void> _openBackendRewardDialog() async {
     if (_backendRewardDialogOpen) return;
     _backendRewardDialogOpen = true;

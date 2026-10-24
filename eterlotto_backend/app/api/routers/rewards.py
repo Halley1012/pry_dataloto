@@ -19,7 +19,7 @@ from app.infrastructure.reward_repository import (
     RewardRejected, activate_pass, credit_verified_video,
     get_reward_status, get_video_session_status, start_video_session,
 )
-from app.infrastructure.reward_ssv import verify_admob_callback
+from app.infrastructure.reward_ssv import ADMOB_URL_VERIFICATION_UNIT, verify_admob_callback
 
 router = APIRouter(prefix="/rewards", tags=["Rewards"])
 _logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class RewardVideoSessionRequest(BaseModel):
 def _allowed_ssv_units() -> set[str]:
     return {unit.strip().split("/")[-1]
             for unit in os.getenv("REWARDS_SSV_AD_UNIT_IDS", "").split(",")
-            if unit.strip()}
+            if unit.strip() and unit.strip().split("/")[-1] != ADMOB_URL_VERIFICATION_UNIT}
 
 
 @router.get("/status")
@@ -92,7 +92,21 @@ async def admob_ssv(request: Request):
     units = _allowed_ssv_units()
     if not units:
         raise HTTPException(status_code=503, detail="SSV no configurado")
-    verified = await verify_admob_callback(request.scope["query_string"], units)
+    # AdMob's "Verify URL" probe uses a synthetic unit, not our real DEV unit.
+    # Opt in only on an explicitly configured DEV service; never issue credit.
+    accept_verify_test = (
+        os.getenv("APP_ENV", "").strip().lower() == "dev"
+        and os.getenv("REWARDS_SSV_ACCEPT_VERIFY_TEST", "false").strip().lower()
+        in {"true", "1", "yes"}
+    )
+    allowed_units = units | ({ADMOB_URL_VERIFICATION_UNIT} if accept_verify_test else set())
+    verified = await verify_admob_callback(
+        request.scope["query_string"], allowed_units,
+        allow_verification_test=accept_verify_test,
+    )
+    if verified["ad_unit"] == ADMOB_URL_VERIFICATION_UNIT:
+        _logger.info("[REWARDS] Signed AdMob URL verification accepted; no credit issued")
+        return {"ok": True, "verification_test": True}
     try:
         result = await credit_verified_video(**verified)
     except RewardRejected as exc:
