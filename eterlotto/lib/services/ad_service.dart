@@ -10,6 +10,7 @@ import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../styles/colores.dart';
 import '../screens/subscription_screen.dart';
 import '../utils/secure_storage_helper.dart';
+import '../config/app_config.dart';
 import 'reward_backend_service.dart';
 import 'reward_verification.dart';
 
@@ -32,17 +33,28 @@ class AdService {
   // DEV SSV: a unit owned by this app, requested ONLY on registered test devices.
   // Shared Google demo units have no callback URL configurable for our server.
   static const String _ssvDevAdUnitId = String.fromEnvironment(
-    'REWARDS_SSV_DEV_AD_UNIT_ID', defaultValue: '',
+    'REWARDS_SSV_DEV_AD_UNIT_ID',
+    defaultValue: 'ca-app-pub-9637733995937134/1080827469',
   );
+  // Hash AdMob del teléfono DEV, no una credencial. Conserva el modo de
+  // prueba también al ejecutar desde el IDE sin --dart-define-from-file.
+  // Otro equipo puede sustituirlo con ADMOB_TEST_DEVICE_IDS.
   static const String _adMobTestDeviceIds = String.fromEnvironment(
-    'ADMOB_TEST_DEVICE_IDS', defaultValue: '',
+    'ADMOB_TEST_DEVICE_IDS',
+    defaultValue: '946343FC3F891EC0159FC883850B7850',
   );
-  static List<String> get _testDeviceIds => _adMobTestDeviceIds.split(',')
+  static List<String> get _testDeviceIds => AppConfig.isProduction
+      ? const <String>[]
+      : _adMobTestDeviceIds.split(',')
       .map((id) => id.trim()).where((id) => id.isNotEmpty).toList();
-  static bool get _useSsvDevAdUnit => useBackendRewards &&
+  static bool get _useSsvDevAdUnit => AppConfig.isDevelopment && useBackendRewards &&
       _ssvDevAdUnitId.trim().isNotEmpty && _testDeviceIds.isNotEmpty;
   static bool get backendUsesDemoAds => rewardedAdUnitId
       .startsWith('ca-app-pub-3940256099942544/');
+
+  @visibleForTesting
+  static List<String> get rewardedTestDeviceIds =>
+      List<String>.unmodifiable(_testDeviceIds);
 
   // 🛡️ Simulación GDPR europea ÚNICAMENTE para compilaciones de prueba.
   // No se habilita en un release normal, aunque alguien configure UMP_DEBUG_EEA.
@@ -101,14 +113,18 @@ class AdService {
 
   /// ID de Anuncio Recompensado según plataforma y modo
   static String get rewardedAdUnitId {
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
     if (useBackendRewards) {
+      if (AppConfig.isProduction) {
+        return isAndroid ? _prodAndroidRewardedId : _prodIosRewardedId;
+      }
       if (_useSsvDevAdUnit) return _ssvDevAdUnitId.trim();
-      return Platform.isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
+      return isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
     }
     if (isTestMode || kDebugMode) {
-      return Platform.isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
+      return isAndroid ? _testAndroidRewardedId : _testIosRewardedId;
     }
-    return Platform.isAndroid ? _prodAndroidRewardedId : _prodIosRewardedId;
+    return isAndroid ? _prodAndroidRewardedId : _prodIosRewardedId;
   }
 
 
@@ -230,7 +246,7 @@ class AdService {
   static const int maxRewardMinutesPerDay = 60;
   static const int maxRewardBankMinutes = 60;
 
-  // Créditos y pases por defecto en DEV. El guard de ambiente conserva PRD.
+  // Créditos y pases por defecto en DEV; PRD se activa desde el build de release.
   // REWARDS_BACKEND_ENABLED=false permite volver explícitamente al flujo antiguo.
   static bool get useBackendRewards => RewardBackendService.enabled;
   RewardBackendStatus? _backendRewardStatus;
@@ -282,7 +298,7 @@ class AdService {
       _notifyRewardPassChanged();
       return true;
     } catch (e) {
-      debugPrint('[REWARDS] status DEV falló: $e');
+      debugPrint('[REWARDS] status falló: $e');
       return false;
     }
   }
@@ -482,6 +498,9 @@ class AdService {
             : prev.then((_) => _setRewardUserInternal(userId)))
         .catchError((_) {});
     _setRewardUserFuture = next;
+    unawaited(next.whenComplete(() {
+      if (identical(_setRewardUserFuture, next)) _setRewardUserFuture = null;
+    }));
     return next;
   }
 
@@ -684,7 +703,7 @@ class AdService {
         await _backendStatusFuture;
         return await refreshBackendRewardStatus(force: true);
       } catch (e) {
-        debugPrint('[REWARDS] activate DEV: $e');
+        debugPrint('[REWARDS] activate: $e');
         return false;
       }
     }
@@ -809,6 +828,10 @@ class AdService {
 
     if (_isInitialized && _canRequestAds) return;
 
+    if (useBackendRewards) {
+      debugPrint('[REWARDS] SSV ${AppConfig.environment}: unidad=$rewardedAdUnitId; '
+          'dispositivos de prueba=${_testDeviceIds.length}');
+    }
     if (_useSsvDevAdUnit) {
       await MobileAds.instance.updateRequestConfiguration(
         RequestConfiguration(testDeviceIds: _testDeviceIds),
@@ -1747,7 +1770,7 @@ class AdService {
     );
   }
 
-  /// Flujo nuevo exclusivo de DEV: la recompensa se confirma SOLO desde SSV.
+  /// Créditos y pases: la recompensa se confirma SOLO desde SSV.
   /// No altera ninguna ruta publicitaria del sistema original.
   Future<void> _showBackendFeatureGate({
     required BuildContext context,
@@ -1757,40 +1780,69 @@ class AdService {
     required String? featureKey,
     required VoidCallback onRewardGranted,
   }) async {
+    if (!context.mounted || _rewardedGateDialogOpen ||
+        _isFullScreenAdShowing || _backendRewardPreparing) {
+      return;
+    }
     if (isPremium) {
-      if (context.mounted) onRewardGranted();
+      onRewardGranted();
       return;
     }
-    await refreshBackendRewardStatus();
-    if (isRewardPassActive ||
-        (featureKey != null && isFeatureUnlocked(featureKey))) {
-      if (context.mounted) onRewardGranted();
+    bool hasAccess() => isRewardPassActive ||
+        (featureKey != null && isFeatureUnlocked(featureKey));
+    if (hasAccess()) {
+      onRewardGranted();
+      unawaited(refreshBackendRewardStatus());
       return;
     }
-    if (!context.mounted || _rewardedGateDialogOpen || _isFullScreenAdShowing) return;
     _rewardedGateDialogOpen = true;
+    final accountRevision = _rewardAccountRevision;
+    final identity = _rewardUserId;
+    bool isCurrentUser() => _rewardAccountRevision == accountRevision &&
+        _rewardUserId == identity;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final text = RewardBackendTexts(Localizations.localeOf(context).languageCode);
+    final route = DialogRoute<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(featureTitle, style: const TextStyle(color: Colors.white)),
+        content: Text('$featureActionDescription\n\n${text.featureInfo}',
+          style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppLocalizations.of(ctx)!.cancelar)),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AppLocalizations.of(ctx)!.verVideo)),
+        ],
+      ),
+    );
+    void onStatusChanged() {
+      if (!navigator.mounted || !route.isActive) return;
+      if (!isCurrentUser()) {
+        navigator.removeRoute(route, false);
+      } else if (hasAccess()) {
+        // A confirmed pass/unlock can arrive while the prompt is open.
+        navigator.removeRoute(route, true);
+      }
+    }
+    rewardPassRevision.addListener(onStatusChanged);
     bool? accepted;
     try {
-      final text = RewardBackendTexts(Localizations.localeOf(context).languageCode);
-      accepted = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1E1E1E),
-          title: Text(featureTitle, style: const TextStyle(color: Colors.white)),
-          content: Text('$featureActionDescription\n\n${text.featureInfo}',
-            style: const TextStyle(color: Colors.white70)),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false),
-              child: Text(AppLocalizations.of(ctx)!.cancelar)),
-            TextButton(onPressed: () => Navigator.pop(ctx, true),
-              child: Text(AppLocalizations.of(ctx)!.verVideo)),
-          ],
-        ),
-      );
+      final answer = navigator.push(route);
+      // No network wait on the tap. Preload the ad while the user reads.
+      loadRewardedAd();
+      unawaited(refreshBackendRewardStatus());
+      accepted = await answer;
     } finally {
+      rewardPassRevision.removeListener(onStatusChanged);
       _rewardedGateDialogOpen = false;
     }
-    if (!context.mounted || accepted != true) return;
+    if (!context.mounted || !isCurrentUser() || accepted != true) return;
+    if (hasAccess()) {
+      onRewardGranted();
+      return;
+    }
     await _showBackendRewarded(
       context: context,
       origin: 'funcion',
@@ -1849,6 +1901,7 @@ class AdService {
 
     // Crear sesión ANTES del anuncio. Si no hay backend, no pedir al usuario
     // que vea un video que no podemos asociar a su cuenta.
+    final preparation = Stopwatch()..start();
     RewardVideoSession session;
     RewardedAd? ad;
     try {
@@ -1860,8 +1913,9 @@ class AdService {
       ]);
       session = prepared[0] as RewardVideoSession;
       ad = prepared[1] as RewardedAd?;
+      debugPrint('[REWARDS] Preparación de video: ${preparation.elapsedMilliseconds} ms');
     } catch (e) {
-      debugPrint('[REWARDS] video-session DEV: $e');
+      debugPrint('[REWARDS] video-session: $e');
       message(e is RewardBackendException && e.code == 'SSV_AD_UNIT_NOT_CONFIGURED'
           ? strings.ssvNotConfigured : strings.unavailable);
       return;

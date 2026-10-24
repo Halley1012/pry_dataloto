@@ -1,0 +1,7 @@
+{
+  "ENV": "prd",
+  "REWARDS_BACKEND_ENABLED": true,
+  "ADS_USE_TEST_IDS": false,
+  "REWARDS_SSV_DEV_AD_UNIT_ID": "",
+  "ADMOB_TEST_DEVICE_IDS": ""
+}

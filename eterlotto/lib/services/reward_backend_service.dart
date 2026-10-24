@@ -4,7 +4,7 @@ import '../config/app_config.dart';
 import 'api_service.dart';
 
 /// DEV usa créditos y pases por defecto, también con `flutter run` sin opciones.
-/// Producción mantiene el sistema anterior hasta completar SSV y QA.
+/// PRD requiere REWARDS_BACKEND_ENABLED=true explícito en la compilación.
 class RewardBackendService {
   RewardBackendService._();
 
@@ -13,7 +13,12 @@ class RewardBackendService {
     defaultValue: true,
   );
 
-  static bool get enabled => _requested && AppConfig.isDevelopment;
+  static const bool _explicitlyConfigured = bool.hasEnvironment(
+    'REWARDS_BACKEND_ENABLED',
+  );
+
+  static bool get enabled =>
+      _requested && (AppConfig.isDevelopment || _explicitlyConfigured);
 
   static Future<RewardBackendStatus> getStatus() async {
     final response = await ApiService.get(

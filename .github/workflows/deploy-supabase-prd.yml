@@ -20,6 +20,11 @@ jobs:
         with:
           version: 2.117.0
 
+      - name: Preview pending PRD migrations
+        run: supabase db push --db-url "$SUPABASE_DB_URL" --dry-run
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
       - name: Apply migrations to PROD
         run: supabase db push --db-url "$SUPABASE_DB_URL"
         env:

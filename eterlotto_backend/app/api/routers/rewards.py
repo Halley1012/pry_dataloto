@@ -93,9 +93,10 @@ async def admob_ssv(request: Request):
     if not units:
         raise HTTPException(status_code=503, detail="SSV no configurado")
     # AdMob's "Verify URL" probe uses a synthetic unit, not our real DEV unit.
-    # Opt in only on an explicitly configured DEV service; never issue credit.
+    # Console setup is needed in DEV and PRD. Opt in temporarily on an explicit
+    # environment; still verify Google's signature and never issue credit.
     accept_verify_test = (
-        os.getenv("APP_ENV", "").strip().lower() == "dev"
+        os.getenv("APP_ENV", "").strip().lower() in {"dev", "prd", "prod", "production"}
         and os.getenv("REWARDS_SSV_ACCEPT_VERIFY_TEST", "false").strip().lower()
         in {"true", "1", "yes"}
     )
