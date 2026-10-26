@@ -50,8 +50,14 @@ class NotificationProvider with ChangeNotifier {
   }
 
   Future<String> _currentLanguageCode() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('language_code')?.trim().toLowerCase();
+    String? saved;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.get('language_code');
+      if (value is String) saved = value.trim().toLowerCase();
+    } catch (_) {
+      // An optional local preference cannot prevent loading the private inbox.
+    }
     final device = PlatformDispatcher.instance.locale.languageCode
         .trim()
         .toLowerCase();
@@ -62,6 +68,14 @@ class NotificationProvider with ChangeNotifier {
 
   String _cacheKey(String? userId, String languageCode) =>
       '${CacheService.notificacionesUsuarioKey(userId)}_$languageCode';
+
+  @override
+  void dispose() {
+    DataRefreshManager.instance.refreshNotifier.removeListener(
+      _onDataRefreshNotification,
+    );
+    super.dispose();
+  }
 
   /// Las notificaciones contienen estado privado (leída/eliminada), por eso la
   /// caché debe cambiar inmediatamente al cambiar de cuenta en el dispositivo.

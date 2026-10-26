@@ -1,4 +1,4 @@
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime, date, timezone
 from typing import List, Dict, Any, Optional
 
 from app.domain.ports import JugadaRepositoryPort
@@ -46,11 +46,8 @@ class JugadaUseCases:
         else:
             sorteo_date = now.date()
 
-        # La jugada expira 7 días después del sorteo.
-        expira = datetime(
-            sorteo_date.year, sorteo_date.month, sorteo_date.day,
-            23, 59, 59, tzinfo=timezone.utc,
-        ) + timedelta(days=7)
+        # Conservar el historial: las jugadas no vencen por antigüedad.
+        expira = None
 
         numeros_clean = [int(n) for n in numeros]
         return await self.jugada_repo.create_jugada(

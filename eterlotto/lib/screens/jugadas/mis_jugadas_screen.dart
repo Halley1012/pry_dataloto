@@ -454,8 +454,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       context: context,
       isPremium: isPremium,
       featureKey: "mis_jugadas_share_whatsapp",
-      featureTitle: "Compartir por WhatsApp",
-      featureActionDescription:
+      featureTitle: l10n?.compartirWhatsAppTitulo ?? "Compartir por WhatsApp",
+      featureActionDescription: l10n?.descripcionVideoWhatsApp ??
           "Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.",
       onRewardGranted: () async {
         final StringBuffer buffer = StringBuffer();
@@ -525,8 +525,8 @@ class _MisJugadasScreenState extends State<MisJugadasScreen> {
       context: context,
       isPremium: isPremium,
       featureKey: "mis_jugadas_export_pdf",
-      featureTitle: "Exportar Tiquete en PDF",
-      featureActionDescription:
+      featureTitle: l10n?.exportarTiquetePdfTitulo ?? "Exportar tiquete en PDF",
+      featureActionDescription: l10n?.descripcionVideoPDF ??
           "Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.",
       onRewardGranted: () async {
         final doc = pw.Document();

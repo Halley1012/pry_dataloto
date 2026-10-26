@@ -732,6 +732,18 @@ abstract class AppLocalizations {
   /// **'Seleccionar Idioma'**
   String get seleccionarIdioma;
 
+  /// No description provided for @changingLanguage.
+  ///
+  /// In es, this message translates to:
+  /// **'Cambiando idioma…'**
+  String get changingLanguage;
+
+  /// No description provided for @languageChangeFailed.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo guardar el idioma. Inténtalo de nuevo.'**
+  String get languageChangeFailed;
+
   /// No description provided for @confirmarCambioIdioma.
   ///
   /// In es, this message translates to:
@@ -2308,6 +2320,36 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Ver Video'**
   String get verVideo;
+
+  /// No description provided for @descripcionVideoGenerador.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para usar gratis el generador de combinaciones.'**
+  String get descripcionVideoGenerador;
+
+  /// No description provided for @compartirWhatsAppTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Compartir por WhatsApp'**
+  String get compartirWhatsAppTitulo;
+
+  /// No description provided for @descripcionVideoWhatsApp.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.'**
+  String get descripcionVideoWhatsApp;
+
+  /// No description provided for @exportarTiquetePdfTitulo.
+  ///
+  /// In es, this message translates to:
+  /// **'Exportar tiquete en PDF'**
+  String get exportarTiquetePdfTitulo;
+
+  /// No description provided for @descripcionVideoPDF.
+  ///
+  /// In es, this message translates to:
+  /// **'Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.'**
+  String get descripcionVideoPDF;
 
   /// No description provided for @descripcionVideoHistorico.
   ///

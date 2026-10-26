@@ -155,10 +155,7 @@ class ColorLotoPredictor:
             """))
             conn.commit()
 
-            conn.execute(text("""
-                DELETE FROM predicciones_colorloto2 
-                WHERE fecha < CURRENT_DATE - INTERVAL '7 days';
-            """))
+            # Conservar todo el historial de predicciones IA, sin purga por antigüedad.
             conn.commit()
 
             conn.execute(text("""

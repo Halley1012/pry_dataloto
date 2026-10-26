@@ -4,6 +4,20 @@ Los scrapers, predictores, entrypoints y DAGs comparten un único código. El
 ambiente se selecciona en tiempo de ejecución con `APP_ENV`, por lo que no se
 deben crear copias `*_dev.py` y `*_prd.py`.
 
+## Historial de predicciones IA
+
+Las predicciones IA se conservan sin límite de antigüedad ni de cantidad de
+sorteos para todas las loterías. Los predictores no deben ejecutar purgas de
+`predicciones` ni de las tablas específicas de predicciones, como
+`predicciones_colorloto2`. Se mantiene el `INSERT ... ON CONFLICT` existente:
+una nueva ejecución puede actualizar la predicción de la misma lotería y fecha.
+
+Esta regla no modifica los resultados oficiales usados para entrenar, las
+jugadas de usuarios, las notificaciones, los jackpots ni las recompensas.
+Los límites de respuesta y visualización del historial siguen vigentes; un
+límite de consulta no elimina registros almacenados. Los datos borrados antes
+de aplicar esta política no se recuperan automáticamente.
+
 ## Configuración local
 
 1. Copia [`.env.dev.example`](../.env.dev.example) a `.env.dev` en la raíz del

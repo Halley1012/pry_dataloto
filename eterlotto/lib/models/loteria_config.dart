@@ -9,6 +9,7 @@ class LoteriaConfig {
   final int maxSeleccion;
   final int maxBalotasBlancas;
   final int maxBalotasRojas;
+  final int? topProbablesCount;
   final String superbalotaNombre;
   final bool hasRevancha;
   final int totalBalotasSorteo;
@@ -24,6 +25,7 @@ class LoteriaConfig {
     this.maxSeleccion = 5,
     this.maxBalotasBlancas = 45,
     this.maxBalotasRojas = 0,
+    this.topProbablesCount,
     this.superbalotaNombre = "Superbalota",
     this.hasRevancha = false,
     this.totalBalotasSorteo = 5,
@@ -32,6 +34,15 @@ class LoteriaConfig {
   });
 
   bool get tieneBalotaRoja => cantidadEspeciales > 0;
+
+  /// The same ranking size must be used by results, history and exports.
+  int predictionTopLimit([int? rankingSize]) {
+    final configured = topProbablesCount;
+    if (configured != null && configured > 0) return configured;
+    if (maxBalotasBlancas > 0) return (maxBalotasBlancas ~/ 2).clamp(1, maxBalotasBlancas);
+    if (rankingSize != null && rankingSize > 0) return (rankingSize ~/ 2).clamp(1, rankingSize);
+    return 1;
+  }
 
   /// Regla estructural única: principales, especiales y complementaria se
   /// separan exclusivamente por posición.
@@ -59,6 +70,7 @@ class LoteriaConfig {
       'max_seleccion': maxSeleccion,
       'max_balotas_blancas': maxBalotasBlancas,
       'max_balotas_rojas': maxBalotasRojas,
+      if (topProbablesCount != null) 'top_probables_count': topProbablesCount,
       'special_numbers_count': specialNumbersCount,
       'superbalota_nombre': superbalotaNombre,
       'has_revancha': hasRevancha,
@@ -77,6 +89,7 @@ class LoteriaConfig {
     int? maxSeleccion,
     int? maxBalotasBlancas,
     int? maxBalotasRojas,
+    int? topProbablesCount,
     String? superbalotaNombre,
     bool? hasRevancha,
     int? totalBalotasSorteo,
@@ -92,6 +105,7 @@ class LoteriaConfig {
       maxSeleccion: maxSeleccion ?? this.maxSeleccion,
       maxBalotasBlancas: maxBalotasBlancas ?? this.maxBalotasBlancas,
       maxBalotasRojas: maxBalotasRojas ?? this.maxBalotasRojas,
+      topProbablesCount: topProbablesCount ?? this.topProbablesCount,
       superbalotaNombre: superbalotaNombre ?? this.superbalotaNombre,
       hasRevancha: hasRevancha ?? this.hasRevancha,
       totalBalotasSorteo: totalBalotasSorteo ?? this.totalBalotasSorteo,
@@ -184,6 +198,10 @@ class LoteriaConfig {
       maxSeleccion: maxSel ?? 5,
       maxBalotasBlancas: maxBlancas ?? 45,
       maxBalotasRojas: maxRojas ?? 0,
+      topProbablesCount: int.tryParse(
+        (json['top_probables_count'] ?? json['topProbablesCount'] ??
+            json['cantidad_probables'])?.toString() ?? '',
+      ),
       superbalotaNombre: superNombre ?? "Superbalota",
       hasRevancha: revancha,
       totalBalotasSorteo: totalSorteo ?? totalSorteoFallback,

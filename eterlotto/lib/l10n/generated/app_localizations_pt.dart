@@ -333,6 +333,13 @@ class AppLocalizationsPt extends AppLocalizations {
   String get seleccionarIdioma => 'Selecionar Idioma';
 
   @override
+  String get changingLanguage => 'Alterando idioma…';
+
+  @override
+  String get languageChangeFailed =>
+      'Não foi possível salvar o idioma. Tente novamente.';
+
+  @override
   String get confirmarCambioIdioma => 'Deseja alterar o idioma do aplicativo?';
 
   @override
@@ -1233,6 +1240,24 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get verVideo => 'Ver Vídeo';
+
+  @override
+  String get descripcionVideoGenerador =>
+      'Assista a um breve vídeo publicitário para usar o gerador de combinações gratuitamente.';
+
+  @override
+  String get compartirWhatsAppTitulo => 'Compartilhar pelo WhatsApp';
+
+  @override
+  String get descripcionVideoWhatsApp =>
+      'Assista a um breve vídeo publicitário para gerar e compartilhar seu bilhete de jogos pelo WhatsApp gratuitamente.';
+
+  @override
+  String get exportarTiquetePdfTitulo => 'Exportar bilhete em PDF';
+
+  @override
+  String get descripcionVideoPDF =>
+      'Assista a um breve vídeo publicitário para gerar e baixar seu bilhete de jogos em PDF gratuitamente.';
 
   @override
   String get descripcionVideoHistorico =>

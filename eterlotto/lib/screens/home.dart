@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
+import 'package:eterlotto/widgets/reward_pass_dialog.dart';
 import 'package:eterlotto/utils/screen_security_helper.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -395,140 +396,11 @@ class _HomeScreenState extends State<HomeScreen>
         builder: (ctx, snapshot) => ValueListenableBuilder<int>(
           valueListenable: ads.rewardPassRevision,
           builder: (ctx, _, child) {
-            final status = ads.backendRewardStatus;
-            final active = status?.passActive ?? false;
-            final available = status?.passesAvailable ?? 0;
-            final expiry = status?.challengeExpiresAt;
-            final expiryText = expiry == null
-                ? null
-                : '${expiry.day.toString().padLeft(2, '0')}/'
-                      '${expiry.month.toString().padLeft(2, '0')}/${expiry.year}';
-            return AlertDialog(
-              backgroundColor: const Color(0xFF1E1E1E),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(
-                  color: AppColors.amber.withValues(alpha: 0.28),
-                ),
-              ),
-              title: Row(
-                children: [
-                  const Text('🎁', style: TextStyle(fontSize: 26)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      strings.title,
-                      style: AppTextStyles.h2.copyWith(color: Colors.white),
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (snapshot.connectionState != ConnectionState.done)
-                      const LinearProgressIndicator(color: AppColors.amber),
-                    if (snapshot.connectionState == ConnectionState.done &&
-                        snapshot.data != true)
-                      Text(
-                        strings.unavailable,
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                    if (AdService.backendUsesDemoAds) ...[
-                      Text(
-                        strings.testAdsNeedSsv,
-                        style: const TextStyle(color: Colors.white70),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    if (status != null) ...[
-                      Text(
-                        strings.progress(
-                          status.videosCompleted,
-                          status.videosRequired,
-                        ),
-                        style: const TextStyle(
-                          color: Color(0xFF86D9A2),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      LinearProgressIndicator(
-                        value: status.videosRequired <= 0
-                            ? 0
-                            : status.videosCompleted / status.videosRequired,
-                        color: const Color(0xFF86D9A2),
-                        backgroundColor: Colors.white24,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        strings.continueChallenge,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (expiryText != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          strings.deadline(expiryText),
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                      if (available > 0) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          strings.ready,
-                          style: const TextStyle(color: Color(0xFF86D9A2)),
-                        ),
-                      ],
-                      if (active) ...[
-                        const SizedBox(height: 12),
-                        Text(
-                          strings.active,
-                          style: const TextStyle(color: Color(0xFF86D9A2)),
-                        ),
-                        Text(
-                          strings.remaining(
-                            _formatRewardDuration(status.remaining),
-                          ),
-                          style: const TextStyle(color: Colors.white70),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, 'close'),
-                  child: Text(AppLocalizations.of(ctx)!.cerrar),
-                ),
-                // El regalo permite ganar más créditos incluso con un pase activo.
-                TextButton.icon(
-                  onPressed: status == null || AdService.backendUsesDemoAds
-                      ? null
-                      : () => Navigator.pop(ctx, 'watch'),
-                  icon: const Icon(
-                    Icons.play_circle_outline_rounded,
-                    color: AppColors.amber,
-                  ),
-                  label: Text(
-                    strings.watch,
-                    style: const TextStyle(color: AppColors.amber),
-                  ),
-                ),
-                if (!active && available > 0)
-                  ElevatedButton(
-                    onPressed: () => Navigator.pop(ctx, 'activate'),
-                    child: Text(strings.activate),
-                  ),
-              ],
+            return RewardPassDialog(
+              status: ads.backendRewardStatus,
+              loading: snapshot.connectionState != ConnectionState.done,
+              loadFailed: snapshot.connectionState == ConnectionState.done && snapshot.data != true,
+              demoAds: AdService.backendUsesDemoAds,
             );
           },
         ),
@@ -1495,22 +1367,14 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _openCombinationGenerator(bool isPremium) async {
-    final l10n = AppLocalizations.of(context);
-    final langCode = Localizations.localeOf(context).languageCode;
-    final featureDescription = langCode == 'en'
-        ? 'Watch a short video ad to use the combination generator for free.'
-        : (langCode == 'pt'
-              ? 'Assista a um breve vídeo publicitário para usar o gerador de combinações gratuitamente.'
-              : 'Mira un breve video publicitario para usar gratis el generador de combinaciones.');
+    final l10n = AppLocalizations.of(context)!;
 
     await AdService.instance.showRewardedFeatureGate(
       context: context,
       isPremium: isPremium,
       featureKey: 'home_combination_generator',
-      featureTitle:
-          l10n?.generaTusPropiasCombinaciones ??
-          'Genera tus propias combinaciones',
-      featureActionDescription: featureDescription,
+      featureTitle: l10n.generaTusPropiasCombinaciones,
+      featureActionDescription: l10n.descripcionVideoGenerador,
       onRewardGranted: () {
         if (!mounted) return;
         Navigator.push(
@@ -2560,6 +2424,11 @@ class _HomeScreenState extends State<HomeScreen>
       canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
+        // A covered Home must not handle Back intended for a notification.
+        if (ModalRoute.of(context)?.isCurrent != true) {
+          _lastBackPressTime = null;
+          return;
+        }
 
         // Si el usuario se encuentra en alguna pestaña secundaria del BottomNav, volver a la pestaña Home (0)
         if (_selectedIndex != 0) {

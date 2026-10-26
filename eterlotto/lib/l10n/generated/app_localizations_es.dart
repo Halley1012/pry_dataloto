@@ -333,6 +333,13 @@ class AppLocalizationsEs extends AppLocalizations {
   String get seleccionarIdioma => 'Seleccionar Idioma';
 
   @override
+  String get changingLanguage => 'Cambiando idioma…';
+
+  @override
+  String get languageChangeFailed =>
+      'No se pudo guardar el idioma. Inténtalo de nuevo.';
+
+  @override
   String get confirmarCambioIdioma =>
       '¿Deseas cambiar el idioma de la aplicación?';
 
@@ -1237,6 +1244,24 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get verVideo => 'Ver Video';
+
+  @override
+  String get descripcionVideoGenerador =>
+      'Mira un breve video publicitario para usar gratis el generador de combinaciones.';
+
+  @override
+  String get compartirWhatsAppTitulo => 'Compartir por WhatsApp';
+
+  @override
+  String get descripcionVideoWhatsApp =>
+      'Mira un breve video publicitario para generar y compartir tu tiquete de jugadas por WhatsApp gratis.';
+
+  @override
+  String get exportarTiquetePdfTitulo => 'Exportar tiquete en PDF';
+
+  @override
+  String get descripcionVideoPDF =>
+      'Mira un breve video publicitario para generar y descargar tu tiquete de jugadas en PDF gratis.';
 
   @override
   String get descripcionVideoHistorico =>

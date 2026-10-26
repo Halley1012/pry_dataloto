@@ -13,6 +13,8 @@ import '../utils/secure_storage_helper.dart';
 import '../config/app_config.dart';
 import 'reward_backend_service.dart';
 import 'reward_verification.dart';
+import 'api_service.dart';
+import 'ad_load_diagnostics.dart';
 
 class AdService {
   AdService._();
@@ -280,6 +282,7 @@ class AdService {
 
   Future<bool> _fetchBackendRewardStatus() async {
     if (!useBackendRewards) return false;
+    if (!await _ensureBackendRewardIdentity()) return false;
     final identity = _rewardUserId;
     final accountRevision = _rewardAccountRevision;
     // Evita publicar una respuesta de una cuenta después de un logout/login.
@@ -301,6 +304,20 @@ class AdService {
       debugPrint('[REWARDS] status falló: $e');
       return false;
     }
+  }
+
+  Future<bool> _ensureBackendRewardIdentity() async {
+    final existingId = int.tryParse(_rewardUserId ?? '');
+    // An updated/cold-started app can still have a legacy local identity or
+    // no in-memory identity while SecureStorage already contains a session.
+    // Resolve the actual account before treating that as a connection error.
+    final revision = _rewardAccountRevision;
+    final savedUserId = await ApiService.getUserId();
+    if (revision != _rewardAccountRevision) return false;
+    if (savedUserId == null) return existingId != null && existingId > 0;
+    if (_rewardUserId == savedUserId.toString()) return true;
+    await _setRewardUser(savedUserId.toString(), refreshBackend: false);
+    return _rewardUserId == savedUserId.toString();
   }
 
   final ValueNotifier<int> rewardPassRevision = ValueNotifier<int>(0);
@@ -492,10 +509,14 @@ class AdService {
   }
 
   Future<void> setRewardUser(String? userId) {
+    return _setRewardUser(userId);
+  }
+
+  Future<void> _setRewardUser(String? userId, {bool refreshBackend = true}) {
     final prev = _setRewardUserFuture;
     final next = (prev == null
-            ? _setRewardUserInternal(userId)
-            : prev.then((_) => _setRewardUserInternal(userId)))
+            ? _setRewardUserInternal(userId, refreshBackend: refreshBackend)
+            : prev.then((_) => _setRewardUserInternal(userId, refreshBackend: refreshBackend)))
         .catchError((_) {});
     _setRewardUserFuture = next;
     unawaited(next.whenComplete(() {
@@ -504,10 +525,39 @@ class AdService {
     return next;
   }
 
-  Future<void> _setRewardUserInternal(String? userId) async {
-    final prefs = await SharedPreferences.getInstance();
+  Future<void> _setRewardUserInternal(String? userId, {required bool refreshBackend}) async {
     String? normalized = _normalizeRewardUserId(userId) ??
         _normalizeRewardUserId(_rewardUserId);
+    if (useBackendRewards) {
+      // Server-backed rewards need the signed-in account, not the legacy
+      // local-minute preferences. Those preferences may fail after an update.
+      normalized ??= (await ApiService.getUserId())?.toString();
+      final numericId = int.tryParse(normalized ?? '');
+      if (numericId != null && numericId > 0) {
+        normalized = numericId.toString();
+        if (_rewardUserId != normalized || _backendRewardIdentity != normalized) {
+          _rewardAccountRevision++;
+          if (refreshBackend) _backendStatusFuture = null;
+          _backendRewardStatusAt = null;
+          _backendRewardStatus = null;
+          _backendRewardIdentity = normalized;
+          _rewardPassExpiryTimer?.cancel();
+          _rewardPassExpiryTimer = null;
+          _featureAccessUntil.clear();
+          _rewardUserId = normalized;
+          _rewardDay = _currentRewardDay();
+          _rewardBankMinutes = 0;
+          _rewardEarnedTodayMinutes = 0;
+          _rewardPassActiveUntil = null;
+          _notifyRewardPassChanged();
+        }
+        if (refreshBackend && _backendRewardStatus == null) {
+          unawaited(refreshBackendRewardStatus());
+        }
+        return;
+      }
+    }
+    final prefs = await SharedPreferences.getInstance();
     // Si durante el arranque o tras onboarding aún no teníamos userId en
     // memoria, resolvemos desde SharedPreferences, SecureStorage o el JWT.
     normalized ??= await _resolveActiveSessionUserId(prefs);
@@ -522,7 +572,7 @@ class AdService {
         normalized == _rewardUserId &&
         _rewardDay != null) {
       await _ensureRewardDayCurrent();
-      if (useBackendRewards && _backendRewardStatus == null) {
+      if (refreshBackend && useBackendRewards && _backendRewardStatus == null) {
         unawaited(refreshBackendRewardStatus());
       }
       return;
@@ -530,7 +580,7 @@ class AdService {
 
     if (useBackendRewards && _backendRewardIdentity != normalized) {
       _rewardAccountRevision++;
-      _backendStatusFuture = null;
+      if (refreshBackend) _backendStatusFuture = null;
       _backendRewardStatusAt = null;
       _backendRewardStatus = null;
       _backendRewardIdentity = normalized;
@@ -636,7 +686,7 @@ class AdService {
     }
 
     _notifyRewardPassChanged();
-    if (useBackendRewards) {
+    if (refreshBackend && useBackendRewards) {
       unawaited(refreshBackendRewardStatus());
     }
   }
@@ -792,6 +842,9 @@ class AdService {
 
   // Instancias de Anuncios
   InterstitialAd? _interstitialAd;
+  Timer? _interstitialRetryTimer;
+  int _interstitialRetryAttempt = 0;
+  int _interstitialLoadRevision = 0;
   bool _isInterstitialLoading = false;
   VoidCallback? _currentOnClosedCallback;
 
@@ -1044,15 +1097,23 @@ class AdService {
   void loadInterstitialAd() {
     if (!canRequestAds) return;
     if (_interstitialAd != null || _isInterstitialLoading) return;
+    _interstitialRetryTimer?.cancel();
+    _interstitialRetryTimer = null;
     _isInterstitialLoading = true;
+    final loadRevision = ++_interstitialLoadRevision;
 
     InterstitialAd.load(
       adUnitId: interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          if (loadRevision != _interstitialLoadRevision) {
+            ad.dispose();
+            return;
+          }
           _interstitialAd = ad;
           _isInterstitialLoading = false;
+          _interstitialRetryAttempt = 0;
           _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
             onAdShowedFullScreenContent: (_) {
               _isFullScreenAdShowing = true;
@@ -1083,9 +1144,21 @@ class AdService {
             },
           );
         },
-        onAdFailedToLoad: (_) {
+        onAdFailedToLoad: (error) {
+          if (loadRevision != _interstitialLoadRevision) return;
           _isInterstitialLoading = false;
           _interstitialAd = null;
+          logAdLoadFailure('interstitial', error);
+          // A failed preload must recover without waiting for the next action.
+          // Only preload here; showing remains subject to the existing rules.
+          _interstitialRetryAttempt =
+              (_interstitialRetryAttempt + 1).clamp(1, 4);
+          final seconds = 15 * (1 << (_interstitialRetryAttempt - 1));
+          _interstitialRetryTimer?.cancel();
+          _interstitialRetryTimer = Timer(Duration(seconds: seconds), () {
+            _interstitialRetryTimer = null;
+            loadInterstitialAd();
+          });
         },
       ),
     );
@@ -1788,6 +1861,9 @@ class AdService {
       onRewardGranted();
       return;
     }
+    if (int.tryParse(_rewardUserId ?? '') == null) {
+      if (!await _ensureBackendRewardIdentity() || !context.mounted) return;
+    }
     bool hasAccess() => isRewardPassActive ||
         (featureKey != null && isFeatureUnlocked(featureKey));
     if (hasAccess()) {
@@ -1889,8 +1965,10 @@ class AdService {
       message(strings.testAdsNeedSsv);
       return;
     }
-    if (_rewardUserId == null) await setRewardUser(null);
-    if (!context.mounted || _rewardUserId == null) return;
+    if (!await _ensureBackendRewardIdentity() || !context.mounted) {
+      message(strings.unavailable);
+      return;
+    }
     final identity = _rewardUserId;
     final accountRevision = _rewardAccountRevision;
     bool isCurrentUser() => _rewardUserId == identity &&
@@ -1996,6 +2074,11 @@ class AdService {
 
   /// Liberar recursos
   void dispose() {
+    _interstitialLoadRevision++;
+    _interstitialRetryTimer?.cancel();
+    _interstitialRetryTimer = null;
+    _interstitialRetryAttempt = 0;
+    _isInterstitialLoading = false;
     _rewardAccountRevision++;
     _backendStatusFuture = null;
     _rewardedRetryTimer?.cancel();

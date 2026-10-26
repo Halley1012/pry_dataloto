@@ -252,11 +252,7 @@ class DoublePlayPredictor:
                         ON predicciones (loteria_id);
                 """))
 
-                conn.execute(text("""
-                    DELETE FROM predicciones
-                    WHERE LOWER(loteria_route) = 'double_play'
-                      AND fecha < CURRENT_DATE - INTERVAL '15 days';
-                """))
+                # Conservar todo el historial de predicciones IA, sin purga por antigüedad.
 
                 conn.execute(
                     text("""
