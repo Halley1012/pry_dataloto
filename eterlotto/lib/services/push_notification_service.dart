@@ -230,7 +230,7 @@ class PushNotificationService {
     final navigator = navigatorKey.currentState;
     if (navigator == null) return;
     _pendingNotificationOpen = false;
-    navigator.pushNamed('/notifications');
+    openNotificationsAboveHome(navigator);
   }
 
   static void clearPendingNotificationNavigation() {
@@ -292,6 +292,6 @@ class PushNotificationService {
       return;
     }
 
-    navigator.pushNamed('/notifications');
+    openNotificationsAboveHome(navigator);
   }
 }

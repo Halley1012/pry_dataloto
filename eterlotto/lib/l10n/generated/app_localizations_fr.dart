@@ -336,6 +336,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get seleccionarIdioma => 'Sélectionner la langue';
 
   @override
+  String get changingLanguage => 'Changement de langue…';
+
+  @override
+  String get languageChangeFailed =>
+      'Impossible d’enregistrer la langue. Réessayez.';
+
+  @override
   String get confirmarCambioIdioma =>
       'Voulez-vous changer la langue de l\'application ?';
 
@@ -1250,6 +1257,24 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get verVideo => 'Voir la vidéo';
+
+  @override
+  String get descripcionVideoGenerador =>
+      'Regardez une courte vidéo publicitaire pour utiliser gratuitement le générateur de combinaisons.';
+
+  @override
+  String get compartirWhatsAppTitulo => 'Partager sur WhatsApp';
+
+  @override
+  String get descripcionVideoWhatsApp =>
+      'Regardez une courte vidéo publicitaire pour créer et partager gratuitement votre ticket de grilles sur WhatsApp.';
+
+  @override
+  String get exportarTiquetePdfTitulo => 'Exporter le ticket en PDF';
+
+  @override
+  String get descripcionVideoPDF =>
+      'Regardez une courte vidéo publicitaire pour créer et télécharger gratuitement votre ticket de grilles au format PDF.';
 
   @override
   String get descripcionVideoHistorico =>

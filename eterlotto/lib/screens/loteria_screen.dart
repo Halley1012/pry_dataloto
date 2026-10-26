@@ -56,6 +56,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   List<Map<String, dynamic>> ultimosResultados = [];
   List<Map<String, dynamic>> todosResultadosHistorico = [];
   List<Map<String, dynamic>> _jugadasList = [];
+  int _jugadasRevision = 0;
   List<Map<String, dynamic>> anuncios = [];
   List<String> _sorteosDisponibles = [];
 
@@ -469,6 +470,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
   }
 
   Future<void> _loadJugadas() async {
+    final revision = _jugadasRevision;
     // La sesión actual prevalece sobre el valor con el que se construyó la
     // pantalla; así una respuesta antigua no puede escribirse bajo otra cuenta.
     final sessionUserId = (await ApiService.getUserId())?.toString();
@@ -479,6 +481,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
     final cacheKeyUser = CacheService.jugadasUsuarioKey(config.route, uId, loteriaId: config.loteriaId);
 
     final cached = await CacheService.getStaleJson(cacheKeyUser);
+    if (revision != _jugadasRevision) return;
     if (cached is List && mounted) {
       setState(() => _jugadasList = List<Map<String, dynamic>>.from(cached));
     }
@@ -489,7 +492,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         loteriaId: config.loteriaId,
       );
       final currentUserId = (await ApiService.getUserId())?.toString();
-      if (currentUserId != uId) return;
+      if (currentUserId != uId || revision != _jugadasRevision) return;
       if (mounted) {
         final list = List<Map<String, dynamic>>.from(response);
         setState(() => _jugadasList = list);
@@ -633,9 +636,8 @@ class _LoteriaScreenState extends State<LoteriaScreen>
       final whites = List<int>.from(whitesToSave)..sort();
       final jugadaCompleta = [...whites, ...specialsToSave];
 
-      // Antes de guardar se refresca la lista si aún no está disponible.
-      // Esto evita duplicados visibles para el usuario y, combinado con
-      // isSaving, elimina la carrera provocada por taps repetidos.
+      // La caché permite detectar duplicados conocidos sin otra petición GET.
+      // El backend ya evita inserciones duplicadas de forma transaccional.
       if (_jugadasList.isEmpty) {
         final cacheKey = CacheService.jugadasUsuarioKey(
           config.route,
@@ -645,17 +647,6 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         final cached = await CacheService.getStaleJson(cacheKey);
         if (cached is List && cached.isNotEmpty) {
           _jugadasList = List<Map<String, dynamic>>.from(cached);
-        } else {
-          try {
-            final res = await ApiService.listarJugadasGenerica(
-              config.route,
-              loteriaId: config.loteriaId,
-              retries: 1,
-            );
-            if (res.isNotEmpty) {
-              _jugadasList = List<Map<String, dynamic>>.from(res);
-            }
-          } catch (_) {}
         }
       }
 
@@ -722,7 +713,7 @@ class _LoteriaScreenState extends State<LoteriaScreen>
             : null,
       );
 
-      await ApiService.crearJugadaGenerica(
+      final savedJugada = await ApiService.crearJugadaGenerica(
         config.route,
         whites,
         currentUid,
@@ -731,6 +722,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         fechaSorteo: targetFechaSorteo,
       );
 
+      // A response for a previous account must not update the current screen.
+      if ((await ApiService.getUserId())?.toString() != currentUid) return;
+      _jugadasRevision++;
+
       final nuevaJugada = {
         if (config.loteriaId != null) "loteria_id": config.loteriaId,
         "loteria_route": config.route,
@@ -738,8 +733,20 @@ class _LoteriaScreenState extends State<LoteriaScreen>
         if (specialsToSave.isNotEmpty) "balota_roja": specialsToSave.first,
         if (specialsToSave.isNotEmpty) "balotaroja": specialsToSave.first,
         "fecha_sorteo": targetFechaSorteo,
+        ...savedJugada,
       };
-      _jugadasList.insert(0, nuevaJugada);
+      final savedId = savedJugada['id'];
+      final updatedJugadas = <Map<String, dynamic>>[
+        nuevaJugada,
+        ..._jugadasList.where(
+          (item) => savedId == null || item['id']?.toString() != savedId.toString(),
+        ),
+      ];
+      if (mounted) {
+        setState(() => _jugadasList = updatedJugadas);
+      } else {
+        _jugadasList = updatedJugadas;
+      }
 
       await CacheService.setJson(
         CacheService.jugadasUsuarioKey(
@@ -747,10 +754,10 @@ class _LoteriaScreenState extends State<LoteriaScreen>
           currentUid,
           loteriaId: config.loteriaId,
         ),
-        _jugadasList,
+        updatedJugadas,
       );
-
-      await _loadJugadas();
+      // POST already returned the stored record. Do not hold success behind
+      // another list request; refresh normally when entering Mis jugadas.
 
       if (mounted) {
         showEterSnackBar(

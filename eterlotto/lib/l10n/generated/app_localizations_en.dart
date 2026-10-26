@@ -331,6 +331,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get seleccionarIdioma => 'Select Language';
 
   @override
+  String get changingLanguage => 'Changing language…';
+
+  @override
+  String get languageChangeFailed =>
+      'Could not save the language. Please try again.';
+
+  @override
   String get confirmarCambioIdioma => 'Do you want to change the app language?';
 
   @override
@@ -1230,6 +1237,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get verVideo => 'Watch Video';
+
+  @override
+  String get descripcionVideoGenerador =>
+      'Watch a short video ad to use the combination generator for free.';
+
+  @override
+  String get compartirWhatsAppTitulo => 'Share via WhatsApp';
+
+  @override
+  String get descripcionVideoWhatsApp =>
+      'Watch a short video ad to create and share your plays ticket via WhatsApp for free.';
+
+  @override
+  String get exportarTiquetePdfTitulo => 'Export ticket as PDF';
+
+  @override
+  String get descripcionVideoPDF =>
+      'Watch a short video ad to create and download your plays ticket as a PDF for free.';
 
   @override
   String get descripcionVideoHistorico =>

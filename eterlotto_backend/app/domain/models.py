@@ -49,7 +49,7 @@ class User:
         self.last_login_at = last_login_at
 
 class Jugada:
-    def __init__(self, id: int, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: datetime):
+    def __init__(self, id: int, user_id: int, numeros: List[int], fecha_guardado: datetime, expira: Optional[datetime]):
         self.id = id
         self.user_id = user_id
         self.numeros = numeros

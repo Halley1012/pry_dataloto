@@ -145,12 +145,7 @@ class PowerballPredictor:
             """))
             conn.commit()
 
-            # Limpieza segura: eliminar solo registros viejos (> 15 días) de ESTA lotería
-            conn.execute(text("""
-                DELETE FROM predicciones 
-                WHERE LOWER(loteria_route) = 'powerball' 
-                  AND fecha < CURRENT_DATE - INTERVAL '15 days';
-            """))
+            # Conservar todo el historial de predicciones IA, sin purga por antigüedad.
             conn.commit()
 
             conn.execute(text("""

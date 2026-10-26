@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:eterlotto/widgets/data_state_widgets.dart';
 import 'package:flutter/services.dart';
@@ -96,22 +95,7 @@ class _HistoricoResultadosScreenState extends State<HistoricoResultadosScreen> {
   }
 
   int _getTopLimit(int poolSize) {
-    // La cantidad evaluada sale de las reglas de la lotería y nunca de su nombre.
-    // Si conocemos el universo de balotas principales, evaluamos aproximadamente
-    // la mitad (mismo criterio histórico de Eterlotto). Si la configuración aún
-    // no llegó, usamos el tamaño real de la predicción disponible.
-    final configuredPool = widget.config.maxBalotasBlancas;
-    if (configuredPool > 0) {
-      return math.max(1, configuredPool ~/ 2);
-    }
-    if (poolSize > 0) {
-      return math.max(1, poolSize ~/ 2);
-    }
-
-    // Último respaldo derivado de la regla de selección; no hay rutas ni nombres
-    // de loterías quemados.
-    final selected = widget.config.maxSeleccion;
-    return selected > 0 ? math.max(1, selected * 4) : 20;
+    return widget.config.predictionTopLimit(poolSize);
   }
 
   List<int>? _obtenerPrediccionParaFecha(String rawDate) {

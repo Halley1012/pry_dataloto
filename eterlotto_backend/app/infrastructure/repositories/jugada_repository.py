@@ -49,11 +49,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                       WHERE LOWER(lx.route) = LOWER(j.loteria_route)
                   );
             """)
-            await conn.execute("""
-                DELETE FROM jugadas
-                WHERE (expira IS NOT NULL AND expira < CURRENT_TIMESTAMP)
-                   OR (fecha_guardado < CURRENT_TIMESTAMP - INTERVAL '7 days' AND (fecha_sorteo IS NULL OR fecha_sorteo < CURRENT_DATE - INTERVAL '7 days'));
-            """)
+            # Conservar el historial completo; no purgar jugadas por antigüedad.
 
             # Elimina duplicados exactos históricos antes de crear la restricción.
             # Se conserva la fila más antigua de la misma jugada.
@@ -146,7 +142,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
         numeros: List[int],
         fecha_sorteo: Optional[date],
         fecha_guardado: datetime,
-        expira: datetime,
+        expira: Optional[datetime],
         loteria_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         pool = db_connection.get_pool()
@@ -287,11 +283,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                             )
                         )
                       )
-                  AND (
-                        $4::date IS NOT NULL
-                        OR expira IS NULL
-                        OR expira >= CURRENT_TIMESTAMP
-                      )
                 ORDER BY COALESCE(fecha_sorteo, fecha_guardado::date) DESC, id DESC
             """, user_id, loteria_id, loteria_route, clean_date)
 
@@ -359,7 +350,7 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
             return d
 
     async def list_active_lotteries(self, user_id: int) -> List[str]:
-        """Compatibilidad: devuelve routes activas, no la identidad canónica."""
+        """Compatibilidad: devuelve routes con jugadas, incluido su historial."""
         pool = db_connection.get_pool()
         async with pool.acquire() as conn:
             await self._ensure_table(conn)
@@ -367,7 +358,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 SELECT DISTINCT LOWER(loteria_route) AS route
                 FROM jugadas
                 WHERE user_id = $1
-                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
             """, user_id)
             return [r['route'] for r in rows if r['route']]
 
@@ -380,7 +370,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                 SELECT LOWER(loteria_route) AS route, COUNT(*)::int AS count
                 FROM jugadas
                 WHERE user_id = $1
-                  AND (expira IS NULL OR expira >= CURRENT_TIMESTAMP)
                 GROUP BY LOWER(loteria_route)
             """, user_id)
             return {r['route']: r['count'] for r in rows if r['route']}
@@ -401,7 +390,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                        MAX(COALESCE(j.fecha_sorteo, j.fecha_guardado::date)) AS latest_fecha
                 FROM jugadas j
                 WHERE j.user_id = $1
-                  AND (j.expira IS NULL OR j.expira >= CURRENT_TIMESTAMP)
                 GROUP BY j.loteria_id, LOWER(j.loteria_route)
                 ORDER BY j.loteria_id NULLS LAST, LOWER(j.loteria_route)
             """, user_id)
@@ -512,7 +500,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                         SELECT fecha, numeros
                         FROM predicciones
                         WHERE LOWER(REPLACE(REPLACE(TRIM(loteria_route), ' ', '_'), '-', '_')) = ANY(%s)
-                          AND fecha >= CURRENT_DATE - INTERVAL '15 days'
                         ORDER BY fecha DESC
                         LIMIT %s;
                     """, (aliases, safe_limit))
@@ -533,7 +520,6 @@ class PostgresJugadaRepository(JugadaRepositoryPort):
                     cur.execute(f"""
                         SELECT fecha, numeros
                         FROM {table_name}
-                        WHERE fecha >= CURRENT_DATE - INTERVAL '15 days'
                         ORDER BY fecha DESC
                         LIMIT %s;
                     """, (safe_limit,))

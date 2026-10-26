@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:provider/provider.dart';
 import 'package:eterlotto/l10n/generated/app_localizations.dart';
 import '../services/ad_service.dart';
+import '../services/ad_load_diagnostics.dart';
 import '../providers/subscription_provider.dart';
 import '../screens/subscription_screen.dart';
 import '../styles/colores.dart';
@@ -154,7 +155,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
             _isAdLoaded = true;
           });
         },
-        onAdFailedToLoad: (ad, _) {
+        onAdFailedToLoad: (ad, error) {
+          logAdLoadFailure('banner', error);
           ad.dispose();
           _isAdLoading = false;
           if (!mounted) return;
