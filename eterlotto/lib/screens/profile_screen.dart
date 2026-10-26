@@ -15,7 +15,7 @@ import 'package:eterlotto/services/push_notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
-import 'package:eterlotto/providers/locale_provider.dart';
+import 'package:eterlotto/widgets/language_selection_dialog.dart';
 import 'package:eterlotto/providers/subscription_provider.dart';
 import 'package:eterlotto/screens/subscription_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -676,126 +676,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showLanguageDialog(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          l10n.seleccionarIdioma,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Text("🇪🇸", style: TextStyle(fontSize: 22)),
-              title: const Text(
-                "Español",
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () => _confirmLanguageChange(context, const Locale('es')),
-            ),
-            ListTile(
-              leading: const Text("🇺🇸", style: TextStyle(fontSize: 22)),
-              title: const Text(
-                "English",
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () => _confirmLanguageChange(context, const Locale('en')),
-            ),
-            ListTile(
-              leading: const Text("🇧🇷", style: TextStyle(fontSize: 22)),
-              title: const Text(
-                "Português",
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () => _confirmLanguageChange(context, const Locale('pt')),
-            ),
-            ListTile(
-              leading: const Text("🇫🇷", style: TextStyle(fontSize: 22)),
-              title: const Text(
-                "Français",
-                style: TextStyle(color: Colors.white),
-              ),
-              onTap: () => _confirmLanguageChange(context, const Locale('fr')),
-            ),
-            const Divider(color: Colors.white24),
-            ListTile(
-              leading: const Icon(Icons.settings_suggest, color: Colors.amber),
-              title: Text(
-                l10n.idiomaSistema,
-                style: const TextStyle(color: Colors.white70),
-              ),
-              onTap: () => _confirmLanguageChange(context, null),
-            ),
-          ],
-        ),
-      ),
+      barrierDismissible: false,
+      builder: (_) => const LanguageSelectionDialog(),
     );
-  }
-
-  Future<void> _confirmLanguageChange(
-    BuildContext context,
-    Locale? newLocale,
-  ) async {
-    final l10n = AppLocalizations.of(context)!;
-    final locProvider = Provider.of<LocaleProvider>(context, listen: false);
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          l10n.seleccionarIdioma,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        content: Text(
-          l10n.confirmarCambioIdioma,
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              l10n.cancelar,
-              style: const TextStyle(color: Colors.white60),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              l10n.si,
-              style: const TextStyle(
-                color: AppColors.yellow,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      if (newLocale != null) {
-        await locProvider.setLocale(newLocale);
-      } else {
-        await locProvider.clearLocale();
-      }
-      unawaited(PushNotificationService.syncLanguagePreference());
-      if (mounted) {
-        Navigator.pop(context); // Cerrar el diálogo de selección de idioma
-      }
-    }
   }
 
   Future<void> _eliminarCuenta(BuildContext context) async {

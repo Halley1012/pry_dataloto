@@ -161,12 +161,7 @@ class Lotto6aus49Predictor:
                     CREATE INDEX IF NOT EXISTS idx_predicciones_loteria_id ON predicciones (loteria_id);
                 """))
 
-                # Limpieza de predicciones viejas
-                conn.execute(text("""
-                    DELETE FROM predicciones 
-                    WHERE LOWER(loteria_route) = :route 
-                      AND fecha < CURRENT_DATE - INTERVAL '15 days';
-                """), {"route": self.loteria_route})
+                # Conservar todo el historial de predicciones IA, sin purga por antigüedad.
 
                 conn.execute(text("""
                     INSERT INTO predicciones (loteria_id, loteria_route, fecha, numeros, balotaroja)

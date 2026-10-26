@@ -12,6 +12,7 @@ import 'package:intl/intl.dart';
 import 'resultados_dashboard_screen.dart';
 
 import '../utils/secure_storage_helper.dart';
+import '../config/navigation.dart';
 
 class NotificationsScreen extends StatefulWidget {
   final bool showBackButton;
@@ -182,10 +183,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Scaffold(
+    return ReturnHomeOnBack(child: Scaffold(
       backgroundColor: AppColors.blackfondo,
       appBar: AppBar(
         automaticallyImplyLeading: widget.showBackButton,
+        leading: widget.showBackButton ? IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => ReturnHomeOnBack.goBack(context),
+        ) : null,
         title: Text(
           l10n?.notificacionesIA ?? "Notificaciones",
           style: AppTextStyles.h2,
@@ -337,7 +342,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           );
         },
       ),
-    );
+    ));
   }
 
   Widget _buildOfflineNotice() {

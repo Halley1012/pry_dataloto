@@ -739,7 +739,11 @@ class ApiService {
         final parsed = int.tryParse(userIdStr);
         if (parsed != null && parsed > 0) return parsed;
       }
+    } catch (_) {
+      // The cached ID is optional: its read may fail while the token is valid.
+    }
 
+    try {
       // Fallback: Decodificar el token de autenticación
       final token = await getToken();
       if (token != null && token.isNotEmpty) {
@@ -753,7 +757,11 @@ class ApiService {
           if (sub != null) {
             final parsed = int.tryParse(sub.toString());
             if (parsed != null && parsed > 0) {
-              await _storage.write(key: "user_id", value: parsed.toString());
+              try {
+                await _storage.write(key: "user_id", value: parsed.toString());
+              } catch (_) {
+                // Repairing the local copy must not discard a recovered ID.
+              }
               return parsed;
             }
           }

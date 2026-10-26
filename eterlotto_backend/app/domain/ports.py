@@ -115,7 +115,7 @@ class UserRepositoryPort(ABC):
 
 class JugadaRepositoryPort(ABC):
     @abstractmethod
-    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: datetime, loteria_id: Optional[int] = None) -> Dict[str, Any]:
+    async def create_jugada(self, tipo: str, user_id: int, numeros: List[int], fecha_sorteo: Optional[date], fecha_guardado: datetime, expira: Optional[datetime], loteria_id: Optional[int] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod

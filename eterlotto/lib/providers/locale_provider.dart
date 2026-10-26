@@ -9,6 +9,9 @@ import 'package:eterlotto/services/api_service.dart';
 
 class LocaleProvider extends ChangeNotifier {
   Locale? _locale;
+  int _localeRevision = 0;
+  Future<void> _backendLanguageSync = Future<void>.value();
+  String? _latestBackendLanguage;
 
   Locale? get locale => _locale;
 
@@ -17,8 +20,14 @@ class LocaleProvider extends ChangeNotifier {
   }
 
   Future<void> _cargarLocaleGuardado() async {
-    final prefs = await SharedPreferences.getInstance();
-    final langCode = prefs.getString('language_code');
+    final revision = _localeRevision;
+    String? langCode;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.get('language_code');
+      if (saved is String) langCode = saved;
+    } catch (_) {}
+    if (revision != _localeRevision) return;
 
     if (langCode != null && langCode.trim().isNotEmpty) {
       _locale = Locale(langCode.trim());
@@ -27,18 +36,22 @@ class LocaleProvider extends ChangeNotifier {
       // Importante: versiones anteriores guardaban el idioma sólo en el
       // dispositivo. Al iniciar, lo sincronizamos también con el backend para
       // que FCM use el mismo idioma aunque el usuario no vuelva a abrir Perfil.
-      await _syncBackendLanguage(_locale!.languageCode);
+      _scheduleBackendLanguage(_locale!.languageCode);
       return;
     }
 
     // Si se usa "Idioma del sistema", sincronizamos el idioma efectivo que
     // Flutter realmente puede mostrar. No hay una lista duplicada hardcodeada:
     // se toma de AppLocalizations.supportedLocales.
-    await _syncBackendLanguage(_effectiveSystemLanguage());
+    _scheduleBackendLanguage(_effectiveSystemLanguage());
   }
 
   Future<void> setLocale(Locale loc) async {
     final normalized = Locale(loc.languageCode);
+    final revision = ++_localeRevision;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('language_code', normalized.languageCode);
+    if (revision != _localeRevision) return;
     final changed = _locale != normalized;
 
     _locale = normalized;
@@ -46,21 +59,30 @@ class LocaleProvider extends ChangeNotifier {
       notifyListeners();
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('language_code', normalized.languageCode);
-    await _syncBackendLanguage(normalized.languageCode);
+    _scheduleBackendLanguage(normalized.languageCode);
   }
 
   Future<void> clearLocale() async {
+    final revision = ++_localeRevision;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('language_code');
+    if (revision != _localeRevision) return;
     final changed = _locale != null;
     _locale = null;
     if (changed) {
       notifyListeners();
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('language_code');
-    await _syncBackendLanguage(_effectiveSystemLanguage());
+    _scheduleBackendLanguage(_effectiveSystemLanguage());
+  }
+
+  void _scheduleBackendLanguage(String code) {
+    _latestBackendLanguage = code;
+    // Preserve the order of changes without blocking the local interface.
+    _backendLanguageSync = _backendLanguageSync.then((_) async {
+      if (_latestBackendLanguage == code) await _syncBackendLanguage(code);
+    });
+    unawaited(_backendLanguageSync);
   }
 
   String _effectiveSystemLanguage() {

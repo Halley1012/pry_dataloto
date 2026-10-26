@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:intl/intl.dart';
 
 import '../config/app_config.dart';
 import 'api_service.dart';
@@ -223,6 +224,15 @@ class RewardBackendTexts {
   );
   String get active =>
       of('Pase activo', 'Pass active', 'Pass actif', 'Passe ativo');
+  String formatDuration(Duration duration) {
+    final totalMinutes = (duration.inSeconds / 60).ceil().clamp(0, 720);
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    final numbers = NumberFormat.decimalPattern(language);
+    if (hours == 0) return '${numbers.format(minutes)} min';
+    if (minutes == 0) return '${numbers.format(hours)} h';
+    return '${numbers.format(hours)} h ${numbers.format(minutes)} min';
+  }
   String remaining(String duration) => of(
     'Tiempo restante: $duration',
     'Time remaining: $duration',
