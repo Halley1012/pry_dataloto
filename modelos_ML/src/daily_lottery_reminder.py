@@ -1,4 +1,6 @@
 import argparse
+import json
+import math
 import re
 import sys
 from collections import defaultdict
@@ -19,7 +21,7 @@ from config.backend_notifications import BackendNotificationClient
 
 
 class DailyLotteryReminder:
-    """Un recordatorio diario por usuario, agrupando las loterías de su país."""
+    """Recordatorios por usuario y ventanas compatibles del calendario de su país."""
 
     def __init__(self):
         self.engine = get_engine()
@@ -39,8 +41,7 @@ class DailyLotteryReminder:
                         h.hora_sorteo,
                         h.nombre_sorteo,
                         h.id AS horario_id,
-                        COALESCE(l.horas_anticipacion_recordatorio, 5)
-                            AS horas_anticipacion_recordatorio
+                        l.horas_anticipacion_recordatorio
                     FROM loteria_horarios h
                     JOIN loterias l ON l.id = h.loteria_id
                     JOIN paises p ON p.id = l.pais_id
@@ -76,56 +77,53 @@ class DailyLotteryReminder:
 
         return [dict(row) for row in rows]
 
-    def _already_sent(
+    def _sent_draw_keys(
         self,
         user_id: int,
         target_date: date,
-        reminder_key: str,
-    ) -> bool:
-        """
-        Idempotencia por usuario + fecha + ventana.
-
-        No requiere migración de BD: reminder_key se guarda dentro de
-        message_params y se consulta desde allí. Así dos sorteos del mismo día
-        (p. ej. Chispazo 15:00 y 21:00) no se bloquean entre sí.
-        """
+    ) -> set[str]:
+        """Recupera cada sorteo ya incluido en un aviso, individual o agrupado."""
         with self.engine.connect() as conn:
-            return bool(
-                conn.execute(
-                    text("""
-                        SELECT EXISTS (
-                            SELECT 1
-                            FROM notificaciones
-                            WHERE usuario_id = :user_id
-                              AND fecha_sorteo = :fecha
-                              AND tipo = 'recordatorio_sorteos_hoy'
-                              AND COALESCE(
-                                  message_params::jsonb ->> 'reminder_key',
-                                  ''
-                              ) = :reminder_key
-                        )
-                    """),
-                    {
-                        "user_id": user_id,
-                        "fecha": target_date,
-                        "reminder_key": reminder_key,
-                    },
-                ).scalar()
-            )
+            rows = conn.execute(
+                text("""
+                    SELECT loteria_id, message_params
+                    FROM notificaciones
+                    WHERE usuario_id = :user_id
+                      AND fecha_sorteo = :fecha
+                      AND tipo = 'recordatorio_sorteos_hoy'
+                """),
+                {"user_id": user_id, "fecha": target_date},
+            ).mappings().all()
+
+        sent: set[str] = set()
+        for row in rows:
+            params = row["message_params"] or {}
+            if isinstance(params, str):
+                try:
+                    params = json.loads(params)
+                except (TypeError, ValueError):
+                    params = {}
+            key = params.get("reminder_key", "") if isinstance(params, dict) else ""
+            parts = str(key).split("|")
+            if len(parts) > 1 and parts[0] == target_date.isoformat():
+                sent.update(part for part in parts[1:] if part)
+            elif row["loteria_id"] is not None:
+                # Compatibilidad con avisos antiguos sin identidad de horario.
+                sent.add(f"lottery:{int(row['loteria_id'])}")
+        return sent
+
+    @staticmethod
+    def _draw_key(item: dict) -> str:
+        draw_time = item.get("hora_sorteo")
+        if isinstance(draw_time, str):
+            draw_time = time.fromisoformat(draw_time)
+        draw_value = draw_time.isoformat(timespec="minutes") if isinstance(draw_time, time) else ""
+        return f"{int(item['id'])}:{int(item.get('horario_id') or 0)}:{draw_value}"
 
     @staticmethod
     def _reminder_key(target_date: date, lotteries: list[dict]) -> str:
         """Clave estable para una ventana concreta de recordatorio."""
-        parts = []
-        for item in lotteries:
-            draw_time = item.get("hora_sorteo")
-            if isinstance(draw_time, time):
-                draw_value = draw_time.strftime("%H:%M")
-            else:
-                draw_value = str(draw_time or "")
-            parts.append(
-                f"{int(item['id'])}:{int(item.get('horario_id') or 0)}:{draw_value}"
-            )
+        parts = [DailyLotteryReminder._draw_key(item) for item in lotteries]
         return f"{target_date.isoformat()}|" + "|".join(sorted(parts))
 
     @staticmethod
@@ -146,54 +144,75 @@ class DailyLotteryReminder:
             return None
 
     @staticmethod
-    def _reminder_time(lottery: dict) -> time:
-        """Hora local de envío. Fallback: 18:00 local."""
+    def _reminder_time(lottery: dict) -> time | None:
+        """Deriva el envío del calendario; no inventa horas si falta configuración."""
         draw_time = lottery.get("hora_sorteo")
-        if draw_time is None:
-            return time(18, 0)
-
-        if isinstance(draw_time, str):
-            try:
+        try:
+            if isinstance(draw_time, str):
                 draw_time = time.fromisoformat(draw_time)
-            except ValueError:
-                return time(18, 0)
+            anticipation = float(lottery["horas_anticipacion_recordatorio"])
+            if not isinstance(draw_time, time) or not math.isfinite(anticipation) or anticipation < 0:
+                return None
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
 
-        anticipation = max(
-            0, int(lottery.get("horas_anticipacion_recordatorio") or 5)
-        )
-        base = datetime.combine(date(2000, 1, 2), draw_time)
-        reminder = base - timedelta(hours=anticipation)
-
-        # El mensaje actual dice "hoy juega". Si cae el día anterior,
-        # mantenemos temporalmente el fallback de las 18:00 del día del sorteo.
-        if reminder.date() != base.date():
-            return time(18, 0)
-
-        return reminder.time().replace(second=0, microsecond=0)
+        # Si la anticipación cruza medianoche, "hoy juega" empieza al iniciar
+        # el día del sorteo, nunca a una hora fija ajena a su calendario.
+        midnight = datetime.combine(date.today(), time.min)
+        draw = datetime.combine(midnight.date(), draw_time)
+        seconds_until_draw = (draw - midnight).total_seconds()
+        advance_seconds = min(seconds_until_draw, anticipation * 3600)
+        return (draw - timedelta(seconds=advance_seconds)).time()
 
     @staticmethod
     def _is_reminder_window(
         local_now: datetime,
-        reminder_time: time,
+        reminder_time: time | None,
         draw_time: time | str | None,
     ) -> bool:
         """Permite recuperar un aviso perdido mientras el sorteo aún no ocurrió."""
-        if draw_time is None:
-            return local_now.hour == reminder_time.hour
-
-        if isinstance(draw_time, str):
-            try:
+        if reminder_time is None or draw_time is None:
+            return False
+        try:
+            if isinstance(draw_time, str):
                 draw_time = time.fromisoformat(draw_time)
-            except ValueError:
-                return local_now.hour == reminder_time.hour
+            return reminder_time <= local_now.time().replace(tzinfo=None) < draw_time
+        except (TypeError, ValueError):
+            return False
 
-        # Comparación por minutos locales para no mezclar datetime
-        # con timezone (aware) y datetime sin timezone (naive).
-        current_minutes = local_now.hour * 60
-        reminder_minutes = reminder_time.hour * 60
-        draw_minutes = draw_time.hour * 60 + draw_time.minute
+    def _reminder_groups(self, lotteries: list[dict]) -> list[list[dict]]:
+        """Agrupa ventanas con intersección por país y zona, sin reglas por juego/día."""
+        by_country_zone: dict[tuple[int, str], list[dict]] = defaultdict(list)
+        for lottery in lotteries:
+            reminder = self._reminder_time(lottery)
+            timezone_name = str(lottery.get("timezone") or "").strip()
+            if reminder is None or not timezone_name:
+                print(f"⚠️ Horario/anticipación incompletos para lotería {lottery.get('id')}; se omite.")
+                continue
+            item = dict(lottery)
+            item["_individual_reminder_time"] = reminder
+            draw = item["hora_sorteo"]
+            item["hora_sorteo"] = time.fromisoformat(draw) if isinstance(draw, str) else draw
+            if reminder >= item["hora_sorteo"]:
+                continue
+            by_country_zone[(int(item["pais_id"]), timezone_name)].append(item)
 
-        return reminder_minutes <= current_minutes < draw_minutes
+        groups: list[list[dict]] = []
+        for items in by_country_zone.values():
+            items.sort(key=lambda item: (
+                item["_individual_reminder_time"], item["hora_sorteo"], self._draw_key(item),
+            ))
+            current: list[dict] = []
+            window_end = None
+            for item in items:
+                if current and item["_individual_reminder_time"] >= window_end:
+                    groups.append(current)
+                    current = []
+                current.append(item)
+                window_end = min(value["hora_sorteo"] for value in current)
+            if current:
+                groups.append(current)
+        return groups
 
     def _scheduled_lotteries(self, now_utc: datetime) -> dict[date, list[dict]]:
         """Selecciona las loterías que están en su ventana local de envío."""
@@ -219,31 +238,22 @@ class DailyLotteryReminder:
 
         selected: dict[date, list[dict]] = defaultdict(list)
         for local_date in sorted(local_dates):
-            for lottery in self._lotteries_due_on(local_date):
-                tz_name = str(lottery.get("timezone") or "").strip()
-                if not tz_name:
-                    print(f"⚠️ Lotería {lottery.get('id')} sin timezone; se omite.")
-                    continue
-
+            for group in self._reminder_groups(self._lotteries_due_on(local_date)):
+                tz_name = str(group[0]["timezone"]).strip()
                 local_now = self._local_now(tz_name, now_utc)
                 if local_now is None:
-                    print(
-                        f"⚠️ Timezone inválida '{tz_name}' "
-                        f"para lotería {lottery.get('id')}; se omite."
-                    )
+                    print(f"⚠️ Timezone inválida '{tz_name}'; se omite el grupo.")
                     continue
-
                 if local_now.date() != local_date:
                     continue
-                reminder_time = self._reminder_time(lottery)
-                if not self._is_reminder_window(
-                    local_now,
-                    reminder_time,
-                    lottery.get("hora_sorteo"),
-                ):
-                    continue
-                lottery["horario_especial"] = True
-                selected[local_date].append(lottery)
+                reminder_time = max(item["_individual_reminder_time"] for item in group)
+                group_key = self._reminder_key(local_date, group)
+                for lottery in group:
+                    if self._is_reminder_window(local_now, reminder_time, lottery["hora_sorteo"]):
+                        lottery["horario_especial"] = True
+                        lottery["_group_reminder_time"] = reminder_time
+                        lottery["_reminder_group_key"] = group_key
+                        selected[local_date].append(lottery)
 
         return selected
 
@@ -263,11 +273,9 @@ class DailyLotteryReminder:
                 if local_now is None:
                     continue
 
-                reminder_time = self._reminder_time(lottery)
+                reminder_time = lottery.get("_group_reminder_time") or self._reminder_time(lottery)
                 draw_time = lottery.get("hora_sorteo")
-                anticipation = int(
-                    lottery.get("horas_anticipacion_recordatorio") or 5
-                )
+                anticipation = lottery.get("horas_anticipacion_recordatorio")
 
                 print(
                     f"🌍 {lottery.get('pais_nombre') or 'País'} "
@@ -351,14 +359,16 @@ class DailyLotteryReminder:
         force: bool = False,
         dry_run: bool = False,
     ) -> None:
-        by_country: dict[int, list[dict]] = defaultdict(list)
+        by_country: dict[int, dict[str, list[dict]]] = defaultdict(lambda: defaultdict(list))
         for lottery in lotteries:
-            by_country[int(lottery["pais_id"])].append(lottery)
+            group_key = lottery.get("_reminder_group_key") or "manual"
+            by_country[int(lottery["pais_id"])][group_key].append(lottery)
 
         users = self._users_for_countries(sorted(by_country))
         if not users:
             if dry_run:
-                for pais_id, country_lotteries in sorted(by_country.items()):
+                for pais_id, batches in sorted(by_country.items()):
+                    country_lotteries = [item for batch in batches.values() for item in batch]
                     pais_nombre = (
                         country_lotteries[0].get("pais_nombre") or "País"
                     )
@@ -380,57 +390,60 @@ class DailyLotteryReminder:
         for user in users:
             user_id = int(user["id"])
             pais_id = int(user["pais_id"])
-            country_lotteries = by_country.get(pais_id, [])
-            if not country_lotteries:
+            batches = by_country.get(pais_id, {})
+            if not batches:
                 continue
+            sent_keys = set() if force else self._sent_draw_keys(user_id, target_date)
+            for batch in batches.values():
+                pending = [item for item in batch if force or (
+                    self._draw_key(item) not in sent_keys
+                    and f"lottery:{int(item['id'])}" not in sent_keys
+                )]
+                if not pending:
+                    skipped += 1
+                    continue
 
-            reminder_key = self._reminder_key(target_date, country_lotteries)
-            if not force and self._already_sent(
-                user_id, target_date, reminder_key
-            ):
-                skipped += 1
-                continue
+                reminder_key = self._reminder_key(target_date, pending)
+                names = list(dict.fromkeys(str(item["nombre"]) for item in pending))
+                message_key = self._message_key(names)
 
-            names = list(
-                dict.fromkeys(str(item["nombre"]) for item in country_lotteries)
-            )
-            message_key = self._message_key(names)
+                if dry_run:
+                    print(
+                        f"🧪 DRY-RUN | user_id={user_id} | país={pais_id} "
+                        f"| fecha={target_date} | loterías={', '.join(names)} "
+                        "| NO ENVIADO"
+                    )
+                    sent += 1
+                    continue
 
-            if dry_run:
-                print(
-                    f"🧪 DRY-RUN | user_id={user_id} | país={pais_id} "
-                    f"| fecha={target_date} | loterías={', '.join(names)} "
-                    "| NO ENVIADO"
-                )
-                sent += 1
-                continue
-
-            try:
-                response = self.client.publish(
-                    loteria_id=int(country_lotteries[0]["id"]),
-                    fecha_sorteo=target_date,
-                    mensaje=(
-                        f"🎟️ {', '.join(names)} draw today. "
-                        "Check your analyses and plays in Eterlotto."
-                    ),
-                    message_key=message_key,
-                    message_params={
-                        "lotteries": names,
-                        "reminder_key": reminder_key,
-                    },
-                    tipo="recordatorio_sorteos_hoy",
-                    user_id=user_id,
-                )
-                push = response.get("push") or {}
-                print(
-                    f"✅ user_id={user_id} | país={pais_id} "
-                    f"| fecha={target_date} | loterías={len(names)} "
-                    f"| sent={push.get('sent', 0)}"
-                )
-                sent += 1
-            except Exception as exc:
-                print(f"⚠️ user_id={user_id}: {exc}")
-                failed += 1
+                try:
+                    response = self.client.publish(
+                        loteria_id=int(pending[0]["id"]),
+                        fecha_sorteo=target_date,
+                        mensaje=(
+                            f"🎟️ {', '.join(names)} draw today. "
+                            "Check your analyses and plays in Eterlotto."
+                        ),
+                        message_key=message_key,
+                        message_params={"lotteries": names, "reminder_key": reminder_key},
+                        tipo="recordatorio_sorteos_hoy",
+                        user_id=user_id,
+                    )
+                    push = response.get("push") or {}
+                    if response.get("created") is False or response.get("duplicate") or push.get("skipped_duplicate"):
+                        print(f"ℹ️ Backend omitió duplicado | user_id={user_id} | fecha={target_date}")
+                        skipped += 1
+                        continue
+                    sent_keys.update(self._draw_key(item) for item in pending)
+                    print(
+                        f"✅ user_id={user_id} | país={pais_id} "
+                        f"| fecha={target_date} | loterías={len(names)} "
+                        f"| sent={push.get('sent', 0)}"
+                    )
+                    sent += 1
+                except Exception as exc:
+                    print(f"⚠️ user_id={user_id}: {exc}")
+                    failed += 1
 
         if dry_run:
             print(
